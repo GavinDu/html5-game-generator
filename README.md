@@ -69,6 +69,20 @@ Plain Repl, no Agent mode:
 3. Press Run (or `go run .`) — Replit sets `PORT` for you
 4. Open the Webview URL and check `/healthz` → `{"status":"ok"}`
 
+## Sample
+
+`sample/test_pipeline.sh` is an end-to-end smoke test against a running
+server: ingest → create game → confirm the design doc → verify bundle assets
+(`game.js`, sprite PNG, music WAV) → group sharing and public feed checks.
+It ingests with keywords `dragon, castle` (matching the sample kid-style
+crayon drawing of a dragon and a castle — drop `drawing.jpg` into `sample/`
+via the GitHub web UI if you want the picture alongside the script).
+
+```sh
+./sample/test_pipeline.sh http://localhost:8080
+# on Replit: ./sample/test_pipeline.sh https://<repl>.<owner>.replit.dev
+```
+
 ## Roadmap
 
 - Wire real vision/SPEC/codegen behind `pipeline` stage functions via env keys
