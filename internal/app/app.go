@@ -7,16 +7,21 @@ import (
 	"os"
 
 	"doodlequest/internal/api"
+	"doodlequest/internal/inventory"
 	"doodlequest/internal/pipeline"
-	"doodlequest/internal/sample"
 	"doodlequest/internal/store"
 )
 
 // Run starts the HTTP server on $PORT (default 8080).
 func Run() {
 	st := store.NewMemoryStore()
-	sample.Seed(st)    // built-in sample game: "Bobo's Rainbow"
-	sample.SeedSky(st) // built-in sample game: "飘带补天 Ribbon Mends the Sky"
+	invDir := os.Getenv("INVENTORY_DIR")
+	if invDir == "" {
+		invDir = "inventory"
+	}
+	if err := inventory.Load(st, invDir); err != nil {
+		log.Fatalf("inventory: %v", err)
+	}
 	runner := pipeline.NewRunner(st)
 	srv := api.New(st, runner)
 

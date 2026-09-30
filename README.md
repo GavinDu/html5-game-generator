@@ -60,33 +60,33 @@ go test ./...
 PORT=8080 go run ./cmd/server
 ```
 
-## Player & sample game
+## Player & sample games
 
-The backend ships a playable sample game plus a browser player that runs any
-public GameShim v1 bundle the backend publishes.
+Shipped games live in `inventory/<6-char-id>/` — one folder per game with
+its `manifest.json`, `game.js`, and `assets/` (see `inventory/README.md`).
+They load automatically at server start. The browser player at `GET /player`
+lists public games from `/v1/feed` and runs any GameShim v1 bundle
+(`GET /` redirects to `/player`).
 
-- **Bobo's Rainbow** (`sample-rainbow-bear`) — seeded automatically at server
-  start (`internal/sample`). A kid's drawing (bear with a crown, floating
-  hearts, a rainbow, a kitten sketch) became a real game: tap to slide Bobo
-  left/right, catch falling hearts, and every two hearts restores one of the
-  six rainbow bands. Catch 12 hearts to finish the rainbow so the kitten can
-  cross. No lose condition — kid-safe. See `sample/plot.md` for the story.
-- **飘带补天 Ribbon Mends the Sky** (`sample-ribbon-sky`) — second seeded
-  sample (`internal/sample/sky.go`, `internal/sample/assets-sky/`). Built from
-  a photo of a little girl in a fairy dress riding a swirl cloud, holding a
-  golden staff with ribbons flowing: tap to fly her cloud, dive through the
-  six dark sky-holes so her ribbons stitch them shut, tap wind demons to bonk
-  them (+20), catch nine-colored deer rainbow shards (+10). Kid-safe, no lose
-  condition. Story in `sample/sky-plot.md`; headless bot playtest in
-  `sample/verify_sky.js` (`node sample/verify_sky.js`); standalone builder
-  `sample/make_standalone_sky.py`.
-- **Player** — `GET /player` lists public games from `/v1/feed` and runs the
-  chosen bundle in a browser GameShim v1 runtime (canvas, sprites, text, tap
-  input, music, tones, end card). `GET /` redirects to `/player`.
-- **Standalone** — `sample/make_standalone.py` builds a self-contained
-  single-file copy of the game (sprites, music, and game code embedded as
-  data URIs). Open it in any browser — no server needed:
-  `./sample/make_standalone.py http://localhost:8080 sample/bobos-rainbow-standalone.html`
+- **Bobo's Rainbow** (`sample-rainbow-bear`, `inventory/13ui1k/`) — a kid's
+  drawing (bear with a crown, floating hearts, a rainbow, a kitten sketch)
+  became a real game: tap to slide Bobo left/right, catch falling hearts,
+  and every two hearts restores one of the six rainbow bands. Catch 12
+  hearts to finish the rainbow so the kitten can cross. No lose condition —
+  kid-safe. See `inventory/13ui1k/plot.md` for the story.
+- **飘带补天 Ribbon Mends the Sky** (`sample-ribbon-sky`,
+  `inventory/u46ex5/`) — built from a photo of a little girl in a fairy
+  dress riding a swirl cloud, holding a golden staff with ribbons flowing:
+  tap to fly her cloud, dive through the six dark sky-holes so her ribbons
+  stitch them shut, tap wind demons to bonk them (+20), catch nine-colored
+  deer rainbow shards (+10). Kid-safe, no lose condition. Story in
+  `inventory/u46ex5/plot.md`; headless bot playtest
+  (`node inventory/u46ex5/verify.js`); standalone builder
+  `inventory/u46ex5/make_standalone.py`.
+- **Standalone** — each game's `make_standalone.py` builds a self-contained
+  single-file copy (sprites, music, and game code embedded as data URIs).
+  Open it in any browser — no server needed:
+  `./inventory/13ui1k/make_standalone.py http://localhost:8080`
 
 ## Run on your phone (same Wi-Fi)
 
