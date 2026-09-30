@@ -85,13 +85,21 @@ echo "$MANIFEST" | python3 -m json.tool | head -20
 JS="$(api GET "/v1/games/$GAME_ID/bundle/game.js")"
 [ ${#JS} -gt 100 ] || fail "game.js too small"
 echo "$JS" | grep -q "Shim\.init" && echo "game.js targets the GameShim API"
-SPRITE="$(echo "$MANIFEST" | jget assets.sprites.0.id)"
-if [ -n "$SPRITE" ]; then
-  curl -sf -H "X-User-ID: $USER" "$BASE/v1/games/$GAME_ID/bundle/sprites/$SPRITE" -o /tmp/dq_sprite.png
-  head -c 8 /tmp/dq_sprite.png | grep -q "PNG" && echo "sprite $SPRITE is a valid PNG"
+SPRITE_SRC="$(echo "$MANIFEST" | jget assets.sprites.0.src)"
+if [ -n "$SPRITE_SRC" ]; then
+  curl -sf -H "X-User-ID: $USER" "$BASE/v1/games/$GAME_ID/bundle/$SPRITE_SRC" -o /tmp/dq_sprite.png
+  head -c 8 /tmp/dq_sprite.png | grep -q "PNG" && echo "sprite $SPRITE_SRC is a valid PNG"
 fi
 curl -sf -H "X-User-ID: $USER" "$BASE/v1/games/$GAME_ID/bundle/audio/theme.wav" -o /tmp/dq_theme.wav
 head -c 4 /tmp/dq_theme.wav | grep -q "RIFF" && echo "theme.wav is a valid WAV"
+
+say "7b/9 verify sample game bundle (Bobo's Rainbow)"
+SMANIFEST="$(api GET "/v1/games/sample-rainbow-bear/bundle")"
+echo "$SMANIFEST" | grep -q "Bobo's Rainbow" || fail "sample game missing from bundle"
+for SRC in $(echo "$SMANIFEST" | python3 -c "import json,sys; m=json.load(sys.stdin); print(' '.join([s['src'] for s in m['assets']['sprites']] + [m['assets']['music']['src']]))"); do
+  curl -sf -H "X-User-ID: $USER" "$BASE/v1/games/sample-rainbow-bear/bundle/$SRC" -o /tmp/dq_sample_asset || fail "sample asset $SRC not fetchable"
+done
+echo "sample game: all $(echo "$SMANIFEST" | python3 -c "import json,sys; m=json.load(sys.stdin); print(len(m['assets']['sprites']))") sprites + music fetchable as declared"
 
 say "8/9 sharing: invite-only group"
 GROUP_JSON="$(api POST /v1/groups '{"name":"test-family"}')"

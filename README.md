@@ -41,7 +41,7 @@ currently all `provider: "stub"` with zero cost. Swap order for production:
 | `POST /v1/games/{id}/confirm` | `{design_doc?}` → resumes art→codegen→validate→publish |
 | `GET /v1/games/{id}/bundle` | published manifest |
 | `GET /v1/games/{id}/bundle/game.js` | generated game code |
-| `GET /v1/games/{id}/bundle/sprites/{sprite}.png` | sprite assets |
+| `GET /v1/games/{id}/bundle/sprites/{sprite}` | sprite assets (e.g. `/bundle/sprites/bear.png`) |
 | `GET /v1/games/{id}/bundle/audio/theme.wav` | music loop |
 | `POST /v1/groups` | create invite-based group |
 | `POST /v1/groups/{id}/join` | `{invite_code}` |
@@ -59,6 +59,35 @@ go build ./...
 go test ./...
 PORT=8080 go run ./cmd/server
 ```
+
+## Player & sample game
+
+The backend ships a playable sample game plus a browser player that runs any
+public GameShim v1 bundle the backend publishes.
+
+- **Bobo's Rainbow** (`sample-rainbow-bear`) — seeded automatically at server
+  start (`internal/sample`). A kid's drawing (bear with a crown, floating
+  hearts, a rainbow, a kitten sketch) became a real game: tap to slide Bobo
+  left/right, catch falling hearts, and every two hearts restores one of the
+  six rainbow bands. Catch 12 hearts to finish the rainbow so the kitten can
+  cross. No lose condition — kid-safe. See `sample/plot.md` for the story.
+- **Player** — `GET /player` lists public games from `/v1/feed` and runs the
+  chosen bundle in a browser GameShim v1 runtime (canvas, sprites, text, tap
+  input, music, tones, end card). `GET /` redirects to `/player`.
+- **Standalone** — `sample/make_standalone.py` builds a self-contained
+  single-file copy of the game (sprites, music, and game code embedded as
+  data URIs). Open it in any browser — no server needed:
+  `./sample/make_standalone.py http://localhost:8080 sample/bobos-rainbow-standalone.html`
+
+## Run on your phone (same Wi-Fi)
+
+```sh
+./launch.sh            # builds, prints the LAN URL, starts the server
+PORT=9000 ./launch.sh  # custom port
+```
+
+Open the printed `http://<your-lan-ip>:8080` URL in your phone's browser —
+it lands on the player.
 
 ## Run on Replit
 

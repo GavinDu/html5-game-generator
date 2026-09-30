@@ -3,6 +3,7 @@
 package api
 
 import (
+	_ "embed"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -12,6 +13,9 @@ import (
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
 )
+
+//go:embed web/player.html
+var playerHTML string
 
 type Server struct {
 	store  store.Store
@@ -25,6 +29,8 @@ func New(st store.Store, r *pipeline.Runner) *Server {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("GET /", s.handleRoot)
+	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("POST /v1/ingest", s.handleIngest)
 	mux.HandleFunc("POST /v1/games", s.handleCreateGame)
 	mux.HandleFunc("GET /v1/games/{id}", s.handleGetGame)
@@ -83,6 +89,19 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "doodlequest"})
+}
+
+// GET / — send browsers straight to the player.
+func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/player", http.StatusFound)
+}
+
+// GET /player — the web player: lists public games, runs any bundle
+// through the GameShim v1 runtime.
+func (s *Server) handlePlayer(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(playerHTML))
 }
 
 // POST /v1/ingest — Stage 0: drawing + keywords -> elements + guessed intent.
@@ -208,7 +227,7 @@ func (s *Server) handleGameJS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSprite(w http.ResponseWriter, r *http.Request) {
-	s.serveArtifact(w, r, "sprites/"+r.PathValue("sprite")+".png")
+	s.serveArtifact(w, r, "sprites/"+r.PathValue("sprite"))
 }
 
 func (s *Server) handleMusic(w http.ResponseWriter, r *http.Request) {

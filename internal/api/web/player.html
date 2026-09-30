@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>DoodleQuest Player</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #10142b; color: #fff; }
+  header { padding: 14px 18px; font-size: 20px; font-weight: 700; background: #1b2340; position: sticky; top: 0; z-index: 5; }
+  header small { display: block; font-size: 12px; font-weight: 400; color: #9fb2ff; }
+  #list { padding: 16px; display: grid; gap: 12px; max-width: 560px; margin: 0 auto; }
+  .game-card { background: #1b2340; border-radius: 14px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+  .game-card .info { flex: 1; }
+  .game-card .title { font-size: 18px; font-weight: 700; }
+  .game-card .meta { font-size: 13px; color: #9fb2ff; margin-top: 4px; }
+  .game-card button { background: #4f7cff; color: #fff; border: 0; border-radius: 10px; padding: 12px 18px; font-size: 16px; font-weight: 700; }
+  #empty { text-align: center; color: #9fb2ff; padding: 60px 20px; }
+  #play { display: none; max-width: 480px; margin: 0 auto; padding: 12px; }
+  #stage { position: relative; width: 100%; aspect-ratio: 390 / 844; background: #000; border-radius: 14px; overflow: hidden; touch-action: none; }
+  #stage canvas { width: 100%; height: 100%; display: block; }
+  #backbar { display: flex; gap: 10px; margin-bottom: 10px; }
+  #backbar button { background: #2a3358; color: #fff; border: 0; border-radius: 10px; padding: 10px 16px; font-size: 15px; }
+  #endcard { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10, 14, 35, .82); }
+  #endcard .box { background: #1b2340; border-radius: 18px; padding: 28px; text-align: center; width: 82%; }
+  #endcard h2 { margin: 0 0 8px; font-size: 26px; }
+  #endcard p { color: #9fb2ff; margin: 6px 0 18px; }
+  #endcard button { background: #4f7cff; color: #fff; border: 0; border-radius: 12px; padding: 14px 26px; font-size: 17px; font-weight: 700; margin: 4px; }
+  #err { display:none; background:#5b1f1f; color:#ffd7d7; border-radius:10px; padding:12px; margin-top:10px; font-size:13px; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header>🎮 DoodleQuest Player<small>games generated from kids' drawings</small></header>
+
+<div id="list"></div>
+
+<div id="play">
+  <div id="backbar"><button id="back">← Games</button></div>
+  <div id="stage">
+    <canvas id="cv" width="390" height="844"></canvas>
+    <div id="endcard"><div class="box">
+      <h2 id="endtitle">You win!</h2>
+      <p id="endsub"></p>
+      <button id="again">Play again</button>
+      <button id="togames">Games</button>
+    </div></div>
+  </div>
+  <div id="err"></div>
+</div>
+
+<script>
+'use strict';
+var API = '';
+var W = 390, H = 844;
+var cv = document.getElementById('cv');
+var ctx = cv.getContext('2d');
+var currentManifest = null;
+var rafId = 0;
+
+function show(id) {
+  document.getElementById('list').style.display = id === 'list' ? '' : 'none';
+  document.getElementById('play').style.display = id === 'play' ? '' : 'none';
+}
+
+function loadGames() {
+  fetch(API + '/v1/feed').then(function (r) { return r.json(); }).then(function (data) {
+    var list = document.getElementById('list');
+    list.innerHTML = '';
+    var games = (data && data.games) || [];
+    if (!games.length) {
+      list.innerHTML = '<div id="empty">No public games yet.<br>Generate one from a drawing first.</div>';
+      return;
+    }
+    games.forEach(function (g) {
+      var card = document.createElement('div');
+      card.className = 'game-card';
+      var n = (g.manifest && g.manifest.assets && g.manifest.assets.sprites || []).length;
+      card.innerHTML = '<div class="info"><div class="title"></div>' +
+        '<div class="meta">' + n + ' sprites · tap to move</div></div>';
+      card.querySelector('.title').textContent = g.title || g.game_id;
+      var btn = document.createElement('button');
+      btn.textContent = 'Play';
+      btn.onclick = function () { playGame(g.game_id); };
+      card.appendChild(btn);
+      list.appendChild(card);
+    });
+  }).catch(function (e) {
+    document.getElementById('list').innerHTML =
+      '<div id="empty">Could not reach the backend.<br>' + String(e).replace(/</g, '&lt;') + '</div>';
+  });
+}
+
+// ---- GameShim v1 runtime ----
+function makeShim(bundleBase, spriteImgs) {
+  var sprites = [];
+  var texts = {};
+  var inputCb = null;
+  var audioCtx = null;
+  var musicEl = null;
+  var running = true;
+
+  function tone(o) {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      var osc = audioCtx.createOscillator();
+      var g = audioCtx.createGain();
+      osc.type = o.type || 'sine';
+      osc.frequency.value = o.freq || 440;
+      g.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (o.dur || 0.15));
+      osc.connect(g); g.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + (o.dur || 0.15));
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  var Shim = {
+    init: function (o) { W = o.width || 390; H = o.height || 844; cv.width = W; cv.height = H; },
+    sprite: function (id, o) {
+      o = o || {};
+      var s = { id: id, x: o.x || 0, y: o.y || 0, w: o.w || 64, h: o.h || 64,
+                visible: o.visible !== false, img: spriteImgs[id] || null };
+      sprites.push(s);
+      return s;
+    },
+    text: function (id, str, o) {
+      o = o || {};
+      texts[id] = { str: String(str), x: o.x || 0, y: o.y || 0, size: o.size || 20, color: o.color || '#fff' };
+    },
+    input: function (verb, cb) { if (verb === 'tap') inputCb = cb; },
+    audio: {
+      music: function (src, o) {
+        o = o || {};
+        try {
+          musicEl = new Audio(bundleBase + '/' + src);
+          musicEl.loop = !!o.loop;
+          musicEl.volume = (o.volume == null) ? 0.6 : o.volume;
+          musicEl.play().catch(function () {});
+        } catch (e) { /* ignore */ }
+      },
+      tone: tone
+    },
+    loop: function (fn) {
+      var last = performance.now();
+      function frame(t) {
+        if (!running) return;
+        var dt = Math.min(0.05, (t - last) / 1000);
+        last = t;
+        try { fn(dt); } catch (e) { running = false; gameError(e); return; }
+        draw();
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    },
+    end: function (res) {
+      running = false;
+      cancelAnimationFrame(rafId);
+      if (musicEl) { try { musicEl.pause(); } catch (e) {} }
+      showEnd(res || {});
+    },
+    _sprites: sprites,
+    _stop: function () { running = false; cancelAnimationFrame(rafId); if (musicEl) { try { musicEl.pause(); } catch (e) {} } }
+  };
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < sprites.length; i++) {
+      var s = sprites[i];
+      if (!s.visible || !s.img || !s.img.complete) continue;
+      ctx.drawImage(s.img, s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+    }
+    for (var k in texts) {
+      var t = texts[k];
+      ctx.fillStyle = t.color;
+      ctx.font = '600 ' + t.size + 'px -apple-system, sans-serif';
+      ctx.fillText(t.str, t.x, t.y + t.size);
+    }
+  }
+
+  cv.onpointerdown = function (ev) {
+    if (!inputCb) return;
+    var r = cv.getBoundingClientRect();
+    var x = (ev.clientX - r.left) / r.width * W;
+    var y = (ev.clientY - r.top) / r.height * H;
+    try { inputCb(x, y); } catch (e) { gameError(e); }
+  };
+
+  return Shim;
+}
+
+function gameError(e) {
+  var el = document.getElementById('err');
+  el.style.display = 'block';
+  el.textContent = 'Game error: ' + (e && e.message || e);
+}
+
+function showEnd(res) {
+  document.getElementById('endtitle').textContent = res.won === false ? 'Game over' : '🎉 You win!';
+  var sub = 'Score: ' + (res.score == null ? '—' : res.score);
+  if (res.stats && res.stats.time_s != null) sub += ' · ' + res.stats.time_s + 's';
+  document.getElementById('endsub').textContent = sub;
+  document.getElementById('endcard').style.display = 'flex';
+}
+
+function playGame(gameId) {
+  show('play');
+  document.getElementById('endcard').style.display = 'none';
+  document.getElementById('err').style.display = 'none';
+  cancelAnimationFrame(rafId);
+  var base = API + '/v1/games/' + gameId + '/bundle';
+  fetch(base).then(function (r) {
+    if (!r.ok) throw new Error('bundle HTTP ' + r.status);
+    return r.json();
+  }).then(function (manifest) {
+    currentManifest = manifest;
+    var imgs = {};
+    var list = (manifest.assets && manifest.assets.sprites) || [];
+    var loads = list.map(function (sp) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () { imgs[sp.id] = img; resolve(); };
+        img.onerror = function () { resolve(); };
+        img.src = base + '/' + sp.src;
+      });
+    });
+    return Promise.all(loads).then(function () {
+      return fetch(base + '/game.js').then(function (r) {
+        if (!r.ok) throw new Error('game.js HTTP ' + r.status);
+        return r.text();
+      }).then(function (code) {
+        var Shim = makeShim(base, imgs);
+        // background
+        var bg = '#8ecae6';
+        var m = /Shim\.init\(\{\s*[^}]*background:\s*'([^']+)'/.exec(code);
+        if (m) bg = m[1];
+        document.getElementById('stage').style.background = bg;
+        new Function('Shim', code)(Shim);
+        document.getElementById('again').onclick = function () { playGame(gameId); };
+      });
+    });
+  }).catch(function (e) { gameError(e); });
+}
+
+document.getElementById('back').onclick = function () { cancelAnimationFrame(rafId); show('list'); };
+document.getElementById('togames').onclick = function () { show('list'); };
+
+loadGames();
+</script>
+</body>
+</html>

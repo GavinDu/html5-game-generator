@@ -74,6 +74,64 @@ func StarPNG() []byte {
 	return buf.Bytes()
 }
 
+// HeartPNG paints a 48x48 heart in the given color — the pink and blue
+// hearts floating around Bobo in the kid's drawing.
+func HeartPNG(c color.NRGBA) []byte {
+	const S = 48
+	img := image.NewNRGBA(image.Rect(0, 0, S, S))
+	for y := 0; y < S; y++ {
+		for x := 0; x < S; x++ {
+			fx, fy := float64(x)/S, float64(y)/S
+			// Heart implicit curve: (x^2+y^2-1)^3 - x^2*y^3 < 0
+			px, py := (fx-0.5)*2.4, -(fy-0.52)*2.4
+			a := px*px + py*py - 1
+			if a*a*a-px*px*py*py*py < 0 {
+				img.SetNRGBA(x, y, c)
+			}
+		}
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return buf.Bytes()
+}
+
+// RainbowBandPNG paints one of the six rainbow bands as a transparent PNG.
+// Band 0 is the outermost (red), band 5 the innermost (purple); together
+// they form the arch from the drawing and are revealed one at a time.
+func RainbowBandPNG(band int) []byte {
+	const W, H = 380, 230
+	img := image.NewNRGBA(image.Rect(0, 0, W, H))
+	cols := []color.NRGBA{
+		{231, 76, 60, 255},   // red
+		{230, 126, 34, 255},  // orange
+		{241, 196, 15, 255},  // yellow
+		{46, 204, 113, 255},  // green
+		{52, 152, 219, 255},  // blue
+		{155, 89, 182, 255},  // purple
+	}
+	if band < 0 || band > 5 {
+		band = 0
+	}
+	cx, cy := 190.0, 218.0
+	bandW := 168.0 / 6
+	rMid := 168.0 - bandW*float64(band) - bandW/2
+	for y := 0; y < H; y++ {
+		for x := 0; x < W; x++ {
+			dx, dy := float64(x)-cx, float64(y)-cy
+			if dy > 0 {
+				continue // upper half only
+			}
+			r := math.Hypot(dx, dy)
+			if math.Abs(r-rMid) <= bandW/2 {
+				img.SetNRGBA(x, y, cols[band])
+			}
+		}
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return buf.Bytes()
+}
+
 func fillCircle(img *image.NRGBA, cx, cy, r int, c color.NRGBA) {
 	for y := cy - r; y <= cy+r; y++ {
 		for x := cx - r; x <= cx+r; x++ {

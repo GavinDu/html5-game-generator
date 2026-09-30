@@ -119,14 +119,22 @@ func TestFullPipeline(t *testing.T) {
 		t.Fatalf("bad manifest: %+v", manifest)
 	}
 
+	bundleBase := "/v1/games/" + created.Game.ID + "/bundle"
 	for _, p := range []string{
-		"/v1/games/" + created.Game.ID + "/bundle/game.js",
-		"/v1/games/" + created.Game.ID + "/bundle/sprites/el_1",
-		"/v1/games/" + created.Game.ID + "/bundle/audio/theme.wav",
+		bundleBase + "/game.js",
+		bundleBase + "/" + manifest.Assets.Music.Src,
 	} {
 		rec = do(t, srv, "GET", p, nil, "")
 		if rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Fatalf("artifact %s: %d, len %d", p, rec.Code, rec.Body.Len())
+		}
+	}
+	// Every sprite URL exactly as the manifest declares it must be fetchable.
+	for _, sp := range manifest.Assets.Sprites {
+		p := bundleBase + "/" + sp.Src
+		rec = do(t, srv, "GET", p, nil, "")
+		if rec.Code != 200 || rec.Body.Len() == 0 {
+			t.Fatalf("sprite %s (%s): %d, len %d", sp.ID, p, rec.Code, rec.Body.Len())
 		}
 	}
 }
