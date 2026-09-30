@@ -23,6 +23,10 @@ func MusicWAV(mood string) []byte {
 	case "calm":
 		notes = []float64{174.61, 220.00, 261.63, 349.23, 261.63, 220.00} // F A C F C A
 		beatSec = 0.6
+	case "playful":
+		// 宫商角徵羽 pentatonic, music-box register: C5 D5 E5 G5 A5 C6.
+		notes = []float64{659.25, 783.99, 880.00, 783.99, 659.25, 587.33, 523.25, 587.33}
+		beatSec = 0.34
 	default: // adventurous
 		notes = []float64{261.63, 329.63, 392.00, 523.25, 392.00, 329.63} // C E G C G E
 		beatSec = 0.42

@@ -71,6 +71,15 @@ public GameShim v1 bundle the backend publishes.
   left/right, catch falling hearts, and every two hearts restores one of the
   six rainbow bands. Catch 12 hearts to finish the rainbow so the kitten can
   cross. No lose condition — kid-safe. See `sample/plot.md` for the story.
+- **飘带补天 Ribbon Mends the Sky** (`sample-ribbon-sky`) — second seeded
+  sample (`internal/sample/sky.go`, `internal/sample/assets-sky/`). Built from
+  a photo of a little girl in a fairy dress riding a swirl cloud, holding a
+  golden staff with ribbons flowing: tap to fly her cloud, dive through the
+  six dark sky-holes so her ribbons stitch them shut, tap wind demons to bonk
+  them (+20), catch nine-colored deer rainbow shards (+10). Kid-safe, no lose
+  condition. Story in `sample/sky-plot.md`; headless bot playtest in
+  `sample/verify_sky.js` (`node sample/verify_sky.js`); standalone builder
+  `sample/make_standalone_sky.py`.
 - **Player** — `GET /player` lists public games from `/v1/feed` and runs the
   chosen bundle in a browser GameShim v1 runtime (canvas, sprites, text, tap
   input, music, tones, end card). `GET /` redirects to `/player`.

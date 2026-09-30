@@ -6,7 +6,11 @@
 
 # Local-only derived assets (committed as .b64 text; see internal/sample/sample.go)
 /internal/sample/assets/*.png
+/internal/sample/assets-sky/*.png
+/internal/sample/assets-sky/*.jpg
+/internal/sample/assets-sky/raw/
 /sample/bobos-rainbow-standalone.html
+/sample/ribbon-mends-sky-standalone.html
 
 # Archives
 *.zip

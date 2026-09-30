@@ -15,7 +15,8 @@ import (
 // Run starts the HTTP server on $PORT (default 8080).
 func Run() {
 	st := store.NewMemoryStore()
-	sample.Seed(st) // built-in sample game: "Bobo's Rainbow"
+	sample.Seed(st)    // built-in sample game: "Bobo's Rainbow"
+	sample.SeedSky(st) // built-in sample game: "飘带补天 Ribbon Mends the Sky"
 	runner := pipeline.NewRunner(st)
 	srv := api.New(st, runner)
 
