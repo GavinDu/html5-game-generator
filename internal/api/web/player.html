@@ -59,7 +59,7 @@ var rafId = 0;
 
 function show(id) {
   document.getElementById('list').style.display = id === 'list' ? '' : 'none';
-  document.getElementById('play').style.display = id === 'play' ? '' : 'none';
+  document.getElementById('play').style.display = id === 'play' ? 'block' : 'none';
 }
 
 function loadGames() {
@@ -77,10 +77,10 @@ function loadGames() {
       var n = (g.manifest && g.manifest.assets && g.manifest.assets.sprites || []).length;
       card.innerHTML = '<div class="info"><div class="title"></div>' +
         '<div class="meta">' + n + ' sprites · tap to move</div></div>';
-      card.querySelector('.title').textContent = g.title || g.game_id;
+      card.querySelector('.title').textContent = g.title || g.id || g.game_id;
       var btn = document.createElement('button');
       btn.textContent = 'Play';
-      btn.onclick = function () { playGame(g.game_id); };
+      btn.onclick = function () { playGame(g.id || g.game_id); };
       card.appendChild(btn);
       list.appendChild(card);
     });
