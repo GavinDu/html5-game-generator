@@ -20,7 +20,7 @@ var bear = Shim.sprite('bear', { x: 195, y: 740, w: 104, h: 192 });
 
 var hearts = []; // {s, gold, x, y}
 var caught = 0, misses = 0, score = 0, combo = 1, bandsOn = 0;
-var elapsed = 0, spawnT = 0, over = false;
+var elapsed = 0, spawnT = 0, over = false, level = 1; // level up every 2 hearts
 
 Shim.audio.music('audio/theme.wav', { loop: true, volume: 0.5 });
 
@@ -60,8 +60,15 @@ function starStr(n) {
 
 function restoreBand() {
   bands[bandsOn].visible = true;
-  Shim.text('banner', BAND_NAMES[bandsOn] + ' restored!',
-    { x: 16, y: 108, size: 20, color: '#b3402e' });
+  // Level up every 2 hearts: the game gets quicker and quicker.
+  var nl = Math.min(6, Math.floor(caught / 2) + 1);
+  var msg = BAND_NAMES[bandsOn] + ' restored!';
+  if (nl > level) {
+    level = nl;
+    msg = 'LEVEL ' + level + '! ' + msg;
+    Shim.audio.tone({ freq: 660 + level * 110, dur: 0.25, type: 'triangle' });
+  }
+  Shim.text('banner', msg, { x: 16, y: 108, size: 20, color: '#b3402e' });
   bandsOn += 1;
 }
 
@@ -80,9 +87,9 @@ Shim.loop(function (dt) {
   if (over) return;
   elapsed += dt;
 
-  // Poki ramp: hearts fall faster and spawn quicker as you catch more.
-  var speed = 175 + caught * 10;
-  var interval = Math.max(0.45, 0.8 - caught * 0.03);
+  // Level pace: multiplicative ramp, quicker every level (L1→L6: 1x→2x).
+  var speed = 175 * Math.pow(1.15, level - 1);
+  var interval = Math.max(0.4, 0.8 / Math.pow(1.12, level - 1));
   if (caught < HEARTS_TO_WIN) {
     spawnT += dt;
     if (spawnT > interval) {

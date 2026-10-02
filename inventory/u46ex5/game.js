@@ -29,6 +29,7 @@ var over = false;
 var winT = -1;
 var winTones = [];
 var hitT = 0; // brief invulnerability after a demon hit
+var level = 1; // level up every 2 stitches: everything gets quicker
 
 // Sunset cloud-sea world, drawn under everything.
 Shim.sprite('bg', { x: 195, y: 422, w: 390, h: 844 });
@@ -133,8 +134,17 @@ function stitchHole(h) {
       { at: 0.44, freq: 784 }, { at: 0.66, freq: 1047 }
     ];
   } else {
-    Shim.text('banner', '补好啦！ ' + stitched + '/' + HOLES_TO_WIN + ' 🎀',
-      { x: 16, y: 108, size: 22, color: '#ffe27a' });
+    // Level up every 2 stitches: quicker and quicker.
+    var nl = Math.min(3, Math.floor(stitched / 2) + 1);
+    if (nl > level) {
+      level = nl;
+      Shim.text('banner', '第 ' + level + ' 波！更快了！',
+        { x: 16, y: 108, size: 24, color: '#ffe27a' });
+      Shim.audio.tone({ freq: 700 + level * 120, dur: 0.25, type: 'triangle' });
+    } else {
+      Shim.text('banner', '补好啦！ ' + stitched + '/' + HOLES_TO_WIN + ' 🎀',
+        { x: 16, y: 108, size: 22, color: '#ffe27a' });
+    }
   }
 }
 
@@ -185,16 +195,17 @@ Shim.loop(function (dt) {
   if (hitT > 0) hitT -= dt;
 
   // Cloud flight: glide toward the tap point, with a gentle bob.
-  var k = Math.min(1, dt * 5);
+  // The hero gets a touch quicker each level too.
+  var k = Math.min(1, dt * (5 + 0.5 * (level - 1)));
   hx += (tx - hx) * k;
   hy += (ty - hy) * k;
   hero.x = hx;
   hero.y = hy + Math.sin(elapsed * 4) * 6;
 
-  // Sky-holes drift in — faster as the sky heals.
+  // Sky-holes drift in — quicker every level.
   if (holesSpawned < HOLES_TO_WIN) {
     spawnHoleT += dt;
-    if (spawnHoleT > Math.max(1.2, 2.2 - stitched * 0.15)) { spawnHoleT = 0; spawnHole(); }
+    if (spawnHoleT > 2.2 / Math.pow(1.25, level - 1)) { spawnHoleT = 0; spawnHole(); }
   }
   for (var i = 0; i < holes.length; i++) {
     var h = holes[i];
@@ -210,15 +221,15 @@ Shim.loop(function (dt) {
     }
   }
 
-  // Wind demons bumble down — faster and bolder as the sky heals.
+  // Wind demons bumble down — quicker and bolder every level.
   spawnDemonT += dt;
-  var maxDemons = stitched >= 3 ? 4 : 3;
-  if (spawnDemonT > Math.max(2.2, 4 - stitched * 0.3) && demons.length < maxDemons) {
+  var maxDemons = 2 + level;
+  if (spawnDemonT > 4 / Math.pow(1.3, level - 1) && demons.length < maxDemons) {
     spawnDemonT = 0; spawnDemon();
   }
   for (var i = demons.length - 1; i >= 0; i--) {
     var d = demons[i];
-    d.y += (55 + stitched * 6) * dt;
+    d.y += 55 * Math.pow(1.25, level - 1) * dt;
     d.sway += dt * 3;
     d.x += Math.sin(d.sway) * 30 * dt;
     d.s.x = d.x;

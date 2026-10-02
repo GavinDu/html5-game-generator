@@ -67,3 +67,9 @@ power-ups, escalating speed, instant retry):
 - **Star rating**: ★ thresholds at 150 / 300 / 450, shown on the canvas and in
   end stats.
 The 12-heart rainbow restoration and kitten-crossing win stay untouched.
+
+## v3 revision (2026-10-02) — explicit level-up pacing
+Bobo now has 6 explicit levels (one per 2 hearts caught, announced with
+"LEVEL X!" + rising tone). Fall speed scales multiplicatively per level
+(175 → 352 px/s, 1.15x per level) and spawn interval shrinks (0.8 → 0.4s),
+so the game gets noticeably quicker and quicker as you level up.

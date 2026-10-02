@@ -76,3 +76,10 @@ lives, escalating waves, star ratings):
 - **Star rating**: ★ thresholds at 400 / 900 / 1300, shown on the canvas and
   in end stats.
 Six stitched holes still win the sky; 0 lives ends the run with "再试一次！".
+
+## v3 revision (2026-10-02) — explicit level-up pacing
+The sky now has 3 explicit waves (one per 2 holes stitched, announced with
+"第 X 波！更快了！" + rising tone). Hole spawn, demon spawn and demon fall
+speed all scale multiplicatively per level (1.25–1.3x), up to 5 demons at
+once, and the hero glides a touch quicker too — noticeably quicker and
+quicker as you level up.
