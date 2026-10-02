@@ -170,6 +170,15 @@ type Group struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+// ScoreEntry is one leaderboard row: a player's best run in a game,
+// ranked by level reached first, then score.
+type ScoreEntry struct {
+	Name      string    `json:"name"`
+	Score     int       `json:"score"`
+	Level     int       `json:"level"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type CreateGameRequest struct {
 	IngestID string    `json:"ingest_id"`
 	Elements []Element `json:"elements"`

@@ -73,3 +73,12 @@ Bobo now has 6 explicit levels (one per 2 hearts caught, announced with
 "LEVEL X!" + rising tone). Fall speed scales multiplicatively per level
 (175 → 352 px/s, 1.15x per level) and spawn interval shrinks (0.8 → 0.4s),
 so the game gets noticeably quicker and quicker as you level up.
+
+## v4 revision (2026-10-02) — endless meta-levels + leaderboard
+Winning a round no longer ends the game: the next LV starts immediately at
+1.25x speed (multiplied on top of the in-round ramp), score accumulates
+across LVs, and the HUD shows the current LV. Losing (3 misses) ends the
+run; the player submits {score, level} to the new leaderboard
+(POST /v1/games/{id}/scores, ranked by level then score) and the endcard
+shows "Reached Level X" plus the top-10 board with everyone's LV. Play
+Again starts a fresh run at LV 1.

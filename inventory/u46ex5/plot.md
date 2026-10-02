@@ -83,3 +83,10 @@ The sky now has 3 explicit waves (one per 2 holes stitched, announced with
 speed all scale multiplicatively per level (1.25–1.3x), up to 5 demons at
 once, and the hero glides a touch quicker too — noticeably quicker and
 quicker as you level up.
+
+## v4 revision (2026-10-02) — endless meta-levels + leaderboard
+Mending all 6 holes no longer ends the game: the next 关 starts immediately
+at 1.25x speed (on top of the wave ramp), score accumulates, HUD shows
+第N关. Losing (0 lives) ends the run; the player submits {score, level} to
+the leaderboard (ranked by 关 then score) and the endcard shows the board
+with everyone's 关. Play Again starts a fresh run at 第1关.

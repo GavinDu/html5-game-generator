@@ -5,6 +5,7 @@ package store
 import (
 	"sort"
 	"sync"
+	"time"
 
 	"doodlequest/internal/model"
 )
@@ -35,6 +36,10 @@ type Store interface {
 
 	PutArtifact(gameID, name string, data []byte, contentType string)
 	GetArtifact(gameID, name string) ([]byte, string, bool)
+
+	// Leaderboard: each player's best run per game, ranked by level then score.
+	SubmitScore(gameID, name string, score, level int) (rank int)
+	Leaderboard(gameID string, limit int) []model.ScoreEntry
 }
 
 type MemoryStore struct {
@@ -45,6 +50,7 @@ type MemoryStore struct {
 	jobsByGame map[string]string
 	groups     map[string]*model.Group
 	artifacts  map[string]map[string]Artifact // gameID -> name -> artifact
+	scores     map[string]map[string]*model.ScoreEntry // gameID -> player name -> best run
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -55,6 +61,7 @@ func NewMemoryStore() *MemoryStore {
 		jobsByGame: make(map[string]string),
 		groups:     make(map[string]*model.Group),
 		artifacts:  make(map[string]map[string]Artifact),
+		scores:     make(map[string]map[string]*model.ScoreEntry),
 	}
 }
 
@@ -183,4 +190,58 @@ func (s *MemoryStore) GetArtifact(gameID, name string) ([]byte, string, bool) {
 		return nil, "", false
 	}
 	return a.Data, a.ContentType, true
+}
+
+// rankScores orders best-runs by level reached (desc), then score (desc).
+func rankScores(in map[string]*model.ScoreEntry) []model.ScoreEntry {
+	out := make([]model.ScoreEntry, 0, len(in))
+	for _, e := range in {
+		out = append(out, *e)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Level != out[j].Level {
+			return out[i].Level > out[j].Level
+		}
+		return out[i].Score > out[j].Score
+	})
+	return out
+}
+
+// SubmitScore records a run, keeping each player's best (level, then score).
+// It returns the player's 1-based rank on the game leaderboard.
+func (s *MemoryStore) SubmitScore(gameID, name string, score, level int) (rank int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.scores[gameID] == nil {
+		s.scores[gameID] = make(map[string]*model.ScoreEntry)
+	}
+	if cur, ok := s.scores[gameID][name]; ok {
+		if level > cur.Level || (level == cur.Level && score > cur.Score) {
+			cur.Level = level
+			cur.Score = score
+			cur.UpdatedAt = time.Now()
+		}
+	} else {
+		s.scores[gameID][name] = &model.ScoreEntry{
+			Name: name, Score: score, Level: level, UpdatedAt: time.Now(),
+		}
+	}
+	ranked := rankScores(s.scores[gameID])
+	for i, e := range ranked {
+		if e.Name == name {
+			return i + 1
+		}
+	}
+	return len(ranked)
+}
+
+// Leaderboard returns the top runs for a game, best first.
+func (s *MemoryStore) Leaderboard(gameID string, limit int) []model.ScoreEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ranked := rankScores(s.scores[gameID])
+	if limit > 0 && len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+	return ranked
 }

@@ -27,6 +27,14 @@
   #endcard p { color: #9fb2ff; margin: 6px 0 18px; }
   #endcard button { background: #4f7cff; color: #fff; border: 0; border-radius: 12px; padding: 14px 26px; font-size: 17px; font-weight: 700; margin: 4px; }
   #err { display:none; background:#5b1f1f; color:#ffd7d7; border-radius:10px; padding:12px; margin-top:10px; font-size:13px; white-space:pre-wrap; }
+  #endlevel { color:#ffe27a; font-weight:700; margin:2px 0 10px; font-size:17px; }
+  #lbwrap { margin:6px 0 12px; text-align:left; }
+  #lbtitle { font-weight:700; font-size:15px; margin-bottom:6px; }
+  #lb { max-height:150px; overflow-y:auto; display:grid; gap:4px; }
+  .lbrow { display:flex; justify-content:space-between; background:#252e57; border-radius:8px; padding:7px 10px; font-size:14px; }
+  .lbrow.me { background:#3b4a8f; font-weight:700; }
+  #namerow { font-size:14px; color:#9fb2ff; margin-bottom:12px; }
+  #pname { background:#252e57; color:#fff; border:1px solid #3b4a8f; border-radius:8px; padding:8px 10px; font-size:15px; width:150px; }
 </style>
 </head>
 <body>
@@ -41,6 +49,9 @@
     <div id="endcard"><div class="box">
       <h2 id="endtitle">You win!</h2>
       <p id="endsub"></p>
+      <p id="endlevel"></p>
+      <div id="lbwrap"><div id="lbtitle">🏆 Leaderboard</div><div id="lb"></div></div>
+      <div id="namerow">Name: <input id="pname" maxlength="24" placeholder="Player"></div>
       <button id="again">Play again</button>
       <button id="togames">Games</button>
     </div></div>
@@ -55,6 +66,8 @@ var W = 390, H = 844;
 var cv = document.getElementById('cv');
 var ctx = cv.getContext('2d');
 var currentManifest = null;
+var currentGameId = null;
+var lastScore = 0, lastLevel = 1;
 var rafId = 0;
 
 function show(id) {
@@ -193,15 +206,70 @@ function gameError(e) {
   el.textContent = 'Game error: ' + (e && e.message || e);
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function showEnd(res) {
   document.getElementById('endtitle').textContent = res.won === false ? 'Game over' : '🎉 You win!';
   var sub = 'Score: ' + (res.score == null ? '—' : res.score);
   if (res.stats && res.stats.time_s != null) sub += ' · ' + res.stats.time_s + 's';
   document.getElementById('endsub').textContent = sub;
+  lastScore = res.score || 0;
+  lastLevel = (res.stats && res.stats.level) || 1;
+  document.getElementById('endlevel').textContent = 'Reached Level ' + lastLevel;
+  document.getElementById('lb').innerHTML = '<div class="lbrow">Saving score…</div>';
   document.getElementById('endcard').style.display = 'flex';
+  submitScore();
+}
+
+function playerName() {
+  var saved = '';
+  try { saved = localStorage.getItem('dq_name') || ''; } catch (e) {}
+  var input = document.getElementById('pname');
+  if (input && !input.value && saved) input.value = saved;
+  var name = ((input && input.value) || saved || 'Player').slice(0, 24);
+  try { localStorage.setItem('dq_name', name); } catch (e) {}
+  return name;
+}
+
+// The leaderboard records each run's level (then score); best run per name.
+function submitScore() {
+  if (!currentGameId) { loadLeaderboard(''); return; }
+  var name = playerName();
+  var body = JSON.stringify({ name: name, score: lastScore, level: lastLevel });
+  fetch(API + '/v1/games/' + currentGameId + '/scores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body
+  }).then(function () { loadLeaderboard(name); },
+          function () { loadLeaderboard(name); });
+}
+
+function loadLeaderboard(me) {
+  if (!currentGameId) return;
+  fetch(API + '/v1/games/' + currentGameId + '/leaderboard')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var rows = (data && data.scores) || [];
+      var lb = document.getElementById('lb');
+      if (!rows.length) {
+        lb.innerHTML = '<div class="lbrow">No scores yet — be the first!</div>';
+        return;
+      }
+      lb.innerHTML = rows.map(function (s, i) {
+        var cls = (me && s.name === me) ? 'lbrow me' : 'lbrow';
+        return '<div class="' + cls + '"><span>#' + (i + 1) + ' ' + escapeHtml(s.name) + '</span>' +
+          '<span>LV ' + s.level + ' · ' + s.score + '</span></div>';
+      }).join('');
+    })
+    .catch(function () {
+      document.getElementById('lb').innerHTML = '<div class="lbrow">Leaderboard unavailable</div>';
+    });
 }
 
 function playGame(gameId) {
+  currentGameId = gameId;
   show('play');
   document.getElementById('endcard').style.display = 'none';
   document.getElementById('err').style.display = 'none';

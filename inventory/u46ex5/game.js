@@ -1,11 +1,8 @@
-// 飘带补天 Ribbon Mends the Sky v2 — Poki-style revision.
-// The little hero rides her cloud: tap to fly, dive through dark sky-holes so
-// her ribbons stitch them shut, tap wind demons to bonk them with the staff,
-// catch rainbow shards for bonus.
-//
-// Poki elements: stitch combo multiplier, demon hits cost a life and reset
-// the combo (risk/reward), 3-life game over, lucky-shard bonus, speed ramp
-// across waves, 1-3 star rating.
+// 飘带补天 Ribbon Mends the Sky v4 — endless meta-levels + leaderboard.
+// Fly into dark sky-holes so the ribbons stitch them shut. Mend all 6 and
+// you advance to the next 关, faster and faster. Score accumulates across
+// rounds. Lose all 3 lives and the run ends — your 关 goes on the leaderboard.
+// Tap Play Again for another run.
 Shim.init({ width: 390, height: 844, background: '#3a4a7a' });
 
 var HOLES_TO_WIN = 6;
@@ -29,7 +26,8 @@ var over = false;
 var winT = -1;
 var winTones = [];
 var hitT = 0; // brief invulnerability after a demon hit
-var level = 1; // level up every 2 stitches: everything gets quicker
+var level = 1; // wave within the round
+var metaLevel = 1, metaMult = 1; // win a round -> next 关, quicker
 
 // Sunset cloud-sea world, drawn under everything.
 Shim.sprite('bg', { x: 195, y: 422, w: 390, h: 844 });
@@ -45,6 +43,7 @@ for (var sp = 0; sp < 6; sp++) {
 Shim.audio.music('audio/theme.wav', { loop: true, volume: 0.5 });
 
 Shim.text('title', '飘带补天', { x: 16, y: 12, size: 30, color: '#ffffff' });
+Shim.text('meta', '第1关', { x: 150, y: 12, size: 24, color: '#ffe27a' });
 Shim.text('score', '🌈 0/6  ⭐ 0', { x: 16, y: 48, size: 24, color: '#ffffff' });
 Shim.text('combo', '', { x: 16, y: 80, size: 20, color: '#ffe27a' });
 Shim.text('lives', '❤❤❤', { x: 282, y: 12, size: 24, color: '#ff6b81' });
@@ -65,10 +64,8 @@ function setLives() {
   for (var i = 0; i < lives; i++) s += '❤';
   Shim.text('lives', s, { x: 282, y: 12, size: 24, color: '#ff6b81' });
 }
-function starCount() {
-  if (score >= 1300) return 3;
-  if (score >= 900) return 2;
-  return 1;
+function setMeta() {
+  Shim.text('meta', '第' + metaLevel + '关', { x: 150, y: 12, size: 24, color: '#ffe27a' });
 }
 function starStr(n) {
   var s = '';
@@ -87,13 +84,28 @@ function burst(x, y) {
   }
 }
 
-function endGame(won) {
-  over = true;
-  var n = starCount();
-  Shim.text('banner', won ? (starStr(n) + ' 天空补好啦！🌈') : (starStr(n) + ' 再试一次！'),
+function nextRound() {
+  metaLevel += 1;
+  metaMult *= 1.25;
+  stitched = 0; holes = []; demons = []; shards = [];
+  lives = MAX_LIVES; combo = 1; level = 1; holesSpawned = 0;
+  spawnHoleT = 0; spawnDemonT = 2; spawnShardT = 1;
+  winT = -1; winTones = [];
+  setMeta(); setCombo(); setLives(); setScore();
+  Shim.text('banner', '第 ' + metaLevel + ' 关！更快了！',
     { x: 16, y: 108, size: 24, color: '#ffe27a' });
-  Shim.audio.tone({ freq: won ? 1047 : 220, dur: 0.5, type: 'triangle' });
-  Shim.end({ score: score, won: won, stats: { time_s: Math.round(elapsed), stars: n } });
+  Shim.audio.tone({ freq: 880, dur: 0.2, type: 'triangle' });
+  Shim.audio.tone({ freq: 1175, dur: 0.3, type: 'triangle' });
+}
+
+function endGame() {
+  over = true;
+  var n = Math.min(3, metaLevel);
+  Shim.text('banner', starStr(n) + ' 到达第' + metaLevel + '关！',
+    { x: 16, y: 108, size: 24, color: '#ffe27a' });
+  Shim.audio.tone({ freq: 220, dur: 0.5, type: 'triangle' });
+  Shim.end({ score: score, won: false,
+    stats: { time_s: Math.round(elapsed), stars: n, level: metaLevel } });
 }
 
 function spawnHole() {
@@ -134,7 +146,7 @@ function stitchHole(h) {
       { at: 0.44, freq: 784 }, { at: 0.66, freq: 1047 }
     ];
   } else {
-    // Level up every 2 stitches: quicker and quicker.
+    // Wave up every 2 stitches: quicker within the round too.
     var nl = Math.min(3, Math.floor(stitched / 2) + 1);
     if (nl > level) {
       level = nl;
@@ -170,7 +182,7 @@ function demonHitsHero(d) {
   burst(hx, hy);
   Shim.text('banner', '哎呀！被风妖撞到了！', { x: 16, y: 108, size: 22, color: '#ff9aa5' });
   Shim.audio.tone({ freq: 150, dur: 0.3, type: 'sawtooth' });
-  if (lives <= 0) endGame(false);
+  if (lives <= 0) endGame();
 }
 
 Shim.input('tap', function (x, y) {
@@ -195,17 +207,16 @@ Shim.loop(function (dt) {
   if (hitT > 0) hitT -= dt;
 
   // Cloud flight: glide toward the tap point, with a gentle bob.
-  // The hero gets a touch quicker each level too.
   var k = Math.min(1, dt * (5 + 0.5 * (level - 1)));
   hx += (tx - hx) * k;
   hy += (ty - hy) * k;
   hero.x = hx;
   hero.y = hy + Math.sin(elapsed * 4) * 6;
 
-  // Sky-holes drift in — quicker every level.
+  // Sky-holes drift in — quicker every wave and every 关.
   if (holesSpawned < HOLES_TO_WIN) {
     spawnHoleT += dt;
-    if (spawnHoleT > 2.2 / Math.pow(1.25, level - 1)) { spawnHoleT = 0; spawnHole(); }
+    if (spawnHoleT > 2.2 / Math.pow(1.25, level - 1) / metaMult) { spawnHoleT = 0; spawnHole(); }
   }
   for (var i = 0; i < holes.length; i++) {
     var h = holes[i];
@@ -221,15 +232,15 @@ Shim.loop(function (dt) {
     }
   }
 
-  // Wind demons bumble down — quicker and bolder every level.
+  // Wind demons bumble down — quicker and bolder every wave and 关.
   spawnDemonT += dt;
   var maxDemons = 2 + level;
-  if (spawnDemonT > 4 / Math.pow(1.3, level - 1) && demons.length < maxDemons) {
+  if (spawnDemonT > 4 / Math.pow(1.3, level - 1) / metaMult && demons.length < maxDemons) {
     spawnDemonT = 0; spawnDemon();
   }
   for (var i = demons.length - 1; i >= 0; i--) {
     var d = demons[i];
-    d.y += 55 * Math.pow(1.25, level - 1) * dt;
+    d.y += 55 * Math.pow(1.25, level - 1) * metaMult * dt;
     d.sway += dt * 3;
     d.x += Math.sin(d.sway) * 30 * dt;
     d.s.x = d.x;
@@ -279,13 +290,13 @@ Shim.loop(function (dt) {
     }
   }
 
-  // Win fanfare, then end.
+  // Round-clear fanfare, then the next 关.
   if (winT >= 0) {
     winT += dt;
     while (winTones.length && winTones[0].at <= winT) {
       var t = winTones.shift();
       Shim.audio.tone({ freq: t.freq, dur: 0.25, type: 'triangle' });
     }
-    if (winT > 1.1) endGame(true);
+    if (winT > 1.1) nextRound();
   }
 });

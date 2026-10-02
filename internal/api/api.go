@@ -45,6 +45,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/groups/{id}/games", s.handleGroupGames)
 	mux.HandleFunc("POST /v1/games/{id}/visibility", s.handleVisibility)
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
+	mux.HandleFunc("POST /v1/games/{id}/scores", s.handleSubmitScore)
+	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboard)
 	return cors(mux)
 }
 
@@ -366,4 +368,51 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		out = []*model.Game{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"games": out})
+}
+
+// POST /v1/games/{id}/scores — record a run on the leaderboard.
+// Keeps each player's best run (ranked by level reached, then score).
+func (s *Server) handleSubmitScore(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name  string `json:"name"`
+		Score int    `json:"score"`
+		Level int    `json:"level"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	id := r.PathValue("id")
+	if _, ok := s.store.GetGame(id); !ok {
+		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = "Player"
+	}
+	if len(name) > 24 {
+		name = name[:24]
+	}
+	if req.Level < 1 {
+		req.Level = 1
+	}
+	if req.Score < 0 {
+		req.Score = 0
+	}
+	rank := s.store.SubmitScore(id, name, req.Score, req.Level)
+	writeJSON(w, http.StatusOK, map[string]any{"rank": rank, "name": name})
+}
+
+// GET /v1/games/{id}/leaderboard — top runs, best first.
+func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := s.store.GetGame(id); !ok {
+		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	entries := s.store.Leaderboard(id, 10)
+	if entries == nil {
+		entries = []model.ScoreEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"scores": entries})
 }
