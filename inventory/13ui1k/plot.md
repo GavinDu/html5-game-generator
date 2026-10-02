@@ -52,3 +52,18 @@ rainbow is complete.
 3. **The Lost Orange** — Bobo's little orange fruit has rolled under the
    rainbow; find it behind rain-clouds by tapping clouds away. (Seek/hide
    variant.)
+
+## v2 revision (2026-10-02) — Poki-inspired engagement pass
+Kept the kid's art and the tap-to-move core; borrowed Poki's casual-loop
+formula (Subway Surfers / Stickman Hook school: score chase, streaks,
+power-ups, escalating speed, instant retry):
+- **Combo multiplier**: consecutive catches without a miss build COMBO x2–x5;
+  each heart scores 10 × combo. A miss resets the combo.
+- **Stakes**: 3 missed hearts end the round (❤❤❤ display) — the gentle
+  "one more try" loop.
+- **Golden heart power-up** (procedural sprite, 12% spawn): +50, never
+  penalized if missed.
+- **Speed ramp**: hearts fall faster and spawn quicker as the catch count rises.
+- **Star rating**: ★ thresholds at 150 / 300 / 450, shown on the canvas and in
+  end stats.
+The 12-heart rainbow restoration and kitten-crossing win stay untouched.

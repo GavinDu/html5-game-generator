@@ -1,24 +1,34 @@
-// 飘带补天 Ribbon Mends the Sky — built from a photo (DoodleQuest).
-// GameShim v1. The little hero rides her cloud: tap to fly, dive through
-// dark sky-holes so her ribbons stitch them shut, tap wind demons to bonk
-// them with the golden staff, catch rainbow shards for bonus.
+// 飘带补天 Ribbon Mends the Sky v2 — Poki-style revision.
+// The little hero rides her cloud: tap to fly, dive through dark sky-holes so
+// her ribbons stitch them shut, tap wind demons to bonk them with the staff,
+// catch rainbow shards for bonus.
+//
+// Poki elements: stitch combo multiplier, demon hits cost a life and reset
+// the combo (risk/reward), 3-life game over, lucky-shard bonus, speed ramp
+// across waves, 1-3 star rating.
 Shim.init({ width: 390, height: 844, background: '#3a4a7a' });
 
 var HOLES_TO_WIN = 6;
+var MAX_LIVES = 3;
+var MAX_COMBO = 5;
 var holes = [];   // {open, closed, x, y, ty, stitched}
 var demons = [];  // {s, x, y, sway}
 var shards = [];  // {s, x, y}
 var sparks = [];  // {s, x, y, t}
 var score = 0;
 var stitched = 0;
+var combo = 1;
+var lives = MAX_LIVES;
+var shardsGot = 0;
 var elapsed = 0;
 var holesSpawned = 0;
 var spawnHoleT = 0;
 var spawnDemonT = 3;
 var spawnShardT = 1.5;
-var won = false;
+var over = false;
 var winT = -1;
 var winTones = [];
+var hitT = 0; // brief invulnerability after a demon hit
 
 // Sunset cloud-sea world, drawn under everything.
 Shim.sprite('bg', { x: 195, y: 422, w: 390, h: 844 });
@@ -35,13 +45,34 @@ Shim.audio.music('audio/theme.wav', { loop: true, volume: 0.5 });
 
 Shim.text('title', '飘带补天', { x: 16, y: 12, size: 30, color: '#ffffff' });
 Shim.text('score', '🌈 0/6  ⭐ 0', { x: 16, y: 48, size: 24, color: '#ffffff' });
-Shim.text('banner', '', { x: 16, y: 84, size: 22, color: '#ffe27a' });
+Shim.text('combo', '', { x: 16, y: 80, size: 20, color: '#ffe27a' });
+Shim.text('lives', '❤❤❤', { x: 282, y: 12, size: 24, color: '#ff6b81' });
+Shim.text('banner', '', { x: 16, y: 108, size: 22, color: '#ffe27a' });
 Shim.text('hint1', '👆 点哪里，云朵就飞到哪里', { x: 16, y: 796, size: 17, color: '#ffffff' });
 Shim.text('hint2', '🎀 钻过黑洞缝补天空  🔨 点风妖敲它', { x: 16, y: 818, size: 17, color: '#ffffff' });
 
 function setScore() {
   Shim.text('score', '🌈 ' + stitched + '/' + HOLES_TO_WIN + '  ⭐ ' + score,
     { x: 16, y: 48, size: 24, color: '#ffffff' });
+}
+function setCombo() {
+  Shim.text('combo', combo > 1 ? ('连击 x' + combo + '!') : '',
+    { x: 16, y: 80, size: 20, color: '#ffe27a' });
+}
+function setLives() {
+  var s = '';
+  for (var i = 0; i < lives; i++) s += '❤';
+  Shim.text('lives', s, { x: 282, y: 12, size: 24, color: '#ff6b81' });
+}
+function starCount() {
+  if (score >= 1300) return 3;
+  if (score >= 900) return 2;
+  return 1;
+}
+function starStr(n) {
+  var s = '';
+  for (var i = 0; i < 3; i++) s += (i < n ? '★' : '☆');
+  return s;
 }
 
 function burst(x, y) {
@@ -53,6 +84,15 @@ function burst(x, y) {
     p.s.w = 46; p.s.h = 46;
     p.s.visible = true;
   }
+}
+
+function endGame(won) {
+  over = true;
+  var n = starCount();
+  Shim.text('banner', won ? (starStr(n) + ' 天空补好啦！🌈') : (starStr(n) + ' 再试一次！'),
+    { x: 16, y: 108, size: 24, color: '#ffe27a' });
+  Shim.audio.tone({ freq: won ? 1047 : 220, dur: 0.5, type: 'triangle' });
+  Shim.end({ score: score, won: won, stats: { time_s: Math.round(elapsed), stars: n } });
 }
 
 function spawnHole() {
@@ -80,11 +120,13 @@ function stitchHole(h) {
   h.open.visible = false;
   h.closed.visible = true;
   stitched += 1;
+  score += 50 * combo;
+  combo = Math.min(MAX_COMBO, combo + 1);
   burst(h.x, h.y);
   setScore();
+  setCombo();
   Shim.audio.tone({ freq: 520 + stitched * 60, dur: 0.15, type: 'sine' });
   if (stitched >= HOLES_TO_WIN) {
-    Shim.text('banner', '天空补好啦！🌈', { x: 16, y: 84, size: 24, color: '#ffe27a' });
     winT = 0;
     winTones = [
       { at: 0, freq: 523 }, { at: 0.22, freq: 659 },
@@ -92,7 +134,7 @@ function stitchHole(h) {
     ];
   } else {
     Shim.text('banner', '补好啦！ ' + stitched + '/' + HOLES_TO_WIN + ' 🎀',
-      { x: 16, y: 84, size: 22, color: '#ffe27a' });
+      { x: 16, y: 108, size: 22, color: '#ffe27a' });
   }
 }
 
@@ -100,13 +142,29 @@ function bonkDemon(d) {
   var i = demons.indexOf(d);
   if (i >= 0) demons.splice(i, 1);
   d.s.visible = false;
-  score += 20;
+  score += 100;
   setScore();
   burst(d.x, d.y);
   Shim.audio.tone({ freq: 200, dur: 0.15, type: 'triangle' });
 }
 
+function demonHitsHero(d) {
+  var i = demons.indexOf(d);
+  if (i >= 0) demons.splice(i, 1);
+  d.s.visible = false;
+  lives -= 1;
+  combo = 1;
+  hitT = 1.5;
+  setLives();
+  setCombo();
+  burst(hx, hy);
+  Shim.text('banner', '哎呀！被风妖撞到了！', { x: 16, y: 108, size: 22, color: '#ff9aa5' });
+  Shim.audio.tone({ freq: 150, dur: 0.3, type: 'sawtooth' });
+  if (lives <= 0) endGame(false);
+}
+
 Shim.input('tap', function (x, y) {
+  if (over) return;
   // A tap that lands on a demon bonks it with the staff.
   var best = null, bestD = 65 * 65;
   for (var i = 0; i < demons.length; i++) {
@@ -122,7 +180,9 @@ Shim.input('tap', function (x, y) {
 });
 
 Shim.loop(function (dt) {
+  if (over) return;
   elapsed += dt;
+  if (hitT > 0) hitT -= dt;
 
   // Cloud flight: glide toward the tap point, with a gentle bob.
   var k = Math.min(1, dt * 5);
@@ -131,10 +191,10 @@ Shim.loop(function (dt) {
   hero.x = hx;
   hero.y = hy + Math.sin(elapsed * 4) * 6;
 
-  // Sky-holes drift in.
+  // Sky-holes drift in — faster as the sky heals.
   if (holesSpawned < HOLES_TO_WIN) {
     spawnHoleT += dt;
-    if (spawnHoleT > 2.2) { spawnHoleT = 0; spawnHole(); }
+    if (spawnHoleT > Math.max(1.2, 2.2 - stitched * 0.15)) { spawnHoleT = 0; spawnHole(); }
   }
   for (var i = 0; i < holes.length; i++) {
     var h = holes[i];
@@ -150,17 +210,22 @@ Shim.loop(function (dt) {
     }
   }
 
-  // Wind demons bumble down.
+  // Wind demons bumble down — faster and bolder as the sky heals.
   spawnDemonT += dt;
-  if (spawnDemonT > 4 && demons.length < 3) { spawnDemonT = 0; spawnDemon(); }
+  var maxDemons = stitched >= 3 ? 4 : 3;
+  if (spawnDemonT > Math.max(2.2, 4 - stitched * 0.3) && demons.length < maxDemons) {
+    spawnDemonT = 0; spawnDemon();
+  }
   for (var i = demons.length - 1; i >= 0; i--) {
     var d = demons[i];
-    d.y += 55 * dt;
+    d.y += (55 + stitched * 6) * dt;
     d.sway += dt * 3;
     d.x += Math.sin(d.sway) * 30 * dt;
     d.s.x = d.x;
     d.s.y = d.y;
-    if (d.y > 900) { d.s.visible = false; demons.splice(i, 1); }
+    if (d.y > 900) { d.s.visible = false; demons.splice(i, 1); continue; }
+    var hx2 = hx - d.x, hy2 = hy - d.y;
+    if (hitT <= 0 && hx2 * hx2 + hy2 * hy2 < 55 * 55) demonHitsHero(d);
   }
 
   // Rainbow shards drift by.
@@ -174,7 +239,12 @@ Shim.loop(function (dt) {
     if (dx * dx + dy * dy < 50 * 50) {
       sh.s.visible = false;
       shards.splice(i, 1);
-      score += 10;
+      shardsGot += 1;
+      score += 25;
+      if (shardsGot % 3 === 0) {
+        score += 100;
+        Shim.text('banner', '幸运星星 +100! ⭐', { x: 16, y: 108, size: 22, color: '#ffe27a' });
+      }
       setScore();
       burst(sh.x, sh.y);
       Shim.audio.tone({ freq: 740 + score, dur: 0.12, type: 'sine' });
@@ -205,9 +275,6 @@ Shim.loop(function (dt) {
       var t = winTones.shift();
       Shim.audio.tone({ freq: t.freq, dur: 0.25, type: 'triangle' });
     }
-    if (winT > 1.1 && !won) {
-      won = true;
-      Shim.end({ score: score, won: true, stats: { time_s: Math.round(elapsed) } });
-    }
+    if (winT > 1.1) endGame(true);
   }
 });

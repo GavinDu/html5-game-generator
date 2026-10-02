@@ -60,3 +60,19 @@ mended, and demons are only good for bonus points.
    the cloud sea; ribbon-trail to scoop them, staff-bonk storm imps.
 2. **Imp Roundup** （小妖大作战, after 天书奇谭) — catch runaway imps with the
    ribbons as a net; free the caged sky-animals.
+
+## v2 revision (2026-10-02) — Poki-inspired engagement pass
+Kept the photo-cutout hero, ribbons, demons and tap-to-fly core; borrowed
+Poki's risk/reward loop (dodge-and-collect school: streaks, hazards that cost
+lives, escalating waves, star ratings):
+- **Stitch combo**: consecutive hole stitches build 连击 x2–x5; each stitch
+  scores 50 × combo.
+- **Demons fight back**: a demon that reaches the hero costs one of 3 lives
+  (❤❤❤ display) and resets the combo; 1.5s invulnerability after a hit.
+  Tapping a demon to bonk it still scores a flat +100.
+- **Lucky shards**: every 3rd rainbow shard is a +100 lucky bonus.
+- **Wave ramp**: holes spawn faster as the sky heals; demons get faster and
+  bolder (up to 4 at once) in the back half.
+- **Star rating**: ★ thresholds at 400 / 900 / 1300, shown on the canvas and
+  in end stats.
+Six stitched holes still win the sky; 0 lives ends the run with "再试一次！".
