@@ -29,6 +29,35 @@ python3 godot/tools/decode_assets.py
 (`godot/*/assets/*.png|jpg` are gitignored; the script regenerates them.
 Hearts and rainbow bands are drawn procedurally in-engine — no binary needed.)
 
+## Play them in the DoodleQuest player
+
+Each project is exported to Web (WASM) and served by the Go backend:
+
+- `GET /v1/godot` — lists the Godot versions (id, title, ready, url)
+- `GET /godot/<game>/` — the Godot web export, served with the
+  `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers the
+  Godot 4 engine requires
+- `/player` shows a "GODOT VERSIONS" section with Play buttons
+
+The repo stays text-only (the GitHub connector corrupts binary uploads), so
+compiled exports are **not committed**. `godot/web-exports.json` maps each
+game to a zip of its web export; the server downloads and extracts it on
+first request into `godot/<game>/web/` (gitignored).
+
+To rebuild the exports:
+
+```sh
+# needs the 4.7.2 export templates installed (see ~/workspace/tools/godot-templates)
+bash /tmp/export_web.sh   # or: godot --headless --path godot/<game> --export-release "Web" <out>/index.html
+```
+
+The zip URLs in `web-exports.json` are Hatch file-storage links and **expire**
+(currently ~2 days). If a server ever reports the Godot version "still
+downloading" after the links expire, re-upload the zips from
+`~/workspace/godot-exports/` (`remote-storage upload-file`), update the URLs
+in `godot/web-exports.json`, and push — the server picks them up on its next
+pull. Already-downloaded copies keep working regardless.
+
 ## Verify
 
 Each project has a headless self-test: a bot plays the real game loop and

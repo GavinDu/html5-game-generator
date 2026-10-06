@@ -82,7 +82,6 @@ function loadGames() {
     var games = (data && data.games) || [];
     if (!games.length) {
       list.innerHTML = '<div id="empty">No public games yet.<br>Generate one from a drawing first.</div>';
-      return;
     }
     games.forEach(function (g) {
       var card = document.createElement('div');
@@ -94,6 +93,30 @@ function loadGames() {
       var btn = document.createElement('button');
       btn.textContent = 'Play';
       btn.onclick = function () { playGame(g.id || g.game_id); };
+      card.appendChild(btn);
+      list.appendChild(card);
+    });
+    return fetch(API + '/v1/godot').then(function (r) { return r.json(); }).catch(function () { return []; });
+  }).then(function (godot) {
+    var list = document.getElementById('list');
+    if (list.querySelector('.godot-sec')) return;
+    (godot || []).forEach(function (g, i) {
+      if (i === 0) {
+        var h = document.createElement('div');
+        h.className = 'godot-sec';
+        h.style.cssText = 'color:#9fb2ff;font-size:13px;font-weight:700;margin:8px 2px 0;letter-spacing:.5px;';
+        h.textContent = 'GODOT VERSIONS · physics, particles & juice';
+        list.appendChild(h);
+      }
+      var card = document.createElement('div');
+      card.className = 'game-card';
+      card.innerHTML = '<div class="info"><div class="title"></div>' +
+        '<div class="meta">Godot 4 engine build</div></div>';
+      card.querySelector('.title').textContent = g.title || g.id;
+      var btn = document.createElement('button');
+      btn.textContent = 'Play';
+      btn.style.background = '#7c5cff';
+      btn.onclick = function () { window.location.href = g.url; };
       card.appendChild(btn);
       list.appendChild(card);
     });

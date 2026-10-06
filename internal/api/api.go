@@ -47,6 +47,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
 	mux.HandleFunc("POST /v1/games/{id}/scores", s.handleSubmitScore)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboard)
+	mux.HandleFunc("GET /v1/godot", s.handleGodotList)
+	mux.HandleFunc("GET /godot/", s.handleGodot)
 	return cors(mux)
 }
 

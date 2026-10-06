@@ -26,3 +26,5 @@
 # Godot project images (decoded from committed .b64 text by godot/tools/decode_assets.py)
 /godot/*/assets/*.png
 /godot/*/assets/*.jpg
+/godot/*/web/
+/godot/*/web-export/
