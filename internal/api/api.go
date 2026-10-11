@@ -95,9 +95,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "doodlequest"})
 }
 
-// GET / — send browsers straight to the player.
+// GET / — serve the player directly, including for deployment health checks.
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/player", http.StatusFound)
+	s.handlePlayer(w, r)
 }
 
 // GET /player — the web player: lists public games, runs any bundle
