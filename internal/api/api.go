@@ -49,6 +49,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboard)
 	mux.HandleFunc("GET /v1/godot", s.handleGodotList)
 	mux.HandleFunc("GET /godot/", s.handleGodot)
+	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
+	mux.HandleFunc("GET /v1/spec/questionnaire", s.handleSpecQuestionnaire)
 	return cors(mux)
 }
 
@@ -95,9 +97,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "doodlequest"})
 }
 
-// GET / — serve the player directly, including for deployment health checks.
+// GET / — send browsers straight to the player.
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	s.handlePlayer(w, r)
+	http.Redirect(w, r, "/player", http.StatusFound)
 }
 
 // GET /player — the web player: lists public games, runs any bundle
