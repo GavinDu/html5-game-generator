@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-base-3.13"]
+modules = ["nodejs-24", "python-base-3.13", "go-1.25"]
 [nix]
 channel = "stable-25_05"
 
@@ -35,4 +35,4 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "vm"
-run = ["go", "run", "./cmd/server"]
+run = ["env", "CGO_ENABLED=0", "go", "run", "./cmd/server"]
