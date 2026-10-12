@@ -233,3 +233,79 @@ func TestGroupsAndSharing(t *testing.T) {
 		t.Fatalf("want 1 feed game, got %d", len(feed.Games))
 	}
 }
+
+// Data plane: GET /v1/games/{id}/package returns the data-only descriptor
+// a bundled-runtime client needs — manifest, runtime handshake, data URLs.
+func TestGetPackage(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+
+	manifest := &model.BundleManifest{
+		GameID: "pkg-test-1", Title: "Package Test", Version: 3,
+		Shim: "gameshim/v1", Entry: "game.js", Controls: []string{"tap"},
+	}
+	manifest.Assets.Sprites = []model.SpriteAsset{
+		{ID: "bear", Src: "sprites/bear.png", Source: "kid-drawing", Label: "bear"},
+		{ID: "heart", Src: "sprites/heart.png", Source: "procedural", Label: "heart"},
+	}
+	manifest.Assets.Music = model.MusicAsset{Src: "audio/theme.wav", Mood: "calm", Source: "library"}
+	st.CreateGame(&model.Game{ID: "pkg-test-1", Title: "Package Test", Manifest: manifest})
+	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft"}) // no manifest yet
+
+	rec := do(t, srv, "GET", "/v1/games/pkg-test-1/package", nil, "")
+	if rec.Code != 200 {
+		t.Fatalf("package: %d %s", rec.Code, rec.Body.String())
+	}
+	var pkg GamePackage
+	decode(t, rec, &pkg)
+	if pkg.PackageVersion != "1.0" || pkg.GameID != "pkg-test-1" {
+		t.Fatalf("bad package envelope: %+v", pkg)
+	}
+	// Runtime handshake: the client checks this against its bundled runtime.
+	if pkg.Runtime.Required != "gameshim/v1" || pkg.Runtime.Kind != "gameshim" || pkg.Runtime.Version != "v1" {
+		t.Fatalf("bad runtime handshake: %+v", pkg.Runtime)
+	}
+	if pkg.Manifest == nil || pkg.Manifest.Shim != "gameshim/v1" {
+		t.Fatalf("manifest not echoed: %+v", pkg.Manifest)
+	}
+	base := "/v1/games/pkg-test-1/bundle"
+	if pkg.Data.Entry.URL != base+"/game.js" || pkg.Data.Entry.Kind != "entry" {
+		t.Fatalf("bad entry: %+v", pkg.Data.Entry)
+	}
+	if len(pkg.Data.Sprites) != 2 ||
+		pkg.Data.Sprites[0].URL != base+"/sprites/bear.png" ||
+		pkg.Data.Sprites[0].Source != "kid-drawing" ||
+		pkg.Data.Sprites[1].URL != base+"/sprites/heart.png" {
+		t.Fatalf("bad sprites: %+v", pkg.Data.Sprites)
+	}
+	if pkg.Data.Music == nil || pkg.Data.Music.URL != base+"/audio/theme.wav" {
+		t.Fatalf("bad music: %+v", pkg.Data.Music)
+	}
+
+	// Unknown game -> 404; unpublished game -> 409.
+	if rec := do(t, srv, "GET", "/v1/games/nope/package", nil, ""); rec.Code != 404 {
+		t.Fatalf("want 404, got %d", rec.Code)
+	}
+	if rec := do(t, srv, "GET", "/v1/games/pkg-draft-1/package", nil, ""); rec.Code != 409 {
+		t.Fatalf("want 409, got %d", rec.Code)
+	}
+}
+
+func TestParseRuntime(t *testing.T) {
+	cases := []struct {
+		shim         string
+		required     string
+		kind, version string
+	}{
+		{"gameshim/v1", "gameshim/v1", "gameshim", "v1"},
+		{"", "", "", ""},
+		{"gameshim", "gameshim", "", ""}, // malformed: client falls back to legacy path
+		{"runtime-spec/v2", "runtime-spec/v2", "runtime-spec", "v2"},
+	}
+	for _, c := range cases {
+		r := parseRuntime(c.shim)
+		if r.Required != c.required || r.Kind != c.kind || r.Version != c.version {
+			t.Errorf("parseRuntime(%q) = %+v", c.shim, r)
+		}
+	}
+}
