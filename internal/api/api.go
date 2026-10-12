@@ -51,6 +51,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /godot/", s.handleGodot)
 	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
 	mux.HandleFunc("GET /v1/spec/questionnaire", s.handleSpecQuestionnaire)
+	mux.HandleFunc("POST /v1/ir/validate", s.handleIRValidate)
 	return cors(mux)
 }
 
