@@ -19,7 +19,9 @@ import (
 )
 
 // RequiredInputsVersion is the current GameDesignInput schema version.
-const RequiredInputsVersion = "1.0"
+// v1.1 adds the comedy-framework generative layer: premise (Judy Carter),
+// strategy.twist (Greg Dean), and justified feature declarations (Li Dan).
+const RequiredInputsVersion = "1.1"
 
 type UploadSource struct {
 	UploadID string `json:"uploadId"`
@@ -41,10 +43,39 @@ type DifficultyInput struct {
 type StrategyInput struct {
 	Archetype   string          `json:"archetype"`
 	CoreLoop    string          `json:"coreLoop"`
+	Twist       TwistInput      `json:"twist"`
 	Input       InputSpec       `json:"input"`
 	SkillVsLuck string          `json:"skillVsLuck,omitempty"`
 	LuckSources []string        `json:"luckSources,omitempty"`
 	Difficulty  DifficultyInput `json:"difficulty"`
+}
+
+// TwistInput is the comedy-framework v1.1 mechanical surprise (Greg Dean's
+// Target Assumption -> Reinterpretation): what the player expects from the
+// setup versus what the game actually does. Every memorable mechanic is a
+// reinterpretation; a game without a legible twist is a template with art.
+type TwistInput struct {
+	Assumption       string `json:"assumption"`
+	Reinterpretation string `json:"reinterpretation"`
+}
+
+// PremiseInput is the comedy-framework v1.1 emotional core (Judy Carter's
+// Hard Attitude): the stance of the game's premise, found in the source
+// material before any mechanic is designed.
+type PremiseInput struct {
+	Attitude  string `json:"attitude"`  // strange|sucks|scary|silly
+	Statement string `json:"statement"` // one line, max 280 chars
+}
+
+// FeatureDecl is one declared mechanic (powerup or mode) carrying its own
+// justification — the Li Dan "mechanic diet": every mechanic must earn its
+// place via LoopLink, and trace to the source material via SourceRef
+// (authenticity: the design is an extension of the kid's drawing, not a
+// generic template).
+type FeatureDecl struct {
+	Name      string `json:"name"`
+	LoopLink  string `json:"loopLink"`
+	SourceRef string `json:"sourceRef,omitempty"`
 }
 
 type WinSpec struct {
@@ -136,11 +167,11 @@ type CoopSpec struct {
 }
 
 type FeaturesInput struct {
-	Powerups    []string `json:"powerups,omitempty"`
-	Modes       []string `json:"modes,omitempty"`
-	Coop        CoopSpec `json:"coop,omitempty"`
-	Leaderboard bool     `json:"leaderboard,omitempty"`
-	Skins       bool     `json:"skins,omitempty"`
+	Powerups    []FeatureDecl `json:"powerups,omitempty"`
+	Modes       []FeatureDecl `json:"modes,omitempty"`
+	Coop        CoopSpec      `json:"coop,omitempty"`
+	Leaderboard bool          `json:"leaderboard,omitempty"`
+	Skins       bool          `json:"skins,omitempty"`
 }
 
 type ConstraintsInput struct {
@@ -156,6 +187,7 @@ type RequiredInputs struct {
 	SchemaVersion string            `json:"schemaVersion"`
 	WorkingTitle  string            `json:"workingTitle,omitempty"`
 	Sources       []UploadSource    `json:"sources,omitempty"`
+	Premise       PremiseInput      `json:"premise"`
 	Strategy      StrategyInput     `json:"strategy"`
 	WinLose       WinLoseInput      `json:"winLose"`
 	Hook          HookInput         `json:"hook"`
@@ -208,6 +240,18 @@ func (r *RequiredInputs) Validate() error {
 	if r.SchemaVersion != RequiredInputsVersion {
 		return fmt.Errorf("schemaVersion: want %q, got %q", RequiredInputsVersion, r.SchemaVersion)
 	}
+	// v1.1: premise — the emotional core (Judy Carter). The AI must find the
+	// emotional truth in the source material before designing mechanics.
+	if err := reqOneOf("premise.attitude", r.Premise.Attitude,
+		"strange", "sucks", "scary", "silly"); err != nil {
+		return err
+	}
+	if r.Premise.Statement == "" {
+		return fmt.Errorf("premise.statement: required")
+	}
+	if n := len([]rune(r.Premise.Statement)); n > 280 {
+		return fmt.Errorf("premise.statement: max 280 chars, got %d", n)
+	}
 	for i, s := range r.Sources {
 		if s.UploadID == "" {
 			return fmt.Errorf("sources[%d].uploadId: required", i)
@@ -226,6 +270,14 @@ func (r *RequiredInputs) Validate() error {
 	}
 	if st.CoreLoop == "" {
 		return fmt.Errorf("strategy.coreLoop: required")
+	}
+	// v1.1: twist — the mechanical surprise (Greg Dean). The player expects
+	// the assumption; the game delivers the reinterpretation.
+	if st.Twist.Assumption == "" {
+		return fmt.Errorf("strategy.twist.assumption: required")
+	}
+	if st.Twist.Reinterpretation == "" {
+		return fmt.Errorf("strategy.twist.reinterpretation: required")
 	}
 	if err := reqOneOf("strategy.input.primary", st.Input.Primary,
 		"tap", "drag", "tilt", "arrows", "wasd", "touch_hold", "fling"); err != nil {
@@ -333,6 +385,24 @@ func (r *RequiredInputs) Validate() error {
 	if err := oneOf("features.coop.inputScheme", r.Features.Coop.InputScheme,
 		"shared_keyboard_arrows_wasd", "shared_touch", "none"); err != nil {
 		return err
+	}
+	// v1.1: mechanic diet (Li Dan) — every declared mechanic justifies itself
+	// with a loopLink, or it gets cut.
+	for i, p := range r.Features.Powerups {
+		if p.Name == "" {
+			return fmt.Errorf("features.powerups[%d].name: required", i)
+		}
+		if p.LoopLink == "" {
+			return fmt.Errorf("features.powerups[%d].loopLink: required — every mechanic must state how it serves the core loop", i)
+		}
+	}
+	for i, m := range r.Features.Modes {
+		if m.Name == "" {
+			return fmt.Errorf("features.modes[%d].name: required", i)
+		}
+		if m.LoopLink == "" {
+			return fmt.Errorf("features.modes[%d].loopLink: required — every mechanic must state how it serves the core loop", i)
+		}
 	}
 	c := r.Constraints
 	if c.SessionTargetSec > 90 {

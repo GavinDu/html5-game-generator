@@ -55,6 +55,7 @@ const (
 	CatSimulation   = "simulation"
 	CatSafety       = "safety"
 	CatAudio        = "audio"
+	CatDesign       = "design"
 )
 
 // Repair actions: the three-state machine from the ValidationReport contract.

@@ -74,6 +74,9 @@ func Validate(in ValidateInput) (*ValidationReport, error) {
 		checkKidSafe(in.GameDir, man, manErr),
 		checkContentScreen(),
 		checkAudioComplete(in.DesignInput),
+		checkPremiseDeclared(in.DesignInput),
+		checkTwistDeclared(in.DesignInput),
+		checkMechanicDiet(in.DesignInput),
 	}
 
 	report := &ValidationReport{
@@ -380,6 +383,83 @@ func checkContentScreen() Check {
 		"automated upload screening is not implemented; manual review required",
 		"$.sources",
 		"A human must review uploaded art before publish. This check is never auto-repairable.")
+}
+
+// --- design checks (comedy-framework v1.1 generative layer) ---
+
+func checkPremiseDeclared(di *gamespec.RequiredInputs) Check {
+	const id = "design.premise_declared"
+	p := di.Premise
+	switch p.Attitude {
+	case "strange", "sucks", "scary", "silly":
+	default:
+		return mk(id, StatusFail, "attitude in {strange,sucks,scary,silly}", fmt.Sprintf("%q", p.Attitude),
+			"design input $.premise", "$.premise",
+			"Pick the emotional stance the premise actually takes: strange, sucks, scary, or silly — then write the one-line statement from the source material.")
+	}
+	if p.Statement == "" {
+		return mk(id, StatusFail, "one-line premise statement", "empty",
+			"design input $.premise", "$.premise",
+			"Write the one-line emotional premise before designing mechanics; a game without a legible attitude is a template with art.")
+	}
+	return mk(id, StatusPass, "attitude + statement",
+		fmt.Sprintf("%s: %.80s", p.Attitude, p.Statement),
+		"design input $.premise", "$.premise", "")
+}
+
+func checkTwistDeclared(di *gamespec.RequiredInputs) Check {
+	const id = "design.twist_declared"
+	tw := di.Strategy.Twist
+	if tw.Assumption == "" || tw.Reinterpretation == "" {
+		return mk(id, StatusFail, "assumption + reinterpretation", "missing",
+			"design input $.strategy.twist", "$.strategy.twist",
+			"Declare what the player expects (assumption) and what the game actually does (reinterpretation).")
+	}
+	// A twist that restates the assumption is vacuous — the one semantic
+	// check a static validator can honestly make about surprise.
+	norm := func(s string) string {
+		return strings.ToLower(strings.Join(strings.Fields(s), " "))
+	}
+	if norm(tw.Assumption) == norm(tw.Reinterpretation) {
+		return mk(id, StatusWarn, "reinterpretation differs from assumption", "identical",
+			"design input $.strategy.twist", "$.strategy.twist",
+			"Rewrite the reinterpretation so it genuinely differs from the player's assumption; a twist that restates the setup surprises no one.")
+	}
+	return mk(id, StatusPass, "assumption + distinct reinterpretation", "declared",
+		"design input $.strategy.twist", "$.strategy.twist", "")
+}
+
+func checkMechanicDiet(di *gamespec.RequiredInputs) Check {
+	const id = "design.mechanic_diet"
+	var unjustified []string
+	for _, p := range di.Features.Powerups {
+		if p.LoopLink == "" {
+			unjustified = append(unjustified, "powerup:"+p.Name)
+		}
+	}
+	for _, m := range di.Features.Modes {
+		if m.LoopLink == "" {
+			unjustified = append(unjustified, "mode:"+m.Name)
+		}
+	}
+	if len(unjustified) > 0 {
+		return mk(id, StatusFail, "every mechanic has a loopLink",
+			"unjustified: "+strings.Join(unjustified, ", "),
+			"design input $.features", "$.features",
+			"Give each mechanic a one-sentence loopLink (how it serves the core loop) or cut it — the mechanic diet.")
+	}
+	// Heuristic: a sub-90s session cannot carry many distinct mechanics.
+	// More than 5 declared powerups+modes is a smell, not a failure.
+	n := len(di.Features.Powerups) + len(di.Features.Modes)
+	if n > 5 {
+		return mk(id, StatusWarn, "<= 5 mechanics for a sub-90s session",
+			fmt.Sprintf("%d declared", n),
+			"design input $.features", "$.features",
+			"Cut or merge mechanics until each one clearly earns its place; filler mechanics dilute the core loop.")
+	}
+	return mk(id, StatusPass, "all mechanics justified; count fits budget",
+		fmt.Sprintf("%d declared", n),
+		"design input $.features", "$.features", "")
 }
 
 // --- audio check ---

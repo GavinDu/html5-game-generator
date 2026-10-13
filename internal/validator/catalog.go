@@ -85,6 +85,20 @@ var catalog = []checkDef{
 	{id: "audio.complete", category: CatAudio, severity: SeverityWarning,
 		description: "SFX declared per player action, mute toggle present, no autoplay before first input.",
 		autoRepairable: true},
+	// Design: the comedy-framework v1.1 generative layer. These are quality
+	// signals (warnings, never publish blockers): they force the AI to find
+	// the emotional core, the mechanical surprise, and to justify every
+	// mechanic — the disciplines that separate an invented game from a
+	// template with art.
+	{id: "design.premise_declared", category: CatDesign, severity: SeverityWarning,
+		description: "Premise carries a valid attitude (strange|sucks|scary|silly) and a one-line emotional statement (Judy Carter).",
+		autoRepairable: true},
+	{id: "design.twist_declared", category: CatDesign, severity: SeverityWarning,
+		description: "Strategy declares a mechanical twist whose reinterpretation differs from the player's assumption (Greg Dean).",
+		autoRepairable: true},
+	{id: "design.mechanic_diet", category: CatDesign, severity: SeverityWarning,
+		description: "Every powerup/mode justifies itself with a loopLink, and the mechanic count fits the session budget (Li Dan).",
+		autoRepairable: true},
 }
 
 // checkIndex maps checkId -> catalog position.
