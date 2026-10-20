@@ -152,6 +152,7 @@ type BundleManifest struct {
 
 type Game struct {
 	ID         string          `json:"game_id"`
+	ParentGameID string        `json:"parent_game_id,omitempty"`
 	Title      string          `json:"title"`
 	OwnerID    string          `json:"owner_id"`
 	Elements   []Element       `json:"elements"`
@@ -186,6 +187,7 @@ type ScoreEntry struct {
 
 type CreateGameRequest struct {
 	IngestID string    `json:"ingest_id"`
+	ParentGameID string `json:"parent_game_id,omitempty"`
 	Elements []Element `json:"elements"`
 	Intent   string    `json:"intent"`
 	Keywords []string  `json:"keywords"`

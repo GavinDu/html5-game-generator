@@ -140,6 +140,15 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	elements, intent := req.Elements, req.Intent
+	if req.ParentGameID != "" {
+		parent, ok := s.store.GetGame(req.ParentGameID)
+		if !ok || parent.Status != model.GameReady || parent.Manifest == nil {
+			writeErr(w, http.StatusBadRequest, "parent_game_id must identify a ready inventory game")
+			return
+		}
+		if len(elements) == 0 { elements = append([]model.Element(nil), parent.Elements...) }
+		if intent == "" { intent = parent.Intent }
+	}
 	if req.IngestID != "" {
 		if ing, ok := s.store.GetIngest(req.IngestID); ok {
 			if len(elements) == 0 {
@@ -160,6 +169,7 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	game := &model.Game{
 		ID:         pipeline.NewID(),
+		ParentGameID: req.ParentGameID,
 		Title:      "Untitled Game",
 		OwnerID:    userID(r),
 		Elements:   elements,
