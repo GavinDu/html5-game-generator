@@ -52,6 +52,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
 	mux.HandleFunc("GET /v1/spec/questionnaire", s.handleSpecQuestionnaire)
 	mux.HandleFunc("POST /v1/ir/validate", s.handleIRValidate)
+	mux.HandleFunc("POST /v1/game-ir/validate", s.handleGameIRValidate)
+	mux.HandleFunc("GET /v1/games/{id}/game-ir", s.handleGetGameIR)
+	mux.HandleFunc("GET /v1/games/{id}/assets/{asset}", s.handleGetGameAsset)
 	mux.HandleFunc("GET /v1/games/{id}/package", s.handleGetPackage)
 	return cors(mux)
 }

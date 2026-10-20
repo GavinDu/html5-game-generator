@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hephaestus Game IR v1",
+  "description": "Engine-independent declarative gameplay representation; executable scripts are excluded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["irVersion", "game", "assets", "scenes", "inputBindings", "rules"],
+  "properties": {
+    "irVersion": {"const": "1.0"},
+    "game": {"type":"object","additionalProperties":false,"required":["id","title","entryScene","orientation"],"properties":{
+      "id":{"type":"string","minLength":1,"maxLength":128},"title":{"type":"string","minLength":1,"maxLength":120},
+      "description":{"type":"string","maxLength":4000},"entryScene":{"type":"string","minLength":1},
+      "orientation":{"enum":["portrait","landscape","any"]},"sessionTargetSeconds":{"type":"integer","minimum":5,"maximum":3600},
+      "audience":{"enum":["kids","family","teens","adults","general"]}
+    }},
+    "assets":{"type":"array","maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["id","kind","uri"],"properties":{
+      "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"kind":{"enum":["image","audio","video","tilemap","font","data"]},
+      "uri":{"type":"string","minLength":1,"maxLength":1024},"mimeType":{"type":"string","maxLength":128},
+      "sha256":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
+      "source":{"enum":["user_upload","user_drawing","generated","licensed_library","platform"]},"altText":{"type":"string","maxLength":1000}
+    }}},
+    "scenes":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["id","entities"],"properties":{
+      "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"backgroundAssetId":{"type":"string"},
+      "entities":{"type":"array","maxItems":500,"items":{"type":"object","additionalProperties":false,"required":["id","kind","position","components"],"properties":{
+        "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"kind":{"enum":["player","enemy","obstacle","pickup","decoration","trigger","text"]},"assetId":{"type":"string"},
+        "position":{"type":"array","prefixItems":[{"type":"number","minimum":-100000,"maximum":100000},{"type":"number","minimum":-100000,"maximum":100000}],"minItems":2,"maxItems":2},
+        "size":{"type":"array","prefixItems":[{"type":"number","exclusiveMinimum":0,"maximum":100000},{"type":"number","exclusiveMinimum":0,"maximum":100000}],"minItems":2,"maxItems":2},
+        "components":{"type":"array","maxItems":16,"uniqueItems":true,"items":{"enum":["movement","health","score","collider","collectible","timer","animation","follow_path","text_label"]}},
+        "properties":{"type":"object","maxProperties":32,"description":"Must be validated against component-specific schemas."}
+      }}}
+    }}},
+    "inputBindings":{"type":"array","maxItems":32,"items":{"type":"object","additionalProperties":false,"required":["action","input"],"properties":{
+      "action":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"input":{"enum":["tap","drag","swipe","virtual_joystick","button","tilt","keyboard"]}
+    }}},
+    "rules":{"type":"array","maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["id","when","actions"],"properties":{
+      "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},
+      "when":{"type":"object","additionalProperties":false,"required":["event"],"properties":{
+        "event":{"enum":["game_start","input","collision","collected","timer_elapsed","score_reached","health_changed","scene_entered"]},
+        "source":{"type":"string"},"target":{"type":"string"},"inputAction":{"type":"string"},"value":{"type":"number"}
+      }},
+      "conditions":{"type":"array","maxItems":8,"items":{"type":"object","additionalProperties":false,"required":["variable","operator","value"],"properties":{
+        "variable":{"type":"string","maxLength":80},"operator":{"enum":["eq","neq","gt","gte","lt","lte"]},"value":{"type":["number","string","boolean"]}
+      }}},
+      "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","additionalProperties":false,"required":["type"],"properties":{
+        "type":{"enum":["add_score","set_variable","move_entity","destroy_entity","spawn_entity","play_sound","show_text","change_scene","set_health","end_game"]},
+        "target":{"type":"string"},"variable":{"type":"string"},"value":{"type":["number","string","boolean"]},"assetId":{"type":"string"},"sceneId":{"type":"string"},"durationMs":{"type":"integer","minimum":0,"maximum":60000}
+      }}}
+    }}},
+    "metadata":{"type":"object","additionalProperties":false,"properties":{
+      "creatorDisplayName":{"type":"string","maxLength":120},"parentGameId":{"type":"string"},"parentVersion":{"type":"integer","minimum":1},
+      "tags":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":40}}
+    }}
+  }
+}

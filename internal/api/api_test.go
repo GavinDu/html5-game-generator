@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
@@ -103,6 +106,21 @@ func TestFullPipeline(t *testing.T) {
 	}
 
 	job = waitJob(t, srv, created.Job.ID, model.JobDone)
+	publishedGameRec := do(t, srv, "GET", "/v1/games/"+created.Game.ID, nil, "")
+	var publishedGame model.Game
+	decode(t, publishedGameRec, &publishedGame)
+	if publishedGame.GameIR == nil {
+		t.Fatal("published game has no canonical Game IR")
+	}
+	irRec := do(t, srv, "GET", "/v1/games/"+created.Game.ID+"/game-ir", nil, "")
+	if irRec.Code != http.StatusOK {
+		t.Fatalf("Game IR endpoint: %d %s", irRec.Code, irRec.Body.String())
+	}
+	var fetchedIR gameir.Document
+	decode(t, irRec, &fetchedIR)
+	if err := gameir.Validate(&fetchedIR); err != nil {
+		t.Fatalf("published Game IR invalid: %v", err)
+	}
 	for _, st := range job.Stages {
 		if st.Status != model.StageDone {
 			t.Fatalf("stage %s not done: %+v", st.Name, st)
@@ -234,78 +252,77 @@ func TestGroupsAndSharing(t *testing.T) {
 	}
 }
 
-// Data plane: GET /v1/games/{id}/package returns the data-only descriptor
-// a bundled-runtime client needs — manifest, runtime handshake, data URLs.
+// The package endpoint exposes the canonical Game IR envelope and asset URLs.
 func TestGetPackage(t *testing.T) {
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
-
-	manifest := &model.BundleManifest{
-		GameID: "pkg-test-1", Title: "Package Test", Version: 3,
-		Shim: "gameshim/v1", Entry: "game.js", Controls: []string{"tap"},
+	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	manifest.Assets.Sprites = []model.SpriteAsset{
-		{ID: "bear", Src: "sprites/bear.png", Source: "kid-drawing", Label: "bear"},
-		{ID: "heart", Src: "sprites/heart.png", Source: "procedural", Label: "heart"},
+	doc, err := gameir.DecodeAndValidate(data)
+	if err != nil {
+		t.Fatal(err)
 	}
-	manifest.Assets.Music = model.MusicAsset{Src: "audio/theme.wav", Mood: "calm", Source: "library"}
-	st.CreateGame(&model.Game{ID: "pkg-test-1", Title: "Package Test", Manifest: manifest})
-	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft"}) // no manifest yet
+	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc})
+	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("fake-png"), "image/png")
+	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft"})
 
-	rec := do(t, srv, "GET", "/v1/games/pkg-test-1/package", nil, "")
-	if rec.Code != 200 {
+	rec := do(t, srv, "GET", "/v1/games/"+doc.Game.ID+"/package", nil, "")
+	if rec.Code != http.StatusOK {
 		t.Fatalf("package: %d %s", rec.Code, rec.Body.String())
 	}
 	var pkg GamePackage
 	decode(t, rec, &pkg)
-	if pkg.PackageVersion != "1.0" || pkg.GameID != "pkg-test-1" {
+	if pkg.PackageVersion != "2.0" || pkg.GameID != doc.Game.ID || pkg.IR == nil {
 		t.Fatalf("bad package envelope: %+v", pkg)
 	}
-	// Runtime handshake: the client checks this against its bundled runtime.
-	if pkg.Runtime.Required != "gameshim/v1" || pkg.Runtime.Kind != "gameshim" || pkg.Runtime.Version != "v1" {
-		t.Fatalf("bad runtime handshake: %+v", pkg.Runtime)
+	if pkg.IR.IRVersion != gameir.Version || len(pkg.Assets) != 5 {
+		t.Fatalf("bad canonical IR/assets: version=%s assets=%d", pkg.IR.IRVersion, len(pkg.Assets))
 	}
-	if pkg.Manifest == nil || pkg.Manifest.Shim != "gameshim/v1" {
-		t.Fatalf("manifest not echoed: %+v", pkg.Manifest)
+	if pkg.Assets[1].ID != "bobo" || pkg.Assets[1].URI != "assets/bear.png" ||
+		pkg.Assets[1].URL != "/v1/games/"+doc.Game.ID+"/assets/bobo" {
+		t.Fatalf("bad asset descriptor: %+v", pkg.Assets[1])
 	}
-	base := "/v1/games/pkg-test-1/bundle"
-	if pkg.Data.Entry.URL != base+"/game.js" || pkg.Data.Entry.Kind != "entry" {
-		t.Fatalf("bad entry: %+v", pkg.Data.Entry)
+	assetRec := do(t, srv, "GET", pkg.Assets[1].URL, nil, "")
+	if assetRec.Code != http.StatusOK || assetRec.Body.String() != "fake-png" ||
+		assetRec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("asset delivery: %d %s", assetRec.Code, assetRec.Body.String())
 	}
-	if len(pkg.Data.Sprites) != 2 ||
-		pkg.Data.Sprites[0].URL != base+"/sprites/bear.png" ||
-		pkg.Data.Sprites[0].Source != "kid-drawing" ||
-		pkg.Data.Sprites[1].URL != base+"/sprites/heart.png" {
-		t.Fatalf("bad sprites: %+v", pkg.Data.Sprites)
-	}
-	if pkg.Data.Music == nil || pkg.Data.Music.URL != base+"/audio/theme.wav" {
-		t.Fatalf("bad music: %+v", pkg.Data.Music)
-	}
-
-	// Unknown game -> 404; unpublished game -> 409.
-	if rec := do(t, srv, "GET", "/v1/games/nope/package", nil, ""); rec.Code != 404 {
+	if rec := do(t, srv, "GET", "/v1/games/nope/package", nil, ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", rec.Code)
 	}
-	if rec := do(t, srv, "GET", "/v1/games/pkg-draft-1/package", nil, ""); rec.Code != 409 {
+	if rec := do(t, srv, "GET", "/v1/games/pkg-draft-1/package", nil, ""); rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d", rec.Code)
 	}
 }
 
-func TestParseRuntime(t *testing.T) {
-	cases := []struct {
-		shim         string
-		required     string
-		kind, version string
-	}{
-		{"gameshim/v1", "gameshim/v1", "gameshim", "v1"},
-		{"", "", "", ""},
-		{"gameshim", "gameshim", "", ""}, // malformed: client falls back to legacy path
-		{"runtime-spec/v2", "runtime-spec/v2", "runtime-spec", "v2"},
+func TestGameIRValidateEndpoint(t *testing.T) {
+	srv := newTestServer()
+	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, c := range cases {
-		r := parseRuntime(c.shim)
-		if r.Required != c.required || r.Kind != c.kind || r.Version != c.version {
-			t.Errorf("parseRuntime(%q) = %+v", c.shim, r)
-		}
+	rec := do(t, srv, "POST", "/v1/game-ir/validate", json.RawMessage(data), "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("valid Game IR: status %d, body %s", rec.Code, rec.Body.String())
+	}
+	var result struct {
+		Valid bool `json:"valid"`
+		IRVersion string `json:"irVersion"`
+		GameID string `json:"gameId"`
+		SceneCount int `json:"sceneCount"`
+		AssetCount int `json:"assetCount"`
+		RuleCount int `json:"ruleCount"`
+	}
+	decode(t, rec, &result)
+	if !result.Valid || result.IRVersion != "1.0" || result.GameID != "bobos-rainbow" ||
+		result.SceneCount != 1 || result.AssetCount != 5 || result.RuleCount != 2 {
+		t.Fatalf("unexpected validation result: %+v", result)
+	}
+	invalid := strings.Replace(string(data), `"type": "add_score"`, `"type": "unsupported_action"`, 1)
+	rec = do(t, srv, "POST", "/v1/game-ir/validate", json.RawMessage(invalid), "")
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid Game IR: want 422, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

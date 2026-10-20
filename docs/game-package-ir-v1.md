@@ -1,0 +1,82 @@
+# Game Package and Game IR v1
+
+Status: implementation in progress. The pipeline now emits and validates Game IR, publishes it on the game record, and serves a versioned Game Package envelope; the Defold runtime and legacy-runtime removal are still pending.
+
+## Boundaries
+
+- **GameSpec** captures creator intent and generation choices.
+- **Game IR** captures engine-independent gameplay semantics.
+- **Game Package** is a versioned artifact: manifest + IR + assets + provenance.
+- **Runtime** interprets supported IR using capabilities shipped with the client.
+- **Inventory service** owns generation, validation, immutable versions, visibility, moderation and delivery.
+- **Hephaestus** owns social UX and selects an installed runtime.
+
+The package is canonical; neither Defold project files nor HTML/JavaScript source is canonical.
+
+## Layout
+
+```text
+game-package/
+  manifest.json
+  game.ir.json
+  assets/<asset-id>.<extension>
+  provenance.json
+```
+
+The manifest carries `packageFormatVersion`, `irVersion`, `minRuntimeVersion`, game/version identity, asset hashes and entry-scene ID. IR references assets by stable IDs; the manifest maps IDs to relative URIs. Provenance includes creator/source and remix lineage. Do not include private source media in public packages unless explicitly published by the creator.
+
+## v1 execution model
+
+V1 supports scenes, entities, allowlisted components, input bindings and declarative event/condition/action rules. It excludes arbitrary Lua, JavaScript, GDScript, native libraries, dynamic imports, eval and arbitrary native API calls. Add capabilities by versioning the contract and shipping a runtime that implements them. Unknown major versions, components and actions must fail closed.
+
+A data-only contract reduces the attack surface but does not guarantee App Review approval. Interpreted Lua is not blanket permission to download arbitrary scripts.
+
+## Validation and publication
+
+```text
+creator input -> GameSpec/confirmation -> assets + provenance -> Game IR
+  -> schema validation -> semantic/reference validation -> resource budgets
+  -> moderation/rights checks -> runtime compatibility -> automated playtest
+  -> immutable published version
+```
+
+Validate more than JSON syntax: unique IDs, references, supported event/action types, entity/scene/asset limits, media dimensions/duration, hashes, compatibility and moderation status. Keep moderation decisions and social counters outside the package content hash.
+
+## Current backend API
+
+- `POST /v1/game-ir/validate`: validates one Game IR document, rejecting unknown fields, unsupported capabilities and invalid references. Request size is capped at 2 MiB.
+- `GET /v1/games/{id}/game-ir`: returns the published canonical Game IR.
+- `GET /v1/games/{id}/package`: returns the Game Package envelope with `packageVersion: "2.0"`, `gameId`, `ir`, and asset descriptors.
+- `GET /v1/games/{id}/assets/{assetId}`: delivers the corresponding package asset after resolving its ID through the validated IR.
+
+The generation pipeline writes `game-ir.json`, validates it before publication, and stores the validated document on the published game. The GameShim `game.js` artifact remains temporary HTML5 reference infrastructure; it is not the canonical package entry point and should be removed after Defold contract tests pass.
+
+## Versioning
+
+- Package-envelope version and IR semantic version are separate.
+- Published versions are immutable; edits/remixes create a new version.
+- Each published version identifies its minimum compatible runtime.
+- A remix records its parent game/version and which assets/rules were reused or changed.
+- Asset provenance and usage rights must survive remixing.
+
+## Breaking migration plan
+
+Prefer a clean target architecture over indefinite compatibility. Treat the current GameShim JavaScript package format and HTML5/Godot runtime-selection logic as legacy implementations to replace, not permanent public contracts. Coordinate backend and iOS cutover; do not add compatibility adapters unless a concrete migration need justifies their maintenance cost.
+
+1. Make the Game IR schema, semantic validator and golden fixtures authoritative.
+2. Change generation to emit Game IR + assets + provenance directly; remove JavaScript code generation from the primary path.
+3. Change persistence and API responses to the versioned Game Package envelope. Update backend and client together; breaking API changes are acceptable.
+4. Use an HTML5 interpreter only as temporary test infrastructure if useful, not a long-term runtime for compatibility.
+5. Implement Defold against the same IR fixtures and run contract tests.
+6. After acceptance gates pass, delete GameShim models/endpoints, generated `game.js` artifacts, old runtime-selection branches and obsolete Godot experiments.
+7. If legacy published games need migration, write a one-time converter and report unsupported content. Do not maintain a permanent legacy runtime by default.
+
+Game IR defines gameplay semantics. Runtime selection is based on capabilities shipped in the client and required by the package.
+
+## First vertical slice
+
+Use Bobo's Rainbow as the golden fixture: validate it, run it in a temporary HTML5 reference interpreter, then implement the same subset in Defold. Compare input, collision, scoring, completion, determinism and resource use. The reference interpreter is disposable test infrastructure, not a compatibility promise.
+
+## App Store / UGC
+
+The shipped app controls device permissions and native capabilities. The runtime receives only user-authorized media and must not expose arbitrary native APIs. The platform still needs applicable UGC moderation, report/block, rights and takedown workflows. Review Apple's current rules for actual product behavior; no engine choice guarantees approval.
