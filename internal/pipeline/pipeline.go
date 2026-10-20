@@ -174,6 +174,17 @@ func (r *Runner) runSpec(jobID string, elements []model.Element, intent string, 
 	job.Status = model.JobRunning
 	r.runStage(job, model.StageSpec, func() error {
 		job.DesignDoc = buildDesignDoc(elements, intent, keywords)
+		if game, ok := r.store.GetGame(job.GameID); ok && game.ParentGameID != "" {
+			parent, found := r.store.GetGame(game.ParentGameID)
+			if !found || parent.Manifest == nil { return fmt.Errorf("remix parent %q is unavailable", game.ParentGameID) }
+			job.DesignDoc.Title = "Bobo's Rainbow: Heart Rescue"
+			job.DesignDoc.Plot = "Help Bobo restore the rainbow by collecting three magic hearts so the kitten can cross safely."
+			job.DesignDoc.Mechanics = "Drag Bobo to collect three hearts. Each heart restores part of the rainbow; collecting all three wins."
+			job.DesignDoc.Controls = []string{"drag", "tap"}
+			job.DesignDoc.WinCondition = "Collect three magic hearts"
+			job.DesignDoc.LoseCondition = "No lose condition; play at your own pace."
+			job.DesignDoc.MusicMood = "calm"
+		}
 		return nil
 	})
 	if job.Status == model.JobFailed {
@@ -217,6 +228,21 @@ func (r *Runner) runRemaining(jobID string) {
 
 	// ART: polish sprites + music.
 	r.runStage(job, model.StageArt, func() error {
+		if child, ok := r.store.GetGame(job.GameID); ok && child.ParentGameID != "" {
+			parent, found := r.store.GetGame(child.ParentGameID)
+			if !found || parent.Manifest == nil { return fmt.Errorf("remix parent %q is unavailable", child.ParentGameID) }
+			needed := map[string]bool{"bear":true,"kitten":true,"heart":true}
+			for i:=0; i<6; i++ { needed[fmt.Sprintf("band%d",i)] = true }
+			for _, sprite := range parent.Manifest.Assets.Sprites {
+				if !needed[sprite.ID] { continue }
+				data, contentType, exists := r.store.GetArtifact(parent.ID, sprite.Src)
+				if !exists { return fmt.Errorf("remix parent asset %q (%s) is missing", sprite.ID, sprite.Src) }
+				r.store.PutArtifact(job.GameID, sprite.Src, data, contentType)
+			}
+			if music := parent.Manifest.Assets.Music; music.Src != "" {
+				if data, contentType, exists := r.store.GetArtifact(parent.ID, music.Src); exists { r.store.PutArtifact(job.GameID, music.Src, data, contentType) }
+			}
+		}
 		for i, el := range doc.Elements {
 			if i >= 4 {
 				break
@@ -236,7 +262,14 @@ func (r *Runner) runRemaining(jobID string) {
 	var gameJS string
 	var canonicalIR *gameir.Document
 	r.runStage(job, model.StageCodegen, func() error {
-		canonicalIR = buildGameIR(doc, job.GameID)
+		child, _ := r.store.GetGame(job.GameID)
+		if child != nil && child.ParentGameID != "" {
+			parent, found := r.store.GetGame(child.ParentGameID)
+			if !found { return fmt.Errorf("remix parent %q is unavailable", child.ParentGameID) }
+			var err error
+			canonicalIR, err = buildBoboRemixIR(doc, child, parent)
+			if err != nil { return err }
+		} else { canonicalIR = buildGameIR(doc, job.GameID) }
 		data, err := json.MarshalIndent(canonicalIR, "", "  ")
 		if err != nil {
 			return fmt.Errorf("encode Game IR: %w", err)
@@ -447,3 +480,56 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 	}
 }
 
+
+
+// buildBoboRemixIR creates a playable variant from the original legacy Bobo's
+// Rainbow inventory entry. It reuses parent assets and expresses new behavior
+// as Game IR data rather than downloaded executable code.
+func buildBoboRemixIR(doc *model.DesignDoc, child, parent *model.Game) (*gameir.Document, error) {
+	if parent.ID != "sample-rainbow-bear" || parent.Manifest == nil {
+		return nil, fmt.Errorf("no Game IR remix profile for parent %q", parent.ID)
+	}
+	sprites := make(map[string]model.SpriteAsset, len(parent.Manifest.Assets.Sprites))
+	for _, sprite := range parent.Manifest.Assets.Sprites { sprites[sprite.ID] = sprite }
+	ids := []string{"bear","kitten","heart","band0","band1","band2","band3","band4","band5"}
+	assets := make([]gameir.Asset, 0, 10)
+	for _, id := range ids {
+		sprite, ok := sprites[id]
+		if !ok { return nil, fmt.Errorf("Bobo remix parent is missing sprite %q", id) }
+		source := "generated"
+		if sprite.Source == "kid-drawing" { source = "user_drawing" }
+		assets = append(assets, gameir.Asset{ID:id,Kind:"image",URI:sprite.Src,MIMEType:"image/png",Source:source,AltText:sprite.Label})
+	}
+	music := parent.Manifest.Assets.Music
+	if music.Src != "" {
+		source := "generated"
+		if music.Source == "library" { source = "licensed_library" }
+		assets = append(assets, gameir.Asset{ID:"theme",Kind:"audio",URI:music.Src,MIMEType:"audio/wav",Source:source,AltText:"Original calm theme"})
+	}
+	entities := []gameir.Entity{
+		{ID:"player",Kind:"player",AssetID:"bear",Position:[]float64{195,650},Size:[]float64{100,120},Components:[]string{"movement","collider","score"}},
+		{ID:"kitten",Kind:"decoration",AssetID:"kitten",Position:[]float64{320,650},Size:[]float64{70,84},Components:[]string{}},
+	}
+	for i:=0;i<6;i++ {
+		entities=append(entities,gameir.Entity{ID:fmt.Sprintf("rainbow-band-%d",i),Kind:"decoration",AssetID:fmt.Sprintf("band%d",i),Position:[]float64{195,float64(350+i*16)},Size:[]float64{220,14},Components:[]string{}})
+	}
+	for i,pos:=range [][]float64{{90,250},{195,210},{300,250}} {
+		entities=append(entities,gameir.Entity{ID:fmt.Sprintf("heart-%d",i+1),Kind:"pickup",AssetID:"heart",Position:pos,Size:[]float64{42,42},Components:[]string{"collider","collectible"}})
+	}
+	rules:=make([]gameir.Rule,0,4)
+	for i:=1;i<=3;i++ {
+		target:=fmt.Sprintf("heart-%d",i)
+		rules=append(rules,gameir.Rule{ID:"collect-"+target,When:gameir.Condition{Event:"collected",Source:"player",Target:target},Actions:[]gameir.Action{{Type:"add_score",Target:"player",Value:1},{Type:"destroy_entity",Target:target}}})
+	}
+	threshold:=3.0
+	rules=append(rules,gameir.Rule{ID:"restore-rainbow",When:gameir.Condition{Event:"score_reached",Source:"player",Value:&threshold},Actions:[]gameir.Action{{Type:"show_text",Value:"The rainbow shines again! The kitten can cross."},{Type:"end_game",Value:true}}})
+	return &gameir.Document{
+		IRVersion:gameir.Version,
+		Game:gameir.Game{ID:child.ID,Title:doc.Title,Description:doc.Plot,EntryScene:"rainbow-meadow",Orientation:"portrait",SessionTargetSeconds:60,Audience:"family"},
+		Assets:assets,
+		Scenes:[]gameir.Scene{{ID:"rainbow-meadow",Entities:entities}},
+		InputBindings:[]gameir.InputBinding{{Action:"move",Input:"drag"},{Action:"move",Input:"tap"}},
+		Rules:rules,
+		Metadata:gameir.Metadata{ParentGameID:parent.ID,ParentVersion:parent.Manifest.Version,Tags:[]string{"remix","bobo","collecting","family"}},
+	},nil
+}
