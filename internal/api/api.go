@@ -5,6 +5,8 @@ package api
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -90,9 +92,27 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
 }
 
+const maxJSONBodyBytes = 2 << 20 // 2 MiB
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if r.Body == nil {
+		writeErr(w, http.StatusBadRequest, "request body is required")
+		return false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(v); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeErr(w, http.StatusRequestEntityTooLarge, "request body exceeds 2 MiB")
+		} else {
+			writeErr(w, http.StatusBadRequest, "invalid JSON request body")
+		}
+		return false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		writeErr(w, http.StatusBadRequest, "request body must contain exactly one JSON value")
 		return false
 	}
 	return true

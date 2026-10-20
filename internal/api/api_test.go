@@ -408,3 +408,20 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 		t.Fatal("remix modified the original legacy inventory game")
 	}
 }
+
+func TestDecodeJSONRejectsTrailingJSONAndOversizedBodies(t *testing.T) {
+	srv := newTestServer()
+	trailing := httptest.NewRequest(http.MethodPost, "/v1/ingest", strings.NewReader(`{"keywords":["cat"]} {"unexpected":true}`))
+	trailingRec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(trailingRec, trailing)
+	if trailingRec.Code != http.StatusBadRequest {
+		t.Fatalf("trailing JSON: want 400, got %d body=%s", trailingRec.Code, trailingRec.Body.String())
+	}
+	oversizedBody := strings.NewReader(`{"keywords":["` + strings.Repeat("x", (2<<20)+16) + `"]}`)
+	oversized := httptest.NewRequest(http.MethodPost, "/v1/ingest", oversizedBody)
+	oversizedRec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(oversizedRec, oversized)
+	if oversizedRec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized JSON: want 413, got %d body=%s", oversizedRec.Code, oversizedRec.Body.String())
+	}
+}
