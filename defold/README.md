@@ -15,7 +15,7 @@ This folder is a minimal, runnable Defold project for the canonical Game IR v1.0
 - `main/game_ir.json`: small deterministic fixture for visual smoke testing.
 - `main/game.gui_script`: Defold input/render adapter. The current renderer uses generated GUI boxes and labels as placeholders; it does not yet render package image/audio assets.
 - `runtime/bobos-rainbow.json`: shared golden fixture copied from `examples/game-ir-v1/bobos-rainbow.json`.
-- `runtime/game_ir_test.lua`: smoke assertions intended for a Defold Lua test harness.
+- `test/game_ir_test.lua`: smoke assertions intended for a Defold Lua test harness.
 
 The renderer is intentionally separate from game semantics. Next steps are to point the loader at a validated package fetched from the inventory API, build a stable asset-ID-to-resource mapping, and add cross-runtime golden tests.
 
