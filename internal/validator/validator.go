@@ -77,6 +77,7 @@ func Validate(in ValidateInput) (*ValidationReport, error) {
 		checkPremiseDeclared(in.DesignInput),
 		checkTwistDeclared(in.DesignInput),
 		checkMechanicDiet(in.DesignInput),
+		checkRightsDeclared(in.DesignInput),
 	}
 
 	report := &ValidationReport{
@@ -460,6 +461,44 @@ func checkMechanicDiet(di *gamespec.RequiredInputs) Check {
 	return mk(id, StatusPass, "all mechanics justified; count fits budget",
 		fmt.Sprintf("%d declared", n),
 		"design input $.features", "$.features", "")
+}
+
+// checkRightsDeclared is the Stage 0 rights gate (questionnaire v2 §B):
+// source material may only be published when its rights are known.
+// permission_unknown (or unresolved consent) fails; sources that predate
+// the rights fields warn so a human reviews them before publication.
+func checkRightsDeclared(di *gamespec.RequiredInputs) Check {
+	const id = "design.rights_declared"
+	if di == nil || len(di.Sources) == 0 {
+		return mk(id, StatusPass, "all sources declare known rights",
+			"no sources", "design input $.sources", "$.sources", "")
+	}
+	var unknown, undeclared []string
+	for _, s := range di.Sources {
+		switch {
+		case s.RightsStatus == "permission_unknown":
+			unknown = append(unknown, s.UploadID+" (rights permission_unknown)")
+		case s.ConsentStatus == "pending" || s.ConsentStatus == "unknown":
+			unknown = append(unknown, s.UploadID+" (consent "+s.ConsentStatus+")")
+		case s.RightsStatus == "":
+			undeclared = append(undeclared, s.UploadID)
+		}
+	}
+	if len(unknown) > 0 {
+		return mk(id, StatusFail, "no source with unknown rights or consent",
+			strings.Join(unknown, ", "),
+			"design input $.sources", "$.sources",
+			"Resolve the rights/consent status of these uploads with the creator before publication — unknown rights block the package.")
+	}
+	if len(undeclared) > 0 {
+		return mk(id, StatusWarn, "every source declares rightsStatus",
+			"undeclared: "+strings.Join(undeclared, ", "),
+			"design input $.sources", "$.sources",
+			"Record rightsStatus (user_created|owned|licensed|public_domain) and consentStatus for each upload at intake.")
+	}
+	return mk(id, StatusPass, "all sources declare known rights",
+		fmt.Sprintf("%d sources", len(di.Sources)),
+		"design input $.sources", "$.sources", "")
 }
 
 // --- audio check ---

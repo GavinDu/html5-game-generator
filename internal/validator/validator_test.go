@@ -51,6 +51,7 @@ func TestValidateBobosRainbow(t *testing.T) {
 	must("budgets.package_mb", StatusPass)
 	must("safety.kid_safe", StatusPass)
 	must("audio.complete", StatusPass)
+	must("design.rights_declared", StatusPass)
 
 	// Honest findings on the sample: library music isn't vendored, and
 	// upload screening needs a human.
@@ -125,6 +126,34 @@ func TestValidateRejectsBadInput(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected schema.design_input_valid to fail on the bad input")
+	}
+}
+
+// TestRightsDeclared covers the Stage 0 rights gate: declared known rights
+// pass, undeclared rights warn (legacy inputs), explicitly unknown rights
+// or unresolved consent fail.
+func TestRightsDeclared(t *testing.T) {
+	mk := func(sources ...gamespec.UploadSource) *gamespec.RequiredInputs {
+		return &gamespec.RequiredInputs{Sources: sources}
+	}
+	cases := []struct {
+		name string
+		di   *gamespec.RequiredInputs
+		want string
+	}{
+		{"no sources", mk(), StatusPass},
+		{"user created", mk(gamespec.UploadSource{UploadID: "u1", Kind: "image",
+			RightsStatus: "user_created", ConsentStatus: "not_applicable"}), StatusPass},
+		{"undeclared warns", mk(gamespec.UploadSource{UploadID: "u1", Kind: "image"}), StatusWarn},
+		{"unknown rights fail", mk(gamespec.UploadSource{UploadID: "u1", Kind: "image",
+			RightsStatus: "permission_unknown"}), StatusFail},
+		{"pending consent fails", mk(gamespec.UploadSource{UploadID: "u1", Kind: "image",
+			RightsStatus: "owned", ConsentStatus: "pending"}), StatusFail},
+	}
+	for _, tc := range cases {
+		if got := checkRightsDeclared(tc.di); got.Status != tc.want {
+			t.Errorf("%s: want %s, got %s (%s)", tc.name, tc.want, got.Status, got.Evidence)
+		}
 	}
 }
 

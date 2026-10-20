@@ -26,6 +26,15 @@ const RequiredInputsVersion = "1.1"
 type UploadSource struct {
 	UploadID string `json:"uploadId"`
 	Kind     string `json:"kind"` // image|video|text|audio
+	// Rights-aware source record (questionnaire v2, §B): who owns the
+	// material and what the generator may do with it. Optional for backward
+	// compatibility; the validator warns when undeclared and blocks
+	// publication when rights are explicitly unknown.
+	RightsStatus   string   `json:"rightsStatus,omitempty"`   // user_created|owned|licensed|public_domain|permission_unknown
+	ConsentStatus  string   `json:"consentStatus,omitempty"`  // not_applicable|granted|pending|unknown
+	IntendedUse    []string `json:"intendedUse,omitempty"`    // e.g. palette, character_concept, composition, mood
+	ProhibitedUse  []string `json:"prohibitedUse,omitempty"`  // e.g. exact_sprite_copy
+	SourceHash     string   `json:"sourceHash,omitempty"`     // content hash of the uploaded media, when computed at ingest
 }
 
 type InputSpec struct {
@@ -257,6 +266,16 @@ func (r *RequiredInputs) Validate() error {
 			return fmt.Errorf("sources[%d].uploadId: required", i)
 		}
 		if err := reqOneOf(fmt.Sprintf("sources[%d].kind", i), s.Kind, "image", "video", "text", "audio"); err != nil {
+			return err
+		}
+		// Rights fields are optional (legacy inputs predate them) but must
+		// use the closed enums when present — the AI may not invent values.
+		if err := oneOf(fmt.Sprintf("sources[%d].rightsStatus", i), s.RightsStatus,
+			"user_created", "owned", "licensed", "public_domain", "permission_unknown"); err != nil {
+			return err
+		}
+		if err := oneOf(fmt.Sprintf("sources[%d].consentStatus", i), s.ConsentStatus,
+			"not_applicable", "granted", "pending", "unknown"); err != nil {
 			return err
 		}
 	}

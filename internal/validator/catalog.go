@@ -99,6 +99,13 @@ var catalog = []checkDef{
 	{id: "design.mechanic_diet", category: CatDesign, severity: SeverityWarning,
 		description: "Every powerup/mode justifies itself with a loopLink, and the mechanic count fits the session budget (Li Dan).",
 		autoRepairable: true},
+	// Rights gate (questionnaire v2 §B / Stage 0): every uploaded source
+	// declares who owns it and what may be done with it. Explicitly unknown
+	// rights block publication; undeclared rights warn and route to human
+	// review. Rights are a creator/legal fact — never auto-repairable.
+	{id: "design.rights_declared", category: CatDesign, severity: SeverityBlocking,
+		description: "Every source declares rightsStatus/consentStatus; permission_unknown rights block publication (questionnaire v2 §B).",
+		autoRepairable: false},
 }
 
 // checkIndex maps checkId -> catalog position.

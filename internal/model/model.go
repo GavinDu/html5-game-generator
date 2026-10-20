@@ -25,6 +25,12 @@ type Element struct {
 	Kind        string      `json:"kind"` // character | prop | background
 	Box         *[4]float64 `json:"box,omitempty"`
 	Description string      `json:"description"`
+	// Structured extraction detail (questionnaire v2 §7.21): how confident
+	// the vision stage is, which upload the element came from, and any
+	// ambiguity a human should resolve at confirmation time.
+	Confidence *float64 `json:"confidence,omitempty"`
+	SourceRef  string   `json:"source_ref,omitempty"` // upload ID this element was extracted from
+	Ambiguity  string   `json:"ambiguity,omitempty"`
 }
 
 type ImageInput struct {
