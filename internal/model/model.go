@@ -2,7 +2,11 @@
 // games generated from kids' drawings.
 package model
 
-import "time"
+import (
+	"time"
+
+	"doodlequest/internal/gameir"
+)
 
 // Visibility controls who can see/play a game. The author owns it.
 type Visibility string
@@ -157,6 +161,7 @@ type Game struct {
 	Status     GameStatus      `json:"status"`
 	JobID      string          `json:"job_id"`
 	Manifest   *BundleManifest `json:"manifest,omitempty"`
+	GameIR     *gameir.Document `json:"game_ir,omitempty"`
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
 }

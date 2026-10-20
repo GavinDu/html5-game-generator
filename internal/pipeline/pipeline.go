@@ -5,11 +5,13 @@ package pipeline
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/media"
 	"doodlequest/internal/model"
 	"doodlequest/internal/shim"
@@ -229,19 +231,30 @@ func (r *Runner) runRemaining(jobID string) {
 		return nil
 	})
 
-	// CODEGEN: design doc -> game.js against GameShim v1.
+	// CODEGEN: produce the canonical declarative Game IR. The GameShim output
+	// is retained only as a temporary HTML5 test oracle during migration.
 	var gameJS string
+	var canonicalIR *gameir.Document
 	r.runStage(job, model.StageCodegen, func() error {
-		playerSprite := "el_1"
-		gameJS = shim.BuildGameJS(doc, playerSprite)
+		canonicalIR = buildGameIR(doc, job.GameID)
+		data, err := json.MarshalIndent(canonicalIR, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encode Game IR: %w", err)
+		}
+		r.store.PutArtifact(job.GameID, "game-ir.json", data, "application/json")
+		gameJS = shim.BuildGameJS(doc, "el_1")
 		r.store.PutArtifact(job.GameID, "game.js", []byte(gameJS), "application/javascript")
 		return nil
 	})
 
-	// VALIDATE: static safety + contract checks (stub for headless playtest).
+	// VALIDATE: semantic Game IR validation is authoritative; the legacy
+	// static check only keeps the temporary HTML5 oracle safe during migration.
 	r.runStage(job, model.StageValidate, func() error {
+		if err := gameir.Validate(canonicalIR); err != nil {
+			return fmt.Errorf("invalid generated Game IR: %w", err)
+		}
 		if err := staticChecks(gameJS); err != nil {
-			return err
+			return fmt.Errorf("temporary HTML5 reference failed static checks: %w", err)
 		}
 		q := 0.85 // stub vision-judge score
 		job.Stages[stageIdx(job, model.StageValidate)].Quality = &q
@@ -281,6 +294,7 @@ func (r *Runner) runRemaining(jobID string) {
 		m.Visibility = game.Visibility
 		m.SharedGroupIDs = game.GroupIDs
 		game.Manifest = m
+		game.GameIR = canonicalIR
 		game.Title = doc.Title
 		game.Status = model.GameReady
 		game.UpdatedAt = time.Now()
@@ -360,3 +374,76 @@ func staticChecks(gameJS string) error {
 	}
 	return nil
 }
+
+func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
+	assets := make([]gameir.Asset, 0, len(doc.Elements)+2)
+	entities := make([]gameir.Entity, 0, len(doc.Elements)+2)
+	for i, element := range doc.Elements {
+		if i >= 4 {
+			break
+		}
+		id := fmt.Sprintf("el_%d", i+1)
+		assets = append(assets, gameir.Asset{
+			ID: id, Kind: "image", URI: "sprites/" + id + ".png",
+			MIMEType: "image/png", Source: "generated", AltText: element.Label,
+		})
+		kind := "decoration"
+		if i == 0 {
+			kind = "player"
+		}
+		components := []string{}
+		if i == 0 {
+			components = []string{"movement", "collider", "score"}
+		}
+		entities = append(entities, gameir.Entity{
+			ID: id, Kind: kind, AssetID: id,
+			Position: []float64{float64(100 + i*80), 500},
+			Size: []float64{64, 64}, Components: components,
+			Properties: map[string]any{"sourceLabel": element.Label, "sourceKind": element.Kind},
+		})
+	}
+	assets = append(assets,
+		gameir.Asset{ID: "star", Kind: "image", URI: "sprites/star.png", MIMEType: "image/png", Source: "generated", AltText: "collectible star"},
+		gameir.Asset{ID: "theme", Kind: "audio", URI: "audio/theme.wav", MIMEType: "audio/wav", Source: "generated", AltText: "background music"},
+	)
+	entities = append(entities, gameir.Entity{
+		ID: "star-pickup", Kind: "pickup", AssetID: "star",
+		Position: []float64{160, 240}, Size: []float64{28, 28},
+		Components: []string{"collider", "collectible"},
+	})
+	targetScore := 10.0
+	return &gameir.Document{
+		IRVersion: gameir.Version,
+		Game: gameir.Game{
+			ID: gameID, Title: doc.Title, Description: doc.Plot,
+			EntryScene: "main", Orientation: "portrait",
+			SessionTargetSeconds: 90, Audience: "family",
+		},
+		Assets: assets,
+		Scenes: []gameir.Scene{{ID: "main", Entities: entities}},
+		InputBindings: []gameir.InputBinding{
+			{Action: "move", Input: "drag"},
+			{Action: "move", Input: "tap"},
+		},
+		Rules: []gameir.Rule{
+			{
+				ID: "collect-star",
+				When: gameir.Condition{Event: "collected", Source: "el_1", Target: "star-pickup"},
+				Actions: []gameir.Action{
+					{Type: "add_score", Target: "el_1", Value: 1},
+					{Type: "destroy_entity", Target: "star-pickup"},
+				},
+			},
+			{
+				ID: "finish-game",
+				When: gameir.Condition{Event: "score_reached", Source: "el_1", Value: &targetScore},
+				Actions: []gameir.Action{
+					{Type: "show_text", Value: "You did it!"},
+					{Type: "end_game", Value: true},
+				},
+			},
+		},
+		Metadata: gameir.Metadata{Tags: []string{"generated", "collecting"}},
+	}
+}
+

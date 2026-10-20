@@ -15,6 +15,14 @@ dependencies, so it builds anywhere (including Replit) with `go build`.
 - `internal/shim` — stub codegen: emits a valid GameShim v1 game
 - `internal/api` — HTTP handlers + routes
 
+## Target architecture
+
+The intended direction is a **breaking migration** to a versioned, engine-independent Game Package and declarative Game IR. GameShim JavaScript generation, legacy package endpoints, and HTML5/Godot engine-selection logic are transitional code to replace after the IR pipeline passes acceptance tests. Do not add compatibility layers by default. See [`docs/game-package-ir-v1.md`](docs/game-package-ir-v1.md), [`schemas/game-ir-v1.schema.json`](schemas/game-ir-v1.schema.json), and [`examples/game-ir-v1/bobos-rainbow.json`](examples/game-ir-v1/bobos-rainbow.json).
+
+## Game IR API
+
+The canonical package path is now being built around the versioned Game IR. The backend exposes `POST /v1/game-ir/validate`, `GET /v1/games/{id}/game-ir`, `GET /v1/games/{id}/package` (package version 2.0), and `GET /v1/games/{id}/assets/{assetId}`. The HTML5 GameShim artifact is temporary reference infrastructure, not the canonical game format.
+
 ## Pipeline
 
 Every stage records latency, tokens, and cost (`StageRecord`) from day one —

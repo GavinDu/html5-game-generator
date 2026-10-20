@@ -1,0 +1,27 @@
+name: Go validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/game-package-ir-contract
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify formatting of new Go files
+        run: test -z "$(gofmt -l internal/gameir/ir.go internal/gameir/ir_test.go cmd/gameir-validate/main.go)"
+      - name: Run tests
+        run: go test ./...
+      - name: Static analysis
+        run: go vet ./...

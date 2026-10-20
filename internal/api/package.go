@@ -2,127 +2,90 @@ package api
 
 import (
 	"net/http"
-	"path"
-	"strings"
+	"net/url"
 
-	"doodlequest/internal/model"
+	"doodlequest/internal/gameir"
 )
 
-// PackageVersion is the data-package descriptor version.
-const PackageVersion = "1.0"
+const PackageVersion = "2.0"
 
-// RuntimeRequirement is the player-runtime handshake, parsed from the
-// manifest's shim field (e.g. "gameshim/v1"). A bundled-runtime client
-// checks Required against its embedded runtime before loading game data;
-// an empty Required means "runtime unknown: use the legacy remote path".
-type RuntimeRequirement struct {
-	Required string `json:"required"`
+type GamePackageAsset struct {
+	ID       string `json:"id"`
 	Kind     string `json:"kind"`
-	Version  string `json:"version"`
+	URI      string `json:"uri"`
+	URL      string `json:"url"`
+	MIMEType string `json:"mimeType,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
+	Source   string `json:"source,omitempty"`
+	AltText  string `json:"altText,omitempty"`
 }
 
-// PackageAsset is one downloadable datum in the package. URLs are relative
-// to the backend base URL the client already talks to.
-type PackageAsset struct {
-	ID     string `json:"id"`
-	Kind   string `json:"kind"` // "entry" | "sprite" | "music"
-	URL    string `json:"url"`
-	Mime   string `json:"mime,omitempty"`
-	Source string `json:"source,omitempty"` // kid-drawing | procedural | library | generated
-	Label  string `json:"label,omitempty"`
-}
-
-// PackageData is the data-only payload: everything a bundled-runtime client
-// fetches. It carries no execution semantics; the client's embedded runtime
-// interprets it.
-type PackageData struct {
-	Entry   PackageAsset  `json:"entry"`
-	Sprites []PackageAsset `json:"sprites"`
-	Music   *PackageAsset  `json:"music,omitempty"`
-}
-
-// GamePackage is the data-plane descriptor for one game.
+// GamePackage is the canonical, engine-independent delivery envelope.
+// The IR keeps package-relative asset URIs; URLs here are delivery locations.
 type GamePackage struct {
-	PackageVersion string              `json:"packageVersion"`
-	GameID         string              `json:"gameId"`
-	Runtime        RuntimeRequirement  `json:"runtime"`
-	Manifest       *model.BundleManifest `json:"manifest"`
-	Data           PackageData         `json:"data"`
+	PackageVersion string             `json:"packageVersion"`
+	GameID         string             `json:"gameId"`
+	IR             *gameir.Document   `json:"ir"`
+	Assets         []GamePackageAsset `json:"assets"`
 }
 
-// parseRuntime splits a manifest shim field ("gameshim/v1") into the
-// handshake triple.
-func parseRuntime(shim string) RuntimeRequirement {
-	req := RuntimeRequirement{Required: shim}
-	if i := strings.Index(shim, "/"); i > 0 && i < len(shim)-1 {
-		req.Kind = shim[:i]
-		req.Version = shim[i+1:]
-	}
-	return req
-}
-
-func mimeFor(src string) string {
-	switch strings.ToLower(path.Ext(src)) {
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".wav":
-		return "audio/wav"
-	case ".mp3":
-		return "audio/mpeg"
-	case ".js":
-		return "application/javascript"
-	case ".json":
-		return "application/json"
-	}
-	return ""
-}
-
-// GET /v1/games/{id}/package — the data-plane descriptor for one game.
-//
-// For bundled-runtime clients (e.g. the iOS player container): the player
-// runtime ships inside the client, so the client fetches only this
-// descriptor plus the referenced data URLs. The existing /bundle routes are
-// untouched: the browser player keeps using them as before.
 func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
-	if game.Manifest == nil {
-		writeErr(w, http.StatusConflict, "package not published yet")
+	if game.GameIR == nil {
+		writeErr(w, http.StatusConflict, "Game IR has not been published")
 		return
 	}
-	m := game.Manifest
-	base := "/v1/games/" + game.ID + "/bundle"
 	pkg := GamePackage{
 		PackageVersion: PackageVersion,
-		GameID:         game.ID,
-		Runtime:        parseRuntime(m.Shim),
-		Manifest:       m,
-		Data: PackageData{
-			Entry: PackageAsset{
-				ID: "entry", Kind: "entry",
-				URL: base + "/" + m.Entry, Mime: mimeFor(m.Entry),
-				Label: "game data interpreted by the bundled runtime",
-			},
-		},
+		GameID: game.ID,
+		IR: game.GameIR,
+		Assets: make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
 	}
-	for _, sp := range m.Assets.Sprites {
-		pkg.Data.Sprites = append(pkg.Data.Sprites, PackageAsset{
-			ID: sp.ID, Kind: "sprite",
-			URL: base + "/" + sp.Src, Mime: mimeFor(sp.Src),
-			Source: sp.Source, Label: sp.Label,
+	for _, asset := range game.GameIR.Assets {
+		pkg.Assets = append(pkg.Assets, GamePackageAsset{
+			ID: asset.ID, Kind: asset.Kind, URI: asset.URI,
+			URL: "/v1/games/" + game.ID + "/assets/" + url.PathEscape(asset.ID),
+			MIMEType: asset.MIMEType, SHA256: asset.SHA256,
+			Source: asset.Source, AltText: asset.AltText,
 		})
 	}
-	if m.Assets.Music.Src != "" {
-		pkg.Data.Music = &PackageAsset{
-			ID: "music", Kind: "music",
-			URL: base + "/" + m.Assets.Music.Src, Mime: mimeFor(m.Assets.Music.Src),
-			Source: m.Assets.Music.Source, Label: m.Assets.Music.Mood,
-		}
-	}
 	writeJSON(w, http.StatusOK, pkg)
+}
+
+func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
+	game, ok := s.store.GetGame(r.PathValue("id"))
+	if !ok {
+		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	if game.GameIR == nil {
+		writeErr(w, http.StatusConflict, "Game IR has not been published")
+		return
+	}
+	assetID := r.PathValue("asset")
+	for _, asset := range game.GameIR.Assets {
+		if asset.ID != assetID {
+			continue
+		}
+		data, contentType, found := s.store.GetArtifact(game.ID, asset.URI)
+		if !found {
+			writeErr(w, http.StatusNotFound, "asset content not found")
+			return
+		}
+		if contentType == "" {
+			contentType = asset.MIMEType
+		}
+		if contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+		return
+	}
+	writeErr(w, http.StatusNotFound, "asset not found in Game IR")
 }
