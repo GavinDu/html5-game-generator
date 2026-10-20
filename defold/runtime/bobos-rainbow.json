@@ -1,0 +1,158 @@
+{
+  "irVersion": "1.0",
+  "game": {
+    "id": "bobos-rainbow",
+    "title": "Bobo's Rainbow",
+    "description": "Catch falling hearts to restore the rainbow and help the kitten cross.",
+    "entryScene": "rainbow-field",
+    "orientation": "portrait",
+    "sessionTargetSeconds": 90,
+    "audience": "family"
+  },
+  "assets": [
+    {
+      "id": "field",
+      "kind": "image",
+      "uri": "assets/field.png",
+      "source": "generated"
+    },
+    {
+      "id": "bobo",
+      "kind": "image",
+      "uri": "assets/bear.png",
+      "source": "user_drawing"
+    },
+    {
+      "id": "heart",
+      "kind": "image",
+      "uri": "assets/heart.png",
+      "source": "generated"
+    },
+    {
+      "id": "kitten",
+      "kind": "image",
+      "uri": "assets/kitten.png",
+      "source": "user_drawing"
+    },
+    {
+      "id": "theme",
+      "kind": "audio",
+      "uri": "assets/theme.wav",
+      "source": "generated"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "rainbow-field",
+      "backgroundAssetId": "field",
+      "entities": [
+        {
+          "id": "player",
+          "kind": "player",
+          "assetId": "bobo",
+          "position": [
+            195,
+            650
+          ],
+          "size": [
+            72,
+            88
+          ],
+          "components": [
+            "movement",
+            "collider",
+            "score"
+          ]
+        },
+        {
+          "id": "kitten",
+          "kind": "decoration",
+          "assetId": "kitten",
+          "position": [
+            320,
+            650
+          ],
+          "size": [
+            64,
+            64
+          ],
+          "components": []
+        },
+        {
+          "id": "heart",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            195,
+            280
+          ],
+          "size": [
+            28,
+            28
+          ],
+          "components": [
+            "collider",
+            "collectible"
+          ]
+        }
+      ]
+    }
+  ],
+  "inputBindings": [
+    {
+      "action": "move",
+      "input": "drag"
+    },
+    {
+      "action": "move",
+      "input": "virtual_joystick"
+    }
+  ],
+  "rules": [
+    {
+      "id": "heart-caught",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "heart"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "player",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart"
+        }
+      ]
+    },
+    {
+      "id": "rainbow-complete",
+      "when": {
+        "event": "score_reached",
+        "source": "player",
+        "value": 12
+      },
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "The rainbow is complete!"
+        },
+        {
+          "type": "end_game",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "creatorDisplayName": "Sample Creator",
+    "tags": [
+      "family",
+      "collecting",
+      "drawing-inspired"
+    ]
+  }
+}
