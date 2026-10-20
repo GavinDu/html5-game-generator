@@ -252,8 +252,9 @@ func (r *Runner) runRemaining(jobID string) {
 				media.SpritePNG(el.Label), "image/png")
 		}
 		r.store.PutArtifact(job.GameID, "sprites/star.png", media.StarPNG(), "image/png")
-		r.store.PutArtifact(job.GameID, "audio/theme.wav",
-			media.MusicWAV(doc.MusicMood), "audio/wav")
+		if game, ok := r.store.GetGame(job.GameID); !ok || game.ParentGameID == "" {
+			r.store.PutArtifact(job.GameID, "audio/theme.wav", media.MusicWAV(doc.MusicMood), "audio/wav")
+		}
 		return nil
 	})
 
