@@ -58,6 +58,7 @@ function M.new(document, callbacks)
         destroyed = {},
         variables = {},
         collected = {},
+        fired_thresholds = {},
         score = 0,
         health = 3,
         ended = false,
@@ -71,7 +72,7 @@ function M.new(document, callbacks)
 end
 
 function Runtime:reset(run_start)
-    self.positions, self.destroyed, self.variables, self.collected = {}, {}, {}, {}
+    self.positions, self.destroyed, self.variables, self.collected, self.fired_thresholds = {}, {}, {}, {}, {}
     self.score, self.health, self.ended, self.won, self.message = 0, 3, false, false, nil
     for _, entity in ipairs(self.scene.entities or {}) do
         self.positions[entity.id] = {
@@ -96,17 +97,46 @@ function Runtime:visible_entities()
     return result
 end
 
+local function conditions_match(self, conditions)
+    for _, condition in ipairs(conditions or {}) do
+        local actual, expected = self.variables[condition.variable], condition.value
+        if type(actual) ~= "number" or type(expected) ~= "number" then return false end
+        local op = condition.operator
+        if (op == "eq" and actual ~= expected)
+            or (op == "neq" and actual == expected)
+            or (op == "gt" and actual <= expected)
+            or (op == "gte" and actual < expected)
+            or (op == "lt" and actual >= expected)
+            or (op == "lte" and actual > expected)
+            or not ({eq=true,neq=true,gt=true,gte=true,lt=true,lte=true})[op] then
+            return false
+        end
+    end
+    return true
+end
+
+local function rule_matches(self, rule, event, source, target, value)
+    local when = rule["when"] or {}
+    if when.event ~= event then return false end
+    if when.source and when.source ~= source then return false end
+    if when.target and when.target ~= target then return false end
+    if not conditions_match(self, rule.conditions) then return false end
+    if when.value ~= nil then
+        if event == "score_reached" then
+            if self.score < when.value then return false end
+        elseif value == nil or value ~= when.value then
+            return false
+        end
+    end
+    return true
+end
+
 function Runtime:emit(event, source, target, value)
     -- Bound recursion prevents malformed rule chains from freezing the frame loop.
     if self._dispatch_depth >= 16 then return end
     self._dispatch_depth = self._dispatch_depth + 1
     for _, rule in ipairs(self.document.rules or {}) do
-        local when = rule["when"] or {}
-        if when.event == event
-            and (not when.source or when.source == source)
-            and (not when.target or when.target == target)
-            and (when.value == nil or value == nil or when.value == value)
-            and (not (event == "score_reached" and when.value ~= nil) or when.value <= self.score) then
+        if rule_matches(self, rule, event, source, target, value) then
             self:execute(rule.actions or {})
             if self.ended then break end
         end
@@ -118,8 +148,9 @@ end
 function Runtime:_score_thresholds()
     for _, rule in ipairs(self.document.rules or {}) do
         local when = rule["when"] or {}
-        if when.event == "score_reached" and type(when.value) == "number"
-            and self.score >= when.value and (not when.source or when.source == "player") then
+        if not self.fired_thresholds[rule.id]
+            and rule_matches(self, rule, "score_reached", "player", nil, self.score) then
+            self.fired_thresholds[rule.id] = true
             self:execute(rule.actions or {})
             if self.ended then return end
         end
