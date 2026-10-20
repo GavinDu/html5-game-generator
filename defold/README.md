@@ -1,27 +1,29 @@
-# Defold Game IR runtime (first vertical slice)
+# Defold Game IR runtime prototype
 
-This is a Defold project scaffold for the canonical Game IR 1.0 contract in the backend docs.
+This is the first Defold/Lua interpreter for the engine-independent Game IR contract. It interprets JSON data and a fixed allowlist of declarative actions. It does **not** load or execute downloaded Lua, JavaScript, native libraries, or generated scripts.
 
-## Open and run
+## Files
 
-1. Open Defold.
-2. Choose **Open Project** and select the `defold/game.project` file.
-3. Build and run. The bundled `main/game_ir.json` is the deterministic fixture.
-4. Drag the player box onto the heart. Score and the status message should update. Press **R** to restart.
+- `runtime/game_ir.lua`: interpreter, state model, bounded rule dispatch, drag movement, pickup overlap, score/health/end-game actions.
+- `runtime/main.gui_script.example.lua`: illustrative Defold adapter for input and rendering.
+- `runtime/bobos-rainbow.json`: golden fixture copied from the backend contract.
 
-## Implemented
+## Integrating into a Defold project
 
-- Loads JSON Game IR from a bundled resource.
-- Resolves the entry scene and builds GUI nodes from entity positions/sizes.
-- Touch/mouse drag moves the first player/movement entity within a logical 390 × 844 playfield.
-- Collision checks collect pickup/collectible entities once.
-- Executes a fixed allowlist for `add_score`, `destroy_entity`, `show_text`, `set_variable`, `move_entity`, `set_health`, and `end_game`.
-- Unknown IR versions fail closed; downloaded code is never executed.
+1. Copy `runtime/game_ir.lua` to the project as `/game_ir.lua`.
+2. Copy `runtime/bobos-rainbow.json` to `/bobos-rainbow.json` and mark it as a resource in the project.
+3. Create a GUI scene and bind touch input to an action named `touch`.
+4. Adapt the example GUI script to a stable, predeclared node map for entities and labels. The script deliberately leaves rendering node creation as a project-specific integration point; no full Defold project scaffolding is present in this repository yet.
+5. On each input update call `runtime:move_player(x, y)`; render `runtime:visible_entities()`, `runtime.positions`, score, message and result through Defold GUI APIs.
+6. Run the shared fixture and compare snapshots and event outcomes with the iOS player.
 
-## Not implemented in this first slice
+## Supported in this prototype
 
-Colored placeholder nodes are used; image/audio decoding and downloads are not implemented yet. Scene transitions, spawn, sound, animation, tilemaps, remote package fetching, hash verification, and moderation are subsequent tasks. The backend's package endpoint serves assets by ID. A future Defold loader must resolve only listed asset URLs, validate hashes/size/type, and use a vetted image-decoding path before creating dynamic textures.
+- IR version 1.0 and entry-scene selection
+- Entity positions, sizes and allowlisted components
+- Drag movement, bounding-box pickup detection
+- `collected`, `game_start`, `score_reached` event rules
+- `add_score`, `set_variable`, `move_entity`, `destroy_entity`, `show_text`, `set_health`, `end_game`
+- Callback hook for sound and scene transitions
 
-The fixture is a quick manual-test game, not a new package format. Keep the backend schema and golden fixture authoritative.
-
-No Defold editor/build tool is available in this editing environment, so please build this project locally in Defold and report any editor/compiler errors for the next pass.
+`spawn_entity` is intentionally a no-op until the contract defines a validated entity template. Unknown actions are ignored. The current adapter is a skeleton, not a finished playable Defold application. Defold engine execution and parity tests still need to be run locally.
