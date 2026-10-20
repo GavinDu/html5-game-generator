@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"doodlequest/internal/gameir"
+	"doodlequest/internal/inventory"
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
@@ -324,5 +325,86 @@ func TestGameIRValidateEndpoint(t *testing.T) {
 	rec = do(t, srv, "POST", "/v1/game-ir/validate", json.RawMessage(invalid), "")
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("invalid Game IR: want 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
+	st := store.NewMemoryStore()
+	if err := inventory.Load(st, "../../inventory"); err != nil {
+		t.Fatalf("load legacy game inventory: %v", err)
+	}
+	parent, ok := st.GetGame("sample-rainbow-bear")
+	if !ok || parent.Status != model.GameReady || parent.Manifest == nil {
+		t.Fatal("Bobo's Rainbow parent game was not loaded from inventory")
+	}
+	srv := New(st, pipeline.NewRunner(st))
+
+	rec := do(t, srv, "POST", "/v1/games", map[string]any{
+		"parent_game_id": "sample-rainbow-bear",
+		"intent": "Remix Bobo's Rainbow into a short heart-collecting rescue game",
+	}, "remix-tester")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("create remix: %d %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		Game model.Game `json:"game"`
+		Job model.Job `json:"job"`
+	}
+	decode(t, rec, &created)
+	if created.Game.ParentGameID != parent.ID {
+		t.Fatalf("lineage not recorded on child: %+v", created.Game)
+	}
+
+	job := waitJob(t, srv, created.Job.ID, model.JobAwaitingConfirm)
+	if job.Status != model.JobAwaitingConfirm || job.DesignDoc == nil {
+		t.Fatalf("remix did not reach design confirmation: %+v", job)
+	}
+	if job.DesignDoc.Title != "Bobo's Rainbow: Heart Rescue" {
+		t.Fatalf("unexpected remix design title: %q", job.DesignDoc.Title)
+	}
+	rec = do(t, srv, "POST", "/v1/games/"+created.Game.ID+"/confirm", map[string]any{}, "remix-tester")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("confirm remix: %d %s", rec.Code, rec.Body.String())
+	}
+	job = waitJob(t, srv, created.Job.ID, model.JobDone)
+	if job.Status != model.JobDone {
+		t.Fatalf("remix generation failed: %s", job.Error)
+	}
+
+	child, ok := st.GetGame(created.Game.ID)
+	if !ok || child.GameIR == nil {
+		t.Fatal("published remix has no canonical Game IR")
+	}
+	if child.GameIR.Metadata.ParentGameID != parent.ID || child.GameIR.Metadata.ParentVersion != parent.Manifest.Version {
+		t.Fatalf("Game IR lineage mismatch: %+v", child.GameIR.Metadata)
+	}
+	if err := gameir.Validate(child.GameIR); err != nil {
+		t.Fatalf("remix Game IR failed semantic validation: %v", err)
+	}
+	if len(child.GameIR.Assets) < 9 || len(child.GameIR.Scenes) != 1 || len(child.GameIR.Rules) != 4 {
+		t.Fatalf("unexpected remix shape: assets=%d scenes=%d rules=%d", len(child.GameIR.Assets), len(child.GameIR.Scenes), len(child.GameIR.Rules))
+	}
+
+	// The native iOS player consumes this exact package envelope and fetches
+	// each asset through the package's declared delivery URL.
+	rec = do(t, srv, "GET", "/v1/games/"+child.ID+"/package", nil, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("package endpoint: %d %s", rec.Code, rec.Body.String())
+	}
+	var pkg GamePackage
+	decode(t, rec, &pkg)
+	if pkg.PackageVersion != PackageVersion || pkg.GameID != child.ID || pkg.IR.Metadata.ParentGameID != parent.ID {
+		t.Fatalf("package contract mismatch: %+v", pkg)
+	}
+	for _, asset := range pkg.Assets {
+		rec = do(t, srv, "GET", asset.URL, nil, "")
+		if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
+			t.Fatalf("package asset %q unavailable at %s: %d", asset.ID, asset.URL, rec.Code)
+		}
+	}
+	// Creating a remix must not mutate the original inventory record.
+	unchanged, ok := st.GetGame(parent.ID)
+	if !ok || unchanged.GameIR != nil || unchanged.Manifest.Version != parent.Manifest.Version {
+		t.Fatal("remix modified the original legacy inventory game")
 	}
 }
