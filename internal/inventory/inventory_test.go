@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"doodlequest/internal/store"
@@ -100,6 +101,61 @@ func TestLoadBadProcedural(t *testing.T) {
 func TestLoadNoFolders(t *testing.T) {
 	if err := Load(storet(t), t.TempDir()); err == nil {
 		t.Fatal("expected no-game-folders error")
+	}
+}
+
+const testIR = `{
+  "irVersion": "1.0",
+  "game": {"id": "test-game", "title": "Test", "entryScene": "main", "orientation": "portrait"},
+  "assets": [{"id": "s1", "kind": "image", "uri": "sprites/s1.png", "source": "generated"}],
+  "scenes": [{"id": "main", "entities": [
+    {"id": "player", "kind": "player", "assetId": "s1", "position": [10, 10], "components": ["movement"]}
+  ]}],
+  "inputBindings": [{"action": "move", "input": "tap"}],
+  "rules": [{"id": "start", "when": {"event": "game_start"},
+    "actions": [{"type": "show_text", "value": "go"}]}]
+}`
+
+// A game folder carrying game-ir.json seeds the canonical IR onto the game
+// record, so the package endpoints can serve it.
+func TestLoadSeedsGameIR(t *testing.T) {
+	root := t.TempDir()
+	b64 := base64.StdEncoding.EncodeToString([]byte("fakepng"))
+	writeGame(t, root, "abc123", testManifest, map[string]string{
+		"game.js":          "var x = 1;",
+		"assets/s1.png.b64": b64,
+		"game-ir.json":     testIR,
+	})
+	st := store.NewMemoryStore()
+	if err := Load(st, root); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	g, ok := st.GetGame("test-game")
+	if !ok || g.GameIR == nil {
+		t.Fatal("game-ir.json was not seeded onto the game record")
+	}
+	if g.GameIR.Game.ID != "test-game" || len(g.GameIR.Assets) != 1 {
+		t.Fatalf("bad seeded IR: %+v", g.GameIR.Game)
+	}
+}
+
+// A present-but-broken game-ir.json fails the load: an invalid IR must not
+// silently degrade to a runtime 409.
+func TestLoadRejectsBadGameIR(t *testing.T) {
+	for name, ir := range map[string]string{
+		"not json":      `{`,
+		"wrong game id": strings.Replace(testIR, `"test-game"`, `"other-game"`, 1),
+	} {
+		root := t.TempDir()
+		b64 := base64.StdEncoding.EncodeToString([]byte("fakepng"))
+		writeGame(t, root, "abc123", testManifest, map[string]string{
+			"game.js":          "var x = 1;",
+			"assets/s1.png.b64": b64,
+			"game-ir.json":     ir,
+		})
+		if err := Load(store.NewMemoryStore(), root); err == nil {
+			t.Fatalf("%s: expected load error", name)
+		}
 	}
 }
 

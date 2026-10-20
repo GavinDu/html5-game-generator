@@ -402,10 +402,15 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 			t.Fatalf("package asset %q unavailable at %s: %d", asset.ID, asset.URL, rec.Code)
 		}
 	}
-	// Creating a remix must not mutate the original inventory record.
+	// Creating a remix must not mutate the original inventory record: its
+	// manifest version is untouched and its own canonical IR (seeded from
+	// inventory) does not gain the remix's lineage.
 	unchanged, ok := st.GetGame(parent.ID)
-	if !ok || unchanged.GameIR != nil || unchanged.Manifest.Version != parent.Manifest.Version {
-		t.Fatal("remix modified the original legacy inventory game")
+	if !ok || unchanged.Manifest.Version != parent.Manifest.Version {
+		t.Fatal("remix modified the original inventory game")
+	}
+	if unchanged.GameIR == nil || unchanged.GameIR.Metadata.ParentGameID != "" {
+		t.Fatal("remix modified the original inventory game's Game IR")
 	}
 }
 

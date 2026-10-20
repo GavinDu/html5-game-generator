@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/media"
 	"doodlequest/internal/model"
 	"doodlequest/internal/store"
@@ -148,6 +149,23 @@ func seedGame(st store.Store, gdir string, m *manifest) error {
 	bm.Assets.Music = model.MusicAsset{Src: m.Music.Src, Mood: m.Music.Mood, Source: m.Music.Source}
 	bm.Visibility = model.Visibility(m.Visibility)
 	game.Manifest = bm
+	// A game folder may carry the canonical Game IR document
+	// (game-ir.json), as written by the generation pipeline. When present
+	// it must decode, validate, and belong to this game — a broken IR
+	// fails the load instead of silently 409ing at request time. When
+	// absent the game simply has no published IR yet.
+	if raw, err := os.ReadFile(filepath.Join(gdir, "game-ir.json")); err == nil {
+		doc, err := gameir.DecodeAndValidate(raw)
+		if err != nil {
+			return fmt.Errorf("inventory: %s: game-ir.json: %w", gdir, err)
+		}
+		if doc.Game.ID != m.GameID {
+			return fmt.Errorf("inventory: %s: game-ir.json game id %q != manifest game_id %q", gdir, doc.Game.ID, m.GameID)
+		}
+		game.GameIR = doc
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inventory: %s: cannot read game-ir.json: %w", gdir, err)
+	}
 	st.CreateGame(game)
 
 	st.PutArtifact(m.GameID, m.Entry, code, "application/javascript")
