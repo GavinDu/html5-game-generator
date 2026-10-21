@@ -1,1 +1,224 @@
-{"assets":[{"altText":"Chase background","id":"bg0","kind":"image","mimeType":"image/png","source":"generated","uri":"sprites/bg0.png"},{"altText":"The blob patient","id":"blob","kind":"image","mimeType":"image/png","source":"user_drawing","uri":"sprites/blob.png"},{"altText":"The chaser kid","id":"chaser","kind":"image","mimeType":"image/png","source":"user_drawing","uri":"sprites/chaser.png"},{"altText":"The dreaded syringe","id":"syringe","kind":"image","mimeType":"image/png","source":"generated","uri":"sprites/syringe.png"},{"altText":"Star","id":"star","kind":"image","mimeType":"image/png","source":"generated","uri":"sprites/star.png"},{"altText":"Adventurous background theme","id":"theme","kind":"audio","mimeType":"audio/wav","source":"generated","uri":"audio/theme.wav"}],"game":{"audience":"family","description":"Tap to switch lanes, dodge the syringes, grab the stars, and outrun the chaser.","entryScene":"chase","id":"escape-from-injection","orientation":"portrait","sessionTargetSeconds":90,"title":"Escape from the Injection"},"inputBindings":[{"action":"move","input":"tap"},{"action":"move","input":"swipe"}],"irVersion":"1.0","metadata":{"tags":["family","dodging","drawing-inspired"]},"rules":[{"actions":[{"target":"player","type":"add_score","value":1},{"target":"star","type":"destroy_entity"}],"id":"star-collected","when":{"event":"collected","source":"player","target":"star"}},{"actions":[{"type":"show_text","value":"Caught! The injection got you."},{"type":"end_game","value":false}],"id":"syringe-hit","when":{"event":"collision","source":"player","target":"syringe"}},{"actions":[{"type":"show_text","value":"You escaped!"},{"type":"end_game","value":true}],"id":"escape-complete","when":{"event":"score_reached","source":"player","value":15}}],"scenes":[{"backgroundAssetId":"bg0","entities":[{"assetId":"blob","components":["movement","collider","score","health"],"id":"player","kind":"player","position":[195,660],"size":[72,72]},{"assetId":"syringe","components":["collider"],"id":"syringe","kind":"obstacle","position":[110,240],"size":[36,64]},{"assetId":"star","components":["collider","collectible"],"id":"star","kind":"pickup","position":[280,240],"size":[30,30]},{"assetId":"chaser","components":["movement"],"id":"chaser","kind":"enemy","position":[195,772],"size":[76,76]}],"id":"chase"}]}
+{
+  "assets": [
+    {
+      "altText": "Chase background",
+      "id": "bg0",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "generated",
+      "uri": "sprites/bg0.png"
+    },
+    {
+      "altText": "The blob patient",
+      "id": "blob",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "user_drawing",
+      "uri": "sprites/blob.png"
+    },
+    {
+      "altText": "The chaser kid",
+      "id": "chaser",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "user_drawing",
+      "uri": "sprites/chaser.png"
+    },
+    {
+      "altText": "The dreaded syringe",
+      "id": "syringe",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "generated",
+      "uri": "sprites/syringe.png"
+    },
+    {
+      "altText": "Star",
+      "id": "star",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "generated",
+      "uri": "sprites/star.png"
+    },
+    {
+      "altText": "Adventurous background theme",
+      "id": "theme",
+      "kind": "audio",
+      "mimeType": "audio/wav",
+      "source": "generated",
+      "uri": "audio/theme.wav"
+    }
+  ],
+  "game": {
+    "audience": "family",
+    "description": "Tap to switch lanes, dodge the syringes, grab the stars, and outrun the chaser.",
+    "entryScene": "chase",
+    "id": "escape-from-injection",
+    "orientation": "portrait",
+    "sessionTargetSeconds": 90,
+    "title": "Escape from the Injection"
+  },
+  "inputBindings": [
+    {
+      "action": "move",
+      "input": "tap"
+    },
+    {
+      "action": "move",
+      "input": "swipe"
+    }
+  ],
+  "irVersion": "1.0",
+  "metadata": {
+    "tags": [
+      "family",
+      "dodging",
+      "drawing-inspired"
+    ]
+  },
+  "rules": [
+    {
+      "actions": [
+        {
+          "target": "player",
+          "type": "add_score",
+          "value": 1
+        },
+        {
+          "target": "star",
+          "type": "destroy_entity"
+        }
+      ],
+      "id": "star-collected",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "star"
+      }
+    },
+    {
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "Caught! The injection got you."
+        },
+        {
+          "type": "end_game",
+          "value": false
+        }
+      ],
+      "id": "syringe-hit",
+      "when": {
+        "event": "collision",
+        "source": "player",
+        "target": "syringe"
+      }
+    },
+    {
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "You escaped!"
+        },
+        {
+          "type": "end_game",
+          "value": true
+        }
+      ],
+      "id": "escape-complete",
+      "when": {
+        "event": "score_reached",
+        "source": "player",
+        "value": 15
+      }
+    }
+  ],
+  "scenes": [
+    {
+      "backgroundAssetId": "bg0",
+      "entities": [
+        {
+          "assetId": "blob",
+          "components": [
+            "movement",
+            "collider",
+            "score",
+            "health"
+          ],
+          "id": "player",
+          "kind": "player",
+          "position": [
+            195,
+            660
+          ],
+          "size": [
+            72,
+            72
+          ]
+        },
+        {
+          "assetId": "syringe",
+          "components": [
+            "collider"
+          ],
+          "id": "syringe",
+          "kind": "obstacle",
+          "position": [
+            110,
+            240
+          ],
+          "size": [
+            36,
+            64
+          ],
+          "behavior": {
+            "type": "chase",
+            "speed": 52
+          }
+        },
+        {
+          "assetId": "star",
+          "components": [
+            "collider",
+            "collectible"
+          ],
+          "id": "star",
+          "kind": "pickup",
+          "position": [
+            280,
+            240
+          ],
+          "size": [
+            30,
+            30
+          ],
+          "behavior": {
+            "type": "fall",
+            "speed": 85
+          }
+        },
+        {
+          "assetId": "chaser",
+          "components": [
+            "movement"
+          ],
+          "id": "chaser",
+          "kind": "enemy",
+          "position": [
+            195,
+            772
+          ],
+          "size": [
+            76,
+            76
+          ],
+          "behavior": {
+            "type": "chase",
+            "speed": 38
+          }
+        }
+      ],
+      "id": "chase"
+    }
+  ]
+}

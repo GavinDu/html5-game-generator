@@ -67,6 +67,21 @@ type Entity struct {
 	Size       []float64      `json:"size,omitempty"`
 	Components []string       `json:"components"`
 	Properties map[string]any `json:"properties,omitempty"`
+	Behavior   *Behavior      `json:"behavior,omitempty"`
+}
+
+// Behavior declares autonomous motion for an entity, interpreted by the
+// platform runtime's tick loop (the algorithmic completion layer). It is
+// data, not code: fall = move down at Speed logical px/s, wrapping to the
+// top (a falling pickup that is collected respawns at the top — falling
+// pickups are renewable); chase = move toward the player at Speed px/s;
+// patrol = oscillate horizontally around the authored position
+// (Range px amplitude, Speed = angular speed); oscillate = the same
+// vertically. A nil Behavior means the entity is static.
+type Behavior struct {
+	Type  string   `json:"type"`
+	Speed *float64 `json:"speed,omitempty"`
+	Range *float64 `json:"range,omitempty"`
 }
 
 type InputBinding struct {
@@ -253,6 +268,18 @@ func Validate(d *Document) error {
 			}
 			if len(entity.Components) > 16 {
 				return fmt.Errorf("entity %q component limit exceeded", entity.ID)
+			}
+			if entity.Behavior != nil {
+				b := entity.Behavior
+				if !has(enum("fall", "chase", "patrol", "oscillate"), b.Type) {
+					return fmt.Errorf("entity %q has unsupported behavior type %q", entity.ID, b.Type)
+				}
+				if b.Speed != nil && (!finite(*b.Speed) || *b.Speed < 0 || *b.Speed > 1000) {
+					return fmt.Errorf("entity %q behavior speed must be between 0 and 1000", entity.ID)
+				}
+				if b.Range != nil && (!finite(*b.Range) || *b.Range < 0 || *b.Range > 500) {
+					return fmt.Errorf("entity %q behavior range must be between 0 and 500", entity.ID)
+				}
 			}
 			seen := enum()
 			for _, component := range entity.Components {

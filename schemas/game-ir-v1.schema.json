@@ -26,7 +26,8 @@
         "position":{"type":"array","prefixItems":[{"type":"number","minimum":-100000,"maximum":100000},{"type":"number","minimum":-100000,"maximum":100000}],"minItems":2,"maxItems":2},
         "size":{"type":"array","prefixItems":[{"type":"number","exclusiveMinimum":0,"maximum":100000},{"type":"number","exclusiveMinimum":0,"maximum":100000}],"minItems":2,"maxItems":2},
         "components":{"type":"array","maxItems":16,"uniqueItems":true,"items":{"enum":["movement","health","score","collider","collectible","timer","animation","follow_path","text_label"]}},
-        "properties":{"type":"object","maxProperties":32,"description":"Must be validated against component-specific schemas."}
+        "properties":{"type":"object","maxProperties":32,"description":"Must be validated against component-specific schemas."},
+        "behavior":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"enum":["fall","chase","patrol","oscillate"]},"speed":{"type":"number","minimum":0,"maximum":1000},"range":{"type":"number","minimum":0,"maximum":500}},"description":"Autonomous motion interpreted by the platform runtime tick loop. fall wraps top<->bottom and collected falling pickups respawn at the top; chase moves toward the player; patrol/oscillate oscillate around the authored position."}
       }}}
     }}},
     "inputBindings":{"type":"array","maxItems":32,"items":{"type":"object","additionalProperties":false,"required":["action","input"],"properties":{
