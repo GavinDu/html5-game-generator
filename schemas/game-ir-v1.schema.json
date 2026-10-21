@@ -1,55 +1,2266 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Hephaestus Game IR v1",
-  "description": "Engine-independent declarative gameplay representation; executable scripts are excluded.",
+  "title": "Hephaestus Game IR v1 (1.0 + additive 1.1)",
+  "description": "Engine-independent declarative gameplay representation interpreted by the PixiJS + Rapier runtime. v1.1 adds rendering, physics, joints, effects, and capability vocabularies; v1.0 documents remain valid. Executable scripts are excluded.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["irVersion", "game", "assets", "scenes", "inputBindings", "rules"],
+  "required": [
+    "irVersion",
+    "game",
+    "assets",
+    "scenes",
+    "inputBindings",
+    "rules"
+  ],
   "properties": {
-    "irVersion": {"const": "1.0"},
-    "game": {"type":"object","additionalProperties":false,"required":["id","title","entryScene","orientation"],"properties":{
-      "id":{"type":"string","minLength":1,"maxLength":128},"title":{"type":"string","minLength":1,"maxLength":120},
-      "description":{"type":"string","maxLength":4000},"entryScene":{"type":"string","minLength":1},
-      "orientation":{"enum":["portrait","landscape","any"]},"sessionTargetSeconds":{"type":"integer","minimum":5,"maximum":3600},
-      "audience":{"enum":["kids","family","teens","adults","general"]}
-    }},
-    "assets":{"type":"array","maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["id","kind","uri"],"properties":{
-      "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"kind":{"enum":["image","audio","video","tilemap","font","data"]},
-      "uri":{"type":"string","minLength":1,"maxLength":1024},"mimeType":{"type":"string","maxLength":128},
-      "sha256":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
-      "source":{"enum":["user_upload","user_drawing","generated","licensed_library","platform"]},"altText":{"type":"string","maxLength":1000}
-    }}},
-    "scenes":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["id","entities"],"properties":{
-      "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"backgroundAssetId":{"type":"string"},
-      "entities":{"type":"array","maxItems":500,"items":{"type":"object","additionalProperties":false,"required":["id","kind","position","components"],"properties":{
-        "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"kind":{"enum":["player","enemy","obstacle","pickup","decoration","trigger","text"]},"assetId":{"type":"string"},
-        "position":{"type":"array","prefixItems":[{"type":"number","minimum":-100000,"maximum":100000},{"type":"number","minimum":-100000,"maximum":100000}],"minItems":2,"maxItems":2},
-        "size":{"type":"array","prefixItems":[{"type":"number","exclusiveMinimum":0,"maximum":100000},{"type":"number","exclusiveMinimum":0,"maximum":100000}],"minItems":2,"maxItems":2},
-        "components":{"type":"array","maxItems":16,"uniqueItems":true,"items":{"enum":["movement","health","score","collider","collectible","timer","animation","follow_path","text_label"]}},
-        "properties":{"type":"object","maxProperties":32,"description":"Must be validated against component-specific schemas."},
-        "behavior":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"enum":["fall","chase","patrol","oscillate"]},"speed":{"type":"number","minimum":0,"maximum":1000},"range":{"type":"number","minimum":0,"maximum":500}},"description":"Autonomous motion interpreted by the platform runtime tick loop. fall wraps top<->bottom and collected falling pickups respawn at the top; chase moves toward the player; patrol/oscillate oscillate around the authored position."}
-      }}}
-    }}},
-    "inputBindings":{"type":"array","maxItems":32,"items":{"type":"object","additionalProperties":false,"required":["action","input"],"properties":{
-      "action":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},"input":{"enum":["tap","drag","swipe","virtual_joystick","button","tilt","keyboard"]}
-    }}},
-    "rules":{"type":"array","maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["id","when","actions"],"properties":{
-      "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,80}$"},
-      "when":{"type":"object","additionalProperties":false,"required":["event"],"properties":{
-        "event":{"enum":["game_start","input","collision","collected","timer_elapsed","score_reached","health_changed","scene_entered"]},
-        "source":{"type":"string"},"target":{"type":"string"},"inputAction":{"type":"string"},"value":{"type":"number"}
-      }},
-      "conditions":{"type":"array","maxItems":8,"items":{"type":"object","additionalProperties":false,"required":["variable","operator","value"],"properties":{
-        "variable":{"type":"string","maxLength":80},"operator":{"enum":["eq","neq","gt","gte","lt","lte"]},"value":{"type":["number","string","boolean"]}
-      }}},
-      "actions":{"type":"array","minItems":1,"maxItems":16,"items":{"type":"object","additionalProperties":false,"required":["type"],"properties":{
-        "type":{"enum":["add_score","set_variable","move_entity","destroy_entity","spawn_entity","play_sound","show_text","change_scene","set_health","end_game"]},
-        "target":{"type":"string"},"variable":{"type":"string"},"value":{"type":["number","string","boolean"]},"assetId":{"type":"string"},"sceneId":{"type":"string"},"durationMs":{"type":"integer","minimum":0,"maximum":60000}
-      }}}
-    }}},
-    "metadata":{"type":"object","additionalProperties":false,"properties":{
-      "creatorDisplayName":{"type":"string","maxLength":120},"parentGameId":{"type":"string"},"parentVersion":{"type":"integer","minimum":1},
-      "tags":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":40}}
-    }}
+    "irVersion": {
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "render.sprite",
+          "render.animation",
+          "render.shape",
+          "render.text",
+          "render.filters",
+          "render.particles",
+          "render.parallax",
+          "physics.bodies",
+          "physics.colliders",
+          "physics.joints",
+          "physics.character_controller",
+          "physics.queries",
+          "fx.tween",
+          "fx.camera",
+          "fx.emitters",
+          "audio",
+          "input.keyboard",
+          "input.pointer"
+        ]
+      }
+    },
+    "game": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "entryScene",
+        "orientation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "entryScene": {
+          "type": "string",
+          "minLength": 1
+        },
+        "orientation": {
+          "enum": [
+            "portrait",
+            "landscape",
+            "any"
+          ]
+        },
+        "sessionTargetSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 3600
+        },
+        "audience": {
+          "enum": [
+            "kids",
+            "family",
+            "teens",
+            "adults",
+            "general"
+          ]
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "uri"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "audio",
+              "video",
+              "tilemap",
+              "font",
+              "data"
+            ]
+          },
+          "uri": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$"
+          },
+          "source": {
+            "enum": [
+              "user_upload",
+              "user_drawing",
+              "generated",
+              "licensed_library",
+              "platform"
+            ]
+          },
+          "altText": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "entities"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "backgroundAssetId": {
+            "type": "string"
+          },
+          "backgroundColor": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+          },
+          "gravity": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "worldSize": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "pixelsPerMeter": {
+            "type": "number",
+            "minimum": 10,
+            "maximum": 1000
+          },
+          "layers": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,80}$"
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "parallax": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                },
+                "alpha": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "zIndex": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "entities": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "kind",
+                "position",
+                "components"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,80}$"
+                },
+                "kind": {
+                  "enum": [
+                    "player",
+                    "enemy",
+                    "obstacle",
+                    "pickup",
+                    "decoration",
+                    "trigger",
+                    "text"
+                  ]
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "size": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100000
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100000
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "rotation": {
+                  "type": "number"
+                },
+                "zIndex": {
+                  "type": "integer",
+                  "minimum": -10000,
+                  "maximum": 10000
+                },
+                "components": {
+                  "type": "array",
+                  "maxItems": 16,
+                  "uniqueItems": true,
+                  "items": {
+                    "enum": [
+                      "movement",
+                      "health",
+                      "score",
+                      "collider",
+                      "collectible",
+                      "timer",
+                      "animation",
+                      "follow_path",
+                      "text_label",
+                      "physics_body",
+                      "character_controller",
+                      "particles",
+                      "tween",
+                      "filter"
+                    ]
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "maxProperties": 32
+                },
+                "behavior": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "fall",
+                        "chase",
+                        "patrol",
+                        "oscillate",
+                        "spin",
+                        "pulse",
+                        "drift",
+                        "orbit"
+                      ]
+                    },
+                    "speed": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "range": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100000
+                    }
+                  }
+                },
+                "render": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "tint": {
+                      "type": "string",
+                      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                    },
+                    "alpha": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "blendMode": {
+                      "enum": [
+                        "normal",
+                        "add",
+                        "multiply",
+                        "screen",
+                        "overlay",
+                        "darken",
+                        "lighten",
+                        "color-dodge",
+                        "color-burn",
+                        "hard-light",
+                        "soft-light",
+                        "difference",
+                        "exclusion",
+                        "hue",
+                        "saturation",
+                        "color",
+                        "luminosity",
+                        "none",
+                        "subtract",
+                        "erase",
+                        "linear-burn",
+                        "linear-dodge",
+                        "vivid-light",
+                        "linear-light",
+                        "pin-light",
+                        "hard-mix"
+                      ]
+                    },
+                    "anchor": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "scale": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "flipX": {
+                      "type": "boolean"
+                    },
+                    "flipY": {
+                      "type": "boolean"
+                    },
+                    "visible": {
+                      "type": "boolean"
+                    },
+                    "animation": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "frames"
+                      ],
+                      "properties": {
+                        "frames": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 256,
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "fps": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 240
+                        },
+                        "loop": {
+                          "type": "boolean"
+                        },
+                        "autoplay": {
+                          "type": "boolean"
+                        },
+                        "pingPong": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "shape": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "type"
+                      ],
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "rect",
+                            "rounded_rect",
+                            "circle",
+                            "ellipse",
+                            "polygon",
+                            "line"
+                          ]
+                        },
+                        "fill": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "stroke": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "strokeWidth": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "cornerRadius": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10000
+                        },
+                        "points": {
+                          "type": "array",
+                          "maxItems": 64,
+                          "items": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ],
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        }
+                      }
+                    },
+                    "text": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "content"
+                      ],
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "fontFamily": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "fontSize": {
+                          "type": "number",
+                          "minimum": 1,
+                          "maximum": 500
+                        },
+                        "fill": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "fontWeight": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "align": {
+                          "enum": [
+                            "left",
+                            "center",
+                            "right"
+                          ]
+                        },
+                        "stroke": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "strokeWidth": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "wordWrapWidth": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100000
+                        }
+                      }
+                    },
+                    "filters": {
+                      "type": "array",
+                      "maxItems": 8,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "type"
+                        ],
+                        "properties": {
+                          "type": {
+                            "enum": [
+                              "blur",
+                              "alpha",
+                              "color_matrix",
+                              "noise",
+                              "displacement"
+                            ]
+                          },
+                          "value": {
+                            "type": "number"
+                          },
+                          "operation": {
+                            "enum": [
+                              "brightness",
+                              "contrast",
+                              "saturate",
+                              "hue",
+                              "grayscale",
+                              "invert",
+                              "sepia",
+                              "black_and_white",
+                              "negative",
+                              "tint"
+                            ]
+                          },
+                          "scale": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 10000
+                          },
+                          "assetId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "particles": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "textureAssetId": {
+                          "type": "string"
+                        },
+                        "rate": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "burst": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "lifetime": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "speed": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "direction": {
+                          "type": "number"
+                        },
+                        "spread": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 360
+                        },
+                        "gravity": {
+                          "type": "number"
+                        },
+                        "startScale": {
+                          "type": "number"
+                        },
+                        "endScale": {
+                          "type": "number"
+                        },
+                        "startAlpha": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "endAlpha": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "tint": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "blendMode": {
+                          "enum": [
+                            "normal",
+                            "add",
+                            "multiply",
+                            "screen",
+                            "overlay",
+                            "darken",
+                            "lighten",
+                            "color-dodge",
+                            "color-burn",
+                            "hard-light",
+                            "soft-light",
+                            "difference",
+                            "exclusion",
+                            "hue",
+                            "saturation",
+                            "color",
+                            "luminosity",
+                            "none",
+                            "subtract",
+                            "erase",
+                            "linear-burn",
+                            "linear-dodge",
+                            "vivid-light",
+                            "linear-light",
+                            "pin-light",
+                            "hard-mix"
+                          ]
+                        },
+                        "maxParticles": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000
+                        }
+                      }
+                    }
+                  }
+                },
+                "physics": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "body"
+                  ],
+                  "properties": {
+                    "body": {
+                      "enum": [
+                        "dynamic",
+                        "fixed",
+                        "kinematic_position",
+                        "kinematic_velocity"
+                      ]
+                    },
+                    "shape": {
+                      "enum": [
+                        "cuboid",
+                        "ball",
+                        "capsule",
+                        "convex",
+                        "segment"
+                      ]
+                    },
+                    "points": {
+                      "type": "array",
+                      "maxItems": 64,
+                      "items": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    },
+                    "density": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "friction": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "restitution": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10
+                    },
+                    "frictionCombineRule": {
+                      "enum": [
+                        "average",
+                        "min",
+                        "multiply",
+                        "max",
+                        "geometric_mean",
+                        "clamped_sum"
+                      ]
+                    },
+                    "restitutionCombineRule": {
+                      "enum": [
+                        "average",
+                        "min",
+                        "multiply",
+                        "max",
+                        "geometric_mean",
+                        "clamped_sum"
+                      ]
+                    },
+                    "sensor": {
+                      "type": "boolean"
+                    },
+                    "gravityScale": {
+                      "type": "number",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "linearDamping": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1000
+                    },
+                    "angularDamping": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1000
+                    },
+                    "ccd": {
+                      "type": "boolean"
+                    },
+                    "lockRotation": {
+                      "type": "boolean"
+                    },
+                    "lockTranslation": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "initialVelocity": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "angularVelocity": {
+                      "type": "number",
+                      "minimum": -1000,
+                      "maximum": 1000
+                    },
+                    "collisionGroups": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "memberships": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 15
+                          }
+                        },
+                        "filter": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 15
+                          }
+                        }
+                      }
+                    },
+                    "activeEvents": {
+                      "type": "boolean"
+                    },
+                    "canSleep": {
+                      "type": "boolean"
+                    },
+                    "dominance": {
+                      "type": "integer",
+                      "minimum": -127,
+                      "maximum": 127
+                    }
+                  }
+                },
+                "character": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "offset": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "maxSlopeClimbDegrees": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 90
+                    },
+                    "minSlopeSlideDegrees": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 90
+                    },
+                    "autostepMaxHeight": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "autostepMinWidth": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "snapToGroundDistance": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "applyImpulsesToDynamicBodies": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "tweens": {
+                  "type": "array",
+                  "maxItems": 8,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "property",
+                      "from",
+                      "to",
+                      "durationMs"
+                    ],
+                    "properties": {
+                      "property": {
+                        "enum": [
+                          "alpha",
+                          "scale",
+                          "scale_x",
+                          "scale_y",
+                          "rotation",
+                          "offset_x",
+                          "offset_y"
+                        ]
+                      },
+                      "from": {
+                        "type": "number"
+                      },
+                      "to": {
+                        "type": "number"
+                      },
+                      "durationMs": {
+                        "type": "integer",
+                        "minimum": 10,
+                        "maximum": 600000
+                      },
+                      "delayMs": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 60000
+                      },
+                      "repeat": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "maximum": 10000
+                      },
+                      "yoyo": {
+                        "type": "boolean"
+                      },
+                      "easing": {
+                        "enum": [
+                          "linear",
+                          "ease_in",
+                          "ease_out",
+                          "ease_in_out",
+                          "ease_out_back",
+                          "sine"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "templates": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "kind",
+                "position",
+                "components"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,80}$"
+                },
+                "kind": {
+                  "enum": [
+                    "player",
+                    "enemy",
+                    "obstacle",
+                    "pickup",
+                    "decoration",
+                    "trigger",
+                    "text"
+                  ]
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "size": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100000
+                    },
+                    {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100000
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "rotation": {
+                  "type": "number"
+                },
+                "zIndex": {
+                  "type": "integer",
+                  "minimum": -10000,
+                  "maximum": 10000
+                },
+                "components": {
+                  "type": "array",
+                  "maxItems": 16,
+                  "uniqueItems": true,
+                  "items": {
+                    "enum": [
+                      "movement",
+                      "health",
+                      "score",
+                      "collider",
+                      "collectible",
+                      "timer",
+                      "animation",
+                      "follow_path",
+                      "text_label",
+                      "physics_body",
+                      "character_controller",
+                      "particles",
+                      "tween",
+                      "filter"
+                    ]
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "maxProperties": 32
+                },
+                "behavior": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "fall",
+                        "chase",
+                        "patrol",
+                        "oscillate",
+                        "spin",
+                        "pulse",
+                        "drift",
+                        "orbit"
+                      ]
+                    },
+                    "speed": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "range": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100000
+                    }
+                  }
+                },
+                "render": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "tint": {
+                      "type": "string",
+                      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                    },
+                    "alpha": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "blendMode": {
+                      "enum": [
+                        "normal",
+                        "add",
+                        "multiply",
+                        "screen",
+                        "overlay",
+                        "darken",
+                        "lighten",
+                        "color-dodge",
+                        "color-burn",
+                        "hard-light",
+                        "soft-light",
+                        "difference",
+                        "exclusion",
+                        "hue",
+                        "saturation",
+                        "color",
+                        "luminosity",
+                        "none",
+                        "subtract",
+                        "erase",
+                        "linear-burn",
+                        "linear-dodge",
+                        "vivid-light",
+                        "linear-light",
+                        "pin-light",
+                        "hard-mix"
+                      ]
+                    },
+                    "anchor": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "scale": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "flipX": {
+                      "type": "boolean"
+                    },
+                    "flipY": {
+                      "type": "boolean"
+                    },
+                    "visible": {
+                      "type": "boolean"
+                    },
+                    "animation": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "frames"
+                      ],
+                      "properties": {
+                        "frames": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 256,
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "fps": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 240
+                        },
+                        "loop": {
+                          "type": "boolean"
+                        },
+                        "autoplay": {
+                          "type": "boolean"
+                        },
+                        "pingPong": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "shape": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "type"
+                      ],
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "rect",
+                            "rounded_rect",
+                            "circle",
+                            "ellipse",
+                            "polygon",
+                            "line"
+                          ]
+                        },
+                        "fill": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "stroke": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "strokeWidth": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000
+                        },
+                        "cornerRadius": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 10000
+                        },
+                        "points": {
+                          "type": "array",
+                          "maxItems": 64,
+                          "items": {
+                            "type": "array",
+                            "prefixItems": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ],
+                            "minItems": 2,
+                            "maxItems": 2
+                          }
+                        }
+                      }
+                    },
+                    "text": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "content"
+                      ],
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "fontFamily": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "fontSize": {
+                          "type": "number",
+                          "minimum": 1,
+                          "maximum": 500
+                        },
+                        "fill": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "fontWeight": {
+                          "type": "string",
+                          "maxLength": 20
+                        },
+                        "align": {
+                          "enum": [
+                            "left",
+                            "center",
+                            "right"
+                          ]
+                        },
+                        "stroke": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "strokeWidth": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "wordWrapWidth": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100000
+                        }
+                      }
+                    },
+                    "filters": {
+                      "type": "array",
+                      "maxItems": 8,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "type"
+                        ],
+                        "properties": {
+                          "type": {
+                            "enum": [
+                              "blur",
+                              "alpha",
+                              "color_matrix",
+                              "noise",
+                              "displacement"
+                            ]
+                          },
+                          "value": {
+                            "type": "number"
+                          },
+                          "operation": {
+                            "enum": [
+                              "brightness",
+                              "contrast",
+                              "saturate",
+                              "hue",
+                              "grayscale",
+                              "invert",
+                              "sepia",
+                              "black_and_white",
+                              "negative",
+                              "tint"
+                            ]
+                          },
+                          "scale": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 10000
+                          },
+                          "assetId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "particles": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "textureAssetId": {
+                          "type": "string"
+                        },
+                        "rate": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "burst": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "lifetime": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "speed": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "direction": {
+                          "type": "number"
+                        },
+                        "spread": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 360
+                        },
+                        "gravity": {
+                          "type": "number"
+                        },
+                        "startScale": {
+                          "type": "number"
+                        },
+                        "endScale": {
+                          "type": "number"
+                        },
+                        "startAlpha": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "endAlpha": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "tint": {
+                          "type": "string",
+                          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                        },
+                        "blendMode": {
+                          "enum": [
+                            "normal",
+                            "add",
+                            "multiply",
+                            "screen",
+                            "overlay",
+                            "darken",
+                            "lighten",
+                            "color-dodge",
+                            "color-burn",
+                            "hard-light",
+                            "soft-light",
+                            "difference",
+                            "exclusion",
+                            "hue",
+                            "saturation",
+                            "color",
+                            "luminosity",
+                            "none",
+                            "subtract",
+                            "erase",
+                            "linear-burn",
+                            "linear-dodge",
+                            "vivid-light",
+                            "linear-light",
+                            "pin-light",
+                            "hard-mix"
+                          ]
+                        },
+                        "maxParticles": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000
+                        }
+                      }
+                    }
+                  }
+                },
+                "physics": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "body"
+                  ],
+                  "properties": {
+                    "body": {
+                      "enum": [
+                        "dynamic",
+                        "fixed",
+                        "kinematic_position",
+                        "kinematic_velocity"
+                      ]
+                    },
+                    "shape": {
+                      "enum": [
+                        "cuboid",
+                        "ball",
+                        "capsule",
+                        "convex",
+                        "segment"
+                      ]
+                    },
+                    "points": {
+                      "type": "array",
+                      "maxItems": 64,
+                      "items": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    },
+                    "density": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "friction": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "restitution": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10
+                    },
+                    "frictionCombineRule": {
+                      "enum": [
+                        "average",
+                        "min",
+                        "multiply",
+                        "max",
+                        "geometric_mean",
+                        "clamped_sum"
+                      ]
+                    },
+                    "restitutionCombineRule": {
+                      "enum": [
+                        "average",
+                        "min",
+                        "multiply",
+                        "max",
+                        "geometric_mean",
+                        "clamped_sum"
+                      ]
+                    },
+                    "sensor": {
+                      "type": "boolean"
+                    },
+                    "gravityScale": {
+                      "type": "number",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "linearDamping": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1000
+                    },
+                    "angularDamping": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1000
+                    },
+                    "ccd": {
+                      "type": "boolean"
+                    },
+                    "lockRotation": {
+                      "type": "boolean"
+                    },
+                    "lockTranslation": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "initialVelocity": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "angularVelocity": {
+                      "type": "number",
+                      "minimum": -1000,
+                      "maximum": 1000
+                    },
+                    "collisionGroups": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "memberships": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 15
+                          }
+                        },
+                        "filter": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 15
+                          }
+                        }
+                      }
+                    },
+                    "activeEvents": {
+                      "type": "boolean"
+                    },
+                    "canSleep": {
+                      "type": "boolean"
+                    },
+                    "dominance": {
+                      "type": "integer",
+                      "minimum": -127,
+                      "maximum": 127
+                    }
+                  }
+                },
+                "character": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "offset": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "maxSlopeClimbDegrees": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 90
+                    },
+                    "minSlopeSlideDegrees": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 90
+                    },
+                    "autostepMaxHeight": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "autostepMinWidth": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "snapToGroundDistance": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10000
+                    },
+                    "applyImpulsesToDynamicBodies": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "tweens": {
+                  "type": "array",
+                  "maxItems": 8,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "property",
+                      "from",
+                      "to",
+                      "durationMs"
+                    ],
+                    "properties": {
+                      "property": {
+                        "enum": [
+                          "alpha",
+                          "scale",
+                          "scale_x",
+                          "scale_y",
+                          "rotation",
+                          "offset_x",
+                          "offset_y"
+                        ]
+                      },
+                      "from": {
+                        "type": "number"
+                      },
+                      "to": {
+                        "type": "number"
+                      },
+                      "durationMs": {
+                        "type": "integer",
+                        "minimum": 10,
+                        "maximum": 600000
+                      },
+                      "delayMs": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 60000
+                      },
+                      "repeat": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "maximum": 10000
+                      },
+                      "yoyo": {
+                        "type": "boolean"
+                      },
+                      "easing": {
+                        "enum": [
+                          "linear",
+                          "ease_in",
+                          "ease_out",
+                          "ease_in_out",
+                          "ease_out_back",
+                          "sine"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "joints": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "type",
+                "bodyA",
+                "bodyB"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,80}$"
+                },
+                "type": {
+                  "enum": [
+                    "fixed",
+                    "revolute",
+                    "prismatic",
+                    "rope",
+                    "spring"
+                  ]
+                },
+                "bodyA": {
+                  "type": "string"
+                },
+                "bodyB": {
+                  "type": "string"
+                },
+                "anchorA": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "anchorB": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "axis": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "limits": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "motor": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "mode",
+                    "target"
+                  ],
+                  "properties": {
+                    "mode": {
+                      "enum": [
+                        "velocity",
+                        "position"
+                      ]
+                    },
+                    "target": {
+                      "type": "number"
+                    },
+                    "maxForce": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "stiffness": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "damping": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "length": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "restLength": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "stiffness": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "damping": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "emitters": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "textureAssetId": {
+                  "type": "string"
+                },
+                "rate": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "burst": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "lifetime": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "speed": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "direction": {
+                  "type": "number"
+                },
+                "spread": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 360
+                },
+                "gravity": {
+                  "type": "number"
+                },
+                "startScale": {
+                  "type": "number"
+                },
+                "endScale": {
+                  "type": "number"
+                },
+                "startAlpha": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "endAlpha": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "tint": {
+                  "type": "string",
+                  "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                },
+                "blendMode": {
+                  "enum": [
+                    "normal",
+                    "add",
+                    "multiply",
+                    "screen",
+                    "overlay",
+                    "darken",
+                    "lighten",
+                    "color-dodge",
+                    "color-burn",
+                    "hard-light",
+                    "soft-light",
+                    "difference",
+                    "exclusion",
+                    "hue",
+                    "saturation",
+                    "color",
+                    "luminosity",
+                    "none",
+                    "subtract",
+                    "erase",
+                    "linear-burn",
+                    "linear-dodge",
+                    "vivid-light",
+                    "linear-light",
+                    "pin-light",
+                    "hard-mix"
+                  ]
+                },
+                "maxParticles": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "inputBindings": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "input"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "input": {
+            "enum": [
+              "tap",
+              "drag",
+              "swipe",
+              "virtual_joystick",
+              "button",
+              "tilt",
+              "keyboard"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "when",
+          "actions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "when": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "event"
+            ],
+            "properties": {
+              "event": {
+                "enum": [
+                  "game_start",
+                  "input",
+                  "collision",
+                  "collected",
+                  "timer_elapsed",
+                  "score_reached",
+                  "health_changed",
+                  "scene_entered",
+                  "contact_started",
+                  "contact_stopped",
+                  "contact_force",
+                  "entity_destroyed",
+                  "variable_changed",
+                  "region_entered",
+                  "region_exited",
+                  "animation_complete"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "inputAction": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              }
+            }
+          },
+          "conditions": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "variable",
+                "operator",
+                "value"
+              ],
+              "properties": {
+                "variable": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "operator": {
+                  "enum": [
+                    "eq",
+                    "neq",
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "string",
+                    "boolean"
+                  ]
+                }
+              }
+            }
+          },
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "add_score",
+                    "set_variable",
+                    "move_entity",
+                    "destroy_entity",
+                    "spawn_entity",
+                    "play_sound",
+                    "show_text",
+                    "change_scene",
+                    "set_health",
+                    "end_game",
+                    "change_health",
+                    "apply_impulse",
+                    "set_velocity",
+                    "set_angular_velocity",
+                    "add_force",
+                    "set_gravity",
+                    "teleport_entity",
+                    "set_alpha",
+                    "set_tint",
+                    "set_visible",
+                    "set_asset",
+                    "emit_particles",
+                    "camera_shake",
+                    "camera_follow"
+                  ]
+                },
+                "target": {
+                  "type": "string"
+                },
+                "variable": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "string",
+                    "boolean",
+                    "array"
+                  ]
+                },
+                "assetId": {
+                  "type": "string"
+                },
+                "sceneId": {
+                  "type": "string"
+                },
+                "durationMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 60000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "creatorDisplayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "parentGameId": {
+          "type": "string"
+        },
+        "parentVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      }
+    }
   }
 }

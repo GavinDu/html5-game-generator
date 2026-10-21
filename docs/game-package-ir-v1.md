@@ -85,3 +85,57 @@ Use Bobo's Rainbow as the golden fixture: validate it, run it in a temporary HTM
 ## App Store / UGC
 
 The shipped app controls device permissions and native capabilities. The runtime receives only user-authorized media and must not expose arbitrary native APIs. The platform still needs applicable UGC moderation, report/block, rights and takedown workflows. Review Apple's current rules for actual product behavior; no engine choice guarantees approval.
+
+## IR v1.1 — the PixiJS + Rapier expansion (2026-10-20)
+
+Version 1.1 is additive: every v1.0 document remains valid, and the Go
+validator accepts both versions. The vocabulary is grounded in the
+PixiJS 8.22 and Rapier 0.15 capability inventory (see the research
+report `pixijs-rapier-capability-inventory`).
+
+- **Capabilities**: a document may declare the capability names it
+  uses (`render.animation`, `physics.joints`, `fx.tween`, …). The
+  validator rejects unknown names. Runtimes fail closed — with a
+  dev-log warning, never a fake execution — on anything they cannot
+  interpret.
+- **Scenes** gain `gravity` (logical px/s²), `backgroundColor`,
+  `worldSize`, `pixelsPerMeter` (default 100; Rapier works in meters
+  internally), parallax `layers`, spawn `templates`, `joints`, and
+  ambient particle `emitters`.
+- **Rendering** (`entity.render`): tint, alpha, blend mode, anchor,
+  scale, flips, visibility, sprite `animation` (frame asset list +
+  fps), vector `shape` (rect/rounded/circle/ellipse/polygon/line),
+  styled `text`, the five Pixi core `filters` (blur, alpha,
+  color_matrix with named operations, noise, displacement), and an
+  attached particle emitter.
+- **Physics** (`entity.physics`): Rapier body kinds (dynamic, fixed,
+  kinematic_position, kinematic_velocity), collider shapes (cuboid,
+  ball, capsule, convex, segment), density/friction/restitution with
+  combine rules, sensor flag, gravity scale, damping, CCD, axis locks,
+  initial velocities, collision groups (16 membership + 16 filter
+  bits), active events, sleep, and dominance. `entity.character`
+  configures the kinematic character controller (offset, slope angles,
+  autostep, snap-to-ground). Behaviors (fall/chase/patrol/oscillate +
+  spin/pulse/drift/orbit) drive kinematic bodies; dynamic bodies are
+  driven by physics, forces, and impulses.
+- **Joints** (scene level): fixed, revolute (limits + velocity/
+  position motors), prismatic (axis, limits, motors), rope (max
+  length), and spring (rest length, stiffness, damping).
+- **Rules** gain events (contact_started/stopped, contact_force,
+  entity_destroyed, variable_changed, region_entered/exited,
+  animation_complete) and actions (change_health, apply_impulse,
+  set_velocity, set_angular_velocity, add_force, set_gravity,
+  teleport_entity, set_alpha, set_tint, set_visible, set_asset,
+  emit_particles, camera_shake, camera_follow). `spawn_entity` now
+  instantiates a scene template for real; `play_sound` and
+  `change_scene` execute. Rule `conditions` are evaluated against
+  score/health/elapsed time/variables. `timer_elapsed` rules fire on
+  their `when.value` second interval. `score_reached` fires when the
+  score reaches **or passes** the threshold. Keyboard input bindings
+  carry an optional `key` (KeyboardEvent key value); the runtime owns
+  keyboard, tween, and particle-emitter behavior because Pixi core
+  ships none of them.
+- **Recycling**: an entity with `properties.recycle: true` that is
+  destroyed or leaves the bottom of the stage respawns at the top in a
+  fresh column — the renewable-rain pattern from v1.0, generalized to
+  dynamic physics bodies.

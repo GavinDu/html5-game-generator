@@ -114,9 +114,29 @@
     {
       "action": "move",
       "input": "tap"
+    },
+    {
+      "action": "move_left",
+      "input": "keyboard",
+      "key": "ArrowLeft"
+    },
+    {
+      "action": "move_right",
+      "input": "keyboard",
+      "key": "ArrowRight"
+    },
+    {
+      "action": "move_up",
+      "input": "keyboard",
+      "key": "ArrowUp"
+    },
+    {
+      "action": "move_down",
+      "input": "keyboard",
+      "key": "ArrowDown"
     }
   ],
-  "irVersion": "1.0",
+  "irVersion": "1.1",
   "metadata": {
     "tags": [
       "family",
@@ -126,55 +146,254 @@
   },
   "rules": [
     {
+      "id": "start-music",
+      "when": {
+        "event": "game_start"
+      },
       "actions": [
         {
-          "target": "player",
-          "type": "add_score",
-          "value": 1
-        },
-        {
-          "target": "heart",
-          "type": "destroy_entity"
+          "type": "play_sound",
+          "assetId": "theme"
         }
-      ],
+      ]
+    },
+    {
       "id": "heart-caught",
       "when": {
         "event": "collected",
         "source": "player",
         "target": "heart"
-      }
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart",
+          "value": 10
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart"
+        }
+      ]
     },
     {
+      "id": "heart-blue-caught",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "heart_blue"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "value": 2
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart_blue",
+          "value": 14
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart_blue"
+        }
+      ]
+    },
+    {
+      "id": "heart-gold-caught",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "heart_gold"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "value": 3
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart_gold",
+          "value": 18
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart_gold"
+        }
+      ]
+    },
+    {
+      "id": "band0-reveal",
+      "when": {
+        "event": "score_reached",
+        "value": 2
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "band0",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "band0",
+          "value": 12
+        },
+        {
+          "type": "camera_shake",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "band1-reveal",
+      "when": {
+        "event": "score_reached",
+        "value": 4
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "band1",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "band1",
+          "value": 12
+        },
+        {
+          "type": "camera_shake",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "band2-reveal",
+      "when": {
+        "event": "score_reached",
+        "value": 6
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "band2",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "band2",
+          "value": 12
+        },
+        {
+          "type": "camera_shake",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "band3-reveal",
+      "when": {
+        "event": "score_reached",
+        "value": 8
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "band3",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "band3",
+          "value": 12
+        },
+        {
+          "type": "camera_shake",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "band4-reveal",
+      "when": {
+        "event": "score_reached",
+        "value": 10
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "band4",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "band4",
+          "value": 12
+        },
+        {
+          "type": "camera_shake",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "band5-reveal",
+      "when": {
+        "event": "score_reached",
+        "value": 12
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "band5",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "band5",
+          "value": 12
+        },
+        {
+          "type": "camera_shake",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "rainbow-complete",
+      "when": {
+        "event": "score_reached",
+        "source": "player",
+        "value": 12
+      },
       "actions": [
         {
           "type": "show_text",
           "value": "The rainbow is complete - the kitten can cross!"
         },
         {
+          "type": "play_sound",
+          "assetId": "theme"
+        },
+        {
           "type": "end_game",
           "value": true
         }
-      ],
-      "id": "rainbow-complete",
-      "when": {
-        "event": "score_reached",
-        "source": "player",
-        "value": 12
-      }
+      ]
     }
   ],
   "scenes": [
     {
       "entities": [
         {
-          "assetId": "bear",
-          "components": [
-            "movement",
-            "collider",
-            "score"
-          ],
           "id": "player",
           "kind": "player",
+          "assetId": "bear",
           "position": [
             195,
             700
@@ -182,35 +401,48 @@
           "size": [
             84,
             96
+          ],
+          "components": [
+            "movement",
+            "physics_body",
+            "character_controller"
+          ],
+          "physics": {
+            "body": "kinematic_position",
+            "shape": "capsule",
+            "friction": 0.2,
+            "collisionGroups": {
+              "memberships": [
+                0
+              ],
+              "filter": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          "character": {
+            "offset": 4,
+            "snapToGroundDistance": 10,
+            "applyImpulsesToDynamicBodies": true
+          },
+          "tweens": [
+            {
+              "property": "scale",
+              "from": 1,
+              "to": 1.04,
+              "durationMs": 900,
+              "repeat": -1,
+              "yoyo": true,
+              "easing": "sine"
+            }
           ]
         },
         {
-          "assetId": "kitten",
-          "components": [],
-          "id": "kitten",
-          "kind": "decoration",
-          "position": [
-            322,
-            706
-          ],
-          "size": [
-            64,
-            64
-          ],
-          "behavior": {
-            "type": "oscillate",
-            "speed": 1.2,
-            "range": 6
-          }
-        },
-        {
-          "assetId": "heart",
-          "components": [
-            "collider",
-            "collectible"
-          ],
           "id": "heart",
           "kind": "pickup",
+          "assetId": "heart",
           "position": [
             195,
             240
@@ -219,16 +451,228 @@
             30,
             30
           ],
-          "behavior": {
-            "type": "fall",
-            "speed": 95
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "properties": {
+            "recycle": true,
+            "sway": 26
+          },
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              50
+            ],
+            "gravityScale": 1.0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            }
+          },
+          "render": {
+            "particles": {
+              "burst": 10,
+              "tint": "#ff5b8d",
+              "speed": [
+                40,
+                120
+              ],
+              "lifetime": [
+                0.3,
+                0.7
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
           }
         },
         {
-          "assetId": "band0",
+          "id": "heart_blue",
+          "kind": "pickup",
+          "assetId": "heart_blue",
+          "position": [
+            90,
+            120
+          ],
+          "size": [
+            30,
+            30
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "properties": {
+            "recycle": true,
+            "sway": 34
+          },
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              70
+            ],
+            "gravityScale": 1.15,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            }
+          },
+          "render": {
+            "particles": {
+              "burst": 10,
+              "tint": "#ff5b8d",
+              "speed": [
+                40,
+                120
+              ],
+              "lifetime": [
+                0.3,
+                0.7
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          }
+        },
+        {
+          "id": "heart_gold",
+          "kind": "pickup",
+          "assetId": "heart_gold",
+          "position": [
+            300,
+            60
+          ],
+          "size": [
+            30,
+            30
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "properties": {
+            "recycle": true,
+            "sway": 20
+          },
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              40
+            ],
+            "gravityScale": 0.9,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            }
+          },
+          "render": {
+            "particles": {
+              "burst": 10,
+              "tint": "#ff5b8d",
+              "speed": [
+                40,
+                120
+              ],
+              "lifetime": [
+                0.3,
+                0.7
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          }
+        },
+        {
+          "id": "kitten",
+          "kind": "decoration",
+          "assetId": "kitten",
+          "position": [
+            322,
+            706
+          ],
+          "size": [
+            64,
+            64
+          ],
           "components": [],
+          "behavior": {
+            "type": "oscillate",
+            "speed": 1.4,
+            "range": 8
+          },
+          "render": {
+            "particles": {
+              "rate": 2,
+              "tint": "#ffe066",
+              "speed": [
+                10,
+                30
+              ],
+              "lifetime": [
+                0.5,
+                1
+              ],
+              "spread": 360,
+              "startScale": 0.35,
+              "endScale": 0.05
+            }
+          },
+          "tweens": [
+            {
+              "property": "scale",
+              "from": 1,
+              "to": 1.06,
+              "durationMs": 1200,
+              "repeat": -1,
+              "yoyo": true,
+              "easing": "sine"
+            }
+          ]
+        },
+        {
           "id": "band0",
           "kind": "decoration",
+          "assetId": "band0",
           "position": [
             62,
             150
@@ -236,13 +680,17 @@
           "size": [
             64,
             20
-          ]
+          ],
+          "zIndex": -1,
+          "components": [],
+          "render": {
+            "alpha": 0.18
+          }
         },
         {
-          "assetId": "band1",
-          "components": [],
           "id": "band1",
           "kind": "decoration",
+          "assetId": "band1",
           "position": [
             117,
             122
@@ -250,13 +698,17 @@
           "size": [
             64,
             20
-          ]
+          ],
+          "zIndex": -1,
+          "components": [],
+          "render": {
+            "alpha": 0.18
+          }
         },
         {
-          "assetId": "band2",
-          "components": [],
           "id": "band2",
           "kind": "decoration",
+          "assetId": "band2",
           "position": [
             172,
             110
@@ -264,13 +716,17 @@
           "size": [
             64,
             20
-          ]
+          ],
+          "zIndex": -1,
+          "components": [],
+          "render": {
+            "alpha": 0.18
+          }
         },
         {
-          "assetId": "band3",
-          "components": [],
           "id": "band3",
           "kind": "decoration",
+          "assetId": "band3",
           "position": [
             227,
             110
@@ -278,13 +734,17 @@
           "size": [
             64,
             20
-          ]
+          ],
+          "zIndex": -1,
+          "components": [],
+          "render": {
+            "alpha": 0.18
+          }
         },
         {
-          "assetId": "band4",
-          "components": [],
           "id": "band4",
           "kind": "decoration",
+          "assetId": "band4",
           "position": [
             282,
             122
@@ -292,13 +752,17 @@
           "size": [
             64,
             20
-          ]
+          ],
+          "zIndex": -1,
+          "components": [],
+          "render": {
+            "alpha": 0.18
+          }
         },
         {
-          "assetId": "band5",
-          "components": [],
           "id": "band5",
           "kind": "decoration",
+          "assetId": "band5",
           "position": [
             337,
             150
@@ -306,10 +770,192 @@
           "size": [
             64,
             20
-          ]
+          ],
+          "zIndex": -1,
+          "components": [],
+          "render": {
+            "alpha": 0.18
+          }
+        },
+        {
+          "id": "cloud1",
+          "kind": "decoration",
+          "position": [
+            70,
+            90
+          ],
+          "size": [
+            110,
+            44
+          ],
+          "components": [],
+          "behavior": {
+            "type": "drift",
+            "speed": 0.5,
+            "range": 30
+          },
+          "render": {
+            "alpha": 0.75,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#ffffff"
+            }
+          }
+        },
+        {
+          "id": "cloud2",
+          "kind": "decoration",
+          "position": [
+            300,
+            150
+          ],
+          "size": [
+            90,
+            36
+          ],
+          "components": [],
+          "behavior": {
+            "type": "drift",
+            "speed": 0.4,
+            "range": 24
+          },
+          "render": {
+            "alpha": 0.6,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#ffffff"
+            }
+          }
+        },
+        {
+          "id": "cloud3",
+          "kind": "decoration",
+          "position": [
+            180,
+            58
+          ],
+          "size": [
+            130,
+            50
+          ],
+          "components": [],
+          "behavior": {
+            "type": "drift",
+            "speed": 0.33,
+            "range": 36
+          },
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#ffffff"
+            }
+          }
+        },
+        {
+          "id": "floor",
+          "kind": "decoration",
+          "position": [
+            195,
+            836
+          ],
+          "size": [
+            390,
+            16
+          ],
+          "components": [
+            "collider",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "friction": 0.6,
+            "collisionGroups": {
+              "memberships": [
+                3
+              ],
+              "filter": [
+                0,
+                1,
+                2
+              ]
+            }
+          },
+          "render": {
+            "alpha": 0,
+            "shape": {
+              "type": "rect",
+              "fill": "#7ec850"
+            }
+          }
+        },
+        {
+          "id": "sign",
+          "kind": "text",
+          "position": [
+            195,
+            46
+          ],
+          "size": [
+            300,
+            34
+          ],
+          "zIndex": 5,
+          "components": [
+            "text_label"
+          ],
+          "render": {
+            "text": {
+              "content": "Catch 12 hearts!",
+              "fontSize": 22,
+              "fill": "#ffffff",
+              "fontWeight": "bold",
+              "stroke": "#1d4ed8",
+              "strokeWidth": 4
+            }
+          }
         }
       ],
-      "id": "rainbow-field"
+      "id": "rainbow-field",
+      "backgroundColor": "#6db9ec",
+      "gravity": [
+        0,
+        700
+      ],
+      "emitters": [
+        {
+          "rate": 3,
+          "tint": "#ffffff",
+          "lifetime": [
+            1,
+            2
+          ],
+          "speed": [
+            5,
+            20
+          ],
+          "direction": 90,
+          "spread": 360,
+          "startScale": 0.35,
+          "endScale": 0.05,
+          "maxParticles": 120
+        }
+      ]
     }
+  ],
+  "capabilities": [
+    "render.sprite",
+    "render.shape",
+    "render.text",
+    "render.particles",
+    "physics.bodies",
+    "physics.colliders",
+    "physics.character_controller",
+    "fx.tween",
+    "fx.emitters",
+    "audio",
+    "input.keyboard",
+    "input.pointer"
   ]
 }

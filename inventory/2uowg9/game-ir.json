@@ -47,6 +47,22 @@
       "mimeType": "audio/wav",
       "source": "generated",
       "uri": "audio/theme.wav"
+    },
+    {
+      "altText": "Chase background",
+      "id": "bg1",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "generated",
+      "uri": "sprites/bg1.png"
+    },
+    {
+      "altText": "Chase background",
+      "id": "bg2",
+      "kind": "image",
+      "mimeType": "image/png",
+      "source": "generated",
+      "uri": "sprites/bg2.png"
     }
   ],
   "game": {
@@ -66,9 +82,29 @@
     {
       "action": "move",
       "input": "swipe"
+    },
+    {
+      "action": "move_left",
+      "input": "keyboard",
+      "key": "ArrowLeft"
+    },
+    {
+      "action": "move_right",
+      "input": "keyboard",
+      "key": "ArrowRight"
+    },
+    {
+      "action": "move_up",
+      "input": "keyboard",
+      "key": "ArrowUp"
+    },
+    {
+      "action": "move_down",
+      "input": "keyboard",
+      "key": "ArrowDown"
     }
   ],
-  "irVersion": "1.0",
+  "irVersion": "1.1",
   "metadata": {
     "tags": [
       "family",
@@ -78,26 +114,75 @@
   },
   "rules": [
     {
+      "id": "start-music",
+      "when": {
+        "event": "game_start"
+      },
       "actions": [
         {
-          "target": "player",
-          "type": "add_score",
-          "value": 1
-        },
-        {
-          "target": "star",
-          "type": "destroy_entity"
+          "type": "play_sound",
+          "assetId": "theme"
         }
-      ],
+      ]
+    },
+    {
       "id": "star-collected",
       "when": {
         "event": "collected",
         "source": "player",
         "target": "star"
-      }
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "star",
+          "value": 10
+        },
+        {
+          "type": "destroy_entity",
+          "target": "star"
+        }
+      ]
     },
     {
+      "id": "star-gold-collected",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "star_gold"
+      },
       "actions": [
+        {
+          "type": "add_score",
+          "value": 2
+        },
+        {
+          "type": "emit_particles",
+          "target": "star_gold",
+          "value": 14
+        },
+        {
+          "type": "destroy_entity",
+          "target": "star_gold"
+        }
+      ]
+    },
+    {
+      "id": "syringe-hit",
+      "when": {
+        "event": "collision",
+        "source": "player",
+        "target": "syringe"
+      },
+      "actions": [
+        {
+          "type": "camera_shake",
+          "value": 8
+        },
         {
           "type": "show_text",
           "value": "Caught! The injection got you."
@@ -106,31 +191,102 @@
           "type": "end_game",
           "value": false
         }
-      ],
-      "id": "syringe-hit",
+      ]
+    },
+    {
+      "id": "chaser-caught",
       "when": {
         "event": "collision",
         "source": "player",
-        "target": "syringe"
-      }
+        "target": "chaser"
+      },
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "The chaser grabbed you!"
+        },
+        {
+          "type": "end_game",
+          "value": false
+        }
+      ]
     },
     {
+      "id": "germ-hit",
+      "when": {
+        "event": "collision",
+        "source": "player",
+        "target": "germ"
+      },
+      "actions": [
+        {
+          "type": "change_health",
+          "value": -1
+        },
+        {
+          "type": "apply_impulse",
+          "target": "germ",
+          "value": [
+            -320,
+            -260
+          ]
+        },
+        {
+          "type": "camera_shake",
+          "value": 5
+        },
+        {
+          "type": "show_text",
+          "value": "A germ bounced you!"
+        }
+      ]
+    },
+    {
+      "id": "germ-respawn",
+      "when": {
+        "event": "timer_elapsed",
+        "value": 9
+      },
+      "actions": [
+        {
+          "type": "teleport_entity",
+          "target": "germ",
+          "value": [
+            60,
+            790
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "germ",
+          "value": [
+            130,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "escape-complete",
+      "when": {
+        "event": "score_reached",
+        "source": "player",
+        "value": 15
+      },
       "actions": [
         {
           "type": "show_text",
           "value": "You escaped!"
         },
         {
+          "type": "play_sound",
+          "assetId": "theme"
+        },
+        {
           "type": "end_game",
           "value": true
         }
-      ],
-      "id": "escape-complete",
-      "when": {
-        "event": "score_reached",
-        "source": "player",
-        "value": 15
-      }
+      ]
     }
   ],
   "scenes": [
@@ -138,15 +294,9 @@
       "backgroundAssetId": "bg0",
       "entities": [
         {
-          "assetId": "blob",
-          "components": [
-            "movement",
-            "collider",
-            "score",
-            "health"
-          ],
           "id": "player",
           "kind": "player",
+          "assetId": "blob",
           "position": [
             195,
             660
@@ -154,36 +304,76 @@
           "size": [
             72,
             72
+          ],
+          "components": [
+            "movement",
+            "physics_body",
+            "character_controller"
+          ],
+          "physics": {
+            "body": "kinematic_position",
+            "shape": "capsule",
+            "friction": 0.2,
+            "collisionGroups": {
+              "memberships": [
+                0
+              ],
+              "filter": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          "character": {
+            "offset": 5,
+            "snapToGroundDistance": 8,
+            "applyImpulsesToDynamicBodies": true
+          },
+          "render": {
+            "particles": {
+              "rate": 14,
+              "tint": "#c4b5fd",
+              "lifetime": [
+                0.3,
+                0.6
+              ],
+              "speed": [
+                8,
+                26
+              ],
+              "direction": 90,
+              "spread": 50,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "blendMode": "add"
+            }
+          },
+          "tweens": [
+            {
+              "property": "scale_y",
+              "from": 1,
+              "to": 0.92,
+              "durationMs": 500,
+              "repeat": -1,
+              "yoyo": true,
+              "easing": "sine"
+            },
+            {
+              "property": "scale_x",
+              "from": 1,
+              "to": 1.06,
+              "durationMs": 500,
+              "repeat": -1,
+              "yoyo": true,
+              "easing": "sine"
+            }
           ]
         },
         {
-          "assetId": "syringe",
-          "components": [
-            "collider"
-          ],
-          "id": "syringe",
-          "kind": "obstacle",
-          "position": [
-            110,
-            240
-          ],
-          "size": [
-            36,
-            64
-          ],
-          "behavior": {
-            "type": "chase",
-            "speed": 52
-          }
-        },
-        {
-          "assetId": "star",
-          "components": [
-            "collider",
-            "collectible"
-          ],
           "id": "star",
           "kind": "pickup",
+          "assetId": "star",
           "position": [
             280,
             240
@@ -192,18 +382,155 @@
             30,
             30
           ],
-          "behavior": {
-            "type": "fall",
-            "speed": 85
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "properties": {
+            "recycle": true,
+            "sway": 18
+          },
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.6,
+            "initialVelocity": [
+              0,
+              55
+            ],
+            "angularVelocity": 2.5,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            }
+          },
+          "render": {
+            "particles": {
+              "burst": 10,
+              "tint": "#fde68a",
+              "speed": [
+                40,
+                120
+              ],
+              "lifetime": [
+                0.3,
+                0.7
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
           }
         },
         {
-          "assetId": "chaser",
-          "components": [
-            "movement"
+          "id": "star_gold",
+          "kind": "pickup",
+          "assetId": "star",
+          "position": [
+            110,
+            90
           ],
+          "size": [
+            30,
+            30
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "properties": {
+            "recycle": true,
+            "sway": 26
+          },
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.6,
+            "initialVelocity": [
+              0,
+              45
+            ],
+            "angularVelocity": -3.2,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            }
+          },
+          "render": {
+            "particles": {
+              "burst": 10,
+              "tint": "#fde68a",
+              "speed": [
+                40,
+                120
+              ],
+              "lifetime": [
+                0.3,
+                0.7
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            },
+            "tint": "#fde047"
+          }
+        },
+        {
+          "id": "syringe",
+          "kind": "obstacle",
+          "assetId": "syringe",
+          "position": [
+            110,
+            240
+          ],
+          "size": [
+            36,
+            64
+          ],
+          "components": [
+            "collider",
+            "physics_body"
+          ],
+          "behavior": {
+            "type": "chase",
+            "speed": 62
+          },
+          "physics": {
+            "body": "kinematic_velocity",
+            "shape": "capsule",
+            "ccd": true,
+            "collisionGroups": {
+              "memberships": [
+                2
+              ],
+              "filter": [
+                0
+              ]
+            }
+          }
+        },
+        {
           "id": "chaser",
           "kind": "enemy",
+          "assetId": "chaser",
           "position": [
             195,
             772
@@ -212,13 +539,150 @@
             76,
             76
           ],
+          "components": [
+            "collider",
+            "physics_body"
+          ],
           "behavior": {
             "type": "chase",
-            "speed": 38
+            "speed": 40
+          },
+          "physics": {
+            "body": "kinematic_velocity",
+            "shape": "capsule",
+            "ccd": true,
+            "collisionGroups": {
+              "memberships": [
+                2
+              ],
+              "filter": [
+                0
+              ]
+            }
+          }
+        },
+        {
+          "id": "germ",
+          "kind": "obstacle",
+          "assetId": "blob",
+          "position": [
+            60,
+            790
+          ],
+          "size": [
+            44,
+            44
+          ],
+          "components": [
+            "collider",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 1.1,
+            "friction": 0.4,
+            "restitution": 0.82,
+            "initialVelocity": [
+              130,
+              0
+            ],
+            "angularVelocity": 3,
+            "collisionGroups": {
+              "memberships": [
+                2
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            }
+          },
+          "render": {
+            "tint": "#84cc16"
+          }
+        },
+        {
+          "id": "floor",
+          "kind": "decoration",
+          "position": [
+            195,
+            838
+          ],
+          "size": [
+            390,
+            14
+          ],
+          "components": [
+            "collider",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "friction": 0.5,
+            "collisionGroups": {
+              "memberships": [
+                3
+              ],
+              "filter": [
+                0,
+                1,
+                2
+              ]
+            }
+          },
+          "render": {
+            "alpha": 0,
+            "shape": {
+              "type": "rect",
+              "fill": "#000000"
+            }
           }
         }
       ],
-      "id": "chase"
+      "id": "chase",
+      "backgroundColor": "#241a3a",
+      "gravity": [
+        0,
+        950
+      ],
+      "layers": [
+        {
+          "id": "far-bg",
+          "assetId": "bg1",
+          "parallax": [
+            0.3,
+            0.15
+          ],
+          "alpha": 0.5,
+          "zIndex": -950
+        },
+        {
+          "id": "mid-bg",
+          "assetId": "bg2",
+          "parallax": [
+            0.55,
+            0.3
+          ],
+          "alpha": 0.35,
+          "zIndex": -940
+        }
+      ]
     }
+  ],
+  "capabilities": [
+    "render.sprite",
+    "render.parallax",
+    "render.particles",
+    "physics.bodies",
+    "physics.colliders",
+    "physics.character_controller",
+    "fx.tween",
+    "fx.camera",
+    "fx.emitters",
+    "audio",
+    "input.keyboard",
+    "input.pointer"
   ]
 }
