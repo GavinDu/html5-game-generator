@@ -1,5 +1,10 @@
 # Standardized HTML5 Game Generation Questionnaire and Workflow
 
+> **Runtime decision (2026-10-20):** PixiJS + Rapier is the single runtime
+> engine. This document was written when Defold was the target runtime;
+> read "Defold" below as "the runtime" — the contracts, gates, and workflow
+> are engine-agnostic, and the Defold-specific framing is historical.
+
 **Revision:** repository-aligned v2  
 **Repository:** `GavinDu/html5-game-generator`  
 **Engine target:** Defold  

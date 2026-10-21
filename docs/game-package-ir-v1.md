@@ -1,6 +1,11 @@
 # Game Package and Game IR v1
 
-Status: implementation in progress. The pipeline now emits and validates Game IR, publishes it on the game record, and serves a versioned Game Package envelope; the Defold runtime and legacy-runtime removal are still pending.
+> **Runtime decision (2026-10-20):** PixiJS + Rapier is the single runtime
+> engine for Game IR packages. The Defold runtime, Godot endpoints/routing,
+> and the native Swift interpreter were removed; statements below that name
+> Defold as the runtime target are historical.
+
+Status: implementation in progress. The pipeline now emits and validates Game IR, publishes it on the game record, and serves a versioned Game Package envelope; the PixiJS + Rapier runtime is the remaining implementation step.
 
 ## Boundaries
 
