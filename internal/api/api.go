@@ -19,6 +19,9 @@ import (
 //go:embed web/player.html
 var playerHTML string
 
+//go:embed web/pixi-runtime.js
+var pixiRuntimeJS string
+
 type Server struct {
 	store  store.Store
 	runner *pipeline.Runner
@@ -33,6 +36,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /", s.handleRoot)
 	mux.HandleFunc("GET /player", s.handlePlayer)
+	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
 	mux.HandleFunc("POST /v1/ingest", s.handleIngest)
 	mux.HandleFunc("POST /v1/games", s.handleCreateGame)
 	mux.HandleFunc("GET /v1/games/{id}", s.handleGetGame)
@@ -131,6 +135,14 @@ func (s *Server) handlePlayer(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(playerHTML))
+}
+
+// GET /web/pixi-runtime.js — the PixiJS + Rapier Game IR runtime module
+// loaded by the player page (single runtime since 2026-10-20).
+func (s *Server) handlePixiRuntime(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(pixiRuntimeJS))
 }
 
 // POST /v1/ingest — Stage 0: drawing + keywords -> elements + guessed intent.
