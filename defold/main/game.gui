@@ -1,5 +1,0 @@
-script: "/main/game.gui_script"
-adjust_reference: ADJUST_REFERENCE
-max_nodes: 2048
-material: "/builtins/materials/gui.material"
-fonts { name: "default" font: "/builtins/fonts/default.font" }
