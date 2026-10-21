@@ -55,42 +55,17 @@ func escapeSpec() GameSpec {
 	}
 }
 
-func TestDecideShippedGamesAreHTML5(t *testing.T) {
-	for name, spec := range map[string]GameSpec{
-		"bobos-rainbow": boboSpec(),
-		"ribbon-sky":    skySpec(),
-		"escape":        escapeSpec(),
-	} {
-		spec.ApplyDefaults(DefaultPrefs())
-		if err := spec.Validate(); err != nil {
-			t.Fatalf("%s: validate: %v", name, err)
-		}
-		d := Decide(spec)
-		if d.Engine != EngineHTML5 {
-			t.Errorf("%s: engine=%s, want html5 (rationale: %v)", name, d.Engine, d.Rationale)
-		}
-		if len(d.Rationale) == 0 {
-			t.Errorf("%s: empty rationale", name)
-		}
-	}
-}
-
-func TestDecideHardRules(t *testing.T) {
+// Since 2026-10-20 there is one runtime (PixiJS + Rapier); every spec,
+// simple or complex, decides to it. These tests pin that policy across
+// the variety that used to exercise the html5/godot router.
+func TestDecideAlwaysPixi(t *testing.T) {
 	threeD := boboSpec()
 	threeD.ThreeD = true
 	threeD.Style = StyleRealistic3D
-	if d := Decide(threeD); d.Engine != EngineGodot {
-		t.Errorf("3D spec: engine=%s, want godot", d.Engine)
-	}
 
 	instant := boboSpec()
 	instant.PerfBudget = PerfInstant
-	if d := Decide(instant); d.Engine != EngineHTML5 {
-		t.Errorf("instant-load spec: engine=%s, want html5", d.Engine)
-	}
-}
 
-func TestDecideComplexGoesGodot(t *testing.T) {
 	fireworks := GameSpec{
 		Title:     "Fireworks Sandbox",
 		Archetype: ArchSandbox,
@@ -103,50 +78,7 @@ func TestDecideComplexGoesGodot(t *testing.T) {
 		SpriteCount: 120,
 		PerfBudget:  PerfHigh,
 	}
-	if d := Decide(fireworks); d.Engine != EngineGodot {
-		t.Errorf("fireworks: engine=%s, want godot (scores %v)", d.Engine, d.Scores)
-	}
 
-	platformer := GameSpec{
-		Title:          "Shadow Knight",
-		Archetype:      ArchPlatform,
-		CoreLoop:       "run, jump, slash through torch-lit caves",
-		Input:          []string{InputSwipe, InputTap},
-		Lighting:       true,
-		ParallaxLayers: 4,
-		ScreenShake:    true,
-		Particles:      ParticlesSimple,
-		SpriteCount:    40,
-		PerfBudget:     PerfMid,
-	}
-	if d := Decide(platformer); d.Engine != EngineGodot {
-		t.Errorf("platformer: engine=%s, want godot (scores %v)", d.Engine, d.Scores)
-	}
-}
-
-func TestDecideLeansGodot(t *testing.T) {
-	// Mid-complexity: simple archetype, but enough juice that the old
-	// HTML5-default would have kept it on canvas. Now it goes Godot.
-	mid := GameSpec{
-		Title:     "Star Dodger",
-		Archetype: ArchDodger,
-		CoreLoop:  "dodge comets, grab stars",
-		Input:     []string{InputTap, InputDrag},
-		SpriteCount: 25,
-		Particles:   ParticlesSimple,
-		ScreenShake: true,
-		PerfBudget:  PerfMid,
-	}
-	mid.ApplyDefaults(DefaultPrefs())
-	if err := mid.Validate(); err != nil {
-		t.Fatalf("validate: %v", err)
-	}
-	if d := Decide(mid); d.Engine != EngineGodot {
-		t.Errorf("mid-complexity: engine=%s, want godot (scores %v, rationale %v)",
-			d.Engine, d.Scores, d.Rationale)
-	}
-
-	// Decisively simple still goes HTML5: the instant-load feed game.
 	simple := GameSpec{
 		Title:     "Tap the Apple",
 		Archetype: ArchTapper,
@@ -156,15 +88,32 @@ func TestDecideLeansGodot(t *testing.T) {
 		Particles:   ParticlesNone,
 		PerfBudget:  PerfLowEnd,
 	}
-	simple.ApplyDefaults(DefaultPrefs())
-	if d := Decide(simple); d.Engine != EngineHTML5 {
-		t.Errorf("simple game: engine=%s, want html5 (scores %v)", d.Engine, d.Scores)
+
+	for name, spec := range map[string]GameSpec{
+		"bobos-rainbow": boboSpec(),
+		"ribbon-sky":    skySpec(),
+		"escape":        escapeSpec(),
+		"three-d":       threeD,
+		"instant-load":  instant,
+		"fireworks":     fireworks,
+		"simple":        simple,
+	} {
+		d := Decide(spec)
+		if d.Engine != EnginePixi {
+			t.Errorf("%s: engine=%s, want pixi (rationale: %v)", name, d.Engine, d.Rationale)
+		}
+		if len(d.Rationale) == 0 {
+			t.Errorf("%s: empty rationale", name)
+		}
+		if d.Scores[EnginePixi] != 1000 {
+			t.Errorf("%s: scores=%v, want pixi:1000", name, d.Scores)
+		}
 	}
 }
 
 func TestDecideDeterministic(t *testing.T) {
 	a, b := Decide(boboSpec()), Decide(boboSpec())
-	if a.Engine != b.Engine || a.Scores[EngineHTML5] != b.Scores[EngineHTML5] {
+	if a.Engine != b.Engine || a.Scores[EnginePixi] != b.Scores[EnginePixi] {
 		t.Errorf("decide is not deterministic: %+v vs %+v", a, b)
 	}
 }

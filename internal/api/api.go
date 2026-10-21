@@ -49,8 +49,6 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
 	mux.HandleFunc("POST /v1/games/{id}/scores", s.handleSubmitScore)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboard)
-	mux.HandleFunc("GET /v1/godot", s.handleGodotList)
-	mux.HandleFunc("GET /godot/", s.handleGodot)
 	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
 	mux.HandleFunc("GET /v1/spec/questionnaire", s.handleSpecQuestionnaire)
 	mux.HandleFunc("POST /v1/ir/validate", s.handleIRValidate)

@@ -3,8 +3,9 @@
 // Every game is reduced to a GameSpec: a fixed set of factors covering
 // identity, source material, gameplay, visuals, audio, systems, and platform.
 // The spec is filled from the user's preferences plus the questionnaire
-// (questionnaire.go), then gamespec.Decide routes it to the right engine
-// (decide.go): HTML5 canvas for simple games, Godot for effect-heavy ones.
+// (questionnaire.go). Since 2026-10-20 there is exactly one runtime engine
+// (PixiJS + Rapier), so gamespec.Decide no longer routes between engines;
+// it records the single-engine verdict and the factors that shaped the game.
 package gamespec
 
 import (
@@ -12,10 +13,10 @@ import (
 	"strings"
 )
 
-// Engines.
+// Engines. PixiJS + Rapier is the sole runtime (2026-10-20 decision;
+// Defold, Godot, and the native Swift interpreter were removed).
 const (
-	EngineHTML5 = "html5"
-	EngineGodot = "godot"
+	EnginePixi = "pixi"
 )
 
 // SpecVersion is the current GameSpec schema version.
