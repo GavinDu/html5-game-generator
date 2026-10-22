@@ -296,6 +296,17 @@ async function playGame(browser, gameId) {
       'bot did not reach a win inside the play budget; reachability unproven (not a fail)', null);
   }
 
+  // Capture the submitted run id NOW, before the shell restart check
+  // replaces the session (a restart wipes the verdict's lastRunId).
+  let submittedRunId = null;
+  if (winSeen) {
+    for (let i = 0; i < 12 && !submittedRunId; i++) {
+      const v = await readProbe(page).catch(() => null);
+      if (v) { probe = v; submittedRunId = v.lastRunId || null; }
+      if (!submittedRunId) await sleep(350);
+    }
+  }
+
   if (stateChanged || endSeen) {
     push('simulation.no_softlock', 'pass',
       'HUD/status/error state changed during bot play; no frozen state observed', null);
@@ -372,21 +383,21 @@ async function playGame(browser, gameId) {
           if (!el) return false;
           try { return JSON.parse(el.textContent).booted === true; } catch { return false; }
         }, { timeout: 25000 });
-        await p2.evaluate((s) => { window.__dqScripted = s; }, script);
+        await p2.evaluate((s) => { window.__dqScripted = s; window.__dqScriptEnd = 330; }, script);
         const hasCard = await p2.evaluate(() => !!document.querySelector('#shell-start.on'));
         if (hasCard) await p2.click('#shell-start-btn');
         else await p2.evaluate(() => { window.__dqBeginPlay && window.__dqBeginPlay(); });
+        // The runtime snapshots the score at exactly step 330; poll
+        // for that snapshot (a live read would overshoot steps and
+        // fake a divergence).
         const t0 = Date.now();
+        let snap = null;
         while (Date.now() - t0 < 30000) {
-          const st = await p2.evaluate(() => ({
-            step: window.__dqPlay ? window.__dqPlay.simStep : 0,
-            ended: !!(window.__dqPlay && window.__dqPlay.shellStarted && document.querySelector('#shell-result.on')),
-          })).catch(() => ({ step: 0 }));
-          if (st.step >= 330 || st.ended) break;
+          const v = await readProbe(p2);
+          if (v && typeof v.scriptEndScore === 'number') { snap = v.scriptEndScore; break; }
           await sleep(300);
         }
-        const v = await readProbe(p2);
-        return v ? v.score : null;
+        return snap;
       } finally {
         await p2.close().catch(() => {});
       }
@@ -408,12 +419,7 @@ async function playGame(browser, gameId) {
   // Replay verification: when the main session won and its run was
   // submitted, replay the recorded trace and require an exact match.
   try {
-    let runId = probe && probe.lastRunId;
-    for (let i = 0; i < 20 && winSeen && !runId; i++) {
-      await sleep(400);
-      const v = await readProbe(page).catch(() => null);
-      if (v) { probe = v; runId = v.lastRunId; }
-    }
+    const runId = submittedRunId;
     if (!winSeen) {
       push('leaderboard.replay_verified', 'skip', 'bot did not win this session; no winning run to verify', null);
     } else if (!runId) {
