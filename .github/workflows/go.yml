@@ -48,9 +48,12 @@ jobs:
           node-version: 20
       - name: Install playtest worker
         working-directory: tools/playtest
-        run: |
-          npm install --no-audit --no-fund
-          npx playwright install --with-deps ${{ matrix.browser }}
+        run: npm install --no-audit --no-fund
+      - name: Test quality scoring
+        working-directory: tools/playtest
+        run: npm test
+      - name: Install browser dependencies
+        run: npx --prefix tools/playtest playwright install --with-deps ${{ matrix.browser }}
       - name: Build and start the server
         run: |
           go build -o /tmp/dq-server ./cmd/server
