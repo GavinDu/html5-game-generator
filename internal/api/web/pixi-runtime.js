@@ -55,7 +55,7 @@ function warnOnce(key, cat, msg) {
 // native code can do it. Errors are buffered for the ?probe=1 verdict and
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
-const RUNTIME_VERSION = '2026.10.22.1';
+const RUNTIME_VERSION = '2026.10.22.2';
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -90,12 +90,20 @@ function recordError(kind, err) {
 window.__dqErrors = errorBuffer;
 
 function emitProbe() {
-  const elapsedSec = perfBootWall ? (Date.now() - perfBootWall) / 1000 : 0;
+  const play = window.__dqPlay || null;
+  const visibleSec = play ? play.visibleMs / 1000 : 0;
   const verdict = {
     gameId: new URLSearchParams(location.search).get('game'),
     runtimeVersion: RUNTIME_VERSION,
     quality: qualityMode,
-    fps: elapsedSec > 1 ? Math.round(totalFrames / elapsedSec) : 0,
+    // fps over VISIBLE play time only (Phase A): hidden/loading time
+    // no longer dilutes the number.
+    fps: visibleSec > 1 ? Math.round(totalFrames / visibleSec) : 0,
+    seed: play ? play.seed : null,
+    shell: play && play.shell ? { archetype: play.shell.archetype || '', started: play.shellStarted } : null,
+    events: dqEvents.slice(-40),
+    inputs: play ? play.inputLog.length : 0,
+    deadInputs: play ? play.deadInputs : 0,
     booted: probeState.booted,
     frames: totalFrames,
     errors: errorBuffer,
@@ -126,7 +134,98 @@ function parseColor(c, fallback = 0xffffff) {
 }
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const rand = (a, b) => a + Math.random() * (b - a);
+
+// --- Seeded RNG (Phase A) ----------------------------------------------
+// All gameplay randomness flows through one mulberry32 generator so a
+// run is reproducible from its seed: the playtest determinism check,
+// the difficulty tuner, and leaderboard replay verification all depend
+// on seed + input trace -> identical outcome. The seed comes from
+// ?seed= when present (tests, replays), else a per-session random seed
+// that is reported in telemetry and the probe verdict.
+let rngState = 0;
+function srand(seed) { rngState = seed >>> 0 || 1; }
+function rng() {
+  rngState = (rngState + 0x6D2B79F5) >>> 0;
+  let t = rngState;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const rand = (a, b) => a + rng() * (b - a);
+
+// --- Session event stream + telemetry v2 (Phase A) --------------------
+// dqEvents is the in-page record the probe verdict and the playtest
+// worker read: timestamped gameplay events (start, first_input,
+// first_reward, collect, hurt, milestone, win, lose). Telemetry v2
+// events go to POST /v1/telemetry/events in the advisor's shapes
+// (session_start, perf_window, milestone, run_end); error reports keep
+// using the original runtime-error endpoint.
+const dqSessionId = Math.floor(Math.random() * 0xffffffff).toString(16);
+let dqEvents = [];
+function recordEvent(type, detail) {
+  dqEvents.push({ t: Math.round(performance.now()), type, detail: detail || '' });
+  if (dqEvents.length > 600) dqEvents.splice(0, dqEvents.length - 600);
+}
+function deviceClass() {
+  const ua = navigator.userAgent || '';
+  const fam = /iPhone/.test(ua) ? 'iphone' : /iPad/.test(ua) ? 'ipad'
+    : /Android/.test(ua) ? 'android' : 'desktop';
+  return `${fam}|${window.innerWidth}x${window.innerHeight}|dpr${window.devicePixelRatio || 1}`;
+}
+function sendTelemetryEvent(kind, fields) {
+  try {
+    const payload = JSON.stringify({
+      gameId, runtimeVersion: RUNTIME_VERSION, sessionId: dqSessionId,
+      kind, quality: qualityMode, deviceClass: deviceClass(),
+      at: new Date().toISOString(), ...fields,
+    });
+    navigator.sendBeacon('/v1/telemetry/events', new Blob([payload], { type: 'application/json' }));
+  } catch { /* telemetry must never break the game */ }
+}
+
+// --- WebAudio SFX pool (Phase A) ---------------------------------------
+// Replaces per-play `new Audio(url)`: buffers are fetched + decoded
+// once and replayed from memory, and the context unlocks on the first
+// pointer event — which also ends the "audio play blocked" warning
+// every game used to log at boot (music started by a rule at game_start
+// now waits for the unlock and plays then if it was requested).
+const sfx = {
+  ctx: null, buffers: new Map(), pendingMusic: [],
+  ensureCtx() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { try { this.ctx = new AC(); } catch { this.ctx = null; } }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    return this.ctx;
+  },
+  unlock() {
+    if (!this.ensureCtx()) return;
+    for (const job of this.pendingMusic.splice(0)) job();
+  },
+  play(url, assetId) {
+    const ctx = this.ensureCtx();
+    if (!ctx) { new Audio(url).play().catch(() => {}); return; }
+    const start = (buffer) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(ctx.destination);
+      src.start();
+    };
+    const job = () => {
+      if (this.buffers.has(assetId)) { start(this.buffers.get(assetId)); return; }
+      fetch(url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab))
+        .then((buffer) => { this.buffers.set(assetId, buffer); start(buffer); })
+        .catch(() => { new Audio(url).play().catch(() => {}); });
+    };
+    // Autoplay policy: while the context is suspended (no user gesture
+    // yet) a started buffer would never be heard. Queue the play for
+    // the unlock instead of dropping it on the floor.
+    if (ctx.state === 'suspended') { this.pendingMusic.push(job); return; }
+    job();
+  },
+};
+addEventListener('pointerdown', () => sfx.unlock(), { once: false });
 
 const EASINGS = {
   linear: (t) => t,
@@ -158,7 +257,9 @@ function getDotTexture() {
 // Runtime-owned particle emitter (Pixi core ships the container, not
 // emitter behavior). Pool of sprites; continuous rate + bursts.
 class Emitter {
+  static instances = [];
   constructor(container, cfg, textures) {
+    Emitter.instances.push(this);
     this.cfg = cfg || {};
     this.container = container;
     const tex = (cfg?.textureAssetId && textures.get(cfg.textureAssetId)) || getDotTexture();
@@ -176,6 +277,11 @@ class Emitter {
     }
     this.acc = 0;
     this.x = 0; this.y = 0; // attach point, set by owner each frame
+  }
+  aliveCount() {
+    let n = 0;
+    for (const p of this.pool) if (p.alive) n++;
+    return n;
   }
   burst(n, x, y) {
     let spawned = 0;
@@ -227,7 +333,6 @@ const probeMode = params.get('probe') === '1';
 // 'high' (the default, capped at 2x so 3x phone panels don't triple the
 // fill cost for a 390pt-wide stage).
 const qualityMode = params.get('quality') === 'low' ? 'low' : 'high';
-let perfBootWall = 0; // Date.now() when the ticker starts (fps math)
 
 async function listGames() {
   $('status').textContent = 'Pick a game:';
@@ -249,8 +354,97 @@ async function listGames() {
   log('PKG', `feed listed ${(data.games || []).length} games`);
 }
 
+// The live session, for in-place restart (Phase A): restarting must
+// not reload the page (a reload refetches everything and flashes) —
+// it tears the PIXI app down and boots the same game again.
+let activeSession = null; // { app, abort: AbortController }
+let restartCount = 0;
+let skipStartCardOnce = false; // Play again skips the how-to card (design: retry < 1s)
+async function restartGame() {
+  if (!gameId) return;
+  restartCount++;
+  skipStartCardOnce = true;
+  recordEvent('restart', 'attempt ' + restartCount);
+  await run(gameId).catch((err) => {
+    $('status').textContent = 'Failed to restart: ' + err.message;
+    recordError('restart', err);
+  });
+}
+window.__dqRestart = restartGame;
+
 async function run(id) {
   const started = performance.now();
+  // Tear down the previous session (in-place restart path).
+  if (activeSession) {
+    try { activeSession.abort.abort(); } catch { /* ignore */ }
+    try { activeSession.app.destroy(true, { children: true, texture: false }); } catch { /* ignore */ }
+    activeSession = null;
+    $('stage').innerHTML = '';
+    $('end').style.display = 'none';
+  }
+  const abort = new AbortController();
+  dqEvents = [];
+  Emitter.instances = [];
+  $('shell-start')?.classList.remove('on');
+  $('shell-result')?.classList.remove('on');
+  // Seed: explicit ?seed= wins (tests, replays); else a fresh random
+  // seed, reported in telemetry + the probe verdict.
+  const seedParam = params.get('seed');
+  const sessionSeed = seedParam !== null && /^\d+$/.test(seedParam)
+    ? Number(seedParam) >>> 0
+    : Math.floor(Math.random() * 0xffffffff) >>> 0;
+  srand(sessionSeed);
+
+  // --- Play-session bookkeeping (Phases A+B) ---------------------------
+  // One object for everything the shell, the metrics, and telemetry v2
+  // need: visible-play clock (fps that excludes hidden time), the
+  // tick-stamped input log, dead-input accounting, perf-window frame
+  // samples, and shell state. Declared before any handler can fire.
+  const play = {
+    seed: sessionSeed,
+    visibleMs: 0,               // ticker time while visible + running
+    startedAt: 0,               // performance.now() at boot completion
+    firstInputAt: 0, firstRewardAt: 0,
+    inputLog: [],               // {tick, type, detail}
+    pendingInputs: [],          // {at: visibleMs, x, y} awaiting the 200ms activity check
+    deadInputs: 0,
+    lastActivityMs: 0,          // last visibleMs with a rule fire / collect / player move
+    lastPlayerX: -1, lastPlayerY: -1,
+    frameSamples: [],           // deltaMS within the current perf window
+    longestFrameMs: 0,
+    liveCounts: () => ({ entities: 0, particles: 0 }),
+    shell: null,                // experience block when the game is IR 1.2
+    shellStarted: false,
+    milestonesHit: new Set(),
+  };
+  function noteInput(type, detail) {
+    play.inputLog.push({ tick: totalFrames, type, detail: detail || '' });
+    if (play.inputLog.length > 2000) play.inputLog.splice(0, play.inputLog.length - 2000);
+    play.pendingInputs.push({ at: play.visibleMs, x: play.lastPlayerX, y: play.lastPlayerY });
+    if (!play.firstInputAt) {
+      play.firstInputAt = Math.round(play.visibleMs);
+      recordEvent('first_input', type);
+      sendTelemetryEvent('milestone', { milestone: 'first_input', ms: play.firstInputAt });
+    }
+  }
+  function noteActivity() { play.lastActivityMs = play.visibleMs; }
+  function flushPerfWindow() {
+    if (!play.frameSamples.length) return;
+    const buckets = [0, 0, 0, 0, 0, 0]; // <=8, <=16.7, <=25, <=33, <=50, >50 ms
+    for (const ms of play.frameSamples) {
+      if (ms <= 8) buckets[0]++; else if (ms <= 16.7) buckets[1]++;
+      else if (ms <= 25) buckets[2]++; else if (ms <= 33) buckets[3]++;
+      else if (ms <= 50) buckets[4]++; else buckets[5]++;
+    }
+    const counts = play.liveCounts();
+    sendTelemetryEvent('perf_window', {
+      frames: play.frameSamples.length, buckets,
+      longestFrameMs: Math.round(play.longestFrameMs),
+      entities: counts.entities, particles: counts.particles,
+    });
+    play.frameSamples = [];
+    play.longestFrameMs = 0;
+  }
   const res = await fetch(`/v1/games/${encodeURIComponent(id)}/package`);
   if (!res.ok) {
     const body = await res.text();
@@ -260,7 +454,7 @@ async function run(id) {
   log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), package v${pkg.packageVersion}, IR v${pkg.ir?.irVersion}, ${pkg.assets?.length ?? 0} assets`);
   if (pkg.packageVersion !== '2.0') throw new Error('unsupported packageVersion ' + pkg.packageVersion);
   const ir = pkg.ir;
-  if (!['1.0', '1.1'].includes(ir.irVersion)) throw new Error('unsupported irVersion ' + ir.irVersion);
+  if (!['1.0', '1.1', '1.2'].includes(ir.irVersion)) throw new Error('unsupported irVersion ' + ir.irVersion);
 
   const sceneKey = 'dq.scene.' + id;
   const wantedScene = sessionStorage.getItem(sceneKey) || ir.game.entryScene;
@@ -285,7 +479,35 @@ async function run(id) {
     background: scene.backgroundColor ? parseColor(scene.backgroundColor, 0x16204a) : 0x16204a,
   });
   $('stage').appendChild(app.canvas);
+  activeSession = { app, abort };
   log('RT', 'pixi stage ready');
+
+  // Pause when the page is hidden (Phase A): the ticker drives the
+  // whole simulation, so stopping it freezes the world; the frame
+  // delta is clamped in tickFrame, so resuming doesn't lurch.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      try { app.ticker.stop(); } catch { /* ignore */ }
+      recordEvent('pause', 'hidden');
+      flushPerfWindow();
+    } else {
+      if (play.shellStarted) { try { app.ticker.start(); } catch { /* ignore */ } }
+      recordEvent('resume', '');
+    }
+  }, { signal: abort.signal });
+  // WebGL context loss: prevent the default (a frozen canvas forever)
+  // so the browser restores the context and Pixi re-creates its GL
+  // state; report both transitions as telemetry-grade events.
+  app.canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    log('RT', 'WEBGL CONTEXT LOST');
+    recordError('context', new Error('WebGL context lost'));
+    recordEvent('context_lost', '');
+  });
+  app.canvas.addEventListener('webglcontextrestored', () => {
+    log('RT', 'WEBGL CONTEXT RESTORED');
+    recordEvent('context_restored', '');
+  });
 
   // Pixi's own render listener runs outside our ticker's try/catch; a
   // throw there (e.g. a missing render pipe) repeats every frame and
@@ -557,6 +779,7 @@ async function run(id) {
   // --- Entities -------------------------------------------------------
   const entities = new Map();       // runtimeId -> ent
   const byDefId = new Map();        // def.id -> [ent]
+  const byKind = new Map();         // def.kind -> [ent] (indexed lookup; was a linear scan per rule action)
   const byCollider = new Map();     // collider handle -> ent
   const templates = new Map();
   for (const t of scene.templates || []) templates.set(t.id, t);
@@ -567,6 +790,11 @@ async function run(id) {
     entities.set(ent.runtimeId, ent);
     if (!byDefId.has(ent.defId)) byDefId.set(ent.defId, []);
     byDefId.get(ent.defId).push(ent);
+    const kind = ent.def?.kind;
+    if (kind) {
+      if (!byKind.has(kind)) byKind.set(kind, []);
+      byKind.get(kind).push(ent);
+    }
     if (ent.collider) byCollider.set(ent.collider.handle, ent);
   }
   function unregister(ent) {
@@ -574,12 +802,14 @@ async function run(id) {
     const arr = byDefId.get(ent.defId) || [];
     const i = arr.indexOf(ent);
     if (i >= 0) arr.splice(i, 1);
+    const karr = byKind.get(ent.def?.kind) || [];
+    const ki = karr.indexOf(ent);
+    if (ki >= 0) karr.splice(ki, 1);
     if (ent.collider) byCollider.delete(ent.collider.handle);
   }
   function findEnt(ref) {
     if (!ref) return undefined;
-    return entities.get(ref) || (byDefId.get(ref) || [])[0] ||
-      [...entities.values()].find((e) => e.def.kind === ref);
+    return entities.get(ref) || (byDefId.get(ref) || [])[0] || (byKind.get(ref) || [])[0];
   }
 
   function createEntity(def, x, y, runtimeId) {
@@ -593,7 +823,7 @@ async function run(id) {
       x, y, anchorX: x, anchorY: y,
       baseAlpha: view.alpha, baseScaleX: view.scale.x, baseScaleY: view.scale.y,
       baseRot: view.rotation, offX: 0, offY: 0,
-      destroyed: false, phase: Math.random() * Math.PI * 2, stillTime: 0,
+      destroyed: false, phase: rng() * Math.PI * 2, stillTime: 0,
       bodyKind: def.physics?.body || (def.physics ? 'kinematic_position' : 'legacy'),
       tweens: (def.tweens || []).map((t) => ({ ...t, t: -(t.delayMs || 0), cycle: 0, done: false })),
       emitter: null, controller: null, forceUntil: 0, forceVec: null,
@@ -742,23 +972,43 @@ async function run(id) {
     return true;
   }
 
+  let prevHealth = state.health;
   function emit(event, source, target, value, inputAction) {
     if (state.depth > 8) { warnOnce('depth', 'RULE', 'event cascade depth exceeded — dropped'); return; }
+    // Event stream for the probe / playtest worker / shell.
+    if (event === 'collected') { recordEvent('collect', target?.defId || ''); noteActivity(); }
     state.depth++;
     try {
       for (const rule of ir.rules) {
         if (!ruleMatches(rule, event, source, target, value, inputAction)) continue;
         if (!conditionsMet(rule)) continue;
         log('RULE', `rule '${rule.id}' fired by ${event}`);
+        noteActivity();
         execute(rule.actions || [], source, target);
         if (state.ended) break;
       }
     } finally {
       state.depth--;
     }
+    if (event === 'health_changed') {
+      if (state.health < prevHealth) recordEvent('hurt', `health ${prevHealth} -> ${state.health}`);
+      prevHealth = state.health;
+    }
   }
 
   function updateHUD() {
+    // Shell games (IR 1.2) get the standardized HUD: objective progress
+    // on the score side, hearts only when the failure model uses them.
+    const exp = play.shell;
+    if (exp) {
+      const target = exp.objective?.target;
+      const scoreTxt = exp.objective?.kind === 'collect' && target
+        ? `★ ${state.score}/${target}` : `★ ${state.score}`;
+      const mode = exp.failure?.mode || 'health';
+      const hearts = (mode === 'health' || mode === 'sudden-death') ? `  ♥ ${state.health}` : '';
+      $('score').textContent = scoreTxt + hearts;
+      return;
+    }
     $('score').textContent = `★ ${state.score}  ♥ ${state.health}`;
   }
 
@@ -775,6 +1025,28 @@ async function run(id) {
     }
   }
 
+  // Pacing ramp (IR 1.2): the speed multiplier at the current point
+  // of the session, interpolated between declared steps over
+  // normalized session time. Applied when entities (re)spawn, so the
+  // game genuinely gets faster as the session progresses — the ramp
+  // is data the runtime executes, not decoration.
+  function rampSpeedMul() {
+    const ramp = play.shell?.pacing?.ramp;
+    if (!Array.isArray(ramp) || !ramp.length) return 1;
+    const target = play.shell?.pacing?.targetSessionSec || ir.game.sessionTargetSeconds || 60;
+    const t = clamp(state.elapsed / target, 0, 1);
+    const mul = (s) => (s.speedMul && s.speedMul > 0 ? s.speedMul : 1);
+    if (t <= ramp[0].at) return mul(ramp[0]);
+    for (let i = 1; i < ramp.length; i++) {
+      if (t <= ramp[i].at) {
+        const a = ramp[i - 1], b = ramp[i];
+        const f = (t - a.at) / Math.max(1e-6, b.at - a.at);
+        return mul(a) + (mul(b) - mul(a)) * f;
+      }
+    }
+    return mul(ramp[ramp.length - 1]);
+  }
+
   function recycleEntity(ent) {
     respawnIndex += 1;
     const nx = 50 + ((respawnIndex * 83) % Math.max(60, worldW - 100));
@@ -784,7 +1056,7 @@ async function run(id) {
     if (worldLayer.children.indexOf(ent.view) < 0) worldLayer.addChild(ent.view);
     if (ent.bodyKind === 'dynamic') {
       ent.body.setTranslation({ x: toM(nx), y: toM(-ent.h / 2) }, true);
-      ent.body.setLinvel({ x: 0, y: toM(ent.def.physics?.initialVelocity?.[1] ?? 60) }, true);
+      ent.body.setLinvel({ x: 0, y: toM((ent.def.physics?.initialVelocity?.[1] ?? 60) * rampSpeedMul()) }, true);
       ent.body.setAngvel(0, true);
       ent.body.setRotation(0, true);
     }
@@ -809,11 +1081,30 @@ async function run(id) {
     for (const action of actions) {
       const ent = findEnt(action.target);
       switch (action.type) {
-        case 'add_score':
+        case 'add_score': {
           state.score += Math.trunc(action.value ?? 1);
+          noteActivity();
+          if (!play.firstRewardAt && state.score > 0) {
+            play.firstRewardAt = Math.round(play.visibleMs);
+            recordEvent('first_reward', 'score ' + state.score);
+            sendTelemetryEvent('milestone', { milestone: 'first_reward', ms: play.firstRewardAt });
+          }
+          // Experience milestones (IR 1.2): fractions of the objective
+          // target, recorded as events the shell + worker can see.
+          const exp = play.shell;
+          if (exp?.objective?.target > 0 && Array.isArray(exp.milestones)) {
+            for (const frac of exp.milestones) {
+              const key = String(frac);
+              if (!play.milestonesHit.has(key) && state.score >= Math.max(1, Math.round(exp.objective.target * frac))) {
+                play.milestonesHit.add(key);
+                recordEvent('milestone', key);
+              }
+            }
+          }
           updateHUD();
           emitScoreThresholds();
           break;
+        }
         case 'set_variable':
           if (action.variable) {
             state.variables[action.variable] = action.value;
@@ -856,19 +1147,31 @@ async function run(id) {
           emit('health_changed', sourceEnt, targetEnt);
           if (state.health === 0) endGame(false);
           break;
-        case 'change_health':
-          state.health = Math.max(0, state.health + Math.trunc(action.value ?? 0));
+        case 'change_health': {
+          const delta = Math.trunc(action.value ?? 0);
+          // Invulnerability window (IR 1.2 failure model): damage
+          // inside the window is ignored, so chained contacts in
+          // consecutive frames can never drain health instantly.
+          // Heals (positive deltas) always apply.
+          const invulnMs = play.shell?.failure?.invulnerableMs || 0;
+          if (delta < 0 && invulnMs > 0 && state.elapsed - (state.lastDamageAt ?? -1e9) < invulnMs / 1000) {
+            log('RULE', `damage ignored (invulnerable, ${Math.round(invulnMs - (state.elapsed - state.lastDamageAt) * 1000)}ms left)`);
+            break;
+          }
+          if (delta < 0) state.lastDamageAt = state.elapsed;
+          state.health = Math.max(0, state.health + delta);
           updateHUD();
           emit('health_changed', sourceEnt, targetEnt);
           if (state.health === 0) endGame(false);
           break;
+        }
         case 'end_game':
           endGame(Boolean(action.value));
           break;
         case 'play_sound': {
           const url = audio.get(action.assetId);
           if (!url) { warnOnce('sound-' + action.assetId, 'RULE', `play_sound: audio asset '${action.assetId}' missing — skipped`); break; }
-          new Audio(url).play().catch((e) => warnOnce('sound-play', 'RULE', 'audio play blocked: ' + e.message));
+          sfx.play(url, action.assetId);
           break;
         }
         case 'change_scene': {
@@ -878,7 +1181,7 @@ async function run(id) {
           }
           sessionStorage.setItem(sceneKey, action.sceneId);
           log('RULE', `changing scene to '${action.sceneId}'`);
-          location.reload();
+          restartGame();
           break;
         }
         case 'apply_impulse': {
@@ -951,17 +1254,65 @@ async function run(id) {
     }
   }
 
+  // Shell result card (IR 1.2): win shows stars from the result
+  // block's time thresholds plus the best score; lose shows REAL
+  // progress ("9 of 12 hearts") — never a bare "Game over". Play
+  // again restarts in place (no reload, no refetch).
+  function showShellResult(won) {
+    const exp = play.shell;
+    const res = won ? (exp.result?.win || {}) : (exp.result?.lose || {});
+    $('shell-result-title').textContent = res.title || (won ? 'You did it!' : 'So close!');
+    let starsTxt = '';
+    if (won) {
+      const th = exp.result?.win?.stars?.thresholdsSec;
+      if (Array.isArray(th) && th.length >= 3) {
+        const secs = play.visibleMs / 1000;
+        const stars = secs <= th[2] ? 3 : secs <= th[1] ? 2 : 1;
+        starsTxt = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+      } else {
+        starsTxt = '★★★';
+      }
+    }
+    $('shell-result-stars').textContent = starsTxt;
+    const bestKey = 'dq.best.' + gameId;
+    const prevBest = Number(localStorage.getItem(bestKey) || 0);
+    const isBest = state.score > prevBest;
+    if (isBest) localStorage.setItem(bestKey, String(state.score));
+    const target = exp.objective?.target;
+    const progress = exp.objective?.kind === 'collect' && target
+      ? `${state.score} of ${target} — ` : '';
+    $('shell-result-sub').textContent =
+      `${progress}Score: ${state.score}${isBest && state.score > 0 ? ' · New best!' : prevBest ? ` · Best: ${prevBest}` : ''}`;
+    $('shell-result').classList.add('on');
+    $('shell-again-btn').addEventListener('click', () => {
+      $('shell-result').classList.remove('on');
+      restartGame();
+    }, { once: true });
+  }
+
   function endGame(won) {
     if (state.ended) return;
     state.ended = true;
     state.won = won;
     log('RT', `game ended: ${won ? 'WIN' : 'LOSE'}, score ${state.score}`);
-    $('end-title').textContent = won ? 'You did it!' : 'Game over';
-    $('end-sub').textContent = 'Score: ' + state.score;
-    $('end').style.display = 'block';
+    recordEvent(won ? 'win' : 'lose', 'score ' + state.score);
+    flushPerfWindow();
+    sendTelemetryEvent('run_end', {
+      won, score: state.score,
+      durationMs: Math.round(play.visibleMs),
+      inputs: play.inputLog.length, deadInputs: play.deadInputs,
+      retries: restartCount, seed: play.seed,
+    });
+    if (play.shell) {
+      showShellResult(won);
+    } else {
+      $('end-title').textContent = won ? 'You did it!' : 'Game over';
+      $('end-sub').textContent = 'Score: ' + state.score;
+      $('end').style.display = 'block';
+    }
   }
 
-  $('again').addEventListener('click', () => location.reload());
+  $('again').addEventListener('click', () => restartGame());
 
   // --- Input ----------------------------------------------------------
   function tapActionName() {
@@ -980,13 +1331,14 @@ async function run(id) {
   app.canvas.addEventListener('pointerdown', (ev) => {
     pointer.down = true;
     const p = toLogical(ev); pointer.x = p.x; pointer.y = p.y;
+    noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
     emit('input', playerEnt, undefined, undefined, tapActionName());
   });
   app.canvas.addEventListener('pointermove', (ev) => {
     if (!pointer.down) return;
     const p = toLogical(ev); pointer.x = p.x; pointer.y = p.y;
   });
-  addEventListener('pointerup', () => { pointer.down = false; });
+  addEventListener('pointerup', () => { pointer.down = false; }, { signal: abort.signal });
 
   const keysDown = new Set();
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
@@ -994,12 +1346,13 @@ async function run(id) {
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (!b) return;
     keysDown.add(b.action);
+    noteInput('key', ev.key);
     emit('input', playerEnt, undefined, undefined, b.action);
-  });
+  }, { signal: abort.signal });
   addEventListener('keyup', (ev) => {
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (b) keysDown.delete(b.action);
-  });
+  }, { signal: abort.signal });
 
   // --- Contacts -------------------------------------------------------
   function handleContact(a, b, started) {
@@ -1169,9 +1522,35 @@ async function run(id) {
     }
     return parts.join(' | ');
   };
+  let perfWindowStart = 0;
   app.ticker.add((ticker) => {
     frameNo++;
     totalFrames++;
+    // Visible-play clock + perf samples (Phase A telemetry v2): the
+    // ticker only runs while visible (pause handler) and started
+    // (shell gate), so deltaMS here is honest play time — the fps the
+    // probe reports no longer counts loading or hidden time.
+    play.visibleMs += ticker.deltaMS;
+    play.frameSamples.push(ticker.deltaMS);
+    if (ticker.deltaMS > play.longestFrameMs) play.longestFrameMs = ticker.deltaMS;
+    if (play.visibleMs - perfWindowStart >= 5000) {
+      perfWindowStart = play.visibleMs;
+      flushPerfWindow();
+    }
+    // Player-movement activity + dead-input resolution: an input is
+    // dead when, 200ms later, no rule fired, nothing was collected,
+    // and the player hasn't moved — the Control metric's raw signal.
+    if (playerEnt) {
+      if (play.lastPlayerX >= 0) {
+        const moved = Math.abs(playerEnt.x - play.lastPlayerX) + Math.abs(playerEnt.y - play.lastPlayerY);
+        if (moved >= 6) noteActivity();
+      }
+      play.lastPlayerX = playerEnt.x; play.lastPlayerY = playerEnt.y;
+    }
+    while (play.pendingInputs.length && play.visibleMs - play.pendingInputs[0].at >= 200) {
+      const inp = play.pendingInputs.shift();
+      if (play.lastActivityMs < inp.at) play.deadInputs++;
+    }
     try {
       tickFrame(ticker);
     } catch (err) {
@@ -1327,38 +1706,70 @@ async function run(id) {
     burstEmitter.update(dt);
   }
 
+  play.shell = ir.experience || null;
+  // Health comes from the declared failure model, not the runtime
+  // default, when the block declares it.
+  if (play.shell?.failure?.mode === 'health' && play.shell.failure.health) {
+    state.health = play.shell.failure.health;
+  }
+  play.liveCounts = () => {
+    let particles = 0;
+    for (const e of Emitter.instances) particles += e.aliveCount();
+    return { entities: entities.size, particles };
+  };
+  window.__dqPlay = play;
+  play.startedAt = performance.now();
   updateHUD();
-  $('status').textContent = 'Drag, tap, or use the arrow keys';
-  emit('game_start', undefined, undefined);
-  emit('scene_entered', undefined, undefined);
+  sendTelemetryEvent('session_start', {
+    seed: play.seed, shell: !!play.shell,
+    bootMs: Math.round(performance.now() - started),
+    renderer: 'webgl', irVersion: ir.irVersion,
+  });
+
+  // --- Shell start gate (IR 1.2) ---------------------------------------
+  // Shell games wait at a start card: the world is built but the ticker
+  // is stopped and game_start hasn't fired, so nothing moves, no music
+  // is attempted, and the player begins when THEY tap — the same
+  // gesture that unlocks audio. Legacy games start immediately.
+  const shellStartMode = play.shell?.start?.mode || 'tap_to_start';
+  function beginPlay(fromProbe) {
+    if (play.shellStarted) return;
+    play.shellStarted = true;
+    $('shell-start').classList.remove('on');
+    try { app.ticker.start(); } catch { /* ignore */ }
+    recordEvent('start', fromProbe ? 'probe-auto' : 'tap');
+    emit('game_start', undefined, undefined);
+    emit('scene_entered', undefined, undefined);
+  }
+  play.beginPlay = beginPlay;
+  if (play.shell && shellStartMode === 'tap_to_start' && !skipStartCardOnce) {
+    // Draw the world once so the start card floats over the actual
+    // game, then freeze the ticker until the player taps Start.
+    try { app.renderer.render(app.stage); } catch { /* trap handles it */ }
+    try { app.ticker.stop(); } catch { /* ignore */ }
+    $('shell-start-title').textContent = ir.game.title || id;
+    $('shell-start-obj').textContent = play.shell.objective?.label || '';
+    $('shell-start-hint').textContent = play.shell.controls?.hint || '';
+    $('shell-start').classList.add('on');
+    $('shell-start-btn').addEventListener('click', () => beginPlay(false), { signal: abort.signal });
+    $('status').textContent = play.shell.objective?.label || 'Tap Start to play';
+    // The probe does NOT auto-start: the playtest worker verifies the
+    // card is shown, then begins play itself via __dqBeginPlay (the
+    // shell-conformance checks). A human always taps.
+    window.__dqBeginPlay = () => beginPlay(true);
+  } else {
+    play.shellStarted = true;
+    $('status').textContent = play.shell?.controls?.hint || 'Drag, tap, or use the arrow keys';
+    emit('game_start', undefined, undefined);
+    emit('scene_entered', undefined, undefined);
+  }
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
   probeState.booted = true;
-  perfBootWall = Date.now();
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
   if (probeMode) { emitProbe(); setInterval(emitProbe, 2000); }
-  // Perf telemetry: exactly one sample per session, 25s in — enough to
-  // have a real frame rate, early enough to survive short sessions. The
-  // backend files kind='perf' separately: it never counts toward the
-  // error/quarantine thresholds. No identifiers, no user content.
-  setTimeout(() => {
-    try {
-      const elapsedSec = (Date.now() - perfBootWall) / 1000;
-      const fps = elapsedSec > 1 ? Math.round(totalFrames / elapsedSec) : 0;
-      const payload = JSON.stringify({
-        gameId,
-        runtimeVersion: RUNTIME_VERSION,
-        userAgent: navigator.userAgent,
-        kind: 'perf',
-        name: 'PerfSample',
-        message: `fps=${fps} quality=${qualityMode} frames=${totalFrames} dpr=${window.devicePixelRatio || 1}`,
-        stack: '',
-        logTail: [],
-      });
-      navigator.sendBeacon('/v1/telemetry/runtime-error', new Blob([payload], { type: 'application/json' }));
-    } catch { /* telemetry must never break the game */ }
-  }, 25000);
 }
+
 
 window.addEventListener('error', (e) => {
   log('RT', 'UNCAUGHT ' + (e.error?.stack || e.message || 'unknown error'));
