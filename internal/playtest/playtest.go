@@ -27,6 +27,7 @@ type Config struct {
 	WorkerCmd []string
 	BaseURL   string
 	Browser   string // chromium (default) | webkit
+	ShotsDir  string // when set, the worker writes screenshots + its report there
 	Timeout   time.Duration
 }
 
@@ -80,6 +81,9 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	args = append(args, "--base", cfg.BaseURL)
 	if cfg.Browser != "" {
 		args = append(args, "--browser", cfg.Browser)
+	}
+	if cfg.ShotsDir != "" {
+		args = append(args, "--shots", cfg.ShotsDir)
 	}
 	if len(gameIDs) > 0 {
 		joined := gameIDs[0]
