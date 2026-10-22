@@ -34,6 +34,7 @@ func main() {
 	worker := flag.String("worker", "tools/playtest/probe.mjs", "playtest worker script")
 	merge := flag.String("merge", "", "path to a static ValidationReport JSON to merge results into")
 	out := flag.String("out", "", "write the (merged) report here instead of stdout")
+	shots := flag.String("shots", "", "directory for worker screenshots + its raw report")
 	timeout := flag.Duration("timeout", 5*time.Minute, "overall worker timeout")
 	flag.Parse()
 	if *base == "" {
@@ -48,6 +49,7 @@ func main() {
 		WorkerCmd: []string{"node", *worker},
 		BaseURL:   *base,
 		Browser:   *browser,
+		ShotsDir:  *shots,
 		Timeout:   *timeout,
 	}, ids)
 	if err != nil {
