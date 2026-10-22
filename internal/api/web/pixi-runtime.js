@@ -31,6 +31,7 @@ import RAPIER from '@dimforge/rapier2d-compat';
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
 const logEl = $('devlog');
+const logBuffer = [];
 
 function log(cat, msg) {
   const t = new Date();
@@ -38,6 +39,8 @@ function log(cat, msg) {
   const line = `[${ts}] [${cat}] ${msg}`;
   logEl.textContent += line + '\n';
   console.log(line);
+  logBuffer.push(line);
+  if (logBuffer.length > 50) logBuffer.shift();
 }
 
 const warned = new Set();
@@ -45,6 +48,68 @@ function warnOnce(key, cat, msg) {
   if (warned.has(key)) return;
   warned.add(key);
   log(cat, 'WARN ' + msg);
+}
+
+// --- Observability (auto detect-and-fix flow) ---------------------------
+// The page reports its own failures: the iOS WebView is bridgeless, so no
+// native code can do it. Errors are buffered for the ?probe=1 verdict and
+// beaconed to the backend, which groups them by fingerprint so the same
+// failure across games reads as one incident.
+const RUNTIME_VERSION = '2026.10.22.1';
+const errorBuffer = [];
+let totalFrames = 0;
+let lastCensus = '';
+const probeState = { booted: false };
+let beaconCount = 0;
+
+function recordError(kind, err) {
+  const rec = {
+    kind,
+    name: err?.name || 'Error',
+    message: String(err?.message || err),
+    stack: String(err?.stack || '').split('\n').slice(0, 8).join('\n'),
+    at: new Date().toISOString(),
+  };
+  errorBuffer.push(rec);
+  if (errorBuffer.length > 10) errorBuffer.shift();
+  if (beaconCount < 3 && navigator.sendBeacon) {
+    beaconCount++;
+    try {
+      const payload = JSON.stringify({
+        gameId: new URLSearchParams(location.search).get('game'),
+        runtimeVersion: RUNTIME_VERSION,
+        userAgent: navigator.userAgent,
+        ...rec,
+        logTail: logBuffer.slice(-20),
+      });
+      navigator.sendBeacon('/v1/telemetry/runtime-error', new Blob([payload], { type: 'application/json' }));
+    } catch { /* telemetry must never break the game */ }
+  }
+  return rec;
+}
+window.__dqErrors = errorBuffer;
+
+function emitProbe() {
+  const verdict = {
+    gameId: new URLSearchParams(location.search).get('game'),
+    runtimeVersion: RUNTIME_VERSION,
+    booted: probeState.booted,
+    frames: totalFrames,
+    errors: errorBuffer,
+    warnCount: logBuffer.filter((l) => l.includes(' WARN ')).length,
+    census: lastCensus,
+    hud: $('score')?.textContent || '',
+    status: $('status')?.textContent || '',
+    logTail: logBuffer.slice(-20),
+  };
+  window.__dqProbe = verdict;
+  let el = $('probe-result');
+  if (!el) {
+    el = document.createElement('pre');
+    el.id = 'probe-result';
+    document.body.appendChild(el);
+  }
+  el.textContent = JSON.stringify(verdict, null, 1);
 }
 
 function parseColor(c, fallback = 0xffffff) {
@@ -150,6 +215,7 @@ class Emitter {
 
 const params = new URLSearchParams(location.search);
 const gameId = params.get('game');
+const probeMode = params.get('probe') === '1';
 
 async function listGames() {
   $('status').textContent = 'Pick a game:';
@@ -205,6 +271,26 @@ async function run(id) {
   });
   $('stage').appendChild(app.canvas);
   log('RT', 'pixi stage ready');
+
+  // Pixi's own render listener runs outside our ticker's try/catch; a
+  // throw there (e.g. a missing render pipe) repeats every frame and
+  // blanks the stage. Trap it: log + report once, then stop the ticker —
+  // a frozen frame with a named error beats a silent error storm.
+  let renderErrLogged = false;
+  const origRender = app.renderer.render.bind(app.renderer);
+  app.renderer.render = (...args) => {
+    try {
+      return origRender(...args);
+    } catch (e) {
+      if (!renderErrLogged) {
+        renderErrLogged = true;
+        log('RT', 'RENDER ERROR ' + (e.stack || e.message));
+        recordError('render', e);
+        try { app.ticker.stop(); } catch { /* ignore */ }
+      }
+      return undefined;
+    }
+  };
   app.stage.sortableChildren = true;
 
   const bgLayer = new PIXI.Container();      // parallax layers
@@ -1061,6 +1147,7 @@ async function run(id) {
   let censusLogged = false;
   app.ticker.add((ticker) => {
     frameNo++;
+    totalFrames++;
     try {
       tickFrame(ticker);
     } catch (err) {
@@ -1078,7 +1165,8 @@ async function run(id) {
         if (n++ >= 4) break;
         parts.push(`${ent.def.id}@(${ent.view.position.x.toFixed(0)},${ent.view.position.y.toFixed(0)}) a=${ent.view.alpha} vis=${ent.view.visible} scale=${ent.view.scale.x.toFixed(2)}`);
       }
-      log('RT', 'CENSUS ' + parts.join(' | '));
+      lastCensus = parts.join(' | ');
+      log('RT', 'CENSUS ' + lastCensus);
     }
   });
   function tickFrame(ticker) {
@@ -1219,10 +1307,19 @@ async function run(id) {
   emit('game_start', undefined, undefined);
   emit('scene_entered', undefined, undefined);
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
+  probeState.booted = true;
+  if (probeMode) setTimeout(emitProbe, 4000);
 }
 
 window.addEventListener('error', (e) => {
   log('RT', 'UNCAUGHT ' + (e.error?.stack || e.message || 'unknown error'));
+  recordError('uncaught', e.error || new Error(e.message || 'unknown error'));
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  const err = e.reason instanceof Error ? e.reason : new Error(String(e.reason));
+  log('RT', 'UNCAUGHT (promise) ' + (err.stack || err.message));
+  recordError('unhandledrejection', err);
 });
 
 if (!gameId) {
@@ -1232,5 +1329,7 @@ if (!gameId) {
     $('status').textContent = 'Failed to load: ' + err.message;
     log('PKG', 'ERROR ' + err.message);
     if (err.stack) log('PKG', 'STACK ' + err.stack.split('\n').slice(0, 6).join(' <- '));
+    recordError('boot', err);
+    if (probeMode) emitProbe();
   });
 }

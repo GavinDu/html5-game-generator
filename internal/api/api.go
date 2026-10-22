@@ -22,6 +22,17 @@ var playerHTML string
 //go:embed web/pixi-runtime.js
 var pixiRuntimeJS string
 
+// Vendored engine builds (auto detect-and-fix flow, phase 0): the player
+// loads PixiJS and Rapier from this backend, never from a CDN re-bundle —
+// jsDelivr's +esm build of pixi.js drops side-effect init registrations
+// (filter/text render pipes), which blanked the stage in production.
+//
+//go:embed web/vendor/pixi.min.mjs
+var pixiVendorJS string
+
+//go:embed web/vendor/rapier.es.js
+var rapierVendorJS string
+
 type Server struct {
 	store  store.Store
 	runner *pipeline.Runner
@@ -37,6 +48,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /", s.handleRoot)
 	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
+	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
+	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
+	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
 	mux.HandleFunc("POST /v1/ingest", s.handleIngest)
 	mux.HandleFunc("POST /v1/games", s.handleCreateGame)
 	mux.HandleFunc("GET /v1/games/{id}", s.handleGetGame)
@@ -143,6 +157,20 @@ func (s *Server) handlePixiRuntime(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(pixiRuntimeJS))
+}
+
+// GET /web/vendor/pixi.min.mjs — vendored PixiJS 8.22.0 official dist build.
+func (s *Server) handlePixiVendor(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(pixiVendorJS))
+}
+
+// GET /web/vendor/rapier.es.js — vendored Rapier 0.15.1 compat ESM build.
+func (s *Server) handleRapierVendor(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(rapierVendorJS))
 }
 
 // POST /v1/ingest — Stage 0: drawing + keywords -> elements + guessed intent.
