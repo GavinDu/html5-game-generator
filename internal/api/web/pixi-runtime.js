@@ -1308,7 +1308,9 @@ async function run(id) {
   emit('scene_entered', undefined, undefined);
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
   probeState.booted = true;
-  if (probeMode) setTimeout(emitProbe, 4000);
+  // Probe mode: emit the verdict immediately and keep it live (2s cadence)
+  // so the playtest worker can watch frames, HUD and status while it plays.
+  if (probeMode) { emitProbe(); setInterval(emitProbe, 2000); }
 }
 
 window.addEventListener('error', (e) => {
