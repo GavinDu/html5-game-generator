@@ -204,6 +204,7 @@ async function run(id) {
     background: scene.backgroundColor ? parseColor(scene.backgroundColor, 0x16204a) : 0x16204a,
   });
   $('stage').appendChild(app.canvas);
+  log('RT', 'pixi stage ready');
   app.stage.sortableChildren = true;
 
   const bgLayer = new PIXI.Container();      // parallax layers
@@ -222,6 +223,7 @@ async function run(id) {
       log('PKG', `WARN asset '${a.id}' failed to load: ${e.message}`);
     }
   }
+  log('PKG', `textures loaded: ${textures.size}/${(pkg.assets || []).filter((a) => a.kind === 'image').length} images`);
   const audio = new Map();
   for (const a of pkg.assets || []) {
     if (a.kind === 'audio') audio.set(a.id, assetURL.get(a.id));
@@ -246,6 +248,7 @@ async function run(id) {
 
   // --- Rapier world ---------------------------------------------------
   await RAPIER.init();
+  log('PHYS', 'rapier initialized');
   const world = new RAPIER.World({ x: toM(scene.gravity?.[0] ?? 0), y: toM(scene.gravity?.[1] ?? 0) });
   world.timestep = 1 / 60;
   const hasContactForceRules = (ir.rules || []).some((r) => r.when?.event === 'contact_force');
@@ -1185,5 +1188,6 @@ if (!gameId) {
   run(gameId).catch((err) => {
     $('status').textContent = 'Failed to load: ' + err.message;
     log('PKG', 'ERROR ' + err.message);
+    if (err.stack) log('PKG', 'STACK ' + err.stack.split('\n').slice(0, 6).join(' <- '));
   });
 }
