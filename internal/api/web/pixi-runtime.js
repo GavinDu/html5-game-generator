@@ -55,7 +55,7 @@ function warnOnce(key, cat, msg) {
 // native code can do it. Errors are buffered for the ?probe=1 verdict and
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
-const RUNTIME_VERSION = '2026.10.22.2';
+const RUNTIME_VERSION = '2026.10.22.3';
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -104,6 +104,9 @@ function emitProbe() {
     events: dqEvents.slice(-40),
     inputs: play ? play.inputLog.length : 0,
     deadInputs: play ? play.deadInputs : 0,
+    score: play && typeof play.score === 'number' ? play.score : null,
+    replay: window.__dqReplay || null,
+    lastRunId: play ? (play.lastRunId || null) : null,
     booted: probeState.booted,
     frames: totalFrames,
     errors: errorBuffer,
@@ -390,9 +393,23 @@ async function run(id) {
   // Seed: explicit ?seed= wins (tests, replays); else a fresh random
   // seed, reported in telemetry + the probe verdict.
   const seedParam = params.get('seed');
-  const sessionSeed = seedParam !== null && /^\d+$/.test(seedParam)
+  let sessionSeed = seedParam !== null && /^\d+$/.test(seedParam)
     ? Number(seedParam) >>> 0
     : Math.floor(Math.random() * 0xffffffff) >>> 0;
+  // Replay mode (Phase C): ?replay=<runId> re-runs a submitted run
+  // from its seed + input trace so the server can verify the score.
+  // The trace's seed overrides everything — determinism is the point.
+  const replayRunId = params.get('replay');
+  let replayTrace = null;
+  if (replayRunId) {
+    try {
+      const rr = await fetch(`/v1/runs/${encodeURIComponent(replayRunId)}`);
+      if (rr.ok) {
+        replayTrace = await rr.json();
+        if (Number.isFinite(replayTrace.seed)) sessionSeed = replayTrace.seed >>> 0;
+      }
+    } catch { /* verdict will report the missing trace */ }
+  }
   srand(sessionSeed);
 
   // --- Play-session bookkeeping (Phases A+B) ---------------------------
@@ -402,6 +419,8 @@ async function run(id) {
   // samples, and shell state. Declared before any handler can fire.
   const play = {
     seed: sessionSeed,
+    score: 0,                   // mirrors state.score for the probe verdict
+    simStep: 0,                 // fixed-step simulation clock (Phase C determinism)
     visibleMs: 0,               // ticker time while visible + running
     startedAt: 0,               // performance.now() at boot completion
     firstInputAt: 0, firstRewardAt: 0,
@@ -418,7 +437,7 @@ async function run(id) {
     milestonesHit: new Set(),
   };
   function noteInput(type, detail) {
-    play.inputLog.push({ tick: totalFrames, type, detail: detail || '' });
+    play.inputLog.push({ tick: play.simStep, type, detail: detail || '' });
     if (play.inputLog.length > 2000) play.inputLog.splice(0, play.inputLog.length - 2000);
     play.pendingInputs.push({ at: play.visibleMs, x: play.lastPlayerX, y: play.lastPlayerY });
     if (!play.firstInputAt) {
@@ -455,6 +474,7 @@ async function run(id) {
   if (pkg.packageVersion !== '2.0') throw new Error('unsupported packageVersion ' + pkg.packageVersion);
   const ir = pkg.ir;
   if (!['1.0', '1.1', '1.2'].includes(ir.irVersion)) throw new Error('unsupported irVersion ' + ir.irVersion);
+  play.irHash = pkg.irHash || ''; // leaderboard board key (Phase C)
 
   const sceneKey = 'dq.scene.' + id;
   const wantedScene = sessionStorage.getItem(sceneKey) || ir.game.entryScene;
@@ -1083,6 +1103,7 @@ async function run(id) {
       switch (action.type) {
         case 'add_score': {
           state.score += Math.trunc(action.value ?? 1);
+          play.score = state.score; // mirrored for the probe verdict (Phase C)
           noteActivity();
           if (!play.firstRewardAt && state.score > 0) {
             play.firstRewardAt = Math.round(play.visibleMs);
@@ -1310,6 +1331,63 @@ async function run(id) {
       $('end-sub').textContent = 'Score: ' + state.score;
       $('end').style.display = 'block';
     }
+    // Phase C: leaderboard run submission (normal play) or replay
+    // verdict (verification play). Submission carries the full input
+    // trace so the score can be re-run and checked server-side.
+    if (replayTrace) {
+      const match = state.score === replayTrace.score && won === !!replayTrace.won;
+      window.__dqReplay = { runId: replayRunId, match, expected: replayTrace.score, actual: state.score };
+      try {
+        fetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ match, actualScore: state.score }),
+        }).catch(() => {});
+      } catch { /* the verdict on the window is the worker's evidence */ }
+    } else if (play.shellStarted) {
+      submitRun(won);
+    }
+  }
+
+  // submitRun posts this run to the leaderboard and, when the server
+  // answers with a rank, adds it to the result card. Fire-and-forget:
+  // a failed submission never breaks the end of a game.
+  let playerNameCache = null;
+  function playerName() {
+    if (playerNameCache) return playerNameCache;
+    try {
+      let n = localStorage.getItem('dq.playerName');
+      if (!n) {
+        n = 'Player-' + Math.floor(1000 + rng() * 9000);
+        localStorage.setItem('dq.playerName', n);
+      }
+      playerNameCache = n;
+    } catch { playerNameCache = 'Player'; }
+    return playerNameCache;
+  }
+  function submitRun(won) {
+    const body = {
+      name: playerName(),
+      score: state.score,
+      won,
+      durationMs: Math.round(state.elapsed * 1000),
+      seed: play.seed,
+      irHash: play.irHash || '',
+      inputs: play.inputLog,
+    };
+    fetch(`/v1/games/${encodeURIComponent(id)}/runs`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(async (res) => {
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data && data.runId) { play.lastRunId = data.runId; window.__dqLastRunId = data.runId; }
+      if (data && data.rank && play.shell) {
+        const sub = $('shell-result-sub');
+        if (sub && !sub.textContent.includes('Leaderboard')) {
+          sub.textContent += ` · Leaderboard: #${data.rank} this week`;
+        }
+      }
+    }).catch(() => {});
   }
 
   $('again').addEventListener('click', () => restartGame());
@@ -1329,6 +1407,7 @@ async function run(id) {
     };
   };
   app.canvas.addEventListener('pointerdown', (ev) => {
+    if (replayTrace) return; // the trace drives; live input would corrupt the replay
     pointer.down = true;
     const p = toLogical(ev); pointer.x = p.x; pointer.y = p.y;
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
@@ -1343,6 +1422,7 @@ async function run(id) {
   const keysDown = new Set();
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   addEventListener('keydown', (ev) => {
+    if (replayTrace) return;
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (!b) return;
     keysDown.add(b.action);
@@ -1351,7 +1431,7 @@ async function run(id) {
   }, { signal: abort.signal });
   addEventListener('keyup', (ev) => {
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
-    if (b) keysDown.delete(b.action);
+    if (b) { keysDown.delete(b.action); noteInput('keyup', ev.key); }
   }, { signal: abort.signal });
 
   // --- Contacts -------------------------------------------------------
@@ -1522,6 +1602,76 @@ async function run(id) {
     }
     return parts.join(' | ');
   };
+  // --- Replay application (Phase C) -----------------------------------
+  // Inputs grouped by sim step. During replay the page ignores live
+  // input: the trace drives pointer + keys exactly as recorded.
+  const replayByStep = new Map();
+  if (replayTrace && Array.isArray(replayTrace.inputs)) {
+    for (const inp of replayTrace.inputs) {
+      const list = replayByStep.get(inp.tick) || [];
+      list.push(inp);
+      replayByStep.set(inp.tick, list);
+    }
+  }
+  // Scripted inputs (playtest determinism check): the worker may set
+  // window.__dqScripted = [{tick, type, detail}] before play begins;
+  // they are applied at their steps exactly like a replay trace, so
+  // two runs with the same seed + script must end with the same score.
+  let scriptedByStep = null;
+  function ensureScripted() {
+    if (scriptedByStep || !Array.isArray(window.__dqScripted)) return;
+    scriptedByStep = new Map();
+    for (const inp of window.__dqScripted) {
+      const list = scriptedByStep.get(inp.tick) || [];
+      list.push(inp);
+      scriptedByStep.set(inp.tick, list);
+    }
+  }
+  const replayLastTick = replayTrace && Array.isArray(replayTrace.inputs) && replayTrace.inputs.length
+    ? replayTrace.inputs[replayTrace.inputs.length - 1].tick : 0;
+  function applyReplayInputs(step) {
+    ensureScripted();
+    const list = [...(replayByStep.get(step) || []), ...((scriptedByStep && scriptedByStep.get(step)) || [])];
+    if (!list.length) return;
+    for (const inp of list) {
+      if (inp.type === 'pointer') {
+        const [x, y] = String(inp.detail || '').split(',').map(Number);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          pointer.down = true; pointer.x = x; pointer.y = y;
+          emit('input', playerEnt, undefined, undefined, tapActionName());
+        }
+      } else if (inp.type === 'pointerup') {
+        pointer.down = false;
+      } else if (inp.type === 'key' || inp.type === 'keyup') {
+        const b = kbBindings.find((x) => x.key === inp.detail || x.action === inp.detail);
+        if (b) {
+          if (inp.type === 'key') keysDown.add(b.action); else keysDown.delete(b.action);
+        }
+      }
+    }
+  }
+  // Pointer-move sampling for the trace: while the pointer is down,
+  // record its position whenever it moved enough (or every few steps),
+  // so a drag is reproducible step for step. Without this, only taps
+  // would replay faithfully.
+  let lastSampleX = -1, lastSampleY = -1, lastSampleStep = -99, wasDown = false;
+  function samplePointerForTrace() {
+    if (replayTrace) return;
+    if (pointer.down) {
+      const moved = Math.abs(pointer.x - lastSampleX) + Math.abs(pointer.y - lastSampleY);
+      if (moved >= 3 || play.simStep - lastSampleStep >= 6) {
+        play.inputLog.push({ tick: play.simStep, type: 'pointer', detail: `${Math.round(pointer.x)},${Math.round(pointer.y)}` });
+        lastSampleX = pointer.x; lastSampleY = pointer.y; lastSampleStep = play.simStep;
+      }
+      wasDown = true;
+    } else if (wasDown) {
+      play.inputLog.push({ tick: play.simStep, type: 'pointerup', detail: '' });
+      wasDown = false;
+    }
+  }
+
+  const STEP_MS = 1000 / 60;
+  let simAcc = 0;
   let perfWindowStart = 0;
   app.ticker.add((ticker) => {
     frameNo++;
@@ -1551,8 +1701,25 @@ async function run(id) {
       const inp = play.pendingInputs.shift();
       if (play.lastActivityMs < inp.at) play.deadInputs++;
     }
+    // Fixed-timestep simulation (Phase C): game logic advances in
+    // exact 1/60 steps from an accumulator, never from raw frame
+    // time. A run is therefore a pure function of (seed, input trace)
+    // on any display — 60Hz panels get exactly one step per frame as
+    // before; 120Hz panels step every other frame; slow devices run
+    // up to 3 catch-up steps, then shed time instead of spiraling.
+    // This is what makes leaderboard replay verification possible.
+    simAcc += Math.min(ticker.deltaMS, 250);
+    samplePointerForTrace();
+    let steps = 0;
     try {
-      tickFrame(ticker);
+      while (simAcc >= STEP_MS && steps < 3) {
+        applyReplayInputs(play.simStep);
+        tickFrame(STEP_MS);
+        play.simStep++;
+        simAcc -= STEP_MS;
+        steps++;
+        if (state.ended) break;
+      }
     } catch (err) {
       if (!tickErrLogged) {
         tickErrLogged = true;
@@ -1560,6 +1727,20 @@ async function run(id) {
       }
       return;
     }
+    if (steps === 3 && simAcc >= STEP_MS) simAcc = 0; // shed, don't spiral
+    // Replay watchdog: a trace that never ends the game fails
+    // verification (30 sim-seconds past its last recorded input).
+    if (replayTrace && !state.ended && !window.__dqReplay && play.simStep > replayLastTick + 1800) {
+      window.__dqReplay = { runId: replayRunId, match: false, reason: 'timeout', expected: replayTrace.score, actual: state.score };
+      try {
+        fetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ match: false, actualScore: state.score }),
+        }).catch(() => {});
+      } catch { /* verdict on the window is the evidence */ }
+      try { app.ticker.stop(); } catch { /* ignore */ }
+    }
+    if (steps === 0) return; // no sim advance this display frame
     // Census: first at frame 30 (the probe's boot evidence), then
     // refreshed every 60 frames so the probe verdict stays a LIVE
     // position sample — the playtest worker's softlock check reads
@@ -1573,9 +1754,9 @@ async function run(id) {
       }
     }
   });
-  function tickFrame(ticker) {
+  function tickFrame(dtMs) {
     if (state.ended) return;
-    const dt = Math.min(ticker.deltaMS / 1000, 0.05);
+    const dt = Math.min(dtMs / 1000, 0.05);
     state.elapsed += dt;
 
     // Timer rules.
@@ -1752,6 +1933,7 @@ async function run(id) {
     $('shell-start-hint').textContent = play.shell.controls?.hint || '';
     $('shell-start').classList.add('on');
     $('shell-start-btn').addEventListener('click', () => beginPlay(false), { signal: abort.signal });
+    if (replayTrace) beginPlay(true); // replays start themselves; nobody taps
     $('status').textContent = play.shell.objective?.label || 'Tap Start to play';
     // The probe does NOT auto-start: the playtest worker verifies the
     // card is shown, then begins play itself via __dqBeginPlay (the
