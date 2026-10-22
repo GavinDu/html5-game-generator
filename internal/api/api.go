@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"doodlequest/internal/model"
@@ -36,10 +37,29 @@ var rapierVendorJS string
 type Server struct {
 	store  store.Store
 	runner *pipeline.Runner
+
+	// Phase 2 telemetry index: every runtime-error report this process has
+	// accepted (plus the JSONL backlog, loaded lazily), used for incident
+	// aggregation and the auto-quarantine thresholds.
+	teleMu     sync.Mutex
+	teleEvents []teleEvent
+	teleLoaded bool
+
+	// Phase 3 shadow-mode repair proposals, keyed by game id. In-memory
+	// only: a proposal is a suggestion until a human applies it.
+	repairMu        sync.Mutex
+	repairProposals map[string]*repairProposal
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	return &Server{store: st, runner: r}
+	s := &Server{store: st, runner: r}
+	// Load the telemetry backlog once, up front: after this, the index is
+	// fed only by newly accepted reports, so a report is never counted
+	// twice (once from the file, once from memory).
+	s.teleMu.Lock()
+	s.loadTeleIndexLocked()
+	s.teleMu.Unlock()
+	return s
 }
 
 func (s *Server) Routes() http.Handler {
@@ -51,6 +71,13 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
+	mux.HandleFunc("GET /v1/telemetry/incidents", s.handleIncidents)
+	mux.HandleFunc("POST /v1/games/{id}/quarantine", s.handleQuarantine)
+	mux.HandleFunc("POST /v1/games/{id}/unquarantine", s.handleUnquarantine)
+	mux.HandleFunc("POST /v1/games/{id}/repair/propose", s.handleRepairPropose)
+	mux.HandleFunc("GET /v1/games/{id}/repair/proposal", s.handleRepairProposal)
+	mux.HandleFunc("POST /v1/games/{id}/repair/apply", s.handleRepairApply)
+	mux.HandleFunc("POST /v1/games/{id}/repair/discard", s.handleRepairDiscard)
 	mux.HandleFunc("POST /v1/ingest", s.handleIngest)
 	mux.HandleFunc("POST /v1/games", s.handleCreateGame)
 	mux.HandleFunc("GET /v1/games/{id}", s.handleGetGame)
@@ -433,11 +460,13 @@ func (s *Server) handleVisibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, game)
 }
 
-// GET /v1/feed — public, ready games.
+// GET /v1/feed — public, ready games. Quarantined games are hidden
+// (Phase 2): the game still exists and direct links still load it, but
+// it leaves discovery until a human unquarantines it.
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	var out []*model.Game
 	for _, g := range s.store.ListGames() {
-		if g.Status == model.GameReady && g.Visibility == model.VisibilityPublic {
+		if g.Status == model.GameReady && g.Visibility == model.VisibilityPublic && !g.Quarantined {
 			out = append(out, g)
 		}
 	}
