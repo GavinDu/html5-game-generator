@@ -12,7 +12,9 @@
 // with the reason — never as "pass". A bot that fails to reach a win does
 // NOT fail simulation.win_reachable (bot incompetence is not evidence);
 // win_reachable only passes on an observed win and stays skip otherwise.
-// The gate-failing conditions are boot errors and a blank stage.
+// The gate-failing conditions are boot errors, a blank stage, and a
+// frozen stage under input (softlock signature). Timing checks are
+// reported but do not gate — shared CI runners make them noise.
 //
 // Usage:
 //   node probe.mjs --base http://localhost:8080 [--games a,b,c]
@@ -94,6 +96,22 @@ async function playGame(browser, gameId) {
       { booted: !!(probe && probe.booted) });
   }
 
+  // The runtime computes its stage census at frame 30 and the probe
+  // verdict re-emits every 2s — the first verdict (frames ~1) has no
+  // census yet. Wait for a verdict that carries one before judging
+  // whether the stage is drawn; an early empty census is a sampling
+  // artifact, not a blank stage (CI, 2026-10-22: both engines failed
+  // render_nonblank on exactly this).
+  {
+    const censusDeadline = Date.now() + 9000;
+    while (Date.now() < censusDeadline) {
+      const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
+      if (fresh) probe = fresh;
+      if (probe && probe.census) break;
+      await sleep(400);
+    }
+  }
+
   // --- render_nonblank --------------------------------------------------
   const census = (probe && probe.census) || '';
   const entityHits = (census.match(/@\(/g) || []).length - 1; // minus worldLayer
@@ -157,11 +175,19 @@ async function playGame(browser, gameId) {
       hud: document.getElementById('score')?.textContent || '',
       status: document.getElementById('status')?.textContent || '',
       errors: (window.__dqErrors || []).length,
+      census: (window.__dqProbe || {}).census || '',
+      frames: (window.__dqProbe || {}).frames || 0,
       endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
       endTitle: document.getElementById('end-title')?.textContent || '',
     })).catch(() => null);
     if (!live) break;
-    const sig = live.hud + '|' + live.status + '|' + live.errors;
+    // Liveness signature: HUD, status, error count AND the stage census
+    // (entity positions — a live physics world moves even when the bot
+    // scores nothing; a frozen census across input is the softlock
+    // signature). HUD alone false-failed Ribbon in CI: the bot caught a
+    // shard before the play window, then nothing changed for 14s in a
+    // perfectly alive game.
+    const sig = live.hud + '|' + live.status + '|' + live.errors + '|' + live.census;
     if (lastSig && sig !== lastSig) stateChanged = true;
     lastSig = sig;
     if (firstRewardMs === null && scoreOf(live.hud) > score0) {
@@ -218,9 +244,13 @@ async function playGame(browser, gameId) {
     await page.screenshot({ path: `${shotsDir}/${gameId}.png` }).catch(() => {});
   }
   await page.close().catch(() => {});
+  // Exit-gate checks: breakage signals only. budgets.cold_start is
+  // reported (and lands in merged ValidationReports) but does NOT gate:
+  // on shared CI runners its timing is environment noise, and a gate
+  // that fires on noise teaches everyone to ignore the gate.
   const failed = checks.some((c) => c.status === 'fail' &&
     (c.checkId === 'playtest.boot_clean' || c.checkId === 'playtest.render_nonblank' ||
-     c.checkId === 'simulation.no_softlock' || c.checkId === 'budgets.cold_start'));
+     c.checkId === 'simulation.no_softlock'));
   return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 
