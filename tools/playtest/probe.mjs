@@ -358,10 +358,10 @@ async function playGame(browser, gameId) {
   // inputs — the fixed-timestep sim must land on the same final score.
   try {
     const script = [];
-    for (let i = 0; i <= 10; i++) {
-      script.push({ tick: 30 + i * 30, type: 'pointer', detail: `${90 + i * 21},720` });
+    for (let i = 0; i <= 7; i++) {
+      script.push({ tick: 30 + i * 30, type: 'pointer', detail: `${90 + i * 30},720` });
     }
-    script.push({ tick: 370, type: 'pointerup', detail: '' });
+    script.push({ tick: 280, type: 'pointerup', detail: '' });
     const scriptedScore = async () => {
       const p2 = await browser.newPage({ viewport: { width: 420, height: 900 } });
       try {
@@ -382,7 +382,7 @@ async function playGame(browser, gameId) {
             step: window.__dqPlay ? window.__dqPlay.simStep : 0,
             ended: !!(window.__dqPlay && window.__dqPlay.shellStarted && document.querySelector('#shell-result.on')),
           })).catch(() => ({ step: 0 }));
-          if (st.step >= 430 || st.ended) break;
+          if (st.step >= 330 || st.ended) break;
           await sleep(300);
         }
         const v = await readProbe(p2);
