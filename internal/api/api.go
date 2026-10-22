@@ -44,6 +44,13 @@ type Server struct {
 	teleMu     sync.Mutex
 	teleEvents []teleEvent
 	teleLoaded bool
+	// Telemetry v2 indexes (Phase A): session starts are the
+	// denominator for rate-based quarantine; perf windows / runs /
+	// milestones feed GET /v1/telemetry/perf.
+	teleSessions []teleSession
+	telePerf     []telePerfWin
+	teleRuns     []teleRun
+	teleMiles    []teleMile
 
 	// Phase 3 shadow-mode repair proposals, keyed by game id. In-memory
 	// only: a proposal is a suggestion until a human applies it.
@@ -71,6 +78,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
+	mux.HandleFunc("POST /v1/telemetry/events", s.handleTelemetryEvent)
+	mux.HandleFunc("GET /v1/telemetry/perf", s.handlePerfSummary)
 	mux.HandleFunc("GET /v1/telemetry/incidents", s.handleIncidents)
 	mux.HandleFunc("POST /v1/games/{id}/quarantine", s.handleQuarantine)
 	mux.HandleFunc("POST /v1/games/{id}/unquarantine", s.handleUnquarantine)
@@ -231,8 +240,12 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "parent_game_id must identify a ready inventory game")
 			return
 		}
-		if len(elements) == 0 { elements = append([]model.Element(nil), parent.Elements...) }
-		if intent == "" { intent = parent.Intent }
+		if len(elements) == 0 {
+			elements = append([]model.Element(nil), parent.Elements...)
+		}
+		if intent == "" {
+			intent = parent.Intent
+		}
 	}
 	if req.IngestID != "" {
 		if ing, ok := s.store.GetIngest(req.IngestID); ok {
@@ -253,16 +266,16 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	game := &model.Game{
-		ID:         pipeline.NewID(),
+		ID:           pipeline.NewID(),
 		ParentGameID: req.ParentGameID,
-		Title:      "Untitled Game",
-		OwnerID:    userID(r),
-		Elements:   elements,
-		Intent:     intent,
-		Visibility: model.VisibilityPrivate,
-		Status:     model.GameGenerating,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		Title:        "Untitled Game",
+		OwnerID:      userID(r),
+		Elements:     elements,
+		Intent:       intent,
+		Visibility:   model.VisibilityPrivate,
+		Status:       model.GameGenerating,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	s.store.CreateGame(game)
 	job := s.runner.CreateAndStart(game, elements, intent, req.Keywords)
