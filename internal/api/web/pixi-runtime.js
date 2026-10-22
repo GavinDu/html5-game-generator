@@ -90,9 +90,12 @@ function recordError(kind, err) {
 window.__dqErrors = errorBuffer;
 
 function emitProbe() {
+  const elapsedSec = perfBootWall ? (Date.now() - perfBootWall) / 1000 : 0;
   const verdict = {
     gameId: new URLSearchParams(location.search).get('game'),
     runtimeVersion: RUNTIME_VERSION,
+    quality: qualityMode,
+    fps: elapsedSec > 1 ? Math.round(totalFrames / elapsedSec) : 0,
     booted: probeState.booted,
     frames: totalFrames,
     errors: errorBuffer,
@@ -159,7 +162,8 @@ class Emitter {
     this.cfg = cfg || {};
     this.container = container;
     const tex = (cfg?.textureAssetId && textures.get(cfg.textureAssetId)) || getDotTexture();
-    this.max = clamp(Math.trunc(cfg?.maxParticles ?? 240), 8, 2000);
+    const qualityScale = qualityMode === 'low' ? 0.4 : 1;
+    this.max = clamp(Math.trunc((cfg?.maxParticles ?? 240) * qualityScale), 8, 2000);
     this.pool = [];
     for (let i = 0; i < this.max; i++) {
       const s = new PIXI.Sprite(tex);
@@ -216,6 +220,14 @@ class Emitter {
 const params = new URLSearchParams(location.search);
 const gameId = params.get('game');
 const probeMode = params.get('probe') === '1';
+// Quality mode (performance control, driven by the host shell — the iOS
+// app appends ?quality=low on thermally constrained / low-power devices,
+// or when the family picks it): 'low' caps the render resolution at 1x,
+// disables antialiasing, and shrinks particle pools. Anything else is
+// 'high' (the default, capped at 2x so 3x phone panels don't triple the
+// fill cost for a 390pt-wide stage).
+const qualityMode = params.get('quality') === 'low' ? 'low' : 'high';
+let perfBootWall = 0; // Date.now() when the ticker starts (fps math)
 
 async function listGames() {
   $('status').textContent = 'Pick a game:';
@@ -266,7 +278,10 @@ async function run(id) {
   // --- Pixi stage -----------------------------------------------------
   const app = new PIXI.Application();
   await app.init({
-    width: W, height: H, antialias: true,
+    width: W, height: H,
+    antialias: qualityMode !== 'low',
+    resolution: qualityMode === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2),
+    autoDensity: true,
     background: scene.backgroundColor ? parseColor(scene.backgroundColor, 0x16204a) : 0x16204a,
   });
   $('stage').appendChild(app.canvas);
@@ -1308,9 +1323,31 @@ async function run(id) {
   emit('scene_entered', undefined, undefined);
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
   probeState.booted = true;
+  perfBootWall = Date.now();
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
   if (probeMode) { emitProbe(); setInterval(emitProbe, 2000); }
+  // Perf telemetry: exactly one sample per session, 25s in — enough to
+  // have a real frame rate, early enough to survive short sessions. The
+  // backend files kind='perf' separately: it never counts toward the
+  // error/quarantine thresholds. No identifiers, no user content.
+  setTimeout(() => {
+    try {
+      const elapsedSec = (Date.now() - perfBootWall) / 1000;
+      const fps = elapsedSec > 1 ? Math.round(totalFrames / elapsedSec) : 0;
+      const payload = JSON.stringify({
+        gameId,
+        runtimeVersion: RUNTIME_VERSION,
+        userAgent: navigator.userAgent,
+        kind: 'perf',
+        name: 'PerfSample',
+        message: `fps=${fps} quality=${qualityMode} frames=${totalFrames} dpr=${window.devicePixelRatio || 1}`,
+        stack: '',
+        logTail: [],
+      });
+      navigator.sendBeacon('/v1/telemetry/runtime-error', new Blob([payload], { type: 'application/json' }));
+    } catch { /* telemetry must never break the game */ }
+  }, 25000);
 }
 
 window.addEventListener('error', (e) => {
