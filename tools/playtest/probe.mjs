@@ -44,8 +44,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function feedGames() {
   const res = await fetch(base + '/v1/feed');
   if (!res.ok) throw new Error('feed returned ' + res.status);
-  const feed = await res.json();
-  return feed.map((g) => g.game_id || g.id).filter(Boolean);
+  const body = await res.json();
+  const games = Array.isArray(body) ? body : (body.games || []);
+  return games.map((g) => g.game_id || g.id).filter(Boolean);
 }
 
 function scoreOf(hud) {
@@ -156,7 +157,7 @@ async function playGame(browser, gameId) {
       hud: document.getElementById('score')?.textContent || '',
       status: document.getElementById('status')?.textContent || '',
       errors: (window.__dqErrors || []).length,
-      endVisible: (() => { const e = document.getElementById('end'); return !!e && e.offsetParent !== null; })(),
+      endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
       endTitle: document.getElementById('end-title')?.textContent || '',
     })).catch(() => null);
     if (!live) break;
