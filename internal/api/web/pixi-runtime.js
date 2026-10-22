@@ -37,10 +37,11 @@ function log(cat, msg) {
   const t = new Date();
   const ts = t.toTimeString().slice(0, 8) + '.' + String(t.getMilliseconds()).padStart(3, '0');
   const line = `[${ts}] [${cat}] ${msg}`;
-  logEl.textContent += line + '\n';
   console.log(line);
   logBuffer.push(line);
   if (logBuffer.length > 50) logBuffer.shift();
+  // Keep both the buffer and visible DOM bounded for long play sessions.
+  logEl.textContent = logBuffer.join('\n') + '\n';
 }
 
 const warned = new Set();
@@ -105,6 +106,7 @@ function emitProbe() {
     inputs: play ? play.inputLog.length : 0,
     deadInputs: play ? play.deadInputs : 0,
     score: play && typeof play.score === 'number' ? play.score : null,
+    scriptEndScore: play && typeof play.scriptEndScore === 'number' ? play.scriptEndScore : null,
     replay: window.__dqReplay || null,
     lastRunId: play ? (play.lastRunId || null) : null,
     booted: probeState.booted,
@@ -564,23 +566,48 @@ async function run(id) {
   // Load the image element directly and build the texture from it instead; the
   // browser sniffs the real format from the bytes.
   async function loadTexture(url) {
+    if (!url) throw new Error('image asset has no URL');
     const img = new Image();
     await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = () => reject(new Error(`image load failed: ${url}`));
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        img.onload = null;
+        img.onerror = null;
+        callback(value);
+      };
+      const timeout = setTimeout(
+        () => finish(reject, new Error(`image load timed out after 15s: ${url}`)),
+        15000
+      );
+      img.onload = () => finish(resolve);
+      img.onerror = () => finish(reject, new Error(`image load failed: ${url}`));
       img.src = url;
     });
     return PIXI.Texture.from(img);
   }
-  for (const a of pkg.assets || []) {
-    if (a.kind !== 'image') continue;
-    try {
-      textures.set(a.id, await loadTexture(assetURL.get(a.id)));
-    } catch (e) {
-      log('PKG', `WARN asset '${a.id}' failed to load: ${e.message}`);
+
+  // Independent images load concurrently with a bounded worker pool. This
+  // avoids serial cold-start latency without flooding mobile WebKit with
+  // one simultaneous request per package asset.
+  const imageAssets = (pkg.assets || []).filter((asset) => asset.kind === 'image');
+  let nextImageIndex = 0;
+  const imageWorkerCount = Math.min(6, imageAssets.length);
+  await Promise.all(Array.from({ length: imageWorkerCount }, async () => {
+    while (true) {
+      const index = nextImageIndex++;
+      if (index >= imageAssets.length) return;
+      const asset = imageAssets[index];
+      try {
+        textures.set(asset.id, await loadTexture(assetURL.get(asset.id)));
+      } catch (e) {
+        log('PKG', `WARN asset '${asset.id}' failed to load: ${e.message}`);
+      }
     }
-  }
-  log('PKG', `textures loaded: ${textures.size}/${(pkg.assets || []).filter((a) => a.kind === 'image').length} images`);
+  }));
+  log('PKG', `textures loaded: ${textures.size}/${imageAssets.length} images`);
   const audio = new Map();
   for (const a of pkg.assets || []) {
     if (a.kind === 'audio') audio.set(a.id, assetURL.get(a.id));
@@ -1728,6 +1755,14 @@ async function run(id) {
       return;
     }
     if (steps === 3 && simAcc >= STEP_MS) simAcc = 0; // shed, don't spiral
+    // Scripted-run score snapshot (determinism check): when the
+    // worker sets __dqScriptEnd, freeze the score at exactly that
+    // step — a poll-based read would overshoot by up to a poll
+    // interval of steps and fake a divergence.
+    if (scriptedByStep && window.__dqScriptEnd && play.scriptEndScore === undefined &&
+        play.simStep >= window.__dqScriptEnd) {
+      play.scriptEndScore = state.score;
+    }
     // Replay watchdog: a trace that never ends the game fails
     // verification (30 sim-seconds past its last recorded input).
     if (replayTrace && !state.ended && !window.__dqReplay && play.simStep > replayLastTick + 1800) {
