@@ -44,11 +44,26 @@ type Server struct {
 	teleMu     sync.Mutex
 	teleEvents []teleEvent
 	teleLoaded bool
+	// Telemetry v2 indexes (Phase A): session starts are the
+	// denominator for rate-based quarantine; perf windows / runs /
+	// milestones feed GET /v1/telemetry/perf.
+	teleSessions []teleSession
+	telePerf     []telePerfWin
+	teleRuns     []teleRun
+	teleMiles    []teleMile
 
 	// Phase 3 shadow-mode repair proposals, keyed by game id. In-memory
 	// only: a proposal is a suggestion until a human applies it.
 	repairMu        sync.Mutex
 	repairProposals map[string]*repairProposal
+
+	// Leaderboard v2 (Phase C): submitted runs with input traces,
+	// persisted to runs.jsonl under the telemetry dir and indexed in
+	// memory; boards are derived per (game, IR hash).
+	runsMu     sync.Mutex
+	runs       []RunRecord
+	runsLoaded bool
+	runSeq     int
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
@@ -59,6 +74,9 @@ func New(st store.Store, r *pipeline.Runner) *Server {
 	s.teleMu.Lock()
 	s.loadTeleIndexLocked()
 	s.teleMu.Unlock()
+	s.runsMu.Lock()
+	s.loadRunsLocked()
+	s.runsMu.Unlock()
 	return s
 }
 
@@ -71,6 +89,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
+	mux.HandleFunc("POST /v1/telemetry/events", s.handleTelemetryEvent)
+	mux.HandleFunc("GET /v1/telemetry/perf", s.handlePerfSummary)
 	mux.HandleFunc("GET /v1/telemetry/incidents", s.handleIncidents)
 	mux.HandleFunc("POST /v1/games/{id}/quarantine", s.handleQuarantine)
 	mux.HandleFunc("POST /v1/games/{id}/unquarantine", s.handleUnquarantine)
@@ -92,8 +112,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/groups/{id}/games", s.handleGroupGames)
 	mux.HandleFunc("POST /v1/games/{id}/visibility", s.handleVisibility)
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
-	mux.HandleFunc("POST /v1/games/{id}/scores", s.handleSubmitScore)
-	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboard)
+	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
+	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
+	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
+	mux.HandleFunc("POST /v1/runs/{id}/verification", s.handleRunVerification)
 	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
 	mux.HandleFunc("GET /v1/spec/questionnaire", s.handleSpecQuestionnaire)
 	mux.HandleFunc("POST /v1/ir/validate", s.handleIRValidate)
@@ -231,8 +253,12 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "parent_game_id must identify a ready inventory game")
 			return
 		}
-		if len(elements) == 0 { elements = append([]model.Element(nil), parent.Elements...) }
-		if intent == "" { intent = parent.Intent }
+		if len(elements) == 0 {
+			elements = append([]model.Element(nil), parent.Elements...)
+		}
+		if intent == "" {
+			intent = parent.Intent
+		}
 	}
 	if req.IngestID != "" {
 		if ing, ok := s.store.GetIngest(req.IngestID); ok {
@@ -253,16 +279,16 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	game := &model.Game{
-		ID:         pipeline.NewID(),
+		ID:           pipeline.NewID(),
 		ParentGameID: req.ParentGameID,
-		Title:      "Untitled Game",
-		OwnerID:    userID(r),
-		Elements:   elements,
-		Intent:     intent,
-		Visibility: model.VisibilityPrivate,
-		Status:     model.GameGenerating,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		Title:        "Untitled Game",
+		OwnerID:      userID(r),
+		Elements:     elements,
+		Intent:       intent,
+		Visibility:   model.VisibilityPrivate,
+		Status:       model.GameGenerating,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	s.store.CreateGame(game)
 	job := s.runner.CreateAndStart(game, elements, intent, req.Keywords)
@@ -476,49 +502,5 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"games": out})
 }
 
-// POST /v1/games/{id}/scores — record a run on the leaderboard.
-// Keeps each player's best run (ranked by level reached, then score).
-func (s *Server) handleSubmitScore(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name  string `json:"name"`
-		Score int    `json:"score"`
-		Level int    `json:"level"`
-	}
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	id := r.PathValue("id")
-	if _, ok := s.store.GetGame(id); !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
-		return
-	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		name = "Player"
-	}
-	if len(name) > 24 {
-		name = name[:24]
-	}
-	if req.Level < 1 {
-		req.Level = 1
-	}
-	if req.Score < 0 {
-		req.Score = 0
-	}
-	rank := s.store.SubmitScore(id, name, req.Score, req.Level)
-	writeJSON(w, http.StatusOK, map[string]any{"rank": rank, "name": name})
-}
 
-// GET /v1/games/{id}/leaderboard — top runs, best first.
-func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if _, ok := s.store.GetGame(id); !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
-		return
-	}
-	entries := s.store.Leaderboard(id, 10)
-	if entries == nil {
-		entries = []model.ScoreEntry{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"scores": entries})
-}
+

@@ -21,7 +21,15 @@ const Version = "1.0"
 // capability manifest. Version 1.0 documents remain valid.
 const Version11 = "1.1"
 
-var supportedVersions = enum(Version, Version11)
+// Version12 adds the experience block: the platform shell contract
+// (archetype, control scheme, objective, failure model, pacing ramp,
+// result/leaderboard presentation). A 1.2 document MUST carry the
+// block and declare the "shell.v1" capability; earlier versions MAY
+// carry the block (additive), and the runtime shell engages whenever
+// the block is present.
+const Version12 = "1.2"
+
+var supportedVersions = enum(Version, Version11, Version12)
 
 const (
 	MaxAssets        = 256
@@ -42,6 +50,7 @@ type Document struct {
 	Scenes        []Scene        `json:"scenes"`
 	InputBindings []InputBinding `json:"inputBindings"`
 	Rules         []Rule         `json:"rules"`
+	Experience    *Experience    `json:"experience,omitempty"`
 	Metadata      Metadata       `json:"metadata,omitempty"`
 }
 
@@ -344,7 +353,7 @@ var (
 	operators      = enum("eq", "neq", "gt", "gte", "lt", "lte")
 
 	behaviorKinds     = enum("fall", "chase", "patrol", "oscillate", "spin", "pulse", "drift", "orbit")
-	capabilityKinds   = enum("render.sprite", "render.animation", "render.shape", "render.text", "render.filters", "render.particles", "render.parallax", "physics.bodies", "physics.colliders", "physics.joints", "physics.character_controller", "physics.queries", "fx.tween", "fx.camera", "fx.emitters", "audio", "input.keyboard", "input.pointer")
+	capabilityKinds   = enum("render.sprite", "render.animation", "render.shape", "render.text", "render.filters", "render.particles", "render.parallax", "physics.bodies", "physics.colliders", "physics.joints", "physics.character_controller", "physics.queries", "fx.tween", "fx.camera", "fx.emitters", "audio", "input.keyboard", "input.pointer", "shell.v1")
 	blendModes        = enum("normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "none", "subtract", "erase", "linear-burn", "linear-dodge", "vivid-light", "linear-light", "pin-light", "hard-mix")
 	physicsBodyKinds  = enum("dynamic", "fixed", "kinematic_position", "kinematic_velocity")
 	physicsShapeKinds = enum("cuboid", "ball", "capsule", "convex", "segment")
@@ -394,7 +403,7 @@ func Validate(d *Document) error {
 		return fmt.Errorf("Game IR is nil")
 	}
 	if !has(supportedVersions, d.IRVersion) {
-		return fmt.Errorf("unsupported irVersion %q (supported: %s, %s)", d.IRVersion, Version, Version11)
+		return fmt.Errorf("unsupported irVersion %q (supported: %s, %s, %s)", d.IRVersion, Version, Version11, Version12)
 	}
 	if len(d.Capabilities) > MaxCapabilities {
 		return fmt.Errorf("capability limit exceeded: %d > %d", len(d.Capabilities), MaxCapabilities)
@@ -724,6 +733,9 @@ func Validate(d *Document) error {
 				return fmt.Errorf("rule %q play_sound requires assetId", rule.ID)
 			}
 		}
+	}
+	if err := validateExperience(d); err != nil {
+		return err
 	}
 	return nil
 }

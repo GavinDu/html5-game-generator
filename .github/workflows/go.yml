@@ -52,7 +52,7 @@ jobs:
       - name: Test standalone game quality scoring
         working-directory: packages/game-quality-score
         run: npm test
-      - name: Test playtest worker integration
+      - name: Test playtest scoring integration
         working-directory: tools/playtest
         run: npm test
       - name: Install browser dependencies
@@ -72,6 +72,14 @@ jobs:
             -worker tools/playtest/probe.mjs \
             -shots /tmp/playtest-shots \
             | tee /tmp/playtest-report.json
+      - name: Score browser report using per-game policies
+        if: always()
+        run: |
+          if [ -f /tmp/playtest-report.json ]; then
+            node tools/playtest/score-report.mjs /tmp/playtest-report.json - /tmp/scored-playtest-report.json
+          else
+            echo "No browser report was produced; skipping score aggregation."
+          fi
       - name: Upload playtest artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,5 +88,6 @@ jobs:
           path: |
             /tmp/dq-server.log
             /tmp/playtest-report.json
+            /tmp/scored-playtest-report.json
             /tmp/playtest-shots/
           if-no-files-found: ignore

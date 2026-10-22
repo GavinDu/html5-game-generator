@@ -185,3 +185,72 @@ func TestRejectsDuplicateEntityIDs(t *testing.T) {
 		t.Fatal("expected duplicate entity ID to be rejected")
 	}
 }
+
+const expBlock = `,
+  "experience": {
+    "archetype": "catcher",
+    "controls": {"scheme": "drag_x", "hint": "Drag to move"},
+    "objective": {"kind": "collect", "target": 10, "label": "Catch 10 gems"},
+    "hud": {"left": "objective_progress", "right": "health"},
+    "start": {"mode": "tap_to_start"},
+    "failure": {"mode": "health", "health": 3, "invulnerableMs": 1000},
+    "pacing": {"targetSessionSec": 60, "firstRewardWithinSec": 10, "expectedCatchRate": 0.6,
+               "ramp": [{"at": 0, "spawnIntervalMs": 900, "speedMul": 1},
+                        {"at": 0.5, "spawnIntervalMs": 700, "speedMul": 1.2},
+                        {"at": 0.85, "spawnIntervalMs": 550, "speedMul": 1.45}]},
+    "milestones": [0.25, 0.5, 0.75, 1],
+    "result": {"win": {"title": "Done!", "stars": {"by": "time", "thresholdsSec": [60, 40, 25]}},
+               "lose": {"title": "So close!"}},
+    "leaderboard": {"metric": "time", "order": "asc"},
+    "feedback": {"haptics": "none", "juice": "standard"}
+  }`
+
+func v12Doc(t *testing.T) string {
+	t.Helper()
+	data := strings.Replace(v11Doc, `"irVersion": "1.1"`, `"irVersion": "1.2"`, 1)
+	data = strings.Replace(data, `"input.keyboard"]`, `"input.keyboard", "shell.v1"]`, 1)
+	// Inject the experience block just before the closing brace of the
+	// document: the v11Doc ends with the scenes array then }.
+	idx := strings.LastIndex(data, "}")
+	return data[:idx] + expBlock + data[idx:]
+}
+
+func TestV12ExperienceBlockValid(t *testing.T) {
+	doc, err := DecodeAndValidate([]byte(v12Doc(t)))
+	if err != nil {
+		t.Fatalf("valid 1.2 doc rejected: %v", err)
+	}
+	if doc.Experience == nil || doc.Experience.Archetype != "catcher" {
+		t.Fatal("experience block not decoded")
+	}
+}
+
+func TestV12RequiresExperienceBlock(t *testing.T) {
+	data := strings.Replace(v11Doc, `"irVersion": "1.1"`, `"irVersion": "1.2"`, 1)
+	if _, err := DecodeAndValidate([]byte(data)); err == nil {
+		t.Fatal("1.2 without an experience block must be rejected")
+	}
+}
+
+func TestExperienceRequiresShellCapability(t *testing.T) {
+	data := v12Doc(t)
+	data = strings.Replace(data, `, "shell.v1"`, ``, 1)
+	if _, err := DecodeAndValidate([]byte(data)); err == nil {
+		t.Fatal("experience block without shell.v1 must be rejected")
+	}
+}
+
+func TestExperienceRejectsBadSchemeAndRamp(t *testing.T) {
+	bad := strings.Replace(v12Doc(t), `"scheme": "drag_x"`, `"scheme": "teleport"`, 1)
+	if _, err := DecodeAndValidate([]byte(bad)); err == nil {
+		t.Fatal("unknown control scheme must be rejected")
+	}
+	bad = strings.Replace(v12Doc(t), `"at": 0.85`, `"at": 0.4`, 1)
+	if _, err := DecodeAndValidate([]byte(bad)); err == nil {
+		t.Fatal("non-monotonic ramp must be rejected")
+	}
+	bad = strings.Replace(v12Doc(t), `"thresholdsSec": [60, 40, 25]`, `"thresholdsSec": [25, 40, 60]`, 1)
+	if _, err := DecodeAndValidate([]byte(bad)); err == nil {
+		t.Fatal("ascending star thresholds must be rejected")
+	}
+}

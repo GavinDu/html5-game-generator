@@ -171,6 +171,21 @@ func (s *Server) loadTeleIndexLocked() {
 	}
 }
 
+// Rate-based quarantine (Phase A amendment to the Phase-2 counts):
+// raw counts punish popular games — a title with 10,000 sessions will
+// cross "10 reports in an hour" by being played. The rules now are:
+//   - one fingerprint repeating >= 5x for a game always quarantines
+//     (a single crash type is a hard signal at any volume);
+//   - otherwise the game's error reports must be a RATE: >= 10 reports
+//     AND >= 25% of the sessions started in the window, with a
+//     20-session floor so tiny samples can't trigger it;
+//   - when no session_start events exist for the game (older clients),
+//     fall back to the original count rule (>= 10 reports).
+const (
+	quarantineMinSessions = 20
+	quarantineErrorRate   = 0.25
+)
+
 // observeTelemetry indexes one accepted report and evaluates the
 // auto-quarantine thresholds for its game.
 func (s *Server) observeTelemetry(ev teleEvent) {
@@ -191,8 +206,28 @@ func (s *Server) observeTelemetry(ev teleEvent) {
 			sameFP++
 		}
 	}
+	sessions := s.sessionsInWindowLocked(ev.GameID, cutoff)
 	s.teleMu.Unlock()
-	if ev.GameID == "" || (total < quarantineGameTotalThreshold && sameFP < quarantineFingerprintThresh) {
+	if ev.GameID == "" {
+		return
+	}
+	trigger := sameFP >= quarantineFingerprintThresh
+	reason := ""
+	switch {
+	case trigger:
+		reason = fmt.Sprintf("auto: fingerprint %s repeated %dx in 60m (%d reports, %d sessions)",
+			ev.Fingerprint, sameFP, total, sessions)
+	case sessions == 0 && total >= quarantineGameTotalThreshold:
+		trigger = true
+		reason = fmt.Sprintf("auto: %d runtime-error reports in 60m (no session data; count rule), top fingerprint %s x%d",
+			total, ev.Fingerprint, sameFP)
+	case sessions >= quarantineMinSessions && total >= quarantineGameTotalThreshold &&
+		float64(total)/float64(sessions) >= quarantineErrorRate:
+		trigger = true
+		reason = fmt.Sprintf("auto: error rate %.0f%% — %d reports over %d sessions in 60m, top fingerprint %s x%d",
+			100*float64(total)/float64(sessions), total, sessions, ev.Fingerprint, sameFP)
+	}
+	if !trigger {
 		return
 	}
 	game, ok := s.store.GetGame(ev.GameID)
@@ -200,8 +235,7 @@ func (s *Server) observeTelemetry(ev teleEvent) {
 		return
 	}
 	game.Quarantined = true
-	game.QuarantineReason = fmt.Sprintf("auto: %d runtime-error reports in 60m, top fingerprint %s x%d",
-		total, ev.Fingerprint, sameFP)
+	game.QuarantineReason = reason
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
 }

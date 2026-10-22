@@ -51,6 +51,7 @@ func Validate(in ValidateInput) (*ValidationReport, error) {
 		in.MaxAttempts = DefaultMaxAttempts
 	}
 	man, manErr := readManifest(in.GameDir)
+	irDoc, irErr := readGameIR(in.GameDir)
 
 	checks := []Check{
 		checkDesignInputValid(in.DesignInput),
@@ -79,6 +80,7 @@ func Validate(in ValidateInput) (*ValidationReport, error) {
 		checkMechanicDiet(in.DesignInput),
 		checkRightsDeclared(in.DesignInput),
 	}
+	checks = append(checks, experienceChecks(irDoc, irErr)...)
 
 	report := &ValidationReport{
 		SchemaVersion: ReportSchemaVersion,
@@ -86,8 +88,8 @@ func Validate(in ValidateInput) (*ValidationReport, error) {
 		CreatedAt:     time.Now().UTC(),
 		Subject: Subject{
 			GameID:             in.GameID,
-			DesignInputVersion:   in.DesignInput.SchemaVersion,
-			ValidatorVersion:     ValidatorVersion,
+			DesignInputVersion: in.DesignInput.SchemaVersion,
+			ValidatorVersion:   ValidatorVersion,
 		},
 		Checks:     checks,
 		DurationMs: time.Since(start).Milliseconds(),

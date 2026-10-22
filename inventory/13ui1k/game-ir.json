@@ -103,7 +103,7 @@
     "entryScene": "rainbow-field",
     "id": "sample-rainbow-bear",
     "orientation": "portrait",
-    "sessionTargetSeconds": 90,
+    "sessionTargetSeconds": 20,
     "title": "Bobo's Rainbow"
   },
   "inputBindings": [
@@ -136,7 +136,7 @@
       "key": "ArrowDown"
     }
   ],
-  "irVersion": "1.1",
+  "irVersion": "1.2",
   "metadata": {
     "tags": [
       "family",
@@ -956,6 +956,88 @@
     "fx.emitters",
     "audio",
     "input.keyboard",
-    "input.pointer"
-  ]
+    "input.pointer",
+    "shell.v1"
+  ],
+  "experience": {
+    "archetype": "catcher",
+    "controls": {
+      "scheme": "drag_x",
+      "hint": "Drag to move Bobo"
+    },
+    "objective": {
+      "kind": "collect",
+      "target": 12,
+      "label": "Catch 12 hearts"
+    },
+    "hud": {
+      "left": "objective_progress",
+      "right": "none"
+    },
+    "start": {
+      "mode": "tap_to_start"
+    },
+    "failure": {
+      "mode": "gentle"
+    },
+    "pacing": {
+      "targetSessionSec": 20,
+      "firstRewardWithinSec": 10,
+      "expectedCatchRate": 0.15,
+      "ramp": [
+        {
+          "at": 0,
+          "speedMul": 1.0
+        },
+        {
+          "at": 0.5,
+          "speedMul": 1.2
+        },
+        {
+          "at": 0.85,
+          "speedMul": 1.45
+        }
+      ]
+    },
+    "milestones": [
+      0.1667,
+      0.3333,
+      0.5,
+      0.6667,
+      0.8333,
+      1
+    ],
+    "milestoneVisuals": {
+      "0.1667": "band0",
+      "0.3333": "band1",
+      "0.5": "band2",
+      "0.6667": "band3",
+      "0.8333": "band4",
+      "1": "band5"
+    },
+    "result": {
+      "win": {
+        "title": "The rainbow is whole!",
+        "stars": {
+          "by": "time",
+          "thresholdsSec": [
+            45,
+            30,
+            18
+          ]
+        }
+      },
+      "lose": {
+        "title": "Keep going!"
+      }
+    },
+    "leaderboard": {
+      "metric": "time",
+      "order": "asc"
+    },
+    "feedback": {
+      "haptics": "none",
+      "juice": "standard"
+    }
+  }
 }

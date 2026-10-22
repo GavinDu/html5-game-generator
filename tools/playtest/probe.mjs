@@ -24,7 +24,6 @@
 // worker-level failure (browser missing, server unreachable).
 
 import { chromium, webkit } from 'playwright';
-import { scoreGame } from '../../packages/game-quality-score/index.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 function arg(name, dflt) {
@@ -58,6 +57,10 @@ function scoreOf(hud) {
   return m ? Number(m[1]) : 0;
 }
 
+async function readProbe(pg) {
+  return pg.evaluate(() => window.__dqProbe || null).catch(() => null);
+}
+
 async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
@@ -70,11 +73,13 @@ async function playGame(browser, gameId) {
   try {
     await page.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1`,
       { waitUntil: 'load', timeout: 30000 });
-    // Wait for the probe verdict to show a booted game with frames.
+    // Wait for the probe verdict to show a booted game. Shell games
+    // (IR 1.2) boot to a STOPPED ticker at the start card — frames stay
+    // 0 until play begins — so "booted" is the signal here, not frames.
     const deadline = Date.now() + 25000;
     while (Date.now() < deadline) {
       probe = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
-      if (probe && probe.booted && probe.frames > 0) break;
+      if (probe && probe.booted) break;
       if (probe && probe.errors && probe.errors.length > 0) break;
       await sleep(500);
     }
@@ -82,9 +87,37 @@ async function playGame(browser, gameId) {
     push('playtest.boot_clean', 'fail', 'page load failed: ' + e.message, null);
     push('playtest.render_nonblank', 'skip', 'page never loaded', null);
     await page.close().catch(() => {});
-    return { gameId, verdict: 'FAIL', checks, probe, quality: scoreGame(checks) };
+    return { gameId, verdict: 'FAIL', checks, probe };
   }
   const coldStartMs = Date.now() - navStart;
+
+  // --- shell start card (IR 1.2) ----------------------------------------
+  // A shell game must present its start card and hold play until the
+  // player starts it. The worker verifies the card, then taps Start
+  // like a player would. Non-shell games skip these checks.
+  const isShell = !!(probe && probe.shell);
+  if (isShell) {
+    const card = await page.evaluate(() => ({
+      shown: !!document.querySelector('#shell-start.on'),
+      title: document.getElementById('shell-start-title')?.textContent || '',
+      obj: document.getElementById('shell-start-obj')?.textContent || '',
+    })).catch(() => ({ shown: false, title: '', obj: '' }));
+    if (card.shown && !probe.shell.started) {
+      push('shell.start_card', 'pass',
+        `start card shown before play: "${card.title}" / "${card.obj}"`, null);
+    } else {
+      push('shell.start_card', 'fail',
+        `shell game booted without a gating start card (shown=${card.shown}, started=${probe.shell.started})`, null);
+    }
+    await page.click('#shell-start-btn').catch(() => {});
+    const startDeadline = Date.now() + 8000;
+    while (Date.now() < startDeadline) {
+      const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
+      if (fresh) probe = fresh;
+      if (probe && probe.shell && probe.shell.started && probe.frames > 0) break;
+      await sleep(300);
+    }
+  }
 
   // --- boot_clean -------------------------------------------------------
   const errs = [...(probe?.errors || []), ...pageErrors.map((m) => ({ message: m }))];
@@ -137,8 +170,9 @@ async function playGame(browser, gameId) {
     const t0 = Date.now();
     while (Date.now() - t0 < 6000) {
       const status = await page.evaluate(
-        () => document.getElementById('status')?.textContent || '').catch(() => '');
-      if (/drag|tap|arrow|move|wasd/i.test(status)) { inputReadyMs = Date.now() - navStart; break; }
+        () => (document.getElementById('status')?.textContent || '') +
+          (document.querySelector('#shell-start.on') ? ' shell-start-card' : '')).catch(() => '');
+      if (/drag|tap|arrow|move|wasd|shell-start-card/i.test(status)) { inputReadyMs = Date.now() - navStart; break; }
       await sleep(250);
     }
     if (inputReadyMs !== null) {
@@ -180,6 +214,8 @@ async function playGame(browser, gameId) {
       frames: (window.__dqProbe || {}).frames || 0,
       endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
       endTitle: document.getElementById('end-title')?.textContent || '',
+      shellEnd: !!document.querySelector('#shell-result.on'),
+      shellTitle: document.getElementById('shell-result-title')?.textContent || '',
     })).catch(() => null);
     if (!live) break;
     // Liveness signature: HUD, status, error count AND the stage census
@@ -194,14 +230,44 @@ async function playGame(browser, gameId) {
     if (firstRewardMs === null && scoreOf(live.hud) > score0) {
       firstRewardMs = Date.now() - navStart;
     }
-    if (live.endVisible) {
+    if (live.endVisible || live.shellEnd) {
       endSeen = true;
-      if (/win|did it|complete|escaped|mended|great|hooray/i.test(live.endTitle) ||
-          !/caught|got you|grabbed|game over/i.test(live.endTitle)) {
+      const title = live.shellEnd ? live.shellTitle : live.endTitle;
+      if (/win|did it|complete|escaped|mended|great|hooray|whole/i.test(title) ||
+          !/caught|got you|grabbed|game over|so close/i.test(title)) {
         winSeen = true;
       }
       break;
     }
+  }
+  // Shell games get an extended pursuit when the standard window saw
+  // no end: continuous drag sweeps across the player's zone (the
+  // drag_x scheme tracks the pointer), up to the win budget. The
+  // result-card and restart checks below need an observed end; without
+  // one they skip honestly.
+  if (isShell && !endSeen) {
+    const extDeadline = Date.now() + Math.max(0, winSeconds - playSeconds) * 1000;
+    await page.mouse.move(90, 700).catch(() => {});
+    await page.mouse.down().catch(() => {});
+    let sweep = 0;
+    while (Date.now() < extDeadline && !endSeen) {
+      sweep++;
+      const x = sweep % 2 === 0 ? 320 : 80;
+      await page.mouse.move(x, 700, { steps: 10 }).catch(() => {});
+      await sleep(650);
+      const live = await page.evaluate(() => ({
+        shellEnd: !!document.querySelector('#shell-result.on'),
+        shellTitle: document.getElementById('shell-result-title')?.textContent || '',
+        endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
+      })).catch(() => null);
+      if (live && (live.shellEnd || live.endVisible)) {
+        endSeen = true;
+        if (live.shellEnd && !/caught|so close/i.test(live.shellTitle)) winSeen = true;
+      }
+    }
+    await page.mouse.up().catch(() => {});
+    // winSeen/endSeen are shared with the verdict code below, so a win
+    // found here counts for simulation.win_reachable automatically.
   }
   const liveErrs = await page.evaluate(() => (window.__dqErrors || []).length).catch(() => 0);
   if (liveErrs > 0 || pageErrors.length > 0) {
@@ -240,6 +306,148 @@ async function playGame(browser, gameId) {
       `no HUD/status/census movement across ${playSeconds}s of bot input and no end state: softlock signature`, null);
   }
 
+  // --- shell result card + in-place restart (IR 1.2) -------------------
+  if (isShell) {
+    if (!endSeen) {
+      push('shell.result_card', 'skip', 'no run ended during bot play; result card unobserved', null);
+      push('shell.restart_in_place', 'skip', 'no run ended during bot play; restart unobserved', null);
+    } else {
+      const cardOn = await page.evaluate(
+        () => !!document.querySelector('#shell-result.on')).catch(() => false);
+      push('shell.result_card', cardOn ? 'pass' : 'fail',
+        cardOn ? 'result card presented in-canvas at the end of the run'
+               : 'run ended without the shell result card', null);
+      if (cardOn) {
+        // A marker that only survives if the page does NOT reload.
+        await page.evaluate(() => { window.__dqRestartMark = 'alive'; }).catch(() => {});
+        const clickAt = Date.now();
+        await page.click('#shell-again-btn').catch(() => {});
+        let restartedMs = null;
+        const rDeadline = Date.now() + 6000;
+        while (Date.now() < rDeadline) {
+          const st = await page.evaluate(() => ({
+            mark: window.__dqRestartMark || '',
+            cardShown: !!document.querySelector('#shell-start.on'),
+            started: !!((window.__dqProbe || {}).shell || {}).started,
+            frames: (window.__dqProbe || {}).frames || 0,
+            hud: document.getElementById('score')?.textContent || '',
+          })).catch(() => null);
+          if (st && st.mark === 'alive' && !st.cardShown && st.started && st.frames > 5) {
+            restartedMs = Date.now() - clickAt;
+            break;
+          }
+          if (st && st.mark !== 'alive') break; // page reloaded
+          await sleep(250);
+        }
+        if (restartedMs !== null) {
+          push('shell.restart_in_place', 'pass',
+            `Play again restarted in place in ${restartedMs}ms: no reload (marker survived), no start card on retry, frames advancing`,
+            { restartedMs });
+        } else {
+          push('shell.restart_in_place', 'fail',
+            'Play again did not return to in-place play within 6s (reload or start card suspected)', null);
+        }
+      } else {
+        push('shell.restart_in_place', 'skip', 'result card missing; restart not attempted', null);
+      }
+    }
+  }
+
+  // --- Phase C: determinism + replay verification ---------------------
+  // Determinism: two fresh pages, same seed, same scripted step-level
+  // inputs — the fixed-timestep sim must land on the same final score.
+  try {
+    const script = [];
+    for (let i = 0; i <= 10; i++) {
+      script.push({ tick: 30 + i * 30, type: 'pointer', detail: `${90 + i * 21},720` });
+    }
+    script.push({ tick: 370, type: 'pointerup', detail: '' });
+    const scriptedScore = async () => {
+      const p2 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      try {
+        await p2.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&seed=777`,
+          { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await p2.waitForFunction(() => {
+          const el = document.querySelector('#probe-result');
+          if (!el) return false;
+          try { return JSON.parse(el.textContent).booted === true; } catch { return false; }
+        }, { timeout: 25000 });
+        await p2.evaluate((s) => { window.__dqScripted = s; }, script);
+        const hasCard = await p2.evaluate(() => !!document.querySelector('#shell-start.on'));
+        if (hasCard) await p2.click('#shell-start-btn');
+        else await p2.evaluate(() => { window.__dqBeginPlay && window.__dqBeginPlay(); });
+        const t0 = Date.now();
+        while (Date.now() - t0 < 30000) {
+          const st = await p2.evaluate(() => ({
+            step: window.__dqPlay ? window.__dqPlay.simStep : 0,
+            ended: !!(window.__dqPlay && window.__dqPlay.shellStarted && document.querySelector('#shell-result.on')),
+          })).catch(() => ({ step: 0 }));
+          if (st.step >= 430 || st.ended) break;
+          await sleep(300);
+        }
+        const v = await readProbe(p2);
+        return v ? v.score : null;
+      } finally {
+        await p2.close().catch(() => {});
+      }
+    };
+    const s1 = await scriptedScore();
+    const s2 = await scriptedScore();
+    if (s1 === null || s2 === null) {
+      push('simulation.determinism', 'skip', 'scripted runs did not produce a readable score', { s1, s2 });
+    } else if (s1 === s2) {
+      push('simulation.determinism', 'pass',
+        `seed 777 + identical scripted trace produced score ${s1} in both runs`, { s1, s2 });
+    } else {
+      push('simulation.determinism', 'fail',
+        `same seed + same scripted trace diverged: run A score ${s1}, run B score ${s2}`, { s1, s2 });
+    }
+  } catch (e) {
+    push('simulation.determinism', 'skip', `determinism probe errored: ${String(e).slice(0, 120)}`, null);
+  }
+  // Replay verification: when the main session won and its run was
+  // submitted, replay the recorded trace and require an exact match.
+  try {
+    let runId = probe && probe.lastRunId;
+    for (let i = 0; i < 20 && !runId; i++) {
+      await sleep(400);
+      const v = await readProbe(page).catch(() => null);
+      if (v) { probe = v; runId = v.lastRunId; }
+    }
+    if (!won) {
+      push('leaderboard.replay_verified', 'skip', 'bot did not win this session; no winning run to verify', null);
+    } else if (!runId) {
+      push('leaderboard.replay_verified', 'skip', 'no submitted run id observed after the win (submission may have been rejected)', null);
+    } else {
+      const p3 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      try {
+        await p3.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&replay=${encodeURIComponent(runId)}`,
+          { waitUntil: 'domcontentloaded', timeout: 30000 });
+        let verdict = null;
+        const t0 = Date.now();
+        while (Date.now() - t0 < 45000) {
+          const v = await readProbe(p3).catch(() => null);
+          if (v && v.replay) { verdict = v.replay; break; }
+          await sleep(500);
+        }
+        if (!verdict) {
+          push('leaderboard.replay_verified', 'fail',
+            `replay of ${runId} produced no verdict within 45s`, { runId });
+        } else if (verdict.match) {
+          push('leaderboard.replay_verified', 'pass',
+            `replay of ${runId} reproduced the submitted score exactly (${verdict.actual})`, verdict);
+        } else {
+          push('leaderboard.replay_verified', 'fail',
+            `replay of ${runId} diverged: expected ${verdict.expected}, replayed ${verdict.actual}${verdict.reason ? ' (' + verdict.reason + ')' : ''}`, verdict);
+        }
+      } finally {
+        await p3.close().catch(() => {});
+      }
+    }
+  } catch (e) {
+    push('leaderboard.replay_verified', 'skip', `replay probe errored: ${String(e).slice(0, 120)}`, null);
+  }
+
   if (shotsDir) {
     mkdirSync(shotsDir, { recursive: true });
     await page.screenshot({ path: `${shotsDir}/${gameId}.png` }).catch(() => {});
@@ -251,15 +459,19 @@ async function playGame(browser, gameId) {
   // that fires on noise teaches everyone to ignore the gate.
   const failed = checks.some((c) => c.status === 'fail' &&
     (c.checkId === 'playtest.boot_clean' || c.checkId === 'playtest.render_nonblank' ||
-     c.checkId === 'simulation.no_softlock'));
-  return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe, quality: scoreGame(checks) };
+     c.checkId === 'simulation.no_softlock' || c.checkId === 'shell.start_card' ||
+     c.checkId === 'shell.restart_in_place'));
+  return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 
 async function main() {
   const gameIdsArg = (arg('games', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const obscuraCDP = process.env.OBSCURA_CDP_URL;
-  if (obscuraCDP && browserName === 'webkit') throw new Error('OBSCURA_CDP_URL requires --browser chromium; keep WebKit for iOS compatibility coverage.');
+  if (obscuraCDP && browserName === 'webkit') {
+    throw new Error('OBSCURA_CDP_URL requires --browser chromium; keep WebKit for iOS/WKWebView compatibility coverage.');
+  }
   const engine = browserName === 'webkit' ? webkit : chromium;
+  // Optional Obscura/CDP execution backend; default is local Playwright.
   const browser = obscuraCDP ? await chromium.connectOverCDP(obscuraCDP) : await engine.launch();
   try {
     const gameIds = gameIdsArg.length ? gameIdsArg : await feedGames();

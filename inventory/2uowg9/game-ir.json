@@ -71,7 +71,7 @@
     "entryScene": "chase",
     "id": "escape-from-injection",
     "orientation": "portrait",
-    "sessionTargetSeconds": 90,
+    "sessionTargetSeconds": 40,
     "title": "Escape from the Injection"
   },
   "inputBindings": [
@@ -104,7 +104,7 @@
       "key": "ArrowDown"
     }
   ],
-  "irVersion": "1.1",
+  "irVersion": "1.2",
   "metadata": {
     "tags": [
       "family",
@@ -180,16 +180,24 @@
       },
       "actions": [
         {
+          "type": "change_health",
+          "value": -1
+        },
+        {
+          "type": "apply_impulse",
+          "target": "syringe",
+          "value": [
+            -260,
+            -220
+          ]
+        },
+        {
           "type": "camera_shake",
           "value": 8
         },
         {
           "type": "show_text",
-          "value": "Caught! The injection got you."
-        },
-        {
-          "type": "end_game",
-          "value": false
+          "value": "Ouch! The syringe nicked you."
         }
       ]
     },
@@ -202,12 +210,24 @@
       },
       "actions": [
         {
-          "type": "show_text",
-          "value": "The chaser grabbed you!"
+          "type": "change_health",
+          "value": -1
         },
         {
-          "type": "end_game",
-          "value": false
+          "type": "teleport_entity",
+          "target": "chaser",
+          "value": [
+            195,
+            772
+          ]
+        },
+        {
+          "type": "camera_shake",
+          "value": 6
+        },
+        {
+          "type": "show_text",
+          "value": "The chaser grabbed you — shake free!"
         }
       ]
     },
@@ -285,6 +305,32 @@
         {
           "type": "end_game",
           "value": true
+        }
+      ]
+    },
+    {
+      "id": "progress-5",
+      "when": {
+        "event": "score_reached",
+        "value": 5
+      },
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "5 stars — keep going!"
+        }
+      ]
+    },
+    {
+      "id": "progress-10",
+      "when": {
+        "event": "score_reached",
+        "value": 10
+      },
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "10 stars — almost out!"
         }
       ]
     }
@@ -683,6 +729,79 @@
     "fx.emitters",
     "audio",
     "input.keyboard",
-    "input.pointer"
-  ]
+    "input.pointer",
+    "shell.v1"
+  ],
+  "experience": {
+    "archetype": "dodger",
+    "controls": {
+      "scheme": "drag_x",
+      "hint": "Drag to dodge — grab the stars!"
+    },
+    "objective": {
+      "kind": "collect",
+      "target": 15,
+      "label": "Collect 15 stars to escape"
+    },
+    "hud": {
+      "left": "objective_progress",
+      "right": "health"
+    },
+    "start": {
+      "mode": "tap_to_start"
+    },
+    "failure": {
+      "mode": "health",
+      "health": 3,
+      "invulnerableMs": 1000
+    },
+    "pacing": {
+      "targetSessionSec": 40,
+      "firstRewardWithinSec": 10,
+      "expectedCatchRate": 0.2,
+      "ramp": [
+        {
+          "at": 0,
+          "speedMul": 1.0
+        },
+        {
+          "at": 0.5,
+          "speedMul": 1.2
+        },
+        {
+          "at": 0.85,
+          "speedMul": 1.45
+        }
+      ]
+    },
+    "milestones": [
+      0.33,
+      0.67,
+      1
+    ],
+    "result": {
+      "win": {
+        "title": "You escaped!",
+        "stars": {
+          "by": "time",
+          "thresholdsSec": [
+            60,
+            45,
+            30
+          ]
+        }
+      },
+      "lose": {
+        "title": "Caught! Try again"
+      }
+    },
+    "leaderboard": {
+      "metric": "time",
+      "order": "asc"
+    },
+    "feedback": {
+      "haptics": "none",
+      "juice": "standard"
+    }
+  }
 }

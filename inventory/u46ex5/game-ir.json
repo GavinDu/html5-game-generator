@@ -71,7 +71,7 @@
     "entryScene": "sky",
     "id": "sample-ribbon-sky",
     "orientation": "portrait",
-    "sessionTargetSeconds": 90,
+    "sessionTargetSeconds": 25,
     "title": "Ribbon Mends the Sky"
   },
   "inputBindings": [
@@ -104,7 +104,7 @@
       "key": "ArrowDown"
     }
   ],
-  "irVersion": "1.1",
+  "irVersion": "1.2",
   "metadata": {
     "tags": [
       "family",
@@ -816,6 +816,83 @@
     "fx.emitters",
     "audio",
     "input.keyboard",
-    "input.pointer"
-  ]
+    "input.pointer",
+    "shell.v1"
+  ],
+  "experience": {
+    "archetype": "catcher",
+    "controls": {
+      "scheme": "drag_x",
+      "hint": "Drag to fly the ribbon"
+    },
+    "objective": {
+      "kind": "collect",
+      "target": 10,
+      "label": "Gather 10 sky shards"
+    },
+    "hud": {
+      "left": "objective_progress",
+      "right": "health"
+    },
+    "start": {
+      "mode": "tap_to_start"
+    },
+    "failure": {
+      "mode": "health",
+      "health": 3,
+      "invulnerableMs": 1000
+    },
+    "pacing": {
+      "targetSessionSec": 25,
+      "firstRewardWithinSec": 10,
+      "expectedCatchRate": 0.15,
+      "ramp": [
+        {
+          "at": 0,
+          "speedMul": 1.0
+        },
+        {
+          "at": 0.5,
+          "speedMul": 1.2
+        },
+        {
+          "at": 0.85,
+          "speedMul": 1.45
+        }
+      ]
+    },
+    "milestones": [
+      0.4,
+      0.7,
+      1
+    ],
+    "milestoneVisuals": {
+      "0.4": "hole",
+      "0.7": "hole2"
+    },
+    "result": {
+      "win": {
+        "title": "The sky is mended!",
+        "stars": {
+          "by": "time",
+          "thresholdsSec": [
+            50,
+            35,
+            22
+          ]
+        }
+      },
+      "lose": {
+        "title": "So close — the sky still needs you"
+      }
+    },
+    "leaderboard": {
+      "metric": "time",
+      "order": "asc"
+    },
+    "feedback": {
+      "haptics": "none",
+      "juice": "standard"
+    }
+  }
 }
