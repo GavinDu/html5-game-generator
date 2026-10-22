@@ -157,20 +157,26 @@ type BundleManifest struct {
 }
 
 type Game struct {
-	ID         string          `json:"game_id"`
-	ParentGameID string        `json:"parent_game_id,omitempty"`
-	Title      string          `json:"title"`
-	OwnerID    string          `json:"owner_id"`
-	Elements   []Element       `json:"elements"`
-	Intent     string          `json:"intent"`
-	Visibility Visibility      `json:"visibility"`
-	GroupIDs   []string        `json:"group_ids"`
-	Status     GameStatus      `json:"status"`
-	JobID      string          `json:"job_id"`
-	Manifest   *BundleManifest `json:"manifest,omitempty"`
-	GameIR     *gameir.Document `json:"game_ir,omitempty"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	ID           string     `json:"game_id"`
+	ParentGameID string     `json:"parent_game_id,omitempty"`
+	Title        string     `json:"title"`
+	OwnerID      string     `json:"owner_id"`
+	Elements     []Element  `json:"elements"`
+	Intent       string     `json:"intent"`
+	Visibility   Visibility `json:"visibility"`
+	GroupIDs     []string   `json:"group_ids"`
+	Status       GameStatus `json:"status"`
+	// Quarantined hides a ready game from the feed without touching its
+	// visibility or data (detect-and-fix flow, Phase 2): set automatically
+	// when runtime-error telemetry crosses the incident threshold, or
+	// manually via the quarantine endpoint; cleared by unquarantine.
+	Quarantined      bool             `json:"quarantined,omitempty"`
+	QuarantineReason string           `json:"quarantine_reason,omitempty"`
+	JobID            string           `json:"job_id"`
+	Manifest         *BundleManifest  `json:"manifest,omitempty"`
+	GameIR           *gameir.Document `json:"game_ir,omitempty"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
 }
 
 type Group struct {
@@ -192,11 +198,11 @@ type ScoreEntry struct {
 }
 
 type CreateGameRequest struct {
-	IngestID string    `json:"ingest_id"`
-	ParentGameID string `json:"parent_game_id,omitempty"`
-	Elements []Element `json:"elements"`
-	Intent   string    `json:"intent"`
-	Keywords []string  `json:"keywords"`
+	IngestID     string    `json:"ingest_id"`
+	ParentGameID string    `json:"parent_game_id,omitempty"`
+	Elements     []Element `json:"elements"`
+	Intent       string    `json:"intent"`
+	Keywords     []string  `json:"keywords"`
 }
 
 type ConfirmRequest struct {
