@@ -115,7 +115,8 @@ export function scoreGame(checks = [], aiReview = null, suppliedRules = {}) {
   const deliveryGate = gates.every(g => g.status === 'pass') ? 'pass' : gates.some(g => g.status === 'fail') ? 'fail' : 'inconclusive';
   const floor = rules.thresholds.minimumMetricScore;
   const belowFloor = dimensions.filter(d => d.score !== null && d.score < floor).map(d => ({ metricId: d.id, score: d.score, minimum: floor }));
-  const missingSuggestions = belowFloor.filter(item => !(aiReview?.improvementSuggestions || []).some(s => s.metricId === item.metricId && typeof s.suggestion === 'string' && s.suggestion.trim()));
+  const suggestionRequired = dimensions.filter(d => d.score === null || d.score < floor).map(d => ({ metricId: d.id, score: d.score }));
+  const missingSuggestions = suggestionRequired.filter(item => !(aiReview?.improvementSuggestions || []).some(s => s.metricId === item.metricId && typeof s.suggestion === 'string' && s.suggestion.trim()));
   const improvementSuggestions = (aiReview?.improvementSuggestions || []).filter(s =>
     s && typeof s.metricId === 'string' && typeof s.suggestion === 'string' && s.suggestion.trim());
   const allMetricsMeetFloor = dimensions.every(d => d.score !== null && d.score >= floor);
