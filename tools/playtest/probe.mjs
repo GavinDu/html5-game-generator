@@ -409,12 +409,12 @@ async function playGame(browser, gameId) {
   // submitted, replay the recorded trace and require an exact match.
   try {
     let runId = probe && probe.lastRunId;
-    for (let i = 0; i < 20 && !runId; i++) {
+    for (let i = 0; i < 20 && winSeen && !runId; i++) {
       await sleep(400);
       const v = await readProbe(page).catch(() => null);
       if (v) { probe = v; runId = v.lastRunId; }
     }
-    if (!won) {
+    if (!winSeen) {
       push('leaderboard.replay_verified', 'skip', 'bot did not win this session; no winning run to verify', null);
     } else if (!runId) {
       push('leaderboard.replay_verified', 'skip', 'no submitted run id observed after the win (submission may have been rejected)', null);
