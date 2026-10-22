@@ -105,6 +105,7 @@ function emitProbe() {
     inputs: play ? play.inputLog.length : 0,
     deadInputs: play ? play.deadInputs : 0,
     score: play && typeof play.score === 'number' ? play.score : null,
+    scriptEndScore: play && typeof play.scriptEndScore === 'number' ? play.scriptEndScore : null,
     replay: window.__dqReplay || null,
     lastRunId: play ? (play.lastRunId || null) : null,
     booted: probeState.booted,
@@ -1728,6 +1729,14 @@ async function run(id) {
       return;
     }
     if (steps === 3 && simAcc >= STEP_MS) simAcc = 0; // shed, don't spiral
+    // Scripted-run score snapshot (determinism check): when the
+    // worker sets __dqScriptEnd, freeze the score at exactly that
+    // step — a poll-based read would overshoot by up to a poll
+    // interval of steps and fake a divergence.
+    if (scriptedByStep && window.__dqScriptEnd && play.scriptEndScore === undefined &&
+        play.simStep >= window.__dqScriptEnd) {
+      play.scriptEndScore = state.score;
+    }
     // Replay watchdog: a trace that never ends the game fails
     // verification (30 sim-seconds past its last recorded input).
     if (replayTrace && !state.ended && !window.__dqReplay && play.simStep > replayLastTick + 1800) {
