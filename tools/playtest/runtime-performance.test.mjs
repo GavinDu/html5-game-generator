@@ -18,6 +18,6 @@ test('a stalled image request has a finite timeout', () => {
 
 test('visible developer logs stay bounded like the backing buffer', () => {
   assert.match(source, /if \(logBuffer\.length > 50\) logBuffer\.shift\(\)/);
-  assert.match(source, /logEl\.textContent = logBuffer\.join\('\\n'\) \+ '\\n'/);
-  assert.doesNotMatch(source, /logEl\.textContent \+= line/);
+  assert.ok(source.includes("logEl.textContent = logBuffer.join('\\n') + '\\n';"));
+  assert.ok(!source.includes("logEl.textContent += line"));
 });
