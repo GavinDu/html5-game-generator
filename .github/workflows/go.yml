@@ -25,3 +25,49 @@ jobs:
         run: go test ./...
       - name: Static analysis
         run: go vet ./...
+
+  # Phase 1 + Phase 4 of the fused detect-and-fix flow: every game in the
+  # inventory must boot and play in a real browser before it can ship.
+  # The matrix covers Chromium (desktop/Android engine) and WebKit (the
+  # iOS WKWebView engine the app embeds). Reports and screenshots are
+  # uploaded as artifacts; a FAIL on the gate checks fails the job.
+  playtest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install playtest worker
+        working-directory: tools/playtest
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Build and start the server
+        run: |
+          go build -o /tmp/dq-server ./cmd/server
+          PORT=18099 INVENTORY_DIR=inventory /tmp/dq-server > /tmp/dq-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:18099/healthz && break || sleep 1
+          done
+      - name: Playtest all feed games (${{ matrix.browser }})
+        run: >
+          go run ./cmd/playtest -base http://localhost:18099
+          -browser ${{ matrix.browser }}
+          -worker tools/playtest/probe.mjs
+      - name: Upload playtest artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-${{ matrix.browser }}
+          path: |
+            /tmp/dq-server.log
+          if-no-files-found: ignore
