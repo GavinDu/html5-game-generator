@@ -236,7 +236,7 @@ async function playGame(browser, gameId) {
     push('simulation.no_softlock', 'skip', 'state frozen but errors occurred; inconclusive', null);
   } else {
     push('simulation.no_softlock', 'fail',
-      `no HUD/status change across ${playSeconds}s of bot input and no end state: softlock signature`, null);
+      `no HUD/status/census movement across ${playSeconds}s of bot input and no end state: softlock signature`, null);
   }
 
   if (shotsDir) {
