@@ -1056,7 +1056,32 @@ async function run(id) {
   if (!state.follow && playerEnt && (worldW > W || worldH > H)) state.follow = playerEnt;
   let accumulator = 0;
 
+  let frameNo = 0;
+  let tickErrLogged = false;
+  let censusLogged = false;
   app.ticker.add((ticker) => {
+    frameNo++;
+    try {
+      tickFrame(ticker);
+    } catch (err) {
+      if (!tickErrLogged) {
+        tickErrLogged = true;
+        log('RT', 'TICK ERROR frame ' + frameNo + ': ' + (err.stack || err.message));
+      }
+      return;
+    }
+    if (!censusLogged && frameNo >= 30) {
+      censusLogged = true;
+      const parts = [`worldLayer@(${worldLayer.position.x.toFixed(0)},${worldLayer.position.y.toFixed(0)})`];
+      let n = 0;
+      for (const ent of entities.values()) {
+        if (n++ >= 4) break;
+        parts.push(`${ent.def.id}@(${ent.view.position.x.toFixed(0)},${ent.view.position.y.toFixed(0)}) a=${ent.view.alpha} vis=${ent.view.visible} scale=${ent.view.scale.x.toFixed(2)}`);
+      }
+      log('RT', 'CENSUS ' + parts.join(' | '));
+    }
+  });
+  function tickFrame(ticker) {
     if (state.ended) return;
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     state.elapsed += dt;
@@ -1187,7 +1212,7 @@ async function run(id) {
     }
     for (const e of sceneEmitters) e.update(dt);
     burstEmitter.update(dt);
-  });
+  }
 
   updateHUD();
   $('status').textContent = 'Drag, tap, or use the arrow keys';
@@ -1195,6 +1220,10 @@ async function run(id) {
   emit('scene_entered', undefined, undefined);
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
 }
+
+window.addEventListener('error', (e) => {
+  log('RT', 'UNCAUGHT ' + (e.error?.stack || e.message || 'unknown error'));
+});
 
 if (!gameId) {
   listGames();
