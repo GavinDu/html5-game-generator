@@ -59,10 +59,13 @@ jobs:
             curl -sf http://localhost:18099/healthz && break || sleep 1
           done
       - name: Playtest all feed games (${{ matrix.browser }})
-        run: >
-          go run ./cmd/playtest -base http://localhost:18099
-          -browser ${{ matrix.browser }}
-          -worker tools/playtest/probe.mjs
+        run: |
+          set -o pipefail
+          go run ./cmd/playtest -base http://localhost:18099 \
+            -browser ${{ matrix.browser }} \
+            -worker tools/playtest/probe.mjs \
+            -shots /tmp/playtest-shots \
+            | tee /tmp/playtest-report.json
       - name: Upload playtest artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,4 +73,6 @@ jobs:
           name: playtest-${{ matrix.browser }}
           path: |
             /tmp/dq-server.log
+            /tmp/playtest-report.json
+            /tmp/playtest-shots/
           if-no-files-found: ignore
