@@ -35,7 +35,7 @@ func main() {
 	merge := flag.String("merge", "", "path to a static ValidationReport JSON to merge results into")
 	out := flag.String("out", "", "write the (merged) report here instead of stdout")
 	shots := flag.String("shots", "", "directory for worker screenshots + its raw report")
-	timeout := flag.Duration("timeout", 5*time.Minute, "overall worker timeout")
+	timeout := flag.Duration("timeout", 12*time.Minute, "overall worker timeout")
 	flag.Parse()
 	if *base == "" {
 		fmt.Fprintln(os.Stderr, "playtest: -base is required")
