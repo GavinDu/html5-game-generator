@@ -69,11 +69,13 @@ async function playGame(browser, gameId) {
   try {
     await page.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1`,
       { waitUntil: 'load', timeout: 30000 });
-    // Wait for the probe verdict to show a booted game with frames.
+    // Wait for the probe verdict to show a booted game. Shell games
+    // (IR 1.2) boot to a STOPPED ticker at the start card — frames stay
+    // 0 until play begins — so "booted" is the signal here, not frames.
     const deadline = Date.now() + 25000;
     while (Date.now() < deadline) {
       probe = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
-      if (probe && probe.booted && probe.frames > 0) break;
+      if (probe && probe.booted) break;
       if (probe && probe.errors && probe.errors.length > 0) break;
       await sleep(500);
     }
@@ -84,6 +86,34 @@ async function playGame(browser, gameId) {
     return { gameId, verdict: 'FAIL', checks, probe };
   }
   const coldStartMs = Date.now() - navStart;
+
+  // --- shell start card (IR 1.2) ----------------------------------------
+  // A shell game must present its start card and hold play until the
+  // player starts it. The worker verifies the card, then taps Start
+  // like a player would. Non-shell games skip these checks.
+  const isShell = !!(probe && probe.shell);
+  if (isShell) {
+    const card = await page.evaluate(() => ({
+      shown: !!document.querySelector('#shell-start.on'),
+      title: document.getElementById('shell-start-title')?.textContent || '',
+      obj: document.getElementById('shell-start-obj')?.textContent || '',
+    })).catch(() => ({ shown: false, title: '', obj: '' }));
+    if (card.shown && !probe.shell.started) {
+      push('shell.start_card', 'pass',
+        `start card shown before play: "${card.title}" / "${card.obj}"`, null);
+    } else {
+      push('shell.start_card', 'fail',
+        `shell game booted without a gating start card (shown=${card.shown}, started=${probe.shell.started})`, null);
+    }
+    await page.click('#shell-start-btn').catch(() => {});
+    const startDeadline = Date.now() + 8000;
+    while (Date.now() < startDeadline) {
+      const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
+      if (fresh) probe = fresh;
+      if (probe && probe.shell && probe.shell.started && probe.frames > 0) break;
+      await sleep(300);
+    }
+  }
 
   // --- boot_clean -------------------------------------------------------
   const errs = [...(probe?.errors || []), ...pageErrors.map((m) => ({ message: m }))];
@@ -136,8 +166,9 @@ async function playGame(browser, gameId) {
     const t0 = Date.now();
     while (Date.now() - t0 < 6000) {
       const status = await page.evaluate(
-        () => document.getElementById('status')?.textContent || '').catch(() => '');
-      if (/drag|tap|arrow|move|wasd/i.test(status)) { inputReadyMs = Date.now() - navStart; break; }
+        () => (document.getElementById('status')?.textContent || '') +
+          (document.querySelector('#shell-start.on') ? ' shell-start-card' : '')).catch(() => '');
+      if (/drag|tap|arrow|move|wasd|shell-start-card/i.test(status)) { inputReadyMs = Date.now() - navStart; break; }
       await sleep(250);
     }
     if (inputReadyMs !== null) {
@@ -179,6 +210,8 @@ async function playGame(browser, gameId) {
       frames: (window.__dqProbe || {}).frames || 0,
       endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
       endTitle: document.getElementById('end-title')?.textContent || '',
+      shellEnd: !!document.querySelector('#shell-result.on'),
+      shellTitle: document.getElementById('shell-result-title')?.textContent || '',
     })).catch(() => null);
     if (!live) break;
     // Liveness signature: HUD, status, error count AND the stage census
@@ -193,14 +226,44 @@ async function playGame(browser, gameId) {
     if (firstRewardMs === null && scoreOf(live.hud) > score0) {
       firstRewardMs = Date.now() - navStart;
     }
-    if (live.endVisible) {
+    if (live.endVisible || live.shellEnd) {
       endSeen = true;
-      if (/win|did it|complete|escaped|mended|great|hooray/i.test(live.endTitle) ||
-          !/caught|got you|grabbed|game over/i.test(live.endTitle)) {
+      const title = live.shellEnd ? live.shellTitle : live.endTitle;
+      if (/win|did it|complete|escaped|mended|great|hooray|whole/i.test(title) ||
+          !/caught|got you|grabbed|game over|so close/i.test(title)) {
         winSeen = true;
       }
       break;
     }
+  }
+  // Shell games get an extended pursuit when the standard window saw
+  // no end: continuous drag sweeps across the player's zone (the
+  // drag_x scheme tracks the pointer), up to the win budget. The
+  // result-card and restart checks below need an observed end; without
+  // one they skip honestly.
+  if (isShell && !endSeen) {
+    const extDeadline = Date.now() + Math.max(0, winSeconds - playSeconds) * 1000;
+    await page.mouse.move(90, 700).catch(() => {});
+    await page.mouse.down().catch(() => {});
+    let sweep = 0;
+    while (Date.now() < extDeadline && !endSeen) {
+      sweep++;
+      const x = sweep % 2 === 0 ? 320 : 80;
+      await page.mouse.move(x, 700, { steps: 10 }).catch(() => {});
+      await sleep(650);
+      const live = await page.evaluate(() => ({
+        shellEnd: !!document.querySelector('#shell-result.on'),
+        shellTitle: document.getElementById('shell-result-title')?.textContent || '',
+        endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
+      })).catch(() => null);
+      if (live && (live.shellEnd || live.endVisible)) {
+        endSeen = true;
+        if (live.shellEnd && !/caught|so close/i.test(live.shellTitle)) winSeen = true;
+      }
+    }
+    await page.mouse.up().catch(() => {});
+    // winSeen/endSeen are shared with the verdict code below, so a win
+    // found here counts for simulation.win_reachable automatically.
   }
   const liveErrs = await page.evaluate(() => (window.__dqErrors || []).length).catch(() => 0);
   if (liveErrs > 0 || pageErrors.length > 0) {
@@ -239,6 +302,53 @@ async function playGame(browser, gameId) {
       `no HUD/status/census movement across ${playSeconds}s of bot input and no end state: softlock signature`, null);
   }
 
+  // --- shell result card + in-place restart (IR 1.2) -------------------
+  if (isShell) {
+    if (!endSeen) {
+      push('shell.result_card', 'skip', 'no run ended during bot play; result card unobserved', null);
+      push('shell.restart_in_place', 'skip', 'no run ended during bot play; restart unobserved', null);
+    } else {
+      const cardOn = await page.evaluate(
+        () => !!document.querySelector('#shell-result.on')).catch(() => false);
+      push('shell.result_card', cardOn ? 'pass' : 'fail',
+        cardOn ? 'result card presented in-canvas at the end of the run'
+               : 'run ended without the shell result card', null);
+      if (cardOn) {
+        // A marker that only survives if the page does NOT reload.
+        await page.evaluate(() => { window.__dqRestartMark = 'alive'; }).catch(() => {});
+        const clickAt = Date.now();
+        await page.click('#shell-again-btn').catch(() => {});
+        let restartedMs = null;
+        const rDeadline = Date.now() + 6000;
+        while (Date.now() < rDeadline) {
+          const st = await page.evaluate(() => ({
+            mark: window.__dqRestartMark || '',
+            cardShown: !!document.querySelector('#shell-start.on'),
+            started: !!((window.__dqProbe || {}).shell || {}).started,
+            frames: (window.__dqProbe || {}).frames || 0,
+            hud: document.getElementById('score')?.textContent || '',
+          })).catch(() => null);
+          if (st && st.mark === 'alive' && !st.cardShown && st.started && st.frames > 5) {
+            restartedMs = Date.now() - clickAt;
+            break;
+          }
+          if (st && st.mark !== 'alive') break; // page reloaded
+          await sleep(250);
+        }
+        if (restartedMs !== null) {
+          push('shell.restart_in_place', 'pass',
+            `Play again restarted in place in ${restartedMs}ms: no reload (marker survived), no start card on retry, frames advancing`,
+            { restartedMs });
+        } else {
+          push('shell.restart_in_place', 'fail',
+            'Play again did not return to in-place play within 6s (reload or start card suspected)', null);
+        }
+      } else {
+        push('shell.restart_in_place', 'skip', 'result card missing; restart not attempted', null);
+      }
+    }
+  }
+
   if (shotsDir) {
     mkdirSync(shotsDir, { recursive: true });
     await page.screenshot({ path: `${shotsDir}/${gameId}.png` }).catch(() => {});
@@ -250,7 +360,8 @@ async function playGame(browser, gameId) {
   // that fires on noise teaches everyone to ignore the gate.
   const failed = checks.some((c) => c.status === 'fail' &&
     (c.checkId === 'playtest.boot_clean' || c.checkId === 'playtest.render_nonblank' ||
-     c.checkId === 'simulation.no_softlock'));
+     c.checkId === 'simulation.no_softlock' || c.checkId === 'shell.start_card' ||
+     c.checkId === 'shell.restart_in_place'));
   return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 
