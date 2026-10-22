@@ -112,6 +112,35 @@ func TestAutoQuarantineAndRestore(t *testing.T) {
 	}
 }
 
+// Perf samples are filed but never indexed: no incidents, no quarantine,
+// however many arrive.
+func TestPerfSamplesNeverQuarantine(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	seedReadyGame(st, "g-crash")
+	perf := `{"gameId":"g-crash","runtimeVersion":"2026.10.22.1","kind":"perf","name":"PerfSample","message":"fps=60 quality=high frames=1500 dpr=2","logTail":[]}`
+	for i := 0; i < quarantineGameTotalThreshold+5; i++ {
+		if rec := post(t, srv, "/v1/telemetry/runtime-error", perf); rec.Code != http.StatusAccepted {
+			t.Fatalf("perf report %d: want 202, got %d", i, rec.Code)
+		}
+	}
+	game, _ := st.GetGame("g-crash")
+	if game.Quarantined {
+		t.Error("perf samples must never quarantine a game")
+	}
+	rec := get(t, srv, "/v1/telemetry/incidents")
+	var inc struct {
+		Incidents []incident `json:"incidents"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &inc); err != nil {
+		t.Fatalf("incidents json: %v", err)
+	}
+	if len(inc.Incidents) != 0 {
+		t.Errorf("perf samples must not appear as incidents: %+v", inc.Incidents)
+	}
+}
+
 // Below the threshold nothing happens.
 func TestBelowThresholdNoQuarantine(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
