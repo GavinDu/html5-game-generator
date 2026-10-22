@@ -106,6 +106,18 @@ var catalog = []checkDef{
 	{id: "design.rights_declared", category: CatDesign, severity: SeverityBlocking,
 		description: "Every source declares rightsStatus/consentStatus; permission_unknown rights block publication (questionnaire v2 §B).",
 		autoRepairable: false},
+	// Playtest: measured by the browser playtest worker (internal/playtest),
+	// merged into the report by MergePlaytest. These two exist only as
+	// measured results — the static validator never emits them. A boot or
+	// render failure is an environment/runtime fact, not something the
+	// deterministic repair loop may rewrite its way past, hence not
+	// auto-repairable.
+	{id: "playtest.boot_clean", category: CatSimulation, severity: SeverityBlocking,
+		description: "Playtest worker booted the game in a real browser: package loaded, zero runtime errors (including render-trap reports), frames advancing.",
+		autoRepairable: false},
+	{id: "playtest.render_nonblank", category: CatSimulation, severity: SeverityBlocking,
+		description: "Playtest probe census shows a drawn scene (visible entities on stage), not a blank or background-only stage.",
+		autoRepairable: false},
 }
 
 // checkIndex maps checkId -> catalog position.
