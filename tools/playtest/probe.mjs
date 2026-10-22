@@ -24,6 +24,7 @@
 // worker-level failure (browser missing, server unreachable).
 
 import { chromium, webkit } from 'playwright';
+import { scoreGame } from './quality-score.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 function arg(name, dflt) {
@@ -81,7 +82,7 @@ async function playGame(browser, gameId) {
     push('playtest.boot_clean', 'fail', 'page load failed: ' + e.message, null);
     push('playtest.render_nonblank', 'skip', 'page never loaded', null);
     await page.close().catch(() => {});
-    return { gameId, verdict: 'FAIL', checks, probe };
+    return { gameId, verdict: 'FAIL', checks, probe, quality: scoreGame(checks) };
   }
   const coldStartMs = Date.now() - navStart;
 
@@ -251,7 +252,7 @@ async function playGame(browser, gameId) {
   const failed = checks.some((c) => c.status === 'fail' &&
     (c.checkId === 'playtest.boot_clean' || c.checkId === 'playtest.render_nonblank' ||
      c.checkId === 'simulation.no_softlock'));
-  return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
+  return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe, quality: scoreGame(checks) };
 }
 
 async function main() {
