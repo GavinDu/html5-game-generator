@@ -215,10 +215,24 @@ async function run(id) {
 
   const assetURL = new Map((pkg.assets || []).map((a) => [a.id, a.url || a.uri]));
   const textures = new Map();
+  // Package asset URLs are extension-less (/v1/games/<id>/assets/<assetId>), and
+  // PIXI.Assets.load() resolves null for a URL it cannot match to a loader by
+  // extension — the null then kills Sprite construction ("reading 'texture'").
+  // Load the image element directly and build the texture from it instead; the
+  // browser sniffs the real format from the bytes.
+  async function loadTexture(url) {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error(`image load failed: ${url}`));
+      img.src = url;
+    });
+    return PIXI.Texture.from(img);
+  }
   for (const a of pkg.assets || []) {
     if (a.kind !== 'image') continue;
     try {
-      textures.set(a.id, await PIXI.Assets.load(assetURL.get(a.id)));
+      textures.set(a.id, await loadTexture(assetURL.get(a.id)));
     } catch (e) {
       log('PKG', `WARN asset '${a.id}' failed to load: ${e.message}`);
     }
