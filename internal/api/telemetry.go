@@ -4,10 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -67,9 +69,8 @@ func fingerprintRuntimeError(rep *runtimeErrorReport) string {
 }
 
 // POST /v1/telemetry/runtime-error — beacon target; accepts, fingerprints,
-// appends one JSONL record, and answers 202. Storage is a file for now
-// (DQ_TELEMETRY_DIR, default ./telemetry); the incident store is a later
-// phase of the flow.
+// appends one JSONL record, indexes the event for incident aggregation
+// and the auto-quarantine thresholds (Phase 2), and answers 202.
 func (s *Server) handleRuntimeError(w http.ResponseWriter, r *http.Request) {
 	var rep runtimeErrorReport
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
@@ -77,9 +78,10 @@ func (s *Server) handleRuntimeError(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad report", http.StatusBadRequest)
 		return
 	}
+	fp := fingerprintRuntimeError(&rep)
 	rec := map[string]any{
 		"receivedAt":  time.Now().UTC().Format(time.RFC3339),
-		"fingerprint": fingerprintRuntimeError(&rep),
+		"fingerprint": fp,
 		"report":      rep,
 	}
 	if line, err := json.Marshal(rec); err == nil {
@@ -96,5 +98,214 @@ func (s *Server) handleRuntimeError(w http.ResponseWriter, r *http.Request) {
 		}
 		telemetryMu.Unlock()
 	}
+	s.observeTelemetry(teleEvent{
+		Fingerprint: fp, GameID: rep.GameID, Kind: rep.Kind,
+		Name: rep.Name, Message: rep.Message, At: time.Now().UTC(),
+	})
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// --- Phase 2: incident aggregation + auto-quarantine ---------------------
+
+type teleEvent struct {
+	Fingerprint string
+	GameID      string
+	Kind        string
+	Name        string
+	Message     string
+	At          time.Time
+}
+
+// Auto-quarantine thresholds, evaluated over a trailing window. Seed
+// values from the fused design: one fingerprint repeating is a stronger
+// signal than raw volume, so its bar is lower.
+const (
+	quarantineWindow             = time.Hour
+	quarantineGameTotalThreshold = 10 // reports for one game inside the window
+	quarantineFingerprintThresh  = 5  // reports for one (game, fingerprint)
+	teleIndexCap                 = 10000
+)
+
+func telemetryDir() string {
+	if d := os.Getenv("DQ_TELEMETRY_DIR"); d != "" {
+		return d
+	}
+	return "telemetry"
+}
+
+// loadTeleIndexLocked reads the JSONL backlog once so incidents survive
+// restarts of the aggregation view (the raw log remains the source of
+// truth). Caller holds s.teleMu.
+func (s *Server) loadTeleIndexLocked() {
+	if s.teleLoaded {
+		return
+	}
+	s.teleLoaded = true
+	raw, err := os.ReadFile(filepath.Join(telemetryDir(), "runtime-errors.jsonl"))
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var rec struct {
+			ReceivedAt  string             `json:"receivedAt"`
+			Fingerprint string             `json:"fingerprint"`
+			Report      runtimeErrorReport `json:"report"`
+		}
+		if json.Unmarshal([]byte(line), &rec) != nil || rec.Fingerprint == "" {
+			continue
+		}
+		at, _ := time.Parse(time.RFC3339, rec.ReceivedAt)
+		s.teleEvents = append(s.teleEvents, teleEvent{
+			Fingerprint: rec.Fingerprint, GameID: rec.Report.GameID,
+			Kind: rec.Report.Kind, Name: rec.Report.Name,
+			Message: rec.Report.Message, At: at,
+		})
+	}
+}
+
+// observeTelemetry indexes one accepted report and evaluates the
+// auto-quarantine thresholds for its game.
+func (s *Server) observeTelemetry(ev teleEvent) {
+	s.teleMu.Lock()
+	s.loadTeleIndexLocked()
+	s.teleEvents = append(s.teleEvents, ev)
+	if len(s.teleEvents) > teleIndexCap {
+		s.teleEvents = s.teleEvents[len(s.teleEvents)-teleIndexCap:]
+	}
+	cutoff := ev.At.Add(-quarantineWindow)
+	total, sameFP := 0, 0
+	for _, e := range s.teleEvents {
+		if e.GameID != ev.GameID || e.At.Before(cutoff) {
+			continue
+		}
+		total++
+		if e.Fingerprint == ev.Fingerprint {
+			sameFP++
+		}
+	}
+	s.teleMu.Unlock()
+	if ev.GameID == "" || (total < quarantineGameTotalThreshold && sameFP < quarantineFingerprintThresh) {
+		return
+	}
+	game, ok := s.store.GetGame(ev.GameID)
+	if !ok || game.Quarantined {
+		return
+	}
+	game.Quarantined = true
+	game.QuarantineReason = fmt.Sprintf("auto: %d runtime-error reports in 60m, top fingerprint %s x%d",
+		total, ev.Fingerprint, sameFP)
+	game.UpdatedAt = time.Now()
+	s.store.UpdateGame(game)
+}
+
+type incident struct {
+	Fingerprint   string   `json:"fingerprint"`
+	Count         int      `json:"count"`
+	Games         []string `json:"games"`
+	Kinds         []string `json:"kinds,omitempty"`
+	SampleName    string   `json:"sampleName"`
+	SampleMessage string   `json:"sampleMessage"`
+	FirstSeen     string   `json:"firstSeen"`
+	LastSeen      string   `json:"lastSeen"`
+	RuntimeScope  bool     `json:"runtimeScope"` // same fingerprint on 2+ games => runtime bug, not content
+}
+
+// GET /v1/telemetry/incidents — aggregated incidents over every indexed
+// report, worst first.
+func (s *Server) handleIncidents(w http.ResponseWriter, r *http.Request) {
+	s.teleMu.Lock()
+	s.loadTeleIndexLocked()
+	byFP := map[string]*incident{}
+	gameSets := map[string]map[string]bool{}
+	kindSets := map[string]map[string]bool{}
+	for _, e := range s.teleEvents {
+		inc, ok := byFP[e.Fingerprint]
+		if !ok {
+			inc = &incident{Fingerprint: e.Fingerprint, SampleName: e.Name,
+				SampleMessage: e.Message, FirstSeen: e.At.Format(time.RFC3339)}
+			byFP[e.Fingerprint] = inc
+			gameSets[e.Fingerprint] = map[string]bool{}
+			kindSets[e.Fingerprint] = map[string]bool{}
+		}
+		inc.Count++
+		if e.At.Format(time.RFC3339) > inc.LastSeen {
+			inc.LastSeen = e.At.Format(time.RFC3339)
+		}
+		if e.At.Format(time.RFC3339) < inc.FirstSeen {
+			inc.FirstSeen = e.At.Format(time.RFC3339)
+		}
+		gameSets[e.Fingerprint][e.GameID] = true
+		if e.Kind != "" {
+			kindSets[e.Fingerprint][e.Kind] = true
+		}
+	}
+	s.teleMu.Unlock()
+	out := []*incident{}
+	for fp, inc := range byFP {
+		for g := range gameSets[fp] {
+			inc.Games = append(inc.Games, g)
+		}
+		for k := range kindSets[fp] {
+			inc.Kinds = append(inc.Kinds, k)
+		}
+		inc.RuntimeScope = len(inc.Games) >= 2
+		out = append(out, inc)
+	}
+	// Worst first; fingerprint order as the stable tiebreak.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Fingerprint < out[j].Fingerprint
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"incidents": out})
+}
+
+// POST /v1/games/{id}/quarantine — hide a game from the feed manually.
+func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
+	game, ok := s.store.GetGame(r.PathValue("id"))
+	if !ok {
+		http.Error(w, "game not found", http.StatusNotFound)
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req)
+	game.Quarantined = true
+	game.QuarantineReason = req.Reason
+	if game.QuarantineReason == "" {
+		game.QuarantineReason = "manual quarantine"
+	}
+	game.UpdatedAt = time.Now()
+	s.store.UpdateGame(game)
+	writeJSON(w, http.StatusOK, map[string]any{"game_id": game.ID, "quarantined": true, "reason": game.QuarantineReason})
+}
+
+// POST /v1/games/{id}/unquarantine — return a game to the feed and clear
+// its window of telemetry events so the same burst cannot instantly
+// re-quarantine it; new reports start a fresh window.
+func (s *Server) handleUnquarantine(w http.ResponseWriter, r *http.Request) {
+	game, ok := s.store.GetGame(r.PathValue("id"))
+	if !ok {
+		http.Error(w, "game not found", http.StatusNotFound)
+		return
+	}
+	game.Quarantined = false
+	game.QuarantineReason = ""
+	game.UpdatedAt = time.Now()
+	s.store.UpdateGame(game)
+	s.teleMu.Lock()
+	kept := s.teleEvents[:0]
+	for _, e := range s.teleEvents {
+		if e.GameID != game.ID {
+			kept = append(kept, e)
+		}
+	}
+	s.teleEvents = kept
+	s.teleMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"game_id": game.ID, "quarantined": false})
 }
