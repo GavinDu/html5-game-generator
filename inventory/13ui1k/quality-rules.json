@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0",
+  "thresholds": {
+    "minimumOverallScore": 80,
+    "minimumMetricScore": 70,
+    "requireCompleteCoverage": true
+  },
+  "hardGates": [
+    "playtest.boot_clean",
+    "playtest.render_nonblank",
+    "simulation.no_softlock"
+  ],
+  "weights": {
+    "playability": 20,
+    "reliability": 12,
+    "input_responsiveness": 8,
+    "performance": 8,
+    "visual_design": 8,
+    "character_design": 7,
+    "animation": 7,
+    "plot": 7,
+    "strategy": 8,
+    "level_design": 5,
+    "audio_feedback": 4,
+    "originality": 4,
+    "accessibility": 2
+  },
+  "path": "inventory/13ui1k/quality-rules.json",
+  "profile": "collect-and-restore-family-arcade",
+  "gameId": "sample-rainbow-bear",
+  "title": "Bobo's Rainbow",
+  "gameplayContract": {
+    "coreLoop": [
+      "tap/drag to move bear",
+      "collect falling hearts",
+      "show score and combo changes",
+      "restore six rainbow bands",
+      "survive the declared miss limit",
+      "advance to next round and restart after game over"
+    ],
+    "fairness": [
+      "hearts must be reachable within the playfield",
+      "spawn and fall speed must allow a reasonable reaction window",
+      "round speed increase must not make success practically impossible"
+    ],
+    "audience": "family; kid-friendly"
+  },
+  "reviewFocus": [
+    "Check that the bear, kitten, hearts, and rainbow read clearly at portrait mobile size.",
+    "Check whether collecting hearts visibly repairs the rainbow and communicates progress toward helping the kitten.",
+    "Evaluate whether missed hearts, combos, levels, and faster rounds create a fair learning curve.",
+    "Check touch targets, contrast, HUD overlap, and whether the restart affordance is actually usable."
+  ]
+}

@@ -4,6 +4,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { scoreGame } from '../../packages/game-quality-score/index.mjs';
 
+const repoRoot = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const [reportPath, reviewPath, outPath] = process.argv.slice(2);
 if (!reportPath) {
   console.error('Usage: node score-report.mjs playtest-report.json [ai-review.json] [out.json]');
