@@ -77,7 +77,7 @@ A score is a quality signal, not a substitute for hard delivery gates. The weigh
 | Originality and coherence | 4 | Distinctiveness and consistency between theme and mechanics |
 | Usability and accessibility | 2 | Legibility, control clarity, input alternatives, difficulty fairness |
 
-The scoring library is `tools/playtest/quality-score.mjs`. It combines objective measurements with optional AI review scores. AI review dimensions require both a rationale and evidence; unsupported scores are ignored. Objective scores cannot be overridden by the AI. If some dimensions are unassessed, `overallScore` stays null and `partialScore` is labeled with its coverage. This avoids presenting a partial score as a complete evaluation.
+The scoring library is the standalone package `packages/game-quality-score/`. It has no browser or LLM dependencies and can be used by any game generator, CI pipeline, or evaluation service. It combines objective measurements with optional AI review scores. AI review dimensions require both a rationale and evidence; unsupported scores are ignored. Objective scores cannot be overridden by the AI. If some dimensions are unassessed, `overallScore` stays null and `partialScore` is labeled with its coverage. This avoids presenting a partial score as a complete evaluation.
 
 ## Delivery policy
 
@@ -103,10 +103,8 @@ Use a 0–100 scale. Scores should be anchored: 90–100 exceptional, 75–89 st
 
 ## Run tests
 
-From `tools/playtest`:
+Run standalone scoring tests (no browser binaries required): `cd packages/game-quality-score && npm test`.
 
-```sh
-npm test
-```
+Run worker integration tests: `cd tools/playtest && npm test`.
 
 The current worker can still be run against a live server using the documented `go run ./cmd/playtest -base ...` command. Browser tests require Playwright and its browser binaries to be installed.

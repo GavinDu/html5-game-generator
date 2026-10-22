@@ -49,7 +49,10 @@ jobs:
       - name: Install playtest worker
         working-directory: tools/playtest
         run: npm install --no-audit --no-fund
-      - name: Test quality scoring
+      - name: Test standalone game quality scoring
+        working-directory: packages/game-quality-score
+        run: npm test
+      - name: Test playtest worker integration
         working-directory: tools/playtest
         run: npm test
       - name: Install browser dependencies

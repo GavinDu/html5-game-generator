@@ -2,7 +2,7 @@
 // Merge an evidence-backed AI review into a browser playtest report.
 // Usage: node score-report.mjs playtest-report.json [ai-review.json] [out.json]
 import { readFile, writeFile } from 'node:fs/promises';
-import { scoreGame } from './quality-score.mjs';
+import { scoreGame } from '../../packages/game-quality-score/index.mjs';
 
 const [reportPath, reviewPath, outPath] = process.argv.slice(2);
 if (!reportPath) {

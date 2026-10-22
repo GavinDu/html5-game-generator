@@ -24,7 +24,7 @@
 // worker-level failure (browser missing, server unreachable).
 
 import { chromium, webkit } from 'playwright';
-import { scoreGame } from './quality-score.mjs';
+import { scoreGame } from '../../packages/game-quality-score/index.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 function arg(name, dflt) {
@@ -257,8 +257,10 @@ async function playGame(browser, gameId) {
 
 async function main() {
   const gameIdsArg = (arg('games', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const obscuraCDP = process.env.OBSCURA_CDP_URL;
+  if (obscuraCDP && browserName === 'webkit') throw new Error('OBSCURA_CDP_URL requires --browser chromium; keep WebKit for iOS compatibility coverage.');
   const engine = browserName === 'webkit' ? webkit : chromium;
-  const browser = await engine.launch();
+  const browser = obscuraCDP ? await chromium.connectOverCDP(obscuraCDP) : await engine.launch();
   try {
     const gameIds = gameIdsArg.length ? gameIdsArg : await feedGames();
     const games = [];

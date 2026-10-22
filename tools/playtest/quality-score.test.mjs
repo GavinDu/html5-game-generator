@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { METRICS, scoreGame } from './quality-score.mjs';
+import { METRICS, scoreGame } from '../../packages/game-quality-score/index.mjs';
 
 const passing = [
   { checkId: 'playtest.boot_clean', status: 'pass', evidence: '0 runtime errors' },

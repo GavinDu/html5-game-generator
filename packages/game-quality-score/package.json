@@ -1,0 +1,12 @@
+{
+  "name": "@doodlequest/game-quality-score",
+  "version": "1.0.0",
+  "description": "Standalone, evidence-backed scoring rubric for generated games",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
