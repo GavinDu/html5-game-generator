@@ -1160,6 +1160,15 @@ async function run(id) {
   let frameNo = 0;
   let tickErrLogged = false;
   let censusLogged = false;
+  const computeCensus = () => {
+    const parts = [`worldLayer@(${worldLayer.position.x.toFixed(0)},${worldLayer.position.y.toFixed(0)})`];
+    let n = 0;
+    for (const ent of entities.values()) {
+      if (n++ >= 4) break;
+      parts.push(`${ent.def.id}@(${ent.view.position.x.toFixed(0)},${ent.view.position.y.toFixed(0)}) a=${ent.view.alpha} vis=${ent.view.visible} scale=${ent.view.scale.x.toFixed(2)}`);
+    }
+    return parts.join(' | ');
+  };
   app.ticker.add((ticker) => {
     frameNo++;
     totalFrames++;
@@ -1172,16 +1181,17 @@ async function run(id) {
       }
       return;
     }
-    if (!censusLogged && frameNo >= 30) {
-      censusLogged = true;
-      const parts = [`worldLayer@(${worldLayer.position.x.toFixed(0)},${worldLayer.position.y.toFixed(0)})`];
-      let n = 0;
-      for (const ent of entities.values()) {
-        if (n++ >= 4) break;
-        parts.push(`${ent.def.id}@(${ent.view.position.x.toFixed(0)},${ent.view.position.y.toFixed(0)}) a=${ent.view.alpha} vis=${ent.view.visible} scale=${ent.view.scale.x.toFixed(2)}`);
+    // Census: first at frame 30 (the probe's boot evidence), then
+    // refreshed every 60 frames so the probe verdict stays a LIVE
+    // position sample — the playtest worker's softlock check reads
+    // movement from it. A frozen census under input is the signature
+    // of a frozen world; a one-shot census could never show that.
+    if (frameNo >= 30 && (frameNo - 30) % 60 === 0) {
+      lastCensus = computeCensus();
+      if (!censusLogged) {
+        censusLogged = true;
+        log('RT', 'CENSUS ' + lastCensus);
       }
-      lastCensus = parts.join(' | ');
-      log('RT', 'CENSUS ' + lastCensus);
     }
   });
   function tickFrame(ticker) {
