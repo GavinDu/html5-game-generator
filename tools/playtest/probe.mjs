@@ -57,6 +57,10 @@ function scoreOf(hud) {
   return m ? Number(m[1]) : 0;
 }
 
+async function readProbe(pg) {
+  return pg.evaluate(() => window.__dqProbe || null).catch(() => null);
+}
+
 async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
@@ -347,6 +351,101 @@ async function playGame(browser, gameId) {
         push('shell.restart_in_place', 'skip', 'result card missing; restart not attempted', null);
       }
     }
+  }
+
+  // --- Phase C: determinism + replay verification ---------------------
+  // Determinism: two fresh pages, same seed, same scripted step-level
+  // inputs — the fixed-timestep sim must land on the same final score.
+  try {
+    const script = [];
+    for (let i = 0; i <= 10; i++) {
+      script.push({ tick: 30 + i * 30, type: 'pointer', detail: `${90 + i * 21},720` });
+    }
+    script.push({ tick: 370, type: 'pointerup', detail: '' });
+    const scriptedScore = async () => {
+      const p2 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      try {
+        await p2.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&seed=777`,
+          { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await p2.waitForFunction(() => {
+          const el = document.querySelector('#probe-result');
+          if (!el) return false;
+          try { return JSON.parse(el.textContent).booted === true; } catch { return false; }
+        }, { timeout: 25000 });
+        await p2.evaluate((s) => { window.__dqScripted = s; }, script);
+        const hasCard = await p2.evaluate(() => !!document.querySelector('#shell-start.on'));
+        if (hasCard) await p2.click('#shell-start-btn');
+        else await p2.evaluate(() => { window.__dqBeginPlay && window.__dqBeginPlay(); });
+        const t0 = Date.now();
+        while (Date.now() - t0 < 30000) {
+          const st = await p2.evaluate(() => ({
+            step: window.__dqPlay ? window.__dqPlay.simStep : 0,
+            ended: !!(window.__dqPlay && window.__dqPlay.shellStarted && document.querySelector('#shell-result.on')),
+          })).catch(() => ({ step: 0 }));
+          if (st.step >= 430 || st.ended) break;
+          await sleep(300);
+        }
+        const v = await readProbe(p2);
+        return v ? v.score : null;
+      } finally {
+        await p2.close().catch(() => {});
+      }
+    };
+    const s1 = await scriptedScore();
+    const s2 = await scriptedScore();
+    if (s1 === null || s2 === null) {
+      push('simulation.determinism', 'skip', 'scripted runs did not produce a readable score', { s1, s2 });
+    } else if (s1 === s2) {
+      push('simulation.determinism', 'pass',
+        `seed 777 + identical scripted trace produced score ${s1} in both runs`, { s1, s2 });
+    } else {
+      push('simulation.determinism', 'fail',
+        `same seed + same scripted trace diverged: run A score ${s1}, run B score ${s2}`, { s1, s2 });
+    }
+  } catch (e) {
+    push('simulation.determinism', 'skip', `determinism probe errored: ${String(e).slice(0, 120)}`, null);
+  }
+  // Replay verification: when the main session won and its run was
+  // submitted, replay the recorded trace and require an exact match.
+  try {
+    let runId = probe && probe.lastRunId;
+    for (let i = 0; i < 20 && !runId; i++) {
+      await sleep(400);
+      const v = await readProbe(page).catch(() => null);
+      if (v) { probe = v; runId = v.lastRunId; }
+    }
+    if (!won) {
+      push('leaderboard.replay_verified', 'skip', 'bot did not win this session; no winning run to verify', null);
+    } else if (!runId) {
+      push('leaderboard.replay_verified', 'skip', 'no submitted run id observed after the win (submission may have been rejected)', null);
+    } else {
+      const p3 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      try {
+        await p3.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&replay=${encodeURIComponent(runId)}`,
+          { waitUntil: 'domcontentloaded', timeout: 30000 });
+        let verdict = null;
+        const t0 = Date.now();
+        while (Date.now() - t0 < 45000) {
+          const v = await readProbe(p3).catch(() => null);
+          if (v && v.replay) { verdict = v.replay; break; }
+          await sleep(500);
+        }
+        if (!verdict) {
+          push('leaderboard.replay_verified', 'fail',
+            `replay of ${runId} produced no verdict within 45s`, { runId });
+        } else if (verdict.match) {
+          push('leaderboard.replay_verified', 'pass',
+            `replay of ${runId} reproduced the submitted score exactly (${verdict.actual})`, verdict);
+        } else {
+          push('leaderboard.replay_verified', 'fail',
+            `replay of ${runId} diverged: expected ${verdict.expected}, replayed ${verdict.actual}${verdict.reason ? ' (' + verdict.reason + ')' : ''}`, verdict);
+        }
+      } finally {
+        await p3.close().catch(() => {});
+      }
+    }
+  } catch (e) {
+    push('leaderboard.replay_verified', 'skip', `replay probe errored: ${String(e).slice(0, 120)}`, null);
   }
 
   if (shotsDir) {
