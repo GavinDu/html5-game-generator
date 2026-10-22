@@ -98,10 +98,15 @@ func (s *Server) handleRuntimeError(w http.ResponseWriter, r *http.Request) {
 		}
 		telemetryMu.Unlock()
 	}
-	s.observeTelemetry(teleEvent{
-		Fingerprint: fp, GameID: rep.GameID, Kind: rep.Kind,
-		Name: rep.Name, Message: rep.Message, At: time.Now().UTC(),
-	})
+	// Perf samples are filed (the JSONL above) but never indexed: they
+	// are high-volume by design and must not count toward the incident
+	// or auto-quarantine thresholds, which are error signals.
+	if rep.Kind != "perf" {
+		s.observeTelemetry(teleEvent{
+			Fingerprint: fp, GameID: rep.GameID, Kind: rep.Kind,
+			Name: rep.Name, Message: rep.Message, At: time.Now().UTC(),
+		})
+	}
 	w.WriteHeader(http.StatusAccepted)
 }
 
