@@ -1,0 +1,1 @@
+{"dependencies":{"playwright":"^1.49.0"},"description":"DoodleQuest browser playtest worker (fused detect-and-fix flow, Phase 1)","name":"dq-playtest","private":true,"type":"module","version":"1.0.0"}
