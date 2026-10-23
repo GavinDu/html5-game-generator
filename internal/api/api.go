@@ -39,19 +39,19 @@ var pixiVendorJS string
 var rapierVendorJS string
 
 type Server struct {
-	store         store.Store
-	runner        *pipeline.Runner
-	socialMu      sync.RWMutex
-	follows       map[string]map[string]struct{}
-	reactions     map[string]map[string]string
-	comments      map[string][]socialComment
-	saves         map[string]map[string]bool
-	blocks        map[string]map[string]bool
-	notInterested map[string]map[string]bool
-	mutedTopics	map[string]map[string]bool
-	commentIdempotency	map[string]commentIdempotencyRecord
-	reports       []socialReport
-	events        []socialEvent
+	store              store.Store
+	runner             *pipeline.Runner
+	socialMu           sync.RWMutex
+	follows            map[string]map[string]struct{}
+	reactions          map[string]map[string]string
+	comments           map[string][]socialComment
+	saves              map[string]map[string]bool
+	blocks             map[string]map[string]bool
+	notInterested      map[string]map[string]bool
+	mutedTopics        map[string]map[string]bool
+	commentIdempotency map[string]commentIdempotencyRecord
+	reports            []socialReport
+	events             []socialEvent
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -596,10 +596,12 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		topicMuted := false
-		for _, topic := range g.Topics { if mutedTopics[strings.ToLower(strings.TrimSpace(strings.TrimPrefix(topic, "#")))] {
+		for _, topic := range g.Topics {
+			if mutedTopics[strings.ToLower(strings.TrimSpace(strings.TrimPrefix(topic, "#")))] {
 				topicMuted = true
 				break
-			} }
+			}
+		}
 		if topicMuted {
 			continue
 		}
