@@ -51,7 +51,7 @@
       "objective": {
         "kind": "collect",
         "target": 10,
-        "label": "Gather 10 sky shards"
+        "label": "收集 10 块天空碎片"
       },
       "failure": {
         "mode": "health",
@@ -60,7 +60,7 @@
       },
       "targetSessionSec": 25,
       "firstRewardWithinSec": 10,
-      "milestones": 3,
+      "milestones": 4,
       "scenes": 1
     }
   },
