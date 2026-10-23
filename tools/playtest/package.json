@@ -8,6 +8,6 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "test": "node --test runtime-performance.test.mjs quality-score.test.mjs"
+    "test": "node --test runtime-performance.test.mjs quality-score.test.mjs score-report.test.mjs"
   }
 }
