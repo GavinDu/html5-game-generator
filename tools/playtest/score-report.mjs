@@ -318,6 +318,7 @@ for (const game of report.games) {
       try {
         await copyFile(join(resolve(shotsDir), `${game.gameId}.png`), join(dir, 'end.png'));
         shotName = 'end.png';
+        try { await copyFile(join(resolve(shotsDir), `${game.gameId}.mid.png`), join(dir, 'mid.png')); } catch { /* mid shot is best-effort */ }
       } catch { /* no screenshot for this game */ }
     }
     const judgeView = {
