@@ -93,6 +93,9 @@ func (s *Server) handleRepairProposal(w http.ResponseWriter, r *http.Request) {
 // the proposed IR as the game's current version. Refuses when there is
 // no live proposal or the proposed IR does not validate.
 func (s *Server) handleRepairApply(w http.ResponseWriter, r *http.Request) {
+	if !requireModerationToken(w, r) {
+		return
+	}
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "game not found")
