@@ -31,7 +31,7 @@
 //        [--budget 40] [--mutant missing-asset|no-win|runtime-throw|dead-pointer]
 //        [--out out]
 
-import { chromium } from 'playwright-core';
+import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -39,15 +39,21 @@ import path from 'node:path';
 import { heuristicBrain } from './brains/heuristic.mjs';
 
 function resolveChromium() {
+  // Explicit override wins; otherwise return undefined and let the
+  // playwright package resolve the browser from its own registry
+  // (the global-glob approach broke in CI: cache layout varies).
   if (process.env.PW_CHROMIUM && fs.existsSync(process.env.PW_CHROMIUM)) return process.env.PW_CHROMIUM;
   const cache = path.join(os.homedir(), '.cache', 'ms-playwright');
   try {
-    for (const d of fs.readdirSync(cache).filter((x) => x.startsWith('chromium-')).sort().reverse()) {
-      const p = path.join(cache, d, 'chrome-linux', 'chrome');
-      if (fs.existsSync(p)) return p;
+    for (const d of fs.readdirSync(cache).filter((x) => x.startsWith('chromium')).sort().reverse()) {
+      for (const sub of ['chrome-linux/chrome', 'chrome-linux64/chrome']) {
+        const p = path.join(cache, d, sub);
+        if (fs.existsSync(p)) return p;
+      }
     }
   } catch { /* no cache */ }
-  return '/opt/pw-browsers/chromium';
+  if (fs.existsSync('/opt/pw-browsers/chromium')) return '/opt/pw-browsers/chromium';
+  return undefined;
 }
 
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d; };
@@ -315,7 +321,9 @@ async function runGame(browser, id) {
 const feed = await (await fetch(base + '/v1/feed')).json();
 const ids = (arg('games', '') || '').split(',').filter(Boolean);
 const games = ids.length ? ids : (feed.games || feed).map((g) => g.game_id || g.id);
-const browser = await chromium.launch({ executablePath: resolveChromium(),
+const chromiumPath = resolveChromium();
+console.log(`chromium: ${chromiumPath || '(playwright registry default)'}`);
+const browser = await chromium.launch({ ...(chromiumPath ? { executablePath: chromiumPath } : {}),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const results = [];
 for (const g of games) results.push(await runGame(browser, g));
