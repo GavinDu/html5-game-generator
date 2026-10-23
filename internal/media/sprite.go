@@ -102,12 +102,12 @@ func RainbowBandPNG(band int) []byte {
 	const W, H = 380, 230
 	img := image.NewNRGBA(image.Rect(0, 0, W, H))
 	cols := []color.NRGBA{
-		{231, 76, 60, 255},   // red
-		{230, 126, 34, 255},  // orange
-		{241, 196, 15, 255},  // yellow
-		{46, 204, 113, 255},  // green
-		{52, 152, 219, 255},  // blue
-		{155, 89, 182, 255},  // purple
+		{231, 76, 60, 255},  // red
+		{230, 126, 34, 255}, // orange
+		{241, 196, 15, 255}, // yellow
+		{46, 204, 113, 255}, // green
+		{52, 152, 219, 255}, // blue
+		{155, 89, 182, 255}, // purple
 	}
 	if band < 0 || band > 5 {
 		band = 0
