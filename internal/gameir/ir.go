@@ -349,14 +349,23 @@ type Metadata struct {
 }
 
 var (
-	assetKinds     = enum("image", "audio", "video", "tilemap", "font", "data")
+	// The accepted vocabulary is exactly what the runtime implements
+	// (decided 2026-10-23: Game IR is the committed path, no JS escape
+	// hatch). Growing the IR means implementing a kind in the runtime
+	// and declaring it here in the same change — never the reverse.
+	// assetKinds was narrowed from image/audio/video/tilemap/font/data:
+	// the runtime loads image and audio assets only.
+	assetKinds     = enum("image", "audio")
 	assetSources   = enum("user_upload", "user_drawing", "generated", "licensed_library", "platform")
 	entityKinds    = enum("player", "enemy", "obstacle", "pickup", "decoration", "trigger", "text")
 	componentKinds = enum("movement", "health", "score", "collider", "collectible", "timer", "animation", "follow_path", "text_label", "physics_body", "character_controller", "particles", "tween", "filter")
-	inputKinds     = enum("tap", "drag", "swipe", "virtual_joystick", "button", "tilt", "keyboard")
-	eventKinds     = enum("game_start", "input", "collision", "collected", "timer_elapsed", "score_reached", "health_changed", "scene_entered", "contact_started", "contact_stopped", "contact_force", "entity_destroyed", "variable_changed", "region_entered", "region_exited", "animation_complete")
-	actionKinds    = enum("add_score", "set_variable", "move_entity", "destroy_entity", "spawn_entity", "play_sound", "show_text", "change_scene", "set_health", "end_game", "change_health", "apply_impulse", "set_velocity", "set_angular_velocity", "add_force", "set_gravity", "teleport_entity", "set_alpha", "set_tint", "set_visible", "set_asset", "emit_particles", "camera_shake", "camera_follow")
-	operators      = enum("eq", "neq", "gt", "gte", "lt", "lte")
+	// inputKinds narrowed the same day: the runtime executes tap, drag
+	// and keyboard bindings. swipe, virtual_joystick, button and tilt
+	// were declarable but dead (two shipped artifacts declared them).
+	inputKinds  = enum("tap", "drag", "keyboard")
+	eventKinds  = enum("game_start", "input", "collision", "collected", "timer_elapsed", "score_reached", "health_changed", "scene_entered", "contact_started", "contact_stopped", "contact_force", "entity_destroyed", "variable_changed", "region_entered", "region_exited", "animation_complete")
+	actionKinds = enum("add_score", "set_variable", "move_entity", "destroy_entity", "spawn_entity", "play_sound", "show_text", "change_scene", "set_health", "end_game", "change_health", "apply_impulse", "set_velocity", "set_angular_velocity", "add_force", "set_gravity", "teleport_entity", "set_alpha", "set_tint", "set_visible", "set_asset", "emit_particles", "camera_shake", "camera_follow")
+	operators   = enum("eq", "neq", "gt", "gte", "lt", "lte")
 
 	behaviorKinds     = enum("fall", "chase", "patrol", "oscillate", "spin", "pulse", "drift", "orbit")
 	capabilityKinds   = enum("render.sprite", "render.animation", "render.shape", "render.text", "render.filters", "render.particles", "render.parallax", "physics.bodies", "physics.colliders", "physics.joints", "physics.character_controller", "physics.queries", "fx.tween", "fx.camera", "fx.emitters", "audio", "input.keyboard", "input.pointer", "shell.v1")
