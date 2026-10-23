@@ -182,6 +182,12 @@ type Render struct {
 	Text      *TextSpec        `json:"text,omitempty"`
 	Filters   []Filter         `json:"filters,omitempty"`
 	Particles *ParticleEmitter `json:"particles,omitempty"`
+	// ZIndex orders the entity's view within its scene (PIXI
+	// sortableChildren). The runtime has honored render.zIndex since
+	// the shell era, but the field was never declared here, so the
+	// strict decoder rejected IRs that used it (found 2026-10-23
+	// when the Escape runner needed to draw above its chaser).
+	ZIndex *int `json:"zIndex,omitempty"`
 }
 
 type Animation struct {
