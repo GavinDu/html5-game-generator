@@ -1,0 +1,375 @@
+{
+  "gameId": "escape-from-injection",
+  "title": null,
+  "irHash": "cffae4575027",
+  "runtimeVersion": "2026.10.22.4",
+  "frozenAt": "2026-10-22",
+  "source": "CI run 39887049881 (chromium playtest) + two blind judge passes",
+  "quality": {
+    "schemaVersion": "1.2",
+    "profile": "lane-dodging-endless-chase",
+    "thresholds": {
+      "minimumOverallScore": 80,
+      "minimumMetricScore": 70,
+      "minimumMeasuredScore": 60,
+      "requireCompleteCoverage": true
+    },
+    "subscores": {
+      "measured": {
+        "score": 76.7,
+        "weight": 48
+      },
+      "creative": {
+        "score": 40.5,
+        "weight": 52
+      }
+    },
+    "overallScore": null,
+    "partialScore": 56.2,
+    "coveragePercent": 92,
+    "grade": "incomplete",
+    "deliveryGate": "pass",
+    "deliveryReady": true,
+    "hardGates": [
+      {
+        "id": "playtest.boot_clean",
+        "status": "pass"
+      },
+      {
+        "id": "playtest.render_nonblank",
+        "status": "pass"
+      },
+      {
+        "id": "simulation.no_softlock",
+        "status": "pass"
+      }
+    ],
+    "missingMetrics": [
+      "input_responsiveness"
+    ],
+    "dimensions": [
+      {
+        "id": "playability",
+        "label": "Minimum playability",
+        "weight": 20,
+        "score": 80,
+        "evidence": "playtest.boot_clean=pass (booted, 12 frames at first verdict, 0 errors); playtest.render_nonblank=pass (probe census shows 4 sampled entities, visible: worldLayer@(0,0) | player@(195,660) a=1 vis=true scale=0.54 | star@(275,767) a=1 vis=true scale=0.47 | star_gold@(83,766) a=1 vis=true scale=0.47 | syringe@(128); simulation.no_softlock=pass (HUD/status/error state changed during bot play; no frozen state observed); simulation.win_reachable=skip (bot did not reach a win inside the play budget; reachability unproven (not a fail)); shell.start_card=pass (start card shown before play: \"Escape from the Injection\" / \"Collect 15 stars to escape\"); shell.result_card=skip (no run ended during bot play; result card unobserved); shell.restart_in_place=skip (no run ended during bot play; restart unobserved); simulation.determinism=skip (scripted runs did not produce a readable score); leaderboard.replay_verified=skip (bot did not win this session; no winning run to verify); hook.first_reward=skip (14s of bot play produced no score change; reward timing unproven)",
+        "rationale": "Graded from measured browser evidence (see evidence)."
+      },
+      {
+        "id": "reliability",
+        "label": "Runtime reliability",
+        "weight": 12,
+        "score": 100,
+        "evidence": "playtest.boot_clean=pass (booted, 12 frames at first verdict, 0 errors); errors=0, warnClasses=0",
+        "rationale": "Measured evidence at full marks."
+      },
+      {
+        "id": "input_responsiveness",
+        "label": "Input responsiveness",
+        "weight": 8,
+        "score": null,
+        "evidence": "hook.time_to_input=skip (no input prompt observed within 6s); hook.first_reward=skip (14s of bot play produced no score change; reward timing unproven)",
+        "rationale": "Insufficient browser evidence; unscored."
+      },
+      {
+        "id": "performance",
+        "label": "Performance",
+        "weight": 8,
+        "score": 33.3,
+        "evidence": "budgets.cold_start=pass (navigation to booted-with-frames in 728ms (contract <= 3000ms)); jankRate=0.974, p95FrameMs=100",
+        "rationale": "Graded from measured browser evidence (see evidence)."
+      },
+      {
+        "id": "visual_design",
+        "label": "Visual beauty and cohesion",
+        "weight": 8,
+        "score": 42,
+        "evidence": "end.png: uniform mint field, ~40 grey circles of varying sizes with no distinguishing treatment, dashed lane dividers, header reads 'cape from the Injection' (left-clipped); census lists worldLayer, player, star, star_gold, syringe \u2014 yet only stars are identifiable in the image.",
+        "rationale": "The frame is a flat mint background scattered with dozens of undifferentiated grey blobs, two dashed lane lines, and two yellow stars. The stars pop nicely, but nothing else has visual hierarchy: the blobs could be decoration, obstacles, or background cells \u2014 the player cannot tell \u2014 and the header title is clipped at the left edge. It reads as a placeholder scene rather than a composed chase."
+      },
+      {
+        "id": "character_design",
+        "label": "Character design and readability",
+        "weight": 7,
+        "score": 27.5,
+        "evidence": "census: 'player@(195,660) scale=0.54' \u2014 the corresponding area of end.png shows only grey blobs; no chaser entity appears in census or screenshot despite intent 'outrun the chaser'.",
+        "rationale": "The central readability contract fails: the census says a player character is on stage at (195,660), but no runner character can be identified anywhere in the screenshot, and the chaser promised by the premise is absent from both the census and the image. A chase game whose runner and pursuer are invisible has no characters in any functional sense."
+      },
+      {
+        "id": "animation",
+        "label": "Animation and game feel",
+        "weight": 7,
+        "score": 34,
+        "evidence": "observations.framesRendered = 39; events = [start] only; experience.feedback = {haptics: 'none', juice: 'standard'}.",
+        "rationale": "There is effectively no animation evidence: the captured session is 39 frames containing a single start event \u2014 no movement outcome, collect, dodge, hit, or speed change was observed \u2014 and the declared feedback is generic 'juice: standard' with haptics none. Whatever motion the game has is unverifiable from this pack, and nothing in the still frame suggests expressive movement (no speed lines, lean, or chase framing)."
+      },
+      {
+        "id": "plot",
+        "label": "Plot and emotional arc",
+        "weight": 7,
+        "score": 42.5,
+        "evidence": "intent: 'Tap to switch lanes, dodge the syringes, grab the stars, and outrun the chaser'; end.png shows none of syringe/chaser/runner recognizably; status line is the generic 'Collect 15 stars to escape'.",
+        "rationale": "The premise is funny \u2014 flee the syringe, grab stars, escape \u2014 but none of it is expressed in the observed play: no syringe is recognizable in the frame, there is no chaser, no runner, and no location change or escape beat is evidenced. The story exists only in the title and the status line, contradicting the game's own humorous-chase promise."
+      },
+      {
+        "id": "strategy",
+        "label": "Strategy and meaningful choices",
+        "weight": 8,
+        "score": 50,
+        "evidence": "experience: health 3, invulnerableMs 1000, ramp to 1.45, target 15 stars; HUD at end '\u2605 0/15 \u2665 3'; events contain no input, collect, or damage.",
+        "rationale": "The declared structure has the bones of risk/reward \u2014 three lanes, stars to detour for, syringes to avoid, 3 health with an invulnerability window, and a speed ramp. In the observed frame, though, hazards and decoration are the same grey blobs, so a player cannot make informed choices; and the session evidence shows zero stars collected and zero decisions, so the strategic layer is designed but not demonstrated."
+      },
+      {
+        "id": "level_design",
+        "label": "Level and progression design",
+        "weight": 5,
+        "score": 45,
+        "evidence": "milestones [0.33, 0.67, 1] with no milestoneVisualsdeclared (unlike the other games); end.png blob density is high across all lanes; events end at start.",
+        "rationale": "The lane layout is visible and the pacing template (40s session, ramp, milestones at thirds) is reasonable for a dodger. But milestones declare no visuals, no location changes are evidenced despite the review focus asking about them, and the single observed session never progresses past the start \u2014 so escalation and variety remain unproven, and the dense blob field suggests obstacle density may overwhelm lane readability."
+      },
+      {
+        "id": "audio_feedback",
+        "label": "Audio and feedback",
+        "weight": 4,
+        "score": 24,
+        "evidence": "experience.feedback = {haptics: 'none', juice: 'standard'}; full design contains no audio specification; event tail has only a start event.",
+        "rationale": "No audio is declared or evidenced at all: no sound fields in the design, haptics set to none, and no events that would carry audio cues. A chase game lives on tension feedback \u2014 near-miss, hit, collect \u2014 and none of it is present in the evidence."
+      },
+      {
+        "id": "originality",
+        "label": "Originality and coherence",
+        "weight": 4,
+        "score": 56.5,
+        "evidence": "title/intent promise a humorous syringe chase; end.png visuals are abstract shapes with no thematic rendering of the premise.",
+        "rationale": "The concept \u2014 a cartoon fugitive outrunning an injection, collecting stars across lanes \u2014 is genuinely funny and distinctive, and the non-graphic treatment brief is the right instinct for the audience. But the realized visuals are generic (blobs, dashed lines, stars), so the originality lives entirely in the title rather than in anything the player sees."
+      },
+      {
+        "id": "accessibility",
+        "label": "Usability and accessibility",
+        "weight": 2,
+        "score": 46.5,
+        "evidence": "end.png: player not identifiable at census position; syringe indistinguishable from ~40 decorative grey blobs; header 'cape from the Injection' clipped at left; controls.scheme = drag_x; HUD '\u2605 0/15 \u2665 3' legible.",
+        "rationale": "The control scheme (single drag) and the high-contrast yellow stars are accessible basics, and HUD icons are clear. But the core playability accessibility fails: the player character cannot be located visually, hazards cannot be distinguished from decoration, and the title is clipped at the frame edge. A game you cannot visually parse is not accessible regardless of control simplicity."
+      }
+    ],
+    "weightsTotal": 100,
+    "target": {
+      "minimumOverallScore": 80,
+      "minimumMetricScore": 70,
+      "minimumMeasuredScore": 60,
+      "measuredScore": 76.7,
+      "measuredTargetMet": true,
+      "overallTargetMet": false,
+      "allMetricsMeetFloor": false,
+      "completeCoverage": false,
+      "targetMet": false
+    },
+    "belowFloor": [
+      {
+        "metricId": "performance",
+        "score": 33.3,
+        "minimum": 70
+      },
+      {
+        "metricId": "visual_design",
+        "score": 42,
+        "minimum": 70
+      },
+      {
+        "metricId": "character_design",
+        "score": 27.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "animation",
+        "score": 34,
+        "minimum": 70
+      },
+      {
+        "metricId": "plot",
+        "score": 42.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "strategy",
+        "score": 50,
+        "minimum": 70
+      },
+      {
+        "metricId": "level_design",
+        "score": 45,
+        "minimum": 70
+      },
+      {
+        "metricId": "audio_feedback",
+        "score": 24,
+        "minimum": 70
+      },
+      {
+        "metricId": "originality",
+        "score": 56.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "accessibility",
+        "score": 46.5,
+        "minimum": 70
+      }
+    ],
+    "improvementSuggestions": [
+      {
+        "metricId": "character_design",
+        "priority": "high",
+        "problem": "The player character is not identifiable in the rendered frame and the chaser is entirely absent, so the chase has no visible participants.",
+        "suggestion": "Give the runner a distinct, saturated silhouette (e.g. a bright cartoon character with a running pose) rendered above all background elements with a soft outline, and add the chaser as a large readable pursuer entering from the top/bottom edge whose distance communicates pressure."
+      },
+      {
+        "metricId": "visual_design",
+        "priority": "high",
+        "problem": "Hazards, decoration, and background are the same grey blobs; nothing in the scene reads as 'syringe' or communicates danger.",
+        "suggestion": "Render syringes as clearly shaped cartoon syringes (barrel, needle, plunger) in a warning color with a subtle bobbing motion, demote background blobs to a much lighter, sparser texture, and reserve saturated colors exclusively for interactive entities: runner, syringe, stars."
+      },
+      {
+        "metricId": "plot",
+        "priority": "high",
+        "problem": "The humorous premise exists only in text; the visuals contradict it with abstract shapes.",
+        "suggestion": "Theme the lanes as a clinic hallway (floor tiles, wall trim, door frames scrolling past) and stage the win as bursting through exit doors, so the environment itself tells the escape story while staying non-graphic and child-appropriate."
+      },
+      {
+        "metricId": "accessibility",
+        "priority": "high",
+        "problem": "Players cannot distinguish what to dodge from what to ignore, and the header title is clipped.",
+        "suggestion": "Adopt a strict visual grammar \u2014 hazards one shape family + warning color + outline, collectibles another, decoration desaturated and low-contrast \u2014 verify the player sprite is findable within one second in a still frame, and add safe-area padding to the header."
+      },
+      {
+        "metricId": "strategy",
+        "priority": "medium",
+        "problem": "Because hazards are unreadable, star detours cannot be weighed as risk/reward, undermining the core decision loop.",
+        "suggestion": "Once syringes are visually distinct, place stars deliberately in riskier lane positions near syringe paths (with occasional safe-lane stars) so each star presents a real, readable choice."
+      },
+      {
+        "metricId": "animation",
+        "priority": "medium",
+        "problem": "No evidenced motion language \u2014 no run cycle, dodge lean, near-miss feedback, or speed sensation.",
+        "suggestion": "Add a simple two-frame run cycle, a lateral lean when switching lanes, scrolling floor markings that accelerate with the speed ramp, and a brief screen-edge pulse on near-miss to sell the chase."
+      },
+      {
+        "metricId": "level_design",
+        "priority": "medium",
+        "problem": "Milestones have no declared visuals and no location changes are evidenced, so a 40-second session risks monotony.",
+        "suggestion": "Declare milestone visuals (e.g. hallway color/theme shift at 1/3 and 2/3 with a 'Almost there!' banner) and thin the early obstacle density so the first 10 seconds teach lanes before the ramp bites."
+      },
+      {
+        "metricId": "audio_feedback",
+        "priority": "medium",
+        "problem": "No declared or evidenced sound for collects, hits, or near-misses in a tension-driven game.",
+        "suggestion": "Add a bright ding for stars, a cartoon 'boing'/squelch for syringe hits, a rising whoosh for near-misses, and a triumphant sting on escape; declare them in the feedback design."
+      },
+      {
+        "metricId": "originality",
+        "priority": "low",
+        "problem": "The original premise is invisible in play; the game could be any abstract dodger.",
+        "suggestion": "Lean into the joke with safe, cartoonish details: the runner occasionally glances back, syringes wobble comically, and the escape ends with a 'Phew!' moment \u2014 personality beats that make the concept unmistakable without frightening imagery."
+      }
+    ],
+    "missingSuggestions": [
+      {
+        "metricId": "input_responsiveness",
+        "score": null
+      },
+      {
+        "metricId": "performance",
+        "score": 33.3
+      }
+    ],
+    "reviewRequests": [
+      {
+        "metricId": "input_responsiveness",
+        "currentScore": null,
+        "minimumScore": 70,
+        "reason": "missing_evidence_or_review",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "performance",
+        "currentScore": 33.3,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "visual_design",
+        "currentScore": 42,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "character_design",
+        "currentScore": 27.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "animation",
+        "currentScore": 34,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "plot",
+        "currentScore": 42.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "strategy",
+        "currentScore": 50,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "level_design",
+        "currentScore": 45,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "audio_feedback",
+        "currentScore": 24,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "originality",
+        "currentScore": 56.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "accessibility",
+        "currentScore": 46.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      }
+    ],
+    "improvementRequired": true,
+    "rulesFile": "inventory/<game-id>/quality-rules.json",
+    "provenance": {
+      "judge": {
+        "model": "Muse Spark 1.3 (blind subagent pass)",
+        "version": "calibration-2026-10-22"
+      },
+      "passes": 2
+    }
+  }
+}
