@@ -48,6 +48,8 @@ type Server struct {
 	saves         map[string]map[string]bool
 	blocks        map[string]map[string]bool
 	notInterested map[string]map[string]bool
+	mutedTopics   map[string]map[string]bool
+	commentIdempotency map[string]commentIdempotencyRecord
 	reports       []socialReport
 	events        []socialEvent
 
@@ -86,7 +88,7 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}}
+	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, commentIdempotency: map[string]commentIdempotencyRecord{}}
 	s.loadSocialState()
 	// Load the telemetry backlog once, up front: after this, the index is
 	// fed only by newly accepted reports, so a report is never counted
@@ -154,7 +156,7 @@ func (s *Server) Routes() http.Handler {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, X-Moderation-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, X-Moderation-Token, Idempotency-Key")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -576,6 +578,10 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	for id := range s.notInterested[viewer] {
 		ignored[id] = true
 	}
+	mutedTopics := map[string]bool{}
+	for topic, muted := range s.mutedTopics[viewer] {
+		if muted { mutedTopics[strings.ToLower(topic)] = true }
+	}
 	events := append([]socialEvent(nil), s.events...)
 	reactionCounts := map[string]int{}
 	for id, users := range s.reactions {
@@ -587,6 +593,9 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		if g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "pending" || g.ModerationStatus == "rejected" || blocked[g.OwnerID] || ignored[g.ID] {
 			continue
 		}
+		topicMuted := false
+		for _, topic := range g.Topics { if mutedTopics[strings.ToLower(strings.TrimSpace(strings.TrimPrefix(topic, "#")))] { topicMuted = true; break } }
+		if topicMuted { continue }
 		if scope == "following" && !followed[g.OwnerID] {
 			continue
 		}
