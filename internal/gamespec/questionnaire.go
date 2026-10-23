@@ -35,7 +35,7 @@ func Questionnaire() []Factor {
 
 		// Gameplay.
 		{Key: "archetype", Group: "gameplay", Prompt: "What kind of game is it?", Type: "enum",
-			Options: []string{ArchCatcher, ArchDodger, ArchTapper, ArchRunner, ArchPlatform, ArchPuzzle, ArchShooter, ArchRacer, ArchStory, ArchSandbox},
+			Options:  []string{ArchCatcher, ArchDodger, ArchTapper, ArchRunner, ArchPlatform, ArchPuzzle, ArchShooter, ArchRacer, ArchStory, ArchSandbox},
 			Required: true},
 		{Key: "coreLoop", Group: "gameplay", Prompt: "Core loop in a few words (verb the object)?", Type: "string", Required: true},
 		{Key: "win.type", Group: "gameplay", Prompt: "How do you win?", Type: "enum",
