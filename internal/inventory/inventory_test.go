@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"doodlequest/internal/model"
 	"doodlequest/internal/store"
 )
 
@@ -162,4 +163,38 @@ func TestLoadRejectsBadGameIR(t *testing.T) {
 func storet(t *testing.T) *store.MemoryStore {
 	t.Helper()
 	return store.NewMemoryStore()
+}
+
+// Re-seeding is authoritative for content: a store that already holds
+// a copy (e.g. restored from the persistence snapshot) gets the disk
+// version at Load, while operator state (quarantine/moderation) is
+// carried over. Regression test for the 2026-10-23 deploy that
+// silently kept serving a stale snapshot copy of a shipped game.
+func TestLoadReseedsOverStaleCopy(t *testing.T) {
+	root := t.TempDir()
+	b64 := base64.StdEncoding.EncodeToString([]byte("fakepng"))
+	writeGame(t, root, "abc123", testManifest, map[string]string{
+		"game.js":           "var x = 1;",
+		"assets/s1.png.b64": b64,
+	})
+	st := store.NewMemoryStore()
+	st.CreateGame(&model.Game{
+		ID: "test-game", Title: "STALE", OwnerID: "someone",
+		Status: model.GameReady, Visibility: model.VisibilityPublic,
+		Quarantined: true, QuarantineReason: "auto: crash loop",
+		ModerationStatus: "approved",
+	})
+	if err := Load(st, root); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	g, ok := st.GetGame("test-game")
+	if !ok {
+		t.Fatal("game missing after load")
+	}
+	if g.Title != "Test" {
+		t.Errorf("content should come from disk, title = %q", g.Title)
+	}
+	if !g.Quarantined || g.QuarantineReason != "auto: crash loop" || g.ModerationStatus != "approved" {
+		t.Errorf("operator state should carry over: %+v", g)
+	}
 }
