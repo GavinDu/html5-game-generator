@@ -1,6 +1,6 @@
 # Social feed API MVP
 
-Social state is split between a local JSON snapshot and in-memory state. Reactions, comments, saves, blocks, reports, topic mutes, not-interested feedback, and comment idempotency records persist in the snapshot; follow edges remain in memory by deliberate deferral. This is single-instance persistence, not shared storage. The `X-User-ID` header remains a development identity, not authentication. This is an intentionally small-user-base implementation, not a production security boundary.
+Social state uses a local JSON snapshot plus an append-only JSONL event file. Follow edges, reactions, comments, saves, blocks, reports, topic mutes, not-interested feedback, and comment idempotency records are written to the local snapshot. This is single-instance file persistence only; it is not shared storage, has no schema-migration/transaction guarantees, and does not make multi-replica behavior safe. The `X-User-ID` header remains a development identity, not authentication. This is an intentionally small-user-base implementation, not a production security boundary.
 
 ## Feeds and creator profiles
 
@@ -49,4 +49,4 @@ Social state is split between a local JSON snapshot and in-memory state. Reactio
 
 ## Deferred security and persistence work
 
-Do not treat `X-User-ID` as authentication. Follow edges remain in memory and disappear on restart by deliberate deferral. Reactions, comments, saves, blocks, feedback, and reports are written to a local JSON snapshot (default `telemetry/social-state.json`, override with `DQ_SOCIAL_STATE_FILE`). Events append to `telemetry/social-events.jsonl` (override with `DQ_SOCIAL_EVENTS_FILE`). This is single-instance persistence, not shared durable storage. Those limitations are intentionally deferred while the app has few users, but must be revisited before relying on these features for public production use or multiple server instances.
+Do not treat `X-User-ID` as authentication. Social relations and interactions are persisted in a local JSON snapshot (default `telemetry/social-state.json`, override with `DQ_SOCIAL_STATE_FILE`); social events append to `telemetry/social-events.jsonl` (override with `DQ_SOCIAL_EVENTS_FILE`). This is local single-instance file persistence, not shared durable storage. Full shared persistence, transactional guarantees, migrations, and concurrent multi-instance behavior remain deferred under issue #11 and must be addressed before multiple replicas or relying on this data for production.
