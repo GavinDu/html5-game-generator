@@ -38,6 +38,11 @@ type Server struct {
 	store  store.Store
 	runner *pipeline.Runner
 
+	// Social graph MVP. These indexes are process-local until the Store
+	// interface is backed by durable persistence.
+	socialMu sync.RWMutex
+	follows  map[string]map[string]struct{} // follower -> followed creator IDs
+
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
 	// aggregation and the auto-quarantine thresholds.
@@ -67,7 +72,10 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r}
+	s := &Server{
+		store: st, runner: r,
+		follows: make(map[string]map[string]struct{}),
+	}
 	// Load the telemetry backlog once, up front: after this, the index is
 	// fed only by newly accepted reports, so a report is never counted
 	// twice (once from the file, once from memory).
@@ -112,6 +120,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/groups/{id}/games", s.handleGroupGames)
 	mux.HandleFunc("POST /v1/games/{id}/visibility", s.handleVisibility)
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
+	mux.HandleFunc("POST /v1/users/{id}/follow", s.handleFollow)
+	mux.HandleFunc("DELETE /v1/users/{id}/follow", s.handleUnfollow)
 	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
@@ -486,10 +496,23 @@ func (s *Server) handleVisibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, game)
 }
 
-// GET /v1/feed — public, ready games. Quarantined games are hidden
-// (Phase 2): the game still exists and direct links still load it, but
-// it leaves discovery until a human unquarantines it.
+// GET /v1/feed?scope=for_you|following|friends.
+// "friends" means mutual follows. Public eligibility and quarantine checks
+// apply to every scope, so private/group games never leak through social feeds.
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
+	scope := r.URL.Query().Get("scope")
+	if scope == "" || scope == "for_you" {
+		writeJSON(w, http.StatusOK, map[string]any{"games": s.publicFeedGames()})
+		return
+	}
+	if scope != "following" && scope != "friends" {
+		writeErr(w, http.StatusBadRequest, "scope must be for_you, following, or friends")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"games": s.socialFeedGames(userID(r), scope)})
+}
+
+func (s *Server) publicFeedGames() []*model.Game {
 	var out []*model.Game
 	for _, g := range s.store.ListGames() {
 		if g.Status == model.GameReady && g.Visibility == model.VisibilityPublic && !g.Quarantined {
@@ -499,7 +522,86 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	if out == nil {
 		out = []*model.Game{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"games": out})
+	return out
+}
+
+func (s *Server) socialFeedGames(viewerID, scope string) []*model.Game {
+	s.socialMu.RLock()
+	viewerFollows := s.follows[viewerID]
+	followed := make(map[string]struct{}, len(viewerFollows))
+	for id := range viewerFollows {
+		followed[id] = struct{}{}
+	}
+	mutual := make(map[string]struct{})
+	if scope == "friends" {
+		for creatorID := range followed {
+			if _, followsBack := s.follows[creatorID][viewerID]; followsBack {
+				mutual[creatorID] = struct{}{}
+			}
+		}
+	}
+	s.socialMu.RUnlock()
+
+	eligible := followed
+	if scope == "friends" {
+		eligible = mutual
+	}
+	var out []*model.Game
+	for _, g := range s.store.ListGames() {
+		if g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined {
+			continue
+		}
+		if _, ok := eligible[g.OwnerID]; ok {
+			out = append(out, g)
+		}
+	}
+	if out == nil {
+		out = []*model.Game{}
+	}
+	return out
+}
+
+// POST /v1/users/{id}/follow — create a follow edge. The demo X-User-ID
+// identity is not authentication and must be replaced before production use.
+func (s *Server) handleFollow(w http.ResponseWriter, r *http.Request) {
+	followerID, creatorID := strings.TrimSpace(userID(r)), strings.TrimSpace(r.PathValue("id"))
+	if creatorID == "" || creatorID == followerID {
+		writeErr(w, http.StatusBadRequest, "a different creator ID is required")
+		return
+	}
+	if !s.hasPublicCreator(creatorID) {
+		writeErr(w, http.StatusNotFound, "creator not found")
+		return
+	}
+	s.socialMu.Lock()
+	if s.follows[followerID] == nil {
+		s.follows[followerID] = make(map[string]struct{})
+	}
+	s.follows[followerID][creatorID] = struct{}{}
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"follower_id": followerID, "creator_id": creatorID, "following": true})
+}
+
+// DELETE /v1/users/{id}/follow — remove a follow edge.
+func (s *Server) handleUnfollow(w http.ResponseWriter, r *http.Request) {
+	followerID, creatorID := strings.TrimSpace(userID(r)), strings.TrimSpace(r.PathValue("id"))
+	if creatorID == "" || creatorID == followerID {
+		writeErr(w, http.StatusBadRequest, "a different creator ID is required")
+		return
+	}
+	s.socialMu.Lock()
+	delete(s.follows[followerID], creatorID)
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"follower_id": followerID, "creator_id": creatorID, "following": false})
+}
+
+func (s *Server) hasPublicCreator(creatorID string) bool {
+	for _, g := range s.store.ListGames() {
+		if g.OwnerID == creatorID && g.Status == model.GameReady && g.Visibility == model.VisibilityPublic && !g.Quarantined {
+			return true
+		}
+	}
+	return false
 }
 
 
