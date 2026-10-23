@@ -48,7 +48,12 @@ test('hard-gate failure blocks delivery even with excellent AI scores', () => {
   const result = scoreGame(failed, review);
   assert.equal(result.deliveryReady, false);
   assert.equal(result.deliveryGate, 'fail');
-  assert.equal(result.overallScore, 72.2);
+  // Schema 1.3 (metric catalog fusion): the failed gate zeroes
+  // playability, and any dimension under 35 caps the composite at 65 —
+  // the uncapped blend (72.2) is preserved for inspection.
+  assert.equal(result.uncappedOverallScore, 72.2);
+  assert.equal(result.overallScore, 65);
+  assert.ok(result.caps.some((c) => c.rule === 'weak_dimension_cap'));
 });
 
 test('AI cannot override objective metrics and unsupported scores are ignored', () => {
