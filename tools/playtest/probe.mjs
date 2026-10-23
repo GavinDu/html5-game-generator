@@ -472,8 +472,13 @@ async function playGame(browser, gameId) {
 
 async function main() {
   const gameIdsArg = (arg('games', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const obscuraCDP = process.env.OBSCURA_CDP_URL;
+  if (obscuraCDP && browserName === 'webkit') {
+    throw new Error('OBSCURA_CDP_URL requires --browser chromium; keep WebKit for iOS/WKWebView compatibility coverage.');
+  }
   const engine = browserName === 'webkit' ? webkit : chromium;
-  const browser = await engine.launch();
+  // Optional Obscura/CDP execution backend; default is local Playwright.
+  const browser = obscuraCDP ? await chromium.connectOverCDP(obscuraCDP) : await engine.launch();
   try {
     const gameIds = gameIdsArg.length ? gameIdsArg : await feedGames();
     const games = [];

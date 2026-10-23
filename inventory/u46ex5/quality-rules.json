@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0",
+  "thresholds": {
+    "minimumOverallScore": 80,
+    "minimumMetricScore": 70,
+    "requireCompleteCoverage": true
+  },
+  "hardGates": [
+    "playtest.boot_clean",
+    "playtest.render_nonblank",
+    "simulation.no_softlock"
+  ],
+  "weights": {
+    "playability": 20,
+    "reliability": 12,
+    "input_responsiveness": 8,
+    "performance": 8,
+    "visual_design": 8,
+    "character_design": 7,
+    "animation": 7,
+    "plot": 7,
+    "strategy": 8,
+    "level_design": 5,
+    "audio_feedback": 4,
+    "originality": 4,
+    "accessibility": 2
+  },
+  "path": "inventory/u46ex5/quality-rules.json",
+  "profile": "action-collect-and-repair",
+  "gameId": "sample-ribbon-sky",
+  "title": "Ribbon Mends the Sky",
+  "gameplayContract": {
+    "coreLoop": [
+      "tap to move cloud-riding hero toward a target",
+      "enter sky-holes to stitch them closed",
+      "tap/bonk wind demons",
+      "collect rainbow shards",
+      "track stitched holes, score, and lives",
+      "complete six holes to win a round; lose after lives are exhausted; restart"
+    ],
+    "fairness": [
+      "hero movement must visibly track tap targets and not jitter",
+      "holes must be reachable and closure must be visually distinct",
+      "demon hits must communicate damage and invulnerability",
+      "spawn density and increasing speed must preserve viable choices"
+    ],
+    "audience": "family; Chinese-language fantasy adventure"
+  },
+  "reviewFocus": [
+    "Assess visual hierarchy between hero, holes, demons, shards, HUD, and instructions.",
+    "Check whether the core fantasy of repairing the sky is visible in action, not just described in text.",
+    "Evaluate tap-to-move precision, collision readability, invulnerability feedback, and whether the staff/bonk mechanic is discoverable.",
+    "Check Chinese text legibility, edge clipping, HUD safe areas, round payoff, and difficulty progression."
+  ]
+}
