@@ -508,7 +508,8 @@
               "startScale": 0.4,
               "endScale": 0.05,
               "blendMode": "add"
-            }
+            },
+            "zIndex": 5
           },
           "tweens": [
             {
