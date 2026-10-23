@@ -84,7 +84,7 @@ jobs:
             echo "::warning::Playtest output is not a complete JSON report; skipping score aggregation."
             exit 0
           fi
-          node tools/playtest/score-report.mjs /tmp/playtest-report.json - /tmp/scored-playtest-report.json
+          node tools/playtest/score-report.mjs /tmp/playtest-report.json - /tmp/scored-playtest-report.json --pack /tmp/evidence-packs --shots /tmp/playtest-shots
       - name: Upload playtest artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -94,4 +94,5 @@ jobs:
             /tmp/dq-server.log
             /tmp/playtest-report.json
             /tmp/playtest-shots/
+            /tmp/evidence-packs/
           if-no-files-found: ignore
