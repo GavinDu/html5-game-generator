@@ -13,6 +13,7 @@
 // emits per-game evidence packs whose judge view contains
 // observations only — no check statuses, no scores.
 import { readFile, readdir, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,7 +27,23 @@ const optVal = (name) => {
 };
 const packDir = optVal('--pack');
 const shotsDir = optVal('--shots');
-const positional = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--pack' && argv[i - 1] !== '--shots' && argv[i - 1] !== '--suggestions-md');
+const kitPath = optVal('--kit');
+const positional = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--pack' && argv[i - 1] !== '--shots' && argv[i - 1] !== '--suggestions-md' && argv[i - 1] !== '--kit');
+
+// Playability Kit verdicts (optional): when a kit report is supplied,
+// its per-game verdict gates the scorecard — BROKEN is not scored,
+// NEEDS_REVIEW caps the composite (see the scoring package, schema 1.3).
+const kitVerdicts = {};
+if (kitPath) {
+  try {
+    const kitReport = JSON.parse(readFileSync(kitPath, 'utf8'));
+    for (const entry of Array.isArray(kitReport) ? kitReport : []) {
+      if (entry && entry.gameId && entry.verdict) kitVerdicts[entry.gameId] = entry.verdict;
+    }
+  } catch (err) {
+    console.error(`warning: could not read kit report ${kitPath}: ${err.message}`);
+  }
+}
 
 // ---------- IR-grounded quality contracts -------------------------------
 // The generated block of a game's quality contract is DERIVED from its
@@ -272,7 +289,7 @@ for (const game of report.games) {
     errorCount: Array.isArray(probe.errors) ? probe.errors.length : undefined,
     warnClasses: Number.isFinite(probe.warnCount) ? probe.warnCount : undefined,
   };
-  game.quality = scoreGame(game.checks || [], review, rules, measurements);
+  game.quality = scoreGame(game.checks || [], review, rules, measurements, { kitVerdict: kitVerdicts[game.gameId] || null });
   game.quality.rulesFile = rules.profile === 'default'
     ? 'config/game-quality/default.json'
     : `inventory/<game-id>/quality-rules.json`;
