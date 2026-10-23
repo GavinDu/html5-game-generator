@@ -96,3 +96,48 @@ jobs:
             /tmp/playtest-shots/
             /tmp/evidence-packs/
           if-no-files-found: ignore
+
+  # Playability Kit (user-mimic gate): plays each shipped game like a
+  # user in Chromium and returns PLAYABLE / NEEDS_REVIEW / BROKEN.
+  # A BROKEN verdict fails the job. Complements the playtest worker
+  # (conformance/determinism/replay); the kit owns resilience, rule
+  # coverage and issue classification for the repair loop.
+  playability-kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install kit and browser provider
+        run: |
+          npm --prefix tools/playtest install --no-audit --no-fund
+          npm --prefix tools/playability-kit install --no-audit --no-fund
+      - name: Install Chromium
+        run: npx --prefix tools/playtest playwright install --with-deps chromium
+      - name: Build and start the server
+        run: |
+          go build -o /tmp/dq-server ./cmd/server
+          PORT=18099 INVENTORY_DIR=inventory /tmp/dq-server > /tmp/dq-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:18099/healthz && break || sleep 1
+          done
+      - name: Run the Playability Kit on the shipped games
+        run: |
+          node tools/playability-kit/playability.mjs \
+            --base http://localhost:18099 \
+            --games sample-rainbow-bear,sample-ribbon-sky,escape-from-injection \
+            --budget 40 --out /tmp/kit-out
+      - name: Upload kit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playability-kit
+          path: |
+            /tmp/dq-server.log
+            /tmp/kit-out/
+          if-no-files-found: ignore
