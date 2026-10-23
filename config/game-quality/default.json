@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "thresholds": {
+    "minimumOverallScore": 80,
+    "minimumMetricScore": 70,
+    "requireCompleteCoverage": true
+  },
+  "hardGates": [
+    "playtest.boot_clean",
+    "playtest.render_nonblank",
+    "simulation.no_softlock"
+  ],
+  "weights": {
+    "playability": 20,
+    "reliability": 12,
+    "input_responsiveness": 8,
+    "performance": 8,
+    "visual_design": 8,
+    "character_design": 7,
+    "animation": 7,
+    "plot": 7,
+    "strategy": 8,
+    "level_design": 5,
+    "audio_feedback": 4,
+    "originality": 4,
+    "accessibility": 2
+  },
+  "profile": "default",
+  "reviewFocus": [
+    "Evaluate every metric independently from 0 to 100.",
+    "Cite actual screenshots, browser observations, source locations, or reproducible behavior.",
+    "Every score below 70 or missing score requires a concrete improvement suggestion."
+  ],
+  "gameplayContract": {
+    "generic": [
+      "boot",
+      "render",
+      "accept input",
+      "progress",
+      "reach declared terminal/restart states"
+    ]
+  }
+}

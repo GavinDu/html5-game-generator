@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0",
+  "thresholds": {
+    "minimumOverallScore": 80,
+    "minimumMetricScore": 70,
+    "requireCompleteCoverage": true
+  },
+  "hardGates": [
+    "playtest.boot_clean",
+    "playtest.render_nonblank",
+    "simulation.no_softlock"
+  ],
+  "weights": {
+    "playability": 20,
+    "reliability": 12,
+    "input_responsiveness": 8,
+    "performance": 8,
+    "visual_design": 8,
+    "character_design": 7,
+    "animation": 7,
+    "plot": 7,
+    "strategy": 8,
+    "level_design": 5,
+    "audio_feedback": 4,
+    "originality": 4,
+    "accessibility": 2
+  },
+  "path": "inventory/2uowg9/quality-rules.json",
+  "profile": "lane-dodging-endless-chase",
+  "gameId": "escape-from-injection",
+  "title": "Escape from the Injection",
+  "gameplayContract": {
+    "coreLoop": [
+      "tap left/right screen regions or swipe to change lanes",
+      "avoid falling syringes",
+      "collect courage stars",
+      "maintain readable distance from the chaser",
+      "increase route/difficulty over time",
+      "show clear caught/game-over and replay states"
+    ],
+    "fairness": [
+      "lane changes must be deterministic and responsive",
+      "obstacles must leave at least one viable lane",
+      "difficulty escalation must preserve a reaction window",
+      "game-over text must not obscure the replay action"
+    ],
+    "audience": "family; humorous cartoon chase"
+  },
+  "reviewFocus": [
+    "Prioritize non-graphic, child-appropriate presentation; keep the syringe hazard readable without frightening imagery.",
+    "Check that three lanes and tap/swipe controls are obvious and reliable.",
+    "Evaluate whether obstacles, stars, and the chaser create meaningful risk/reward rather than unavoidable hits.",
+    "Inspect changing locations, speed escalation, feedback, and replay affordance."
+  ]
+}
