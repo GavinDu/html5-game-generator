@@ -126,8 +126,17 @@ func readManifest(gdir string) (*manifest, error) {
 }
 
 func seedGame(st store.Store, gdir string, m *manifest) error {
-	if _, ok := st.GetGame(m.GameID); ok {
-		return nil // already seeded
+	// Inventory content is authoritative: re-seed from disk on every
+	// boot, even when the store already holds a copy. With the store's
+	// file persistence enabled, a "skip if present" rule here made the
+	// boot-time snapshot's stale copies win forever and shipped IR
+	// updates stopped reaching the live server (found 2026-10-23 when
+	// an Escape IR fix would not deploy). Operator state that is NOT
+	// content — quarantine and moderation — is carried over from the
+	// existing record.
+	var prev *model.Game
+	if existing, ok := st.GetGame(m.GameID); ok {
+		prev = existing
 	}
 	code, err := os.ReadFile(filepath.Join(gdir, m.Entry))
 	if err != nil {
@@ -178,7 +187,14 @@ func seedGame(st store.Store, gdir string, m *manifest) error {
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("inventory: %s: cannot read game-ir.json: %w", gdir, err)
 	}
-	st.CreateGame(game)
+	if prev != nil {
+		game.Quarantined = prev.Quarantined
+		game.QuarantineReason = prev.QuarantineReason
+		game.ModerationStatus = prev.ModerationStatus
+		st.UpdateGame(game)
+	} else {
+		st.CreateGame(game)
+	}
 
 	st.PutArtifact(m.GameID, m.Entry, code, "application/javascript")
 	for _, s := range m.Sprites {
