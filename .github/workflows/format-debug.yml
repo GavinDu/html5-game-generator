@@ -1,0 +1,23 @@
+name: Temporary formatting diagnostics
+
+on:
+  push:
+    branches:
+      - chatgpt/social-backlog-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Print formatting diff
+        run: |
+          gofmt -d internal/api/api.go internal/api/social.go internal/api/social_preferences_test.go
+          gofmt -l internal/api/api.go internal/api/social.go internal/api/social_preferences_test.go
