@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"doodlequest/internal/model"
+	"doodlequest/internal/pipeline"
 )
 
 type socialComment struct { ID string `json:"id"`; GameID string `json:"game_id"`; UserID string `json:"user_id"`; Body string `json:"body"`; CreatedAt time.Time `json:"created_at"` }
