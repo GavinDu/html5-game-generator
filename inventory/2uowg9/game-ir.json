@@ -107,7 +107,7 @@
   ],
   "game": {
     "audience": "family",
-    "description": "Tap to switch lanes, dodge the syringes, grab the stars, and outrun the chaser.",
+    "description": "Drag to dodge between the lanes, grab the stars, and outrun the nurse and her syringe.",
     "entryScene": "chase",
     "id": "escape-from-injection",
     "orientation": "portrait",
