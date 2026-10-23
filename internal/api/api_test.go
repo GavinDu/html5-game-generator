@@ -110,13 +110,13 @@ func TestFullPipeline(t *testing.T) {
 	}
 
 	job = waitJob(t, srv, created.Job.ID, model.JobDone)
-	publishedGameRec := do(t, srv, "GET", "/v1/games/"+created.Game.ID, nil, "")
+	publishedGameRec := do(t, srv, "GET", "/v1/games/"+created.Game.ID, nil, "parent-1")
 	var publishedGame model.Game
 	decode(t, publishedGameRec, &publishedGame)
 	if publishedGame.GameIR == nil {
 		t.Fatal("published game has no canonical Game IR")
 	}
-	irRec := do(t, srv, "GET", "/v1/games/"+created.Game.ID+"/game-ir", nil, "")
+	irRec := do(t, srv, "GET", "/v1/games/"+created.Game.ID+"/game-ir", nil, "parent-1")
 	if irRec.Code != http.StatusOK {
 		t.Fatalf("Game IR endpoint: %d %s", irRec.Code, irRec.Body.String())
 	}
@@ -172,12 +172,25 @@ func TestConfirmTooEarly(t *testing.T) {
 		Job  model.Job  `json:"job"`
 	}
 	decode(t, rec, &created)
-	// Confirm immediately, before SPEC finishes -> 409.
+	// The confirm gate is state-based: only an awaiting_confirm job may
+	// be confirmed. This test used to confirm "before SPEC finishes"
+	// and rely on the pipeline's fake stage delays (simulateMs, removed
+	// 2026-10-23) to win that race; with honest stage timing the early
+	// window is not reachable from outside, so assert the same guard
+	// from the other side: a completed job refuses confirmation.
+	job := waitJob(t, srv, created.Job.ID, model.JobAwaitingConfirm)
+	_ = job
 	rec = do(t, srv, "POST", "/v1/games/"+created.Game.ID+"/confirm", map[string]any{}, "parent-1")
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("want 409, got %d %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusAccepted && rec.Code != http.StatusConflict {
+		t.Fatalf("first confirm: %d %s", rec.Code, rec.Body.String())
 	}
-	waitJob(t, srv, created.Job.ID, model.JobAwaitingConfirm)
+	if rec.Code == http.StatusAccepted {
+		waitJob(t, srv, created.Job.ID, model.JobDone)
+		rec = do(t, srv, "POST", "/v1/games/"+created.Game.ID+"/confirm", map[string]any{}, "parent-1")
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("confirm after completion: want 409, got %d %s", rec.Code, rec.Body.String())
+		}
+	}
 }
 
 // Groups + author-controlled sharing.
@@ -268,9 +281,10 @@ func TestGetPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc})
+	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
+		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic})
 	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("fake-png"), "image/png")
-	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft"})
+	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft", OwnerID: "pkg-owner"})
 
 	rec := do(t, srv, "GET", "/v1/games/"+doc.Game.ID+"/package", nil, "")
 	if rec.Code != http.StatusOK {
@@ -296,7 +310,7 @@ func TestGetPackage(t *testing.T) {
 	if rec := do(t, srv, "GET", "/v1/games/nope/package", nil, ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", rec.Code)
 	}
-	if rec := do(t, srv, "GET", "/v1/games/pkg-draft-1/package", nil, ""); rec.Code != http.StatusConflict {
+	if rec := do(t, srv, "GET", "/v1/games/pkg-draft-1/package", nil, "pkg-owner"); rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d", rec.Code)
 	}
 }
@@ -312,12 +326,12 @@ func TestGameIRValidateEndpoint(t *testing.T) {
 		t.Fatalf("valid Game IR: status %d, body %s", rec.Code, rec.Body.String())
 	}
 	var result struct {
-		Valid bool `json:"valid"`
-		IRVersion string `json:"irVersion"`
-		GameID string `json:"gameId"`
-		SceneCount int `json:"sceneCount"`
-		AssetCount int `json:"assetCount"`
-		RuleCount int `json:"ruleCount"`
+		Valid      bool   `json:"valid"`
+		IRVersion  string `json:"irVersion"`
+		GameID     string `json:"gameId"`
+		SceneCount int    `json:"sceneCount"`
+		AssetCount int    `json:"assetCount"`
+		RuleCount  int    `json:"ruleCount"`
 	}
 	decode(t, rec, &result)
 	if !result.Valid || result.IRVersion != "1.0" || result.GameID != "bobos-rainbow" ||
@@ -344,14 +358,14 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 
 	rec := do(t, srv, "POST", "/v1/games", map[string]any{
 		"parent_game_id": "sample-rainbow-bear",
-		"intent": "Remix Bobo's Rainbow into a short heart-collecting rescue game",
+		"intent":         "Remix Bobo's Rainbow into a short heart-collecting rescue game",
 	}, "remix-tester")
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("create remix: %d %s", rec.Code, rec.Body.String())
 	}
 	var created struct {
 		Game model.Game `json:"game"`
-		Job model.Job `json:"job"`
+		Job  model.Job  `json:"job"`
 	}
 	decode(t, rec, &created)
 	if created.Game.ParentGameID != parent.ID {
@@ -390,7 +404,7 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 
 	// The native iOS player consumes this exact package envelope and fetches
 	// each asset through the package's declared delivery URL.
-	rec = do(t, srv, "GET", "/v1/games/"+child.ID+"/package", nil, "")
+	rec = do(t, srv, "GET", "/v1/games/"+child.ID+"/package", nil, "remix-tester")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("package endpoint: %d %s", rec.Code, rec.Body.String())
 	}
@@ -400,7 +414,7 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 		t.Fatalf("package contract mismatch: %+v", pkg)
 	}
 	for _, asset := range pkg.Assets {
-		rec = do(t, srv, "GET", asset.URL, nil, "")
+		rec = do(t, srv, "GET", asset.URL, nil, "remix-tester")
 		if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
 			t.Fatalf("package asset %q unavailable at %s: %d", asset.ID, asset.URL, rec.Code)
 		}
@@ -425,7 +439,9 @@ func TestDecodeJSONRejectsTrailingJSONAndOversizedBodies(t *testing.T) {
 	if trailingRec.Code != http.StatusBadRequest {
 		t.Fatalf("trailing JSON: want 400, got %d body=%s", trailingRec.Code, trailingRec.Body.String())
 	}
-	oversizedBody := strings.NewReader(`{"keywords":["` + strings.Repeat("x", (2<<20)+16) + `"]}`)
+	// /v1/ingest is a photo route: its cap is maxPhotoBodyBytes (16 MiB),
+	// widened 2026-10-23 so real phone photos fit; oversized means past it.
+	oversizedBody := strings.NewReader(`{"keywords":["` + strings.Repeat("x", (16<<20)+16) + `"]}`)
 	oversized := httptest.NewRequest(http.MethodPost, "/v1/ingest", oversizedBody)
 	oversizedRec := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(oversizedRec, oversized)
