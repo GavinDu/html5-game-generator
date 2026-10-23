@@ -162,6 +162,9 @@ func (s *Server) tunerList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tunerResolve(w http.ResponseWriter, r *http.Request, apply bool) {
+	if apply && !requireModerationToken(w, r) {
+		return
+	}
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "game not found")
