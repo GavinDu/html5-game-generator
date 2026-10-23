@@ -48,8 +48,8 @@ type Server struct {
 	saves         map[string]map[string]bool
 	blocks        map[string]map[string]bool
 	notInterested map[string]map[string]bool
-	mutedTopics        map[string]map[string]bool
-	commentIdempotency map[string]commentIdempotencyRecord
+	mutedTopics	map[string]map[string]bool
+	commentIdempotency	map[string]commentIdempotencyRecord
 	reports       []socialReport
 	events        []socialEvent
 
