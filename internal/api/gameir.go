@@ -36,9 +36,8 @@ func (s *Server) handleGameIRValidate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetGameIR(w http.ResponseWriter, r *http.Request) {
-	game, ok := s.store.GetGame(r.PathValue("id"))
+	game, ok := s.deliverableGame(w, r)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
 	if game.GameIR == nil {
