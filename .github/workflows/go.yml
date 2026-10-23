@@ -21,6 +21,7 @@ jobs:
           cache: true
       - name: Verify formatting of new Go files
         run: |
+          gofmt -d internal/api/api.go internal/api/social.go internal/api/social_preferences_test.go
           gofmt -l .
           test -z "$(gofmt -l .)"
       - name: Run tests
