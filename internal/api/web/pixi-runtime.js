@@ -1461,6 +1461,7 @@ async function run(id) {
     const b = (ir.inputBindings || []).find((x) => x.input === 'tap');
     return b?.action;
   }
+  const dragXOnly = ir.experience?.controls?.scheme === 'drag_x';
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
@@ -1473,13 +1474,19 @@ async function run(id) {
   app.canvas.addEventListener('pointerdown', (ev) => {
     if (replayTrace) return; // the trace drives; live input would corrupt the replay
     pointer.down = true;
-    const p = toLogical(ev); pointer.x = p.x; pointer.y = p.y;
+    const p = toLogical(ev);
+    pointer.x = p.x;
+    // IR shell controls can constrain the pointer to horizontal-only movement.
+    // Keep the player in the catcher lane instead of following vertical cursor drift.
+    pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
     emit('input', playerEnt, undefined, undefined, tapActionName());
   });
   app.canvas.addEventListener('pointermove', (ev) => {
     if (!pointer.down) return;
-    const p = toLogical(ev); pointer.x = p.x; pointer.y = p.y;
+    const p = toLogical(ev);
+    pointer.x = p.x;
+    pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
   });
   addEventListener('pointerup', () => { pointer.down = false; }, { signal: abort.signal });
 
@@ -1850,9 +1857,12 @@ async function run(id) {
       const speed = 300;
       if (keysDown.has('move_left')) playerTarget.x -= speed * dt;
       if (keysDown.has('move_right')) playerTarget.x += speed * dt;
-      if (keysDown.has('move_up')) playerTarget.y -= speed * dt;
-      if (keysDown.has('move_down')) playerTarget.y += speed * dt;
-      if (pointer.down) { playerTarget.x = pointer.x; playerTarget.y = pointer.y; }
+      if (!dragXOnly && keysDown.has('move_up')) playerTarget.y -= speed * dt;
+      if (!dragXOnly && keysDown.has('move_down')) playerTarget.y += speed * dt;
+      if (pointer.down) {
+        playerTarget.x = pointer.x;
+        if (!dragXOnly) playerTarget.y = pointer.y;
+      }
       playerTarget.x = clamp(playerTarget.x, playerEnt.w / 2, worldW - playerEnt.w / 2);
       playerTarget.y = clamp(playerTarget.y, playerEnt.h / 2, worldH - playerEnt.h / 2);
       if (playerEnt.bodyKind === 'kinematic_velocity' || playerEnt.bodyKind === 'dynamic') {
