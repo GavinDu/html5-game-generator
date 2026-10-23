@@ -70,7 +70,7 @@ test('two blind passes merge; a >15 spread is contested and median-scored with a
   // Graded, not saturated: jank 2% + p95 21ms + first input 900ms
   // pull performance/input below 100 even with every check passing.
   assert.equal(game.quality.subscores.measured.score, 97.9);
-  assert.equal(game.quality.schemaVersion, '1.2');
+  assert.equal(game.quality.schemaVersion, '1.3');
 });
 
 test('measured-evidence suggester covers weak objective metrics; creative gaps stay honestly missing', async () => {
