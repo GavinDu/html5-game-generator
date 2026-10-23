@@ -94,7 +94,10 @@ type ExpFeedback struct {
 
 var (
 	expArchetypes = enum("catcher", "dodger", "tapper", "runner", "physics", "puzzle")
-	expSchemes    = enum("drag_x", "drag_free", "tap", "tap_target", "swipe", "stick_button")
+	// Schemes are the control gestures the character controller really
+	// performs; swipe and stick_button were removed 2026-10-23 with the
+	// rest of the unimplemented vocabulary (see ir.go assetKinds).
+	expSchemes    = enum("drag_x", "drag_free", "tap", "tap_target")
 	expObjectives = enum("collect", "survive", "reach", "score")
 	expFailModes  = enum("health", "gentle", "sudden-death", "none")
 	expHUDSlots   = enum("objective_progress", "score", "health", "timer", "none")
