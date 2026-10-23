@@ -1,0 +1,344 @@
+{
+  "gameId": "sample-ribbon-sky",
+  "title": null,
+  "irHash": "472b50ee5311",
+  "runtimeVersion": "2026.10.22.4",
+  "frozenAt": "2026-10-22",
+  "source": "CI run 39887049881 (chromium playtest) + two blind judge passes",
+  "quality": {
+    "schemaVersion": "1.2",
+    "profile": "action-collect-and-repair",
+    "thresholds": {
+      "minimumOverallScore": 80,
+      "minimumMetricScore": 70,
+      "minimumMeasuredScore": 60,
+      "requireCompleteCoverage": true
+    },
+    "subscores": {
+      "measured": {
+        "score": 80.6,
+        "weight": 48
+      },
+      "creative": {
+        "score": 58.4,
+        "weight": 52
+      }
+    },
+    "overallScore": 69,
+    "partialScore": 69,
+    "coveragePercent": 100,
+    "grade": "needs_polish",
+    "deliveryGate": "pass",
+    "deliveryReady": true,
+    "hardGates": [
+      {
+        "id": "playtest.boot_clean",
+        "status": "pass"
+      },
+      {
+        "id": "playtest.render_nonblank",
+        "status": "pass"
+      },
+      {
+        "id": "simulation.no_softlock",
+        "status": "pass"
+      }
+    ],
+    "missingMetrics": [],
+    "dimensions": [
+      {
+        "id": "playability",
+        "label": "Minimum playability",
+        "weight": 20,
+        "score": 80,
+        "evidence": "playtest.boot_clean=pass (booted, 23 frames at first verdict, 0 errors); playtest.render_nonblank=pass (probe census shows 4 sampled entities, visible: worldLayer@(0,0) | player@(195,640) a=1 vis=true scale=0.38 | shard@(123,44) a=1 vis=true scale=0.34 | shard_cyan@(115,808) a=1 vis=true scale=0.34 | shard_gold); simulation.no_softlock=pass (HUD/status/error state changed during bot play; no frozen state observed); simulation.win_reachable=skip (bot did not reach a win inside the play budget; reachability unproven (not a fail)); shell.start_card=pass (start card shown before play: \"Ribbon Mends the Sky\" / \"Gather 10 sky shards\"); shell.result_card=skip (no run ended during bot play; result card unobserved); shell.restart_in_place=skip (no run ended during bot play; restart unobserved); simulation.determinism=pass (seed 777 + identical scripted trace produced score 2 in both runs); leaderboard.replay_verified=skip (bot did not win this session; no winning run to verify); hook.first_reward=skip (14s of bot play produced no score change; reward timing unproven)",
+        "rationale": "Graded from measured browser evidence (see evidence)."
+      },
+      {
+        "id": "reliability",
+        "label": "Runtime reliability",
+        "weight": 12,
+        "score": 100,
+        "evidence": "playtest.boot_clean=pass (booted, 23 frames at first verdict, 0 errors); errors=0, warnClasses=0",
+        "rationale": "Measured evidence at full marks."
+      },
+      {
+        "id": "input_responsiveness",
+        "label": "Input responsiveness",
+        "weight": 8,
+        "score": 100,
+        "evidence": "hook.time_to_input=skip (no input prompt observed within 6s); hook.first_reward=skip (14s of bot play produced no score change; reward timing unproven); firstInputMs=n/a, firstRewardMs=1683, deadInputRate=n/a",
+        "rationale": "Measured evidence at full marks."
+      },
+      {
+        "id": "performance",
+        "label": "Performance",
+        "weight": 8,
+        "score": 33.3,
+        "evidence": "budgets.cold_start=pass (navigation to booted-with-frames in 882ms (contract <= 3000ms)); jankRate=0.981, p95FrameMs=100",
+        "rationale": "Graded from measured browser evidence (see evidence)."
+      },
+      {
+        "id": "visual_design",
+        "label": "Visual beauty and cohesion",
+        "weight": 8,
+        "score": 69,
+        "evidence": "end.png: rich cloud backdrop, two dark purple hole vortexes clearly visible; census lists shard, shard_cyan, shard_gold on stage yet none are discernible in the screenshot (one gold sliver is clipped at the very bottom edge); black rectangular bar spans the bottom of the play area above the status line.",
+        "rationale": "The painterly sky background is genuinely beautiful \u2014 layered warm clouds with real depth \u2014 and the two torn holes read instantly as dark vortexes against it. But the hero is small, the collectible shards are not visible anywhere in the frame despite being on stage, and a hard black bar cuts across the bottom of the playfield, breaking the composition and suggesting a clipping/safe-area defect."
+      },
+      {
+        "id": "character_design",
+        "label": "Character design and readability",
+        "weight": 7,
+        "score": 65,
+        "evidence": "end.png: demon at top right with visible eyes/brow and spiral body; heroine at lower right on a white cloud holding a staff, rendered small (census player scale 0.38).",
+        "rationale": "The storm-cloud demon is the standout: a dark cloud body with an angry face and a curled spiral tail gives it personality and instant hazard readability. The heroine is a appealing design \u2014 figure with staff and flowing ribbons on a cloud \u2014 but at scale 0.38 she is small enough that her silhouette and face lose detail at mobile size."
+      },
+      {
+        "id": "animation",
+        "label": "Animation and game feel",
+        "weight": 7,
+        "score": 45,
+        "evidence": "observations.framesRendered = 52; events contain only start, collect, first_reward; milestoneVisuals declares hole/hole2 states for 0.4/0.7 progress but no milestone event occurs in the tail.",
+        "rationale": "Almost no animation evidence exists in this pack: the captured session is 52 frames with a start and a single collect, no milestone, damage, or repair moment was observed, and the declared feedback is only 'juice: standard'. The one thing the fantasy needs \u2014 a hole visibly mending \u2014 is declared in milestone visuals but never seen in the evidence."
+      },
+      {
+        "id": "plot",
+        "label": "Plot and emotional arc",
+        "weight": 7,
+        "score": 67.5,
+        "evidence": "intent: 'Ride the cloud, catch falling sky shards, and mend the holes torn in the sky'; end.png shows the two holes in the sky; HUD '\u2605 1/10'; win title declared 'The sky is mended!'.",
+        "rationale": "The premise \u2014 ride the clouds, gather sky shards, mend the holes torn in the sky \u2014 is visible in action, not just text: the holes are right there in the sky and the shards are the repair material. Milestones map to hole states, promising a visible arc from torn to mended. The observed session ends at 1/10, so the payoff (a mended sky, win title 'The sky is mended!') is designed but unevidenced."
+      },
+      {
+        "id": "strategy",
+        "label": "Strategy and meaningful choices",
+        "weight": 8,
+        "score": 57.5,
+        "evidence": "experience declares only drag_x controls and a collect objective \u2014 no bonk/staff action; failure = health 3 with invulnerableMs 1000; event tail shows one collect and no damage or hazard event.",
+        "rationale": "There is more texture than a pure catcher \u2014 3 health, hazards in the world, a 1-second invulnerability window \u2014 so positioning has risk attached. But the review focus's staff/bonk mechanic appears nowhere in the declared controls or objective, so if it exists it is undiscoverable from the design contract; the evidenced play is a single collect with no hazard interaction, leaving the strategic layer mostly theoretical."
+      },
+      {
+        "id": "level_design",
+        "label": "Level and progression design",
+        "weight": 5,
+        "score": 55,
+        "evidence": "pacing.targetSessionSec 25, ramp 1 \u2192 1.2 \u2192 1.45, milestones [0.4, 0.7, 1]; observations end at score 1/10 after 52 frames with no milestone reached.",
+        "rationale": "On paper the pacing mirrors a sensible template \u2014 25-second target, three-step speed ramp, milestones at 40%/70%/100% tied to hole repair. But the pack's only session stalls at 1/10 shards with health untouched, so neither the difficulty curve nor the repair progression is demonstrated; the design is plausible but unproven by the evidence provided."
+      },
+      {
+        "id": "audio_feedback",
+        "label": "Audio and feedback",
+        "weight": 4,
+        "score": 25,
+        "evidence": "experience.feedback = {haptics: 'none', juice: 'standard'}, no audio fields in the design; events list contains only start/collect/first_reward.",
+        "rationale": "No audio is declared or evidenced: feedback is haptics 'none' plus generic juice, and the event tail has no sound cues for shard collects, damage, or hole repair. In a game built around magical repair moments, the absence of any evidenced collect or mend sound leaves those beats unfelt."
+      },
+      {
+        "id": "originality",
+        "label": "Originality and coherence",
+        "weight": 4,
+        "score": 74,
+        "evidence": "end.png art direction (painterly sky, vortex holes, cloud demon) and intent's sky-mending fantasy; archetype is 'catcher' but theme/mechanic/visuals are uniquely fused.",
+        "rationale": "A ribbon heroine mending a torn sky in a Chinese-fantasy idiom, opposed by a storm-cloud demon, is a distinctive identity \u2014 the art direction, premise, and antagonist all pull from the same imaginative source rather than a stock template. Only the underlying catcher chassis is conventional."
+      },
+      {
+        "id": "accessibility",
+        "label": "Usability and accessibility",
+        "weight": 2,
+        "score": 55,
+        "evidence": "audience: 'family; Chinese-language fantasy adventure' vs end.png strings 'Ribbon Mends the Sky' and 'Gather 10 sky shards' in English; HUD '\u2605 1/10 \u2665 3' is clear; gold shard clipped at bottom edge of end.png.",
+        "rationale": "HUD is clean \u2014 star progress plus heart icons are instantly readable \u2014 and controls are a single drag gesture. However: the audience is declared as Chinese-language, yet every visible string (title, objective status) is in English; the hero and shards are small/low-visibility at mobile size; and the black bar at the bottom of the playfield indicates content is being clipped where a shard is visibly cut off at the edge."
+      }
+    ],
+    "weightsTotal": 100,
+    "target": {
+      "minimumOverallScore": 80,
+      "minimumMetricScore": 70,
+      "minimumMeasuredScore": 60,
+      "measuredScore": 80.6,
+      "measuredTargetMet": true,
+      "overallTargetMet": false,
+      "allMetricsMeetFloor": false,
+      "completeCoverage": true,
+      "targetMet": false
+    },
+    "belowFloor": [
+      {
+        "metricId": "performance",
+        "score": 33.3,
+        "minimum": 70
+      },
+      {
+        "metricId": "visual_design",
+        "score": 69,
+        "minimum": 70
+      },
+      {
+        "metricId": "character_design",
+        "score": 65,
+        "minimum": 70
+      },
+      {
+        "metricId": "animation",
+        "score": 45,
+        "minimum": 70
+      },
+      {
+        "metricId": "plot",
+        "score": 67.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "strategy",
+        "score": 57.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "level_design",
+        "score": 55,
+        "minimum": 70
+      },
+      {
+        "metricId": "audio_feedback",
+        "score": 25,
+        "minimum": 70
+      },
+      {
+        "metricId": "accessibility",
+        "score": 55,
+        "minimum": 70
+      }
+    ],
+    "improvementSuggestions": [
+      {
+        "metricId": "animation",
+        "priority": "high",
+        "problem": "The central fantasy beat \u2014 a hole in the sky mending \u2014 is never evidenced; no repair animation is declared beyond generic juice.",
+        "suggestion": "When a milestone lands, animate the targeted hole shrinking with light stitching/ribbon threads pulling its edges together over ~0.5s, and add a sparkle trail to falling shards so the repair loop is visible in motion."
+      },
+      {
+        "metricId": "visual_design",
+        "priority": "high",
+        "problem": "A black bar clips the bottom of the playfield and shards on stage are effectively invisible in the frame.",
+        "suggestion": "Fix the playfield/safe-area sizing so no black bar overlays the world, and give shards a bright rim glow plus slightly larger scale so collectibles read against the bright cloud background at a glance."
+      },
+      {
+        "metricId": "accessibility",
+        "priority": "high",
+        "problem": "Declared audience is Chinese-language but all visible UI text is English, and the small hero/shards strain legibility.",
+        "suggestion": "Ship the UI strings (title, objective, win/lose) in Chinese for this audience, enlarge the hero modestly, and add a soft outline to the heroine so she separates from bright cloud areas."
+      },
+      {
+        "metricId": "character_design",
+        "priority": "medium",
+        "problem": "The heroine's silhouette and details wash out at scale 0.38 against a bright, busy sky.",
+        "suggestion": "Increase hero scale slightly and add a subtle drop shadow/outline; keep the demon as-is \u2014 it already reads well \u2014 and match future hazards to its contrast level."
+      },
+      {
+        "metricId": "strategy",
+        "priority": "medium",
+        "problem": "The staff/bonk interaction in the review focus is absent from the declared controls, so players cannot discover it from the design.",
+        "suggestion": "Either declare the bonk explicitly (tap while overlapping a demon to bonk it, with a one-line hint on the start card) or remove it from the game's promises; also show a brief shield shimmer during the 1s invulnerability so the health system is legible."
+      },
+      {
+        "metricId": "level_design",
+        "priority": "medium",
+        "problem": "Milestone pacing (0.4/0.7/1) is coarse \u2014 long stretches with no visible world change early in a 25s session.",
+        "suggestion": "Add an early visible change at ~0.2 progress (first hole begins to glow/stitch at its rim) so players see the sky responding well before the first full milestone."
+      },
+      {
+        "metricId": "plot",
+        "priority": "medium",
+        "problem": "The mending arc is designed but the win payoff is a single text title; the demon has no narrative role beyond decoration.",
+        "suggestion": "On the win, show both holes fully closed with a light sweep across the sky and the demon cloud dispersing or retreating, so the story resolves visually, and let the demon drift closer as progress stalls to add gentle narrative pressure."
+      },
+      {
+        "metricId": "audio_feedback",
+        "priority": "medium",
+        "problem": "No declared or evidenced sound for collects, damage, or repairs.",
+        "suggestion": "Add a glassy chime for shard collects, a soft woven 'stitch' sound at hole milestones, and a muted thud plus brief hush on damage; declare them in the feedback design."
+      }
+    ],
+    "missingSuggestions": [
+      {
+        "metricId": "performance",
+        "score": 33.3
+      }
+    ],
+    "reviewRequests": [
+      {
+        "metricId": "performance",
+        "currentScore": 33.3,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "visual_design",
+        "currentScore": 69,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "character_design",
+        "currentScore": 65,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "animation",
+        "currentScore": 45,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "plot",
+        "currentScore": 67.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "strategy",
+        "currentScore": 57.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "level_design",
+        "currentScore": 55,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "audio_feedback",
+        "currentScore": 25,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "accessibility",
+        "currentScore": 55,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      }
+    ],
+    "improvementRequired": true,
+    "rulesFile": "inventory/<game-id>/quality-rules.json",
+    "provenance": {
+      "judge": {
+        "model": "Muse Spark 1.3 (blind subagent pass)",
+        "version": "calibration-2026-10-22"
+      },
+      "passes": 2
+    }
+  }
+}
