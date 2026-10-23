@@ -9,6 +9,7 @@ const passing = [
   { checkId: 'hook.time_to_input', status: 'pass', evidence: 'input prompt at 200ms' },
   { checkId: 'hook.first_reward', status: 'pass', evidence: 'reward at 2s' },
   { checkId: 'budgets.cold_start', status: 'pass', evidence: 'startup < 3s', actual: { coldStartMs: 1200 } },
+  { checkId: 'simulation.win_reachable', status: 'pass', evidence: 'bot won' },
 ];
 
 const review = {
