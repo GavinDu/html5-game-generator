@@ -94,3 +94,51 @@ func TestFeedRejectsUnknownScope(t *testing.T) {
 		t.Fatalf("unknown scope: %d %s", resp.Code, resp.Body.String())
 	}
 }
+
+func TestGamePostReactionsAndComments(t *testing.T) {
+    srv := newTestServer()
+    addPublicGame(srv, "social-game", "creator")
+
+    resp := do(t, srv, http.MethodGet, "/v1/games/social-game/social", nil, "alice")
+    if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"reaction_count":0`) {
+        t.Fatalf("initial social summary: %d %s", resp.Code, resp.Body.String())
+    }
+
+    resp = do(t, srv, http.MethodPost, "/v1/games/social-game/reaction", map[string]any{}, "alice")
+    if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"reacted_by_me":true`) {
+        t.Fatalf("react: %d %s", resp.Code, resp.Body.String())
+    }
+    // Idempotent reactions must not inflate the count.
+    do(t, srv, http.MethodPost, "/v1/games/social-game/reaction", map[string]any{}, "alice")
+    resp = do(t, srv, http.MethodGet, "/v1/games/social-game/social", nil, "alice")
+    if !strings.Contains(resp.Body.String(), `"reaction_count":1`) {
+        t.Fatalf("duplicate reaction count: %s", resp.Body.String())
+    }
+    resp = do(t, srv, http.MethodDelete, "/v1/games/social-game/reaction", nil, "alice")
+    if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"reacted_by_me":false`) {
+        t.Fatalf("unreact: %d %s", resp.Code, resp.Body.String())
+    }
+
+    resp = do(t, srv, http.MethodPost, "/v1/games/social-game/comments", map[string]any{"text":"  Great game!  "}, "alice")
+    if resp.Code != http.StatusCreated || !strings.Contains(resp.Body.String(), "Great game!") {
+        t.Fatalf("create comment: %d %s", resp.Code, resp.Body.String())
+    }
+    resp = do(t, srv, http.MethodGet, "/v1/games/social-game/comments", nil, "bob")
+    if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "Great game!") {
+        t.Fatalf("list comments: %d %s", resp.Code, resp.Body.String())
+    }
+    resp = do(t, srv, http.MethodPost, "/v1/games/social-game/comments", map[string]any{"text":"   "}, "alice")
+    if resp.Code != http.StatusBadRequest {
+        t.Fatalf("blank comment should fail: %d %s", resp.Code, resp.Body.String())
+    }
+    resp = do(t, srv, http.MethodPost, "/v1/games/social-game/comments", map[string]any{"text":strings.Repeat("x", 501)}, "alice")
+    if resp.Code != http.StatusBadRequest {
+        t.Fatalf("oversized comment should fail: %d %s", resp.Code, resp.Body.String())
+    }
+
+    srv.store.UpdateGame(&model.Game{ID:"hidden-game", OwnerID:"creator", Status:model.GameReady, Visibility:model.VisibilityPrivate})
+    resp = do(t, srv, http.MethodPost, "/v1/games/hidden-game/comments", map[string]any{"text":"leak"}, "alice")
+    if resp.Code != http.StatusNotFound {
+        t.Fatalf("private game social endpoint should not be exposed: %d %s", resp.Code, resp.Body.String())
+    }
+}

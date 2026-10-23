@@ -20,3 +20,13 @@ Unknown scopes return HTTP 400. A feed with no matches returns `{"games":[]}`.
 ## MVP limitations and security gate
 
 This first slice stores follow edges in process memory, so relationships are lost on server restart and are not safe across multiple replicas. The existing `X-User-ID` header is a demo identity, not authentication; callers can spoof another user. Do not expose follow or friends functionality as a production security boundary until authenticated identity and durable shared persistence are implemented. No friend recommendations are generated yet; Friends is defined as mutual follows. The public For You feed is still newest-first, not a personalized ranker.
+
+## Game-post engagement
+
+- `GET /v1/games/{id}/social` returns `reaction_count`, `comment_count`, and `reacted_by_me`.
+- `POST /v1/games/{id}/reaction` idempotently reacts as the current demo identity.
+- `DELETE /v1/games/{id}/reaction` removes that reaction.
+- `GET /v1/games/{id}/comments` lists comments in creation order.
+- `POST /v1/games/{id}/comments` accepts `{"text":"..."}`; text is trimmed and must be 1–500 Unicode characters.
+
+These endpoints only expose ready, public, non-quarantined games. Engagement data is currently process-local and not durable. Authentication, rate limiting, abuse reporting/blocking, comment moderation, and durable persistence are required before public production use.

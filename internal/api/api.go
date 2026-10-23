@@ -42,6 +42,8 @@ type Server struct {
 	// interface is backed by durable persistence.
 	socialMu sync.RWMutex
 	follows  map[string]map[string]struct{} // follower -> followed creator IDs
+    reactions map[string]map[string]struct{} // game ID -> reacting user IDs
+    comments map[string][]GameComment // game ID -> chronological comments
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -75,6 +77,8 @@ func New(st store.Store, r *pipeline.Runner) *Server {
 	s := &Server{
 		store: st, runner: r,
 		follows: make(map[string]map[string]struct{}),
+        reactions: make(map[string]map[string]struct{}),
+        comments: make(map[string][]GameComment),
 	}
 	// Load the telemetry backlog once, up front: after this, the index is
 	// fed only by newly accepted reports, so a report is never counted
@@ -120,6 +124,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/groups/{id}/games", s.handleGroupGames)
 	mux.HandleFunc("POST /v1/games/{id}/visibility", s.handleVisibility)
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
+    mux.HandleFunc("GET /v1/games/{id}/social", s.handleSocialSummary)
+    mux.HandleFunc("POST /v1/games/{id}/reaction", s.handleReact)
+    mux.HandleFunc("DELETE /v1/games/{id}/reaction", s.handleUnreact)
+    mux.HandleFunc("GET /v1/games/{id}/comments", s.handleListComments)
+    mux.HandleFunc("POST /v1/games/{id}/comments", s.handleCreateComment)
 	mux.HandleFunc("POST /v1/users/{id}/follow", s.handleFollow)
 	mux.HandleFunc("DELETE /v1/users/{id}/follow", s.handleUnfollow)
 	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
@@ -593,6 +602,113 @@ func (s *Server) handleUnfollow(w http.ResponseWriter, r *http.Request) {
 	delete(s.follows[followerID], creatorID)
 	s.socialMu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"follower_id": followerID, "creator_id": creatorID, "following": false})
+}
+
+// GameComment is a user-authored comment on a published public game post.
+type GameComment struct {
+    ID string `json:"id"`
+    GameID string `json:"game_id"`
+    UserID string `json:"user_id"`
+    Text string `json:"text"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+func (s *Server) publicReadyGame(gameID string) (*model.Game, bool) {
+    game, ok := s.store.GetGame(gameID)
+    return game, ok && game.Status == model.GameReady && game.Visibility == model.VisibilityPublic && !game.Quarantined
+}
+
+func (s *Server) handleSocialSummary(w http.ResponseWriter, r *http.Request) {
+    gameID := r.PathValue("id")
+    if _, ok := s.publicReadyGame(gameID); !ok {
+        writeErr(w, http.StatusNotFound, "public game not found")
+        return
+    }
+    viewerID := userID(r)
+    s.socialMu.RLock()
+    _, reacted := s.reactions[gameID][viewerID]
+    reactionCount := len(s.reactions[gameID])
+    commentCount := len(s.comments[gameID])
+    s.socialMu.RUnlock()
+    writeJSON(w, http.StatusOK, map[string]any{
+        "game_id": gameID,
+        "reaction_count": reactionCount,
+        "comment_count": commentCount,
+        "reacted_by_me": reacted,
+    })
+}
+
+func (s *Server) handleReact(w http.ResponseWriter, r *http.Request) {
+    gameID := r.PathValue("id")
+    if _, ok := s.publicReadyGame(gameID); !ok {
+        writeErr(w, http.StatusNotFound, "public game not found")
+        return
+    }
+    viewerID := strings.TrimSpace(userID(r))
+    s.socialMu.Lock()
+    if s.reactions[gameID] == nil {
+        s.reactions[gameID] = make(map[string]struct{})
+    }
+    s.reactions[gameID][viewerID] = struct{}{}
+    count := len(s.reactions[gameID])
+    s.socialMu.Unlock()
+    writeJSON(w, http.StatusOK, map[string]any{"game_id": gameID, "reacted_by_me": true, "reaction_count": count})
+}
+
+func (s *Server) handleUnreact(w http.ResponseWriter, r *http.Request) {
+    gameID := r.PathValue("id")
+    if _, ok := s.publicReadyGame(gameID); !ok {
+        writeErr(w, http.StatusNotFound, "public game not found")
+        return
+    }
+    viewerID := strings.TrimSpace(userID(r))
+    s.socialMu.Lock()
+    delete(s.reactions[gameID], viewerID)
+    count := len(s.reactions[gameID])
+    s.socialMu.Unlock()
+    writeJSON(w, http.StatusOK, map[string]any{"game_id": gameID, "reacted_by_me": false, "reaction_count": count})
+}
+
+func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
+    gameID := r.PathValue("id")
+    if _, ok := s.publicReadyGame(gameID); !ok {
+        writeErr(w, http.StatusNotFound, "public game not found")
+        return
+    }
+    s.socialMu.RLock()
+    comments := append([]GameComment(nil), s.comments[gameID]...)
+    s.socialMu.RUnlock()
+    if comments == nil {
+        comments = []GameComment{}
+    }
+    writeJSON(w, http.StatusOK, map[string]any{"comments": comments})
+}
+
+func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
+    gameID := r.PathValue("id")
+    if _, ok := s.publicReadyGame(gameID); !ok {
+        writeErr(w, http.StatusNotFound, "public game not found")
+        return
+    }
+    var req struct {
+        Text string `json:"text"`
+    }
+    if !decodeJSON(w, r, &req) {
+        return
+    }
+    commentText := strings.TrimSpace(req.Text)
+    if commentText == "" || len([]rune(commentText)) > 500 {
+        writeErr(w, http.StatusBadRequest, "comment text must contain 1 to 500 characters")
+        return
+    }
+    comment := GameComment{
+        ID: pipeline.NewID(), GameID: gameID, UserID: userID(r),
+        Text: commentText, CreatedAt: time.Now(),
+    }
+    s.socialMu.Lock()
+    s.comments[gameID] = append(s.comments[gameID], comment)
+    s.socialMu.Unlock()
+    writeJSON(w, http.StatusCreated, comment)
 }
 
 func (s *Server) hasPublicCreator(creatorID string) bool {
