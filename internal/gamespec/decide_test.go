@@ -4,13 +4,13 @@ import "testing"
 
 func boboSpec() GameSpec {
 	return GameSpec{
-		Title:    "Bobo's Rainbow",
-		Logline:  "Move Bobo to catch falling hearts and complete the rainbow.",
+		Title:     "Bobo's Rainbow",
+		Logline:   "Move Bobo to catch falling hearts and complete the rainbow.",
 		Archetype: ArchCatcher,
-		CoreLoop: "move the basket, catch falling hearts",
-		Win:      WinCondition{Type: WinScoreTarget, Value: 12},
-		Lose:     LoseLives,
-		Input:    []string{InputTap, InputDrag},
+		CoreLoop:  "move the basket, catch falling hearts",
+		Win:       WinCondition{Type: WinScoreTarget, Value: 12},
+		Lose:      LoseLives,
+		Input:     []string{InputTap, InputDrag},
 		SourceElems: []SourceElement{
 			{Name: "bear", Role: "player"},
 			{Name: "kitten", Role: "decor"},
@@ -26,13 +26,13 @@ func boboSpec() GameSpec {
 
 func skySpec() GameSpec {
 	return GameSpec{
-		Title:     "Ribbon Mends the Sky",
-		Logline:   "Tap holes in the sky to stitch them before demons get you.",
-		Archetype: ArchTapper,
-		CoreLoop:  "tap sky holes to stitch them, dodge demons",
-		Win:       WinCondition{Type: WinScoreTarget, Value: 6},
-		Lose:      LoseLives,
-		Input:     []string{InputTap},
+		Title:       "Ribbon Mends the Sky",
+		Logline:     "Tap holes in the sky to stitch them before demons get you.",
+		Archetype:   ArchTapper,
+		CoreLoop:    "tap sky holes to stitch them, dodge demons",
+		Win:         WinCondition{Type: WinScoreTarget, Value: 6},
+		Lose:        LoseLives,
+		Input:       []string{InputTap},
 		SpriteCount: 10,
 		Particles:   ParticlesNone,
 		Powerups:    []string{"lucky-shard"},
@@ -41,13 +41,13 @@ func skySpec() GameSpec {
 
 func escapeSpec() GameSpec {
 	return GameSpec{
-		Title:     "Escape from the Injection",
-		Logline:   "Dodge syringes across three lanes and outrun the chaser.",
-		Archetype: ArchDodger,
-		CoreLoop:  "switch lanes to dodge syringes and grab courage stars",
-		Win:       WinCondition{Type: WinEndless},
-		Lose:      LoseCaught,
-		Input:     []string{InputTap, InputSwipe},
+		Title:          "Escape from the Injection",
+		Logline:        "Dodge syringes across three lanes and outrun the chaser.",
+		Archetype:      ArchDodger,
+		CoreLoop:       "switch lanes to dodge syringes and grab courage stars",
+		Win:            WinCondition{Type: WinEndless},
+		Lose:           LoseCaught,
+		Input:          []string{InputTap, InputSwipe},
 		SpriteCount:    15,
 		Particles:      ParticlesNone,
 		ParallaxLayers: 2,
@@ -67,23 +67,23 @@ func TestDecideAlwaysPixi(t *testing.T) {
 	instant.PerfBudget = PerfInstant
 
 	fireworks := GameSpec{
-		Title:     "Fireworks Sandbox",
-		Archetype: ArchSandbox,
-		CoreLoop:  "launch fireworks, paint the sky",
-		Input:     []string{InputTap, InputMultitouch},
-		Particles: ParticlesRich,
-		Lighting:  true,
-		PostFx:    true,
-		Animation: AnimSkeletal,
+		Title:       "Fireworks Sandbox",
+		Archetype:   ArchSandbox,
+		CoreLoop:    "launch fireworks, paint the sky",
+		Input:       []string{InputTap, InputMultitouch},
+		Particles:   ParticlesRich,
+		Lighting:    true,
+		PostFx:      true,
+		Animation:   AnimSkeletal,
 		SpriteCount: 120,
 		PerfBudget:  PerfHigh,
 	}
 
 	simple := GameSpec{
-		Title:     "Tap the Apple",
-		Archetype: ArchTapper,
-		CoreLoop:  "tap the falling apples",
-		Input:     []string{InputTap},
+		Title:       "Tap the Apple",
+		Archetype:   ArchTapper,
+		CoreLoop:    "tap the falling apples",
+		Input:       []string{InputTap},
 		SpriteCount: 8,
 		Particles:   ParticlesNone,
 		PerfBudget:  PerfLowEnd,
