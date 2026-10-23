@@ -36,7 +36,7 @@
       "tap/bonk wind demons",
       "collect rainbow shards",
       "track stitched holes, score, and lives",
-      "complete six holes to win a round; lose after lives are exhausted; restart"
+      "gather 10 sky shards to mend the sky; lose after lives are exhausted; restart from the result card"
     ],
     "fairness": [
       "hero movement must visibly track tap targets and not jitter",
@@ -44,12 +44,30 @@
       "demon hits must communicate damage and invulnerability",
       "spawn density and increasing speed must preserve viable choices"
     ],
-    "audience": "family; Chinese-language fantasy adventure"
+    "audience": "family; Chinese-language fantasy adventure",
+    "generated": {
+      "archetype": "catcher",
+      "controlsScheme": "drag_x",
+      "objective": {
+        "kind": "collect",
+        "target": 10,
+        "label": "Gather 10 sky shards"
+      },
+      "failure": {
+        "mode": "health",
+        "health": 3,
+        "invulnerableMs": 1000
+      },
+      "targetSessionSec": 25,
+      "firstRewardWithinSec": 10,
+      "milestones": 3,
+      "scenes": 1
+    }
   },
   "reviewFocus": [
     "Assess visual hierarchy between hero, holes, demons, shards, HUD, and instructions.",
     "Check whether the core fantasy of repairing the sky is visible in action, not just described in text.",
     "Evaluate tap-to-move precision, collision readability, invulnerability feedback, and whether the staff/bonk mechanic is discoverable.",
-    "Check Chinese text legibility, edge clipping, HUD safe areas, round payoff, and difficulty progression."
+    "Check Chinese text legibility, edge clipping, HUD safe areas, win payoff, and difficulty progression."
   ]
 }
