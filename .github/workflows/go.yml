@@ -20,9 +20,11 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify formatting of new Go files
-        run: test -z "$(gofmt -l internal/gameir/ir.go internal/gameir/ir_test.go cmd/gameir-validate/main.go)"
+        run: test -z "$(gofmt -l .)"
       - name: Run tests
         run: go test ./...
+      - name: Run tests with the race detector
+        run: go test -race ./internal/...
       - name: Static analysis
         run: go vet ./...
 
