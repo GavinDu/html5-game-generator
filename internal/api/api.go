@@ -611,7 +611,19 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, g)
 	}
+	// Keep the ranking explainable and avoid treating a handful of early
+	// interactions as a reliable quality signal. Until at least 20 social
+	// events/reactions exist in the current index, use the newest-first
+	// baseline. This threshold is a guardrail, not a learned parameter.
+	signalCount := len(events)
+	for _, count := range reactionCounts {
+		signalCount += count
+	}
+	useEngagementRanking := signalCount >= 20
 	sort.SliceStable(out, func(i, j int) bool {
+		if !useEngagementRanking {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
 		si, sj := feedScore(out[i], reactionCounts, events), feedScore(out[j], reactionCounts, events)
 		if si == sj {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
