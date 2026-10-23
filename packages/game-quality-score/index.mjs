@@ -125,7 +125,7 @@ function normalizeRules(rules = {}) {
  * aiReview.metrics: {id, score: 0..100, rationale, evidence}[]
  * aiReview.improvementSuggestions: {metricId, priority, problem, suggestion, evidence?}[]
  */
-export function scoreGame(checks = [], aiReview = null, suppliedRules = {}, measurements = {}) {
+export function scoreGame(checks = [], aiReview = null, suppliedRules = {}, measurements = {}, options = {}) {
   const rules = normalizeRules(suppliedRules);
   const aiMetrics = new Map((aiReview?.metrics || []).map(m => [m.id, m]));
   const objective = {
@@ -203,25 +203,46 @@ export function scoreGame(checks = [], aiReview = null, suppliedRules = {}, meas
   const creativeScore = subscore(new Set(METRICS.filter(m => m.source === 'ai').map(m => m.id)));
   const measuredFloor = Number.isFinite(rules.thresholds.minimumMeasuredScore) ? rules.thresholds.minimumMeasuredScore : 0;
   const measuredTargetMet = measuredScore !== null && measuredScore >= measuredFloor;
-  const targetMet = overallTargetMet && allMetricsMeetFloor && measuredTargetMet &&
-    (!rules.thresholds.requireCompleteCoverage || completeCoverage) && deliveryGate === 'pass';
+  // Composite caps (schema 1.3, from the metric catalog fusion): a
+  // weighted average must not launder a broken dimension or an
+  // unresolved playability verdict into a passing headline.
+  //   * any scored dimension under 35 caps the composite at 65;
+  //   * Playability Kit NEEDS_REVIEW caps the composite at 60 until
+  //     the playability question is resolved;
+  //   * Playability Kit BROKEN is not scored at all (gate first,
+  //     score second — the game goes back to repair).
+  const caps = [];
+  const weakDims = dimensions.filter(d => d.score !== null && d.score < 35);
+  if (weakDims.length) caps.push({ rule: 'weak_dimension_cap', cap: 65, reason: `dimension(s) under 35: ${weakDims.map(d => `${d.id} ${d.score}`).join(', ')}` });
+  const kitVerdict = options.kitVerdict || null;
+  if (kitVerdict === 'NEEDS_REVIEW') caps.push({ rule: 'kit_needs_review_cap', cap: 60, reason: 'Playability Kit verdict NEEDS_REVIEW: capped until playability is confirmed' });
+  const kitBroken = kitVerdict === 'BROKEN';
+  const cappedOverall = completeCoverage && partialScore !== null
+    ? caps.reduce((v, c) => Math.min(v, c.cap), partialScore) : null;
+  const cappedTargetMet = cappedOverall !== null && cappedOverall >= rules.thresholds.minimumOverallScore;
+  const targetMet = cappedTargetMet && allMetricsMeetFloor && measuredTargetMet &&
+    (!rules.thresholds.requireCompleteCoverage || completeCoverage) && deliveryGate === 'pass' && !kitBroken;
   const reviewRequests = dimensions.filter(d => d.score === null || d.score < floor).map(d => ({
     metricId: d.id, currentScore: d.score, minimumScore: floor,
     reason: d.score === null ? 'missing_evidence_or_review' : 'below_metric_floor',
     requiredOutput: 'Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion.',
   }));
   return {
-    schemaVersion: '1.2',
+    schemaVersion: '1.3',
     profile: rules.profile,
     thresholds: rules.thresholds,
     subscores: {
       measured: { score: measuredScore, weight: METRICS.filter(m => m.source === 'objective').reduce((s, m) => s + rules.weights[m.id], 0) },
       creative: { score: creativeScore, weight: METRICS.filter(m => m.source === 'ai').reduce((s, m) => s + rules.weights[m.id], 0) },
     },
-    overallScore: completeCoverage ? partialScore : null,
+    overallScore: kitBroken ? null : cappedOverall,
+    uncappedOverallScore: completeCoverage ? partialScore : null,
+    caps,
+    kitVerdict,
+    gateNote: kitBroken ? 'Playability Kit verdict BROKEN: not scored; returned to repair.' : null,
     partialScore,
     coveragePercent,
-    grade: completeCoverage ? grade(partialScore) : 'incomplete',
+    grade: kitBroken ? 'not_scored' : completeCoverage ? grade(cappedOverall) : 'incomplete',
     deliveryGate,
     deliveryReady: deliveryGate === 'pass',
     hardGates: gates,
@@ -234,7 +255,11 @@ export function scoreGame(checks = [], aiReview = null, suppliedRules = {}, meas
       minimumMeasuredScore: measuredFloor,
       measuredScore,
       measuredTargetMet,
+      // overallTargetMet reports the UNcapped blend vs its threshold;
+      // the composite caps above still bind through targetMet, the
+      // capped overallScore, and the caps list itself.
       overallTargetMet,
+      cappedOverallTargetMet: cappedTargetMet,
       allMetricsMeetFloor,
       completeCoverage,
       targetMet,
