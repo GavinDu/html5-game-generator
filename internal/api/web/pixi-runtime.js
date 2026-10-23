@@ -56,7 +56,7 @@ function warnOnce(key, cat, msg) {
 // native code can do it. Errors are buffered for the ?probe=1 verdict and
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
-const RUNTIME_VERSION = '2026.10.23.1';
+const RUNTIME_VERSION = '2026.10.23.2';
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -377,6 +377,14 @@ async function listGames() {
 // The live session, for in-place restart (Phase A): restarting must
 // not reload the page (a reload refetches everything and flashes) —
 // it tears the PIXI app down and boots the same game again.
+// Web Storage can throw (private browsing, disabled cookies, sandboxed
+// frames). Every access goes through these wrappers — a storage failure
+// must never break a game (architecture review 2026-10-23 found the
+// scene/best-score accesses unguarded).
+function storeGet(store, k) { try { return store.getItem(k); } catch { return null; } }
+function storeSet(store, k, v) { try { store.setItem(k, v); } catch { /* unavailable */ } }
+function storeRemove(store, k) { try { store.removeItem(k); } catch { /* unavailable */ } }
+
 let activeSession = null; // { app, abort: AbortController }
 let restartCount = 0;
 let skipStartCardOnce = false; // Play again skips the how-to card (design: retry < 1s)
@@ -494,8 +502,8 @@ async function run(id) {
   play.irHash = pkg.irHash || ''; // leaderboard board key (Phase C)
 
   const sceneKey = 'dq.scene.' + id;
-  const wantedScene = sessionStorage.getItem(sceneKey) || ir.game.entryScene;
-  sessionStorage.removeItem(sceneKey);
+  const wantedScene = storeGet(sessionStorage, sceneKey) || ir.game.entryScene;
+  storeRemove(sessionStorage, sceneKey);
   const scene = (ir.scenes || []).find((s) => s.id === wantedScene) || ir.scenes?.[0];
   if (!scene) throw new Error('entry scene missing');
 
@@ -677,11 +685,16 @@ async function run(id) {
     const r = def.render || {};
     let view;
     if (r.animation?.frames?.length && r.animation.frames.every((f) => textures.has(f))) {
-      view = new PIXI.AnimatedSprite(r.animation.frames.map((f) => textures.get(f)));
+      let frameNames = r.animation.frames;
+      // Ping-pong is a bounced sequence (1..n..2) — PIXI has no such
+      // mode, so expand it here (the old code set loop=true, a no-op).
+      if (r.animation.pingPong && frameNames.length > 2) {
+        frameNames = frameNames.concat(frameNames.slice(1, -1).reverse());
+      }
+      view = new PIXI.AnimatedSprite(frameNames.map((f) => textures.get(f)));
       view.width = w; view.height = h;
       view.animationSpeed = (r.animation.fps ?? 8) / 60;
       view.loop = r.animation.loop ?? true;
-      if (r.animation.pingPong && view.loop) view.loop = true;
       if (r.animation.autoplay ?? true) view.play(); else view.stop();
     } else if (r.shape) {
       view = new PIXI.Graphics();
@@ -1251,7 +1264,7 @@ async function run(id) {
             warnOnce('scene-' + action.sceneId, 'RULE', `change_scene: scene '${action.sceneId}' missing — skipped`);
             break;
           }
-          sessionStorage.setItem(sceneKey, action.sceneId);
+          storeSet(sessionStorage, sceneKey, action.sceneId);
           log('RULE', `changing scene to '${action.sceneId}'`);
           restartGame();
           break;
@@ -1347,9 +1360,9 @@ async function run(id) {
     }
     $('shell-result-stars').textContent = starsTxt;
     const bestKey = 'dq.best.' + gameId;
-    const prevBest = Number(localStorage.getItem(bestKey) || 0);
+    const prevBest = Number(storeGet(localStorage, bestKey) || 0);
     const isBest = state.score > prevBest;
-    if (isBest) localStorage.setItem(bestKey, String(state.score));
+    if (isBest) storeSet(localStorage, bestKey, String(state.score));
     const target = exp.objective?.target;
     const progress = exp.objective?.kind === 'collect' && target
       ? `${state.score} of ${target} — ` : '';
@@ -1441,7 +1454,7 @@ async function run(id) {
     }).catch(() => {});
   }
 
-  $('again').addEventListener('click', () => restartGame());
+  $('again').addEventListener('click', () => restartGame(), { signal: abort.signal });
 
   // --- Input ----------------------------------------------------------
   function tapActionName() {
@@ -1982,7 +1995,9 @@ async function run(id) {
     emit('scene_entered', undefined, undefined);
   }
   play.beginPlay = beginPlay;
-  if (play.shell && shellStartMode === 'tap_to_start' && !skipStartCardOnce) {
+  const skipCard = skipStartCardOnce; // consume: one restart skips once
+  skipStartCardOnce = false;
+  if (play.shell && shellStartMode === 'tap_to_start' && !skipCard) {
     // Draw the world once so the start card floats over the actual
     // game, then freeze the ticker until the player taps Start.
     try { app.renderer.render(app.stage); } catch { /* trap handles it */ }
