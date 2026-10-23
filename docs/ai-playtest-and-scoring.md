@@ -116,3 +116,10 @@ Run standalone scoring tests (no browser binaries required): `cd packages/game-q
 Run worker integration tests: `cd tools/playtest && npm test`.
 
 The current worker can still be run against a live server using the documented `go run ./cmd/playtest -base ...` command. Browser tests require Playwright and its browser binaries to be installed.
+
+## Phase E — incidents, tuner, and the suggestions loop
+
+- **Experience incidents**: `GET /v1/telemetry/incidents` also returns `experience` entries derived from telemetry v2 aggregates (jank rate, dead-input rate, win-rate extremes, slow first reward), each with its measured value, threshold, and session count. Rate claims require a 20-session floor; below it, silence.
+- **Difficulty tuner**: `POST /v1/games/{id}/tuner/propose` reads the game's measured win rate and proposes ONE pacing knob (ramp speed or health) in shadow mode when the rate leaves the healthy band; `.../tuner/proposals/{pid}/apply` applies it through full IR revalidation, `/discard` drops it. Insufficient data is reported as insufficient data.
+- **Suggestions loop**: the AI reviewer covers creative dimensions; objective dimensions get deterministic measured-evidence suggestions in `score-report.mjs`. After merging, `missingSuggestions` must be empty, and `--suggestions-md` renders the report a human reads. Suggestions feed fixes; fixes are re-playtested and re-scored against the frozen calibration cards.
+- **SFX as data**: games may ship event sounds as `.b64` WAV files listed under the manifest's `sfx` array; the inventory loader publishes them as artifacts so IR audio assets and `play_sound` rules resolve.
