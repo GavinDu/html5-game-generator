@@ -17,6 +17,7 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 - A game must be ready, not quarantined, and owned by the caller's demo identity.
 - The first published version captures caption/topics/remix attribution and cannot be overwritten through this endpoint. Create a new game/version to revise the post.
 - New posts enter `pending` moderation and are excluded from feeds until approved.
+- Once published, a post's game IR cannot be changed by repair or difficulty-tuning actions. Create a remix or new draft to publish a changed version; existing post links stay attached to the published game ID.
 - `GET /v1/games/{id}/post` returns an eligible published post and basic engagement counts.
 
 ## Interactions
