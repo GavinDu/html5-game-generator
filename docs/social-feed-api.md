@@ -32,7 +32,7 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 - `POST /v1/games/{id}/reactions` with reaction `like|love|funny|wow`; `DELETE` removes the current demo user's reaction.
 - `GET|POST /v1/games/{id}/comments`; body is `{"body":"..."}`. The comment author can delete via `DELETE /v1/games/{id}/comments/{commentID}`.
 - `POST|DELETE /v1/games/{id}/save`; `GET /v1/users/me/saved`.
-- `POST /v1/games/{id}/report` with `{"reason":"..."}`.
+- `POST /v1/games/{id}/report` with `{"reason":"..."}`. Moderators resolve via `POST /v1/moderation/reports/{reportID}/resolve?reason=...`; the report record retains resolution time, actor label, and reason. Repeated resolution does not overwrite the original audit fields. `X-User-ID` is still a development identity, so the actor label is not a production-grade identity assertion.
 - `POST|DELETE /v1/users/{creatorID}/block`.
 - `POST /v1/games/{id}/feedback` with `{"kind":"not_interested"}`.
 - `GET /v1/users/me/preferences` returns muted topics and not-interested game IDs.
