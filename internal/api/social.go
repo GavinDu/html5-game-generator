@@ -38,6 +38,7 @@ type socialReport struct {
 	Status    string    `json:"status"`
 }
 type socialEvent struct {
+	EventID    string    `json:"event_id,omitempty"`
 	UserID     string    `json:"user_id"`
 	GameID     string    `json:"game_id"`
 	Kind       string    `json:"kind"`
@@ -67,6 +68,7 @@ type socialFeedbackRequest struct {
 	Kind string `json:"kind"`
 }
 type socialEventRequest struct {
+	EventID    string `json:"event_id"`
 	GameID     string `json:"game_id"`
 	Kind       string `json:"kind"`
 	DurationMS int    `json:"duration_ms"`
@@ -840,12 +842,30 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "durations cannot be negative")
 		return
 	}
+	req.EventID = strings.TrimSpace(req.EventID)
+	if len(req.EventID) > 128 {
+		writeErr(w, 400, "event_id must be at most 128 characters")
+		return
+	}
 	if _, ok := s.store.GetGame(req.GameID); !ok {
 		writeErr(w, 404, "game not found")
 		return
 	}
-	ev := socialEvent{UserID: userID(r), GameID: req.GameID, Kind: req.Kind, DurationMS: req.DurationMS, ExpectedMS: req.ExpectedMS, CreatedAt: time.Now().UTC()}
+	viewer := userID(r)
 	s.socialMu.Lock()
+	// Client-supplied event IDs make retries safe. Dedupe is intentionally
+	// bounded to the in-memory event window; legacy clients without IDs
+	// retain the original at-least-once behavior.
+	if req.EventID != "" {
+		for _, prior := range s.events {
+			if prior.UserID == viewer && prior.EventID == req.EventID {
+				s.socialMu.Unlock()
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
+		}
+	}
+	ev := socialEvent{EventID: req.EventID, UserID: viewer, GameID: req.GameID, Kind: req.Kind, DurationMS: req.DurationMS, ExpectedMS: req.ExpectedMS, CreatedAt: time.Now().UTC()}
 	s.events = append(s.events, ev)
 	if len(s.events) > 20000 {
 		s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)

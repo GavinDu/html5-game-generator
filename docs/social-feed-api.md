@@ -51,7 +51,7 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 
 ## Events and ranking
 
-- `POST /v1/telemetry/social-event` accepts `impression|play_start|completion|replay|share|save|follow|quick_exit`, with optional `duration_ms` and `expected_duration_ms`. Existing runtime `session_start` events map to play/replay signals and successful `run_end` events map to completion.
+- `POST /v1/telemetry/social-event` accepts `impression|play_start|completion|replay|share|save|follow|quick_exit`, with optional `duration_ms` and `expected_duration_ms`. An optional `event_id` (maximum 128 characters) makes retries idempotent per viewer within the retained in-memory event window; duplicate IDs return 202 without appending a second record. Legacy requests without IDs retain at-least-once behavior. Existing runtime `session_start` events map to play/replay signals and successful `run_end` events map to completion.
 - For You currently uses a small explainable baseline: recency plus bounded engagement from reactions, completions, replays, saves/shares, and a quick-exit penalty. It is not a trained/personalized recommender. Engagement ranking is held behind a simple low-data guardrail: while fewer than 20 indexed social events plus reaction counts exist, the feed stays newest-first. This avoids overreacting to a handful of early events; the threshold should be evaluated against real usage before changing.
 - Not-interested and block feedback remove matching content from that viewer's feed.
 - Avoid interpreting raw play duration as quality: normalize by expected game length/type when evaluating future ranking.
