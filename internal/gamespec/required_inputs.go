@@ -30,11 +30,11 @@ type UploadSource struct {
 	// material and what the generator may do with it. Optional for backward
 	// compatibility; the validator warns when undeclared and blocks
 	// publication when rights are explicitly unknown.
-	RightsStatus   string   `json:"rightsStatus,omitempty"`   // user_created|owned|licensed|public_domain|permission_unknown
-	ConsentStatus  string   `json:"consentStatus,omitempty"`  // not_applicable|granted|pending|unknown
-	IntendedUse    []string `json:"intendedUse,omitempty"`    // e.g. palette, character_concept, composition, mood
-	ProhibitedUse  []string `json:"prohibitedUse,omitempty"`  // e.g. exact_sprite_copy
-	SourceHash     string   `json:"sourceHash,omitempty"`     // content hash of the uploaded media, when computed at ingest
+	RightsStatus  string   `json:"rightsStatus,omitempty"`  // user_created|owned|licensed|public_domain|permission_unknown
+	ConsentStatus string   `json:"consentStatus,omitempty"` // not_applicable|granted|pending|unknown
+	IntendedUse   []string `json:"intendedUse,omitempty"`   // e.g. palette, character_concept, composition, mood
+	ProhibitedUse []string `json:"prohibitedUse,omitempty"` // e.g. exact_sprite_copy
+	SourceHash    string   `json:"sourceHash,omitempty"`    // content hash of the uploaded media, when computed at ingest
 }
 
 type InputSpec struct {
