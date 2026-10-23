@@ -52,6 +52,7 @@ func TestTunerInsufficientDataIsHonest(t *testing.T) {
 }
 
 func TestTunerEaseProposalAppliesThroughValidation(t *testing.T) {
+	opEnv(t)
 	srv := newTestServer()
 	seedTunerGame(t, srv, 30, 0) // 0% win rate over 30 runs
 	rec := do(t, srv, "POST", "/v1/games/sample-rainbow-bear/tuner/propose", nil, "")
@@ -71,7 +72,7 @@ func TestTunerEaseProposalAppliesThroughValidation(t *testing.T) {
 			t.Fatal("proposal mutated the game before apply")
 		}
 	}
-	rec = do(t, srv, "POST", "/v1/games/sample-rainbow-bear/tuner/proposals/"+prop.ID+"/apply", nil, "")
+	rec = postOp(t, srv, "/v1/games/sample-rainbow-bear/tuner/proposals/"+prop.ID+"/apply")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("apply: %d %s", rec.Code, rec.Body)
 	}
@@ -86,7 +87,7 @@ func TestTunerEaseProposalAppliesThroughValidation(t *testing.T) {
 		t.Fatalf("after apply, ramp peak = %v, want 1.41", peak)
 	}
 	// Second apply of the same proposal must conflict.
-	rec = do(t, srv, "POST", "/v1/games/sample-rainbow-bear/tuner/proposals/"+prop.ID+"/apply", nil, "")
+	rec = postOp(t, srv, "/v1/games/sample-rainbow-bear/tuner/proposals/"+prop.ID+"/apply")
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("re-apply: %d, want 409", rec.Code)
 	}
