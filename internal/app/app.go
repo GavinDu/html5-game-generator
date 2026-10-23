@@ -19,8 +19,9 @@ func Run() {
 	// Durable store snapshot (games, jobs, groups, ingests, artifacts):
 	// without it a restart lost every user-generated game while the
 	// social state and run records on disk survived (architecture
-	// review 2026-10-23). Inventory loads AFTER the snapshot so the
-	// shipped games on disk always win over a stale snapshot copy.
+	// review 2026-10-23). Inventory loads after the snapshot and
+	// re-seeds authoritatively (see inventory.seedGame), so shipped
+	// content on disk wins over a stale snapshot copy.
 	storePath := os.Getenv("DQ_STORE_FILE")
 	if storePath == "" {
 		storePath = filepath.Join("telemetry", "store-state.json")
