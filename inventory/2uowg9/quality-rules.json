@@ -44,7 +44,25 @@
       "difficulty escalation must preserve a reaction window",
       "game-over text must not obscure the replay action"
     ],
-    "audience": "family; humorous cartoon chase"
+    "audience": "family; humorous cartoon chase",
+    "generated": {
+      "archetype": "dodger",
+      "controlsScheme": "drag_x",
+      "objective": {
+        "kind": "collect",
+        "target": 15,
+        "label": "Collect 15 stars to escape"
+      },
+      "failure": {
+        "mode": "health",
+        "health": 3,
+        "invulnerableMs": 1000
+      },
+      "targetSessionSec": 40,
+      "firstRewardWithinSec": 10,
+      "milestones": 3,
+      "scenes": 1
+    }
   },
   "reviewFocus": [
     "Prioritize non-graphic, child-appropriate presentation; keep the syringe hazard readable without frightening imagery.",
