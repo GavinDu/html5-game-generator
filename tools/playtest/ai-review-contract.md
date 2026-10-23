@@ -2,6 +2,8 @@
 
 The AI reviewer receives four inputs: the complete game package (manifest, Game IR and game JavaScript), the selected `quality-rules.json`, the browser playtest report (checks, action timeline, runtime errors and screenshots/artifact paths), and the score engine's `reviewRequests`.
 
+**Blind multi-pass protocol (scorecard fusion):** judging runs as (at least) two independent passes over the evidence pack's judge view, which contains observations only — no check statuses, no objective scores, no other pass's output. Each pass returns the JSON shape below plus a top-level `judge: {model, version}`. Passes are returned together as `{ "<gameId>": { judge, passes: [passA, passB, ...] } }`; `score-report.mjs` merges them (spread > 15 on a dimension = contested; a third pass's median stands) and stamps provenance into the scored report. A pass must never see the delivery target outcome it is feeding.
+
 For every request:
 
 1. Inspect the actual game code and observed browser evidence; do not score from the title/intent alone.
