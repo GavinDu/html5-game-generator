@@ -102,10 +102,6 @@
     {
       "action": "move",
       "input": "drag"
-    },
-    {
-      "action": "move",
-      "input": "virtual_joystick"
     }
   ],
   "rules": [
