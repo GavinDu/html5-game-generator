@@ -28,6 +28,21 @@ func TestPublishedPostsCannotBeRepairedOrTuned(t *testing.T) {
 	game.Topics = []string{"puzzle"}
 	st.UpdateGame(game)
 
+	// Seed real pending proposals so apply routes reach the published-state
+	// guard rather than passing because a proposal is missing.
+	srv.repairProposals = map[string]*repairProposal{
+		"published-immutable": {
+			GameID: "published-immutable",
+			Status: "proposed",
+		},
+	}
+	srv.tunerProposals = map[string]*tunerProposal{
+		"test": {
+			ID: "test", GameID: "published-immutable",
+			Knob: "health", From: 1, To: 2, Status: "proposed",
+		},
+	}
+
 	tests := []struct {
 		name string
 		path string
