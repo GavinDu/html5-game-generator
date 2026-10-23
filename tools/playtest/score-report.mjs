@@ -26,7 +26,7 @@ const optVal = (name) => {
 };
 const packDir = optVal('--pack');
 const shotsDir = optVal('--shots');
-const positional = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--pack' && argv[i - 1] !== '--shots');
+const positional = argv.filter((a, i) => !a.startsWith('--') && argv[i - 1] !== '--pack' && argv[i - 1] !== '--shots' && argv[i - 1] !== '--suggestions-md');
 
 // ---------- IR-grounded quality contracts -------------------------------
 // The generated block of a game's quality contract is DERIVED from its
@@ -131,6 +131,91 @@ function mergePasses(review) {
   return { metrics, improvementSuggestions, judge: review.judge || null, passes: review.passes.length };
 }
 
+// ---------- measured-evidence suggestions ---------------------------------
+// The AI reviewer judges creative dimensions; OBJECTIVE dimensions
+// below the floor (or unscored) get their suggestions here, derived
+// deterministically from the measurements themselves — never
+// invented. Together with the reviewer's suggestions this closes the
+// loop the reviewer contract promises: every weak or missing metric
+// leaves with a concrete, prioritized action (quality.missingSuggestions
+// is recomputed after the merge).
+function measuredSuggestions(game, quality, measurements) {
+  const out = [];
+  const dim = (id) => quality.dimensions.find(d => d.id === id);
+  const checks = game.checks || [];
+  const st = (id) => checks.find(c => c.checkId === id)?.status ?? null;
+  const floor = quality.thresholds.minimumMetricScore;
+  const weak = (id) => { const d = dim(id); return d && (d.score === null || d.score < floor); };
+
+  if (weak('performance')) {
+    const cold = checks.find(c => c.checkId === 'budgets.cold_start');
+    const ms = cold?.actual?.coldStartMs;
+    const bits = [];
+    if (Number.isFinite(ms)) bits.push(`cold start measured ${ms}ms`);
+    if (Number.isFinite(measurements.jankRate)) bits.push(`jank rate ${(measurements.jankRate * 100).toFixed(1)}%`);
+    if (Number.isFinite(measurements.p95FrameMs)) bits.push(`p95 frame ${measurements.p95FrameMs}ms`);
+    out.push({
+      metricId: 'performance', priority: 'high', source: 'measured',
+      problem: `Performance scored ${dim('performance').score ?? 'unscored'} (${bits.join('; ') || 'insufficient measurement'}).`,
+      suggestion: 'Profile the boot path first: keep first-frame work minimal, defer non-critical asset decode until after the start card, and re-measure on a device-class target — shared CI runners inflate cold start, so confirm on the live deployment before cutting content. If jank is the driver, reduce simultaneous particles/full-screen layers (the render-cost drivers) before touching gameplay.',
+    });
+  }
+  if (weak('input_responsiveness')) {
+    const target = measurements.firstRewardTargetSec;
+    const bits = [];
+    if (Number.isFinite(measurements.firstRewardMs)) bits.push(`first reward at ${(measurements.firstRewardMs / 1000).toFixed(1)}s${target ? ` vs the declared ${target}s target` : ''}`);
+    if (Number.isFinite(measurements.deadInputRate)) bits.push(`dead-input rate ${(measurements.deadInputRate * 100).toFixed(0)}%`);
+    if (!bits.length) bits.push('no input/reward timing was measured in the playtest session');
+    out.push({
+      metricId: 'input_responsiveness', priority: 'high', source: 'measured',
+      problem: `Input responsiveness scored ${dim('input_responsiveness').score ?? 'unscored'} (${bits.join('; ')}).`,
+      suggestion: 'Bring the first reward inside the declared firstRewardWithinSec: spawn the first collectible on a guaranteed early, reachable trajectory at session start, and audit input handling for dead zones (inputs with no state change). Re-run the playtest so the timings are measured, not inferred.',
+    });
+  }
+  if (weak('playability')) {
+    const causes = [];
+    if (st('simulation.win_reachable') !== 'pass') causes.push('the playtest bot never observed a win');
+    for (const id of ['shell.start_card', 'shell.result_card', 'shell.restart_in_place']) if (st(id) === 'fail') causes.push(`${id} failed`);
+    if (st('simulation.determinism') === 'fail') causes.push('determinism check failed');
+    if (st('leaderboard.replay_verified') === 'fail') causes.push('replay verification failed');
+    out.push({
+      metricId: 'playability', priority: 'high', source: 'measured',
+      problem: `Playability scored ${dim('playability').score} (${causes.join('; ') || 'gate evidence incomplete'}).`,
+      suggestion: 'Compare the objective economics with the session target (spawn rate × catch probability × session length): if the win is unreachable in the target session, ease the pacing ramp or raise early spawn density by one step, then re-run the playtest — the win must be bot-observable before it can be scored.',
+    });
+  }
+  if (weak('reliability')) {
+    out.push({
+      metricId: 'reliability', priority: 'high', source: 'measured',
+      problem: `Reliability scored ${dim('reliability').score} (${measurements.errorCount ?? 0} runtime errors, ${measurements.warnClasses ?? 0} warning classes in the session).`,
+      suggestion: 'Fix runtime errors before any polish: reproduce from the telemetry incident fingerprint, repair the root cause in the IR/runtime, and confirm a clean session in the next playtest.',
+    });
+  }
+  return out;
+}
+
+function suggestionsMarkdown(report) {
+  const lines = ['# Improvement suggestions — AI reviewer + measured evidence', ''];
+  for (const game of report.games) {
+    const q = game.quality;
+    if (!q) continue;
+    lines.push(`## ${game.title || game.gameId} — overall ${q.overallScore ?? 'incomplete'}, measured ${q.subscores.measured.score ?? '—'}, creative ${q.subscores.creative.score ?? '—'}`);
+    lines.push('');
+    const all = q.improvementSuggestions || [];
+    if (!all.length) lines.push('_No suggestions — every metric is at or above its floor._', '');
+    for (const s of all) {
+      const d = q.dimensions.find(x => x.id === s.metricId);
+      lines.push(`- **[${s.priority || 'medium'}] ${s.metricId}** (score ${d?.score ?? 'unscored'}, source: ${s.source || 'ai-review'}) — ${s.problem || ''}`);
+      lines.push(`  → ${s.suggestion}`);
+    }
+    if ((q.missingSuggestions || []).length) {
+      lines.push(`- ⚠️ Still missing suggestions for: ${q.missingSuggestions.map(m => m.metricId).join(', ')}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
 // ---------- scoring --------------------------------------------------------
 const [reportPath, reviewPath, outPath] = positional;
 if (!reportPath) {
@@ -191,6 +276,17 @@ for (const game of report.games) {
   game.quality.rulesFile = rules.profile === 'default'
     ? 'config/game-quality/default.json'
     : `inventory/<game-id>/quality-rules.json`;
+  // Merge reviewer + measured-evidence suggestions; a metric counts
+  // as covered when either source produced a concrete suggestion.
+  {
+    const judgeSuggestions = (game.quality.improvementSuggestions || []).map(s => ({ source: 'ai-review', ...s }));
+    const measured = measuredSuggestions(game, game.quality, measurements);
+    const covered = new Set([...judgeSuggestions, ...measured].map(s => s.metricId));
+    game.quality.improvementSuggestions = [...judgeSuggestions, ...measured];
+    game.quality.missingSuggestions = (game.quality.reviewRequests || [])
+      .filter(r => !covered.has(r.metricId))
+      .map(r => ({ metricId: r.metricId, score: r.currentScore }));
+  }
   if (review && review.judge) {
     game.quality.provenance = { judge: review.judge, passes: review.passes || 1 };
   }
@@ -214,6 +310,12 @@ for (const game of report.games) {
       reviewFocus: rules?.reviewFocus || [],
       experience: ir?.experience || null,
       intent: ir?.game?.description || null,
+      audio: ir ? {
+        assets: (ir.assets || []).filter(a => a.kind === 'audio').map(a => a.id),
+        soundEvents: (ir.rules || [])
+          .filter(r => (r.actions || []).some(a => a.type === 'play_sound'))
+          .map(r => ({ on: r.when?.event, sounds: r.actions.filter(a => a.type === 'play_sound').map(a => a.assetId) })),
+      } : null,
       observations: {
         census: probe.census || null,
         hud: probe.hud || null,
@@ -234,3 +336,7 @@ for (const game of report.games) {
 const output = JSON.stringify(report, null, 2) + '\n';
 if (outPath) await writeFile(resolve(outPath), output);
 else process.stdout.write(output);
+const suggestionsPath = optVal('--suggestions-md');
+if (suggestionsPath) {
+  await writeFile(resolve(suggestionsPath), suggestionsMarkdown(report));
+}
