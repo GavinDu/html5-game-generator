@@ -29,11 +29,11 @@ func TestCommentIdempotencyAndTopicPreferenceControls(t *testing.T) {
 	if first.Code != http.StatusCreated {
 		t.Fatalf("first comment: %d %s", first.Code, first.Body.String())
 	}
-	second := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body":"Great!"}, "viewer", map[string]string{"Idempotency-Key":"comment-1"})
+	second := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body": "Great!"}, "viewer", map[string]string{"Idempotency-Key": "comment-1"})
 	if second.Code != http.StatusCreated || !strings.Contains(second.Body.String(), `"idempotent_replay":true`) {
 		t.Fatalf("replayed comment: %d %s", second.Code, second.Body.String())
 	}
-	conflict := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body":"Different"}, "viewer", map[string]string{"Idempotency-Key":"comment-1"})
+	conflict := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body":"Different"}, "viewer", map[string]string{"Idempotency-Key": "comment-1"})
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("idempotency conflict: %d %s", conflict.Code, conflict.Body.String())
 	}
@@ -73,7 +73,7 @@ func TestCommentIdempotencySurvivesRestart(t *testing.T) {
 	}
 	second := newTestServer()
 	addPublicGame(second, "persist-idempotency", "creator")
-	resp = doWithHeaders(t, second, http.MethodPost, "/v1/games/persist-idempotency/comments", map[string]any{"body":"Once"}, "viewer", map[string]string{"Idempotency-Key":"persist-key"})
+	resp = doWithHeaders(t, second, http.MethodPost, "/v1/games/persist-idempotency/comments", map[string]any{"body": "Once"}, "viewer", map[string]string{"Idempotency-Key": "persist-key"})
 	if resp.Code != http.StatusCreated || !strings.Contains(resp.Body.String(), `"idempotent_replay":true`) {
 		t.Fatalf("restart replay: %d %s", resp.Code, resp.Body.String())
 	}
