@@ -73,6 +73,31 @@ test('two blind passes merge; a >15 spread is contested and median-scored with a
   assert.equal(game.quality.schemaVersion, '1.2');
 });
 
+test('measured-evidence suggester covers weak objective metrics; creative gaps stay honestly missing', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dq-score-'));
+  const weakReport = {
+    games: [{
+      gameId: 'sample-rainbow-bear', title: "Bobo's Rainbow", checks,
+      probe: { status: 'timeout', census: 'x', errors: [], warnCount: 0, jankRate: 0.15, p95FrameMs: 50, deadInputRate: 0.3, firstInputMs: 2900, firstRewardMs: null, events: [] },
+    }],
+  };
+  const reportPath = join(dir, 'report.json');
+  const outPath = join(dir, 'out.json');
+  const mdPath = join(dir, 'suggestions.md');
+  await writeFile(reportPath, JSON.stringify(weakReport));
+  await run('node', [script, reportPath, '-', outPath, '--suggestions-md', mdPath]);
+  const out = JSON.parse(await readFile(outPath, 'utf8'));
+  const q = out.games[0].quality;
+  const measured = q.improvementSuggestions.filter(s => s.source === 'measured');
+  assert.ok(measured.some(s => s.metricId === 'performance'), 'performance gets a measured suggestion');
+  assert.ok(measured.some(s => s.metricId === 'input_responsiveness'), 'input gets a measured suggestion');
+  const missingIds = q.missingSuggestions.map(m => m.metricId);
+  assert.ok(!missingIds.includes('performance') && !missingIds.includes('input_responsiveness'));
+  assert.ok(missingIds.includes('visual_design'), 'unreviewed creative dimensions remain honestly missing');
+  const md = await readFile(mdPath, 'utf8');
+  assert.ok(md.includes('source: measured'));
+});
+
 test('evidence pack judge view carries observations, never check statuses or scores', async () => {
   const { dir } = await runScorer({ judge: { model: 'judge-x', version: '1' }, passes: [pass(80)] });
   const view = JSON.parse(await readFile(join(dir, 'packs', 'sample-rainbow-bear', 'judge-view.json'), 'utf8'));
