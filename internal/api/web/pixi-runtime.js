@@ -56,7 +56,7 @@ function warnOnce(key, cat, msg) {
 // native code can do it. Errors are buffered for the ?probe=1 verdict and
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
-const RUNTIME_VERSION = '2026.10.22.4';
+const RUNTIME_VERSION = '2026.10.22.5';
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -516,6 +516,15 @@ async function run(id) {
     background: scene.backgroundColor ? parseColor(scene.backgroundColor, 0x16204a) : 0x16204a,
   });
   $('stage').appendChild(app.canvas);
+  // Letterbox continuity (Phase E): when the viewport aspect differs
+  // from the world's, the page around the canvas wears the scene's
+  // own background color instead of black — no "black bar" framing
+  // the playfield.
+  if (scene.backgroundColor) {
+    document.body.style.background = scene.backgroundColor;
+    const stageEl = $('stage');
+    if (stageEl) stageEl.style.background = scene.backgroundColor;
+  }
   activeSession = { app, abort };
   log('RT', 'pixi stage ready');
 
