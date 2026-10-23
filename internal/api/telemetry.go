@@ -307,7 +307,11 @@ func (s *Server) handleIncidents(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /v1/games/{id}/quarantine — hide a game from the feed manually.
+// Operator-only: requires the moderation token.
 func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
+	if !requireModerationToken(w, r) {
+		return
+	}
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok {
 		http.Error(w, "game not found", http.StatusNotFound)
@@ -331,6 +335,9 @@ func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
 // its window of telemetry events so the same burst cannot instantly
 // re-quarantine it; new reports start a fresh window.
 func (s *Server) handleUnquarantine(w http.ResponseWriter, r *http.Request) {
+	if !requireModerationToken(w, r) {
+		return
+	}
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok {
 		http.Error(w, "game not found", http.StatusNotFound)
