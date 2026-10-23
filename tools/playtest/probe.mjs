@@ -240,6 +240,10 @@ async function playGame(browser, gameId) {
       break;
     }
   }
+  if (shotsDir) {
+    mkdirSync(shotsDir, { recursive: true });
+    await page.screenshot({ path: `${shotsDir}/${gameId}.mid.png` }).catch(() => {});
+  }
   // Shell games get an extended pursuit when the standard window saw
   // no end: continuous drag sweeps across the player's zone (the
   // drag_x scheme tracks the pointer), up to the win budget. The
