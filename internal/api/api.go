@@ -580,7 +580,9 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	mutedTopics := map[string]bool{}
 	for topic, muted := range s.mutedTopics[viewer] {
-		if muted { mutedTopics[strings.ToLower(topic)] = true }
+		if muted {
+			mutedTopics[strings.ToLower(topic)] = true
+		}
 	}
 	events := append([]socialEvent(nil), s.events...)
 	reactionCounts := map[string]int{}
@@ -594,8 +596,13 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		topicMuted := false
-		for _, topic := range g.Topics { if mutedTopics[strings.ToLower(strings.TrimSpace(strings.TrimPrefix(topic, "#")))] { topicMuted = true; break } }
-		if topicMuted { continue }
+		for _, topic := range g.Topics { if mutedTopics[strings.ToLower(strings.TrimSpace(strings.TrimPrefix(topic, "#")))] {
+				topicMuted = true
+				break
+			} }
+		if topicMuted {
+			continue
+		}
 		if scope == "following" && !followed[g.OwnerID] {
 			continue
 		}
