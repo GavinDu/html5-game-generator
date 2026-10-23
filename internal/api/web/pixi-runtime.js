@@ -56,7 +56,7 @@ function warnOnce(key, cat, msg) {
 // native code can do it. Errors are buffered for the ?probe=1 verdict and
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
-const RUNTIME_VERSION = '2026.10.22.3';
+const RUNTIME_VERSION = '2026.10.22.4';
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -93,6 +93,15 @@ window.__dqErrors = errorBuffer;
 function emitProbe() {
   const play = window.__dqPlay || null;
   const visibleSec = play ? play.visibleMs / 1000 : 0;
+  // Graded performance measurements (scorecard fusion, Phase D): the
+  // same frame samples telemetry aggregates, summarized for the
+  // scorer — jank share and p95 frame time over visible play.
+  let jankRate = null, p95FrameMs = null;
+  if (play && play.frameSamples && play.frameSamples.length >= 30) {
+    const sorted = [...play.frameSamples].sort((a, b) => a - b);
+    p95FrameMs = Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]);
+    jankRate = Math.round(1000 * sorted.filter((x) => x > 33).length / sorted.length) / 1000;
+  }
   const verdict = {
     gameId: new URLSearchParams(location.search).get('game'),
     runtimeVersion: RUNTIME_VERSION,
@@ -106,6 +115,12 @@ function emitProbe() {
     inputs: play ? play.inputLog.length : 0,
     deadInputs: play ? play.deadInputs : 0,
     score: play && typeof play.score === 'number' ? play.score : null,
+    jankRate,
+    p95FrameMs,
+    deadInputRate: play && play.inputLog.length > 0
+      ? Math.round(1000 * play.deadInputs / play.inputLog.length) / 1000 : null,
+    firstInputMs: play && play.firstInputAt ? play.firstInputAt : null,
+    firstRewardMs: play && play.firstRewardAt ? play.firstRewardAt : null,
     scriptEndScore: play && typeof play.scriptEndScore === 'number' ? play.scriptEndScore : null,
     replay: window.__dqReplay || null,
     lastRunId: play ? (play.lastRunId || null) : null,
