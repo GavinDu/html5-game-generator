@@ -1,898 +1,976 @@
 {
-  "assets": [
-    {
-      "altText": "Sky background",
-      "id": "bg",
-      "kind": "image",
-      "mimeType": "image/jpeg",
-      "source": "user_upload",
-      "uri": "sprites/bg.jpg"
-    },
-    {
-      "altText": "The little girl hero on her cloud",
-      "id": "hero",
-      "kind": "image",
-      "mimeType": "image/png",
-      "source": "user_drawing",
-      "uri": "sprites/hero.png"
-    },
-    {
-      "altText": "Wind demon",
-      "id": "demon",
-      "kind": "image",
-      "mimeType": "image/png",
-      "source": "generated",
-      "uri": "sprites/demon.png"
-    },
-    {
-      "altText": "A hole torn in the sky",
-      "id": "hole",
-      "kind": "image",
-      "mimeType": "image/png",
-      "source": "generated",
-      "uri": "sprites/hole.png"
-    },
-    {
-      "altText": "A mended patch of sky",
-      "id": "hole_closed",
-      "kind": "image",
-      "mimeType": "image/png",
-      "source": "generated",
-      "uri": "sprites/hole_closed.png"
-    },
-    {
-      "altText": "Sky shard",
-      "id": "shard",
-      "kind": "image",
-      "mimeType": "image/png",
-      "source": "generated",
-      "uri": "sprites/shard.png"
-    },
-    {
-      "altText": "Spark",
-      "id": "spark",
-      "kind": "image",
-      "mimeType": "image/png",
-      "source": "generated",
-      "uri": "sprites/spark.png"
-    },
-    {
-      "altText": "Playful background theme",
-      "id": "theme",
-      "kind": "audio",
-      "mimeType": "audio/wav",
-      "source": "generated",
-      "uri": "audio/theme.wav"
-    }
-  ],
-  "game": {
-    "audience": "family",
-    "description": "Ride the cloud, catch falling sky shards, and mend the holes torn in the sky.",
-    "entryScene": "sky",
-    "id": "sample-ribbon-sky",
-    "orientation": "portrait",
-    "sessionTargetSeconds": 25,
-    "title": "Ribbon Mends the Sky"
+ "assets": [
+  {
+   "altText": "Sky background",
+   "id": "bg",
+   "kind": "image",
+   "mimeType": "image/jpeg",
+   "source": "user_upload",
+   "uri": "sprites/bg.jpg"
   },
-  "inputBindings": [
-    {
-      "action": "move",
-      "input": "drag"
-    },
-    {
-      "action": "move",
-      "input": "tap"
-    },
-    {
-      "action": "move_left",
-      "input": "keyboard",
-      "key": "ArrowLeft"
-    },
-    {
-      "action": "move_right",
-      "input": "keyboard",
-      "key": "ArrowRight"
-    },
-    {
-      "action": "move_up",
-      "input": "keyboard",
-      "key": "ArrowUp"
-    },
-    {
-      "action": "move_down",
-      "input": "keyboard",
-      "key": "ArrowDown"
-    }
-  ],
-  "irVersion": "1.2",
-  "metadata": {
-    "tags": [
-      "family",
-      "collecting",
-      "drawing-inspired"
-    ]
+  {
+   "altText": "The little girl hero on her cloud",
+   "id": "hero",
+   "kind": "image",
+   "mimeType": "image/png",
+   "source": "user_drawing",
+   "uri": "sprites/hero.png"
   },
-  "rules": [
-    {
-      "id": "start-music",
-      "when": {
-        "event": "game_start"
-      },
-      "actions": [
-        {
-          "type": "play_sound",
-          "assetId": "theme"
-        }
-      ]
-    },
-    {
-      "id": "shard-caught",
-      "when": {
-        "event": "collected",
-        "source": "player",
-        "target": "shard"
-      },
-      "actions": [
-        {
-          "type": "add_score",
-          "value": 1
-        },
-        {
-          "type": "emit_particles",
-          "target": "shard",
-          "value": 12
-        },
-        {
-          "type": "destroy_entity",
-          "target": "shard"
-        }
-      ]
-    },
-    {
-      "id": "shard-cyan-caught",
-      "when": {
-        "event": "collected",
-        "source": "player",
-        "target": "shard_cyan"
-      },
-      "actions": [
-        {
-          "type": "add_score",
-          "value": 2
-        },
-        {
-          "type": "emit_particles",
-          "target": "shard_cyan",
-          "value": 14
-        },
-        {
-          "type": "destroy_entity",
-          "target": "shard_cyan"
-        }
-      ]
-    },
-    {
-      "id": "shard-gold-caught",
-      "when": {
-        "event": "collected",
-        "source": "player",
-        "target": "shard_gold"
-      },
-      "actions": [
-        {
-          "type": "add_score",
-          "value": 3
-        },
-        {
-          "type": "emit_particles",
-          "target": "shard_gold",
-          "value": 18
-        },
-        {
-          "type": "destroy_entity",
-          "target": "shard_gold"
-        }
-      ]
-    },
-    {
-      "id": "demon-hit",
-      "when": {
-        "event": "collision",
-        "source": "player",
-        "target": "demon"
-      },
-      "actions": [
-        {
-          "type": "change_health",
-          "value": -1
-        },
-        {
-          "type": "set_velocity",
-          "target": "demon",
-          "value": [
-            -260,
-            -140
-          ]
-        },
-        {
-          "type": "camera_shake",
-          "value": 6
-        },
-        {
-          "type": "show_text",
-          "value": "Ouch! The demon bumped you."
-        }
-      ]
-    },
-    {
-      "id": "mend-hole-1",
-      "when": {
-        "event": "score_reached",
-        "value": 4
-      },
-      "actions": [
-        {
-          "type": "set_asset",
-          "target": "hole",
-          "assetId": "hole_closed"
-        },
-        {
-          "type": "emit_particles",
-          "target": "hole",
-          "value": 22
-        },
-        {
-          "type": "show_text",
-          "value": "One tear in the sky is mended!"
-        }
-      ]
-    },
-    {
-      "id": "mend-hole-2",
-      "when": {
-        "event": "score_reached",
-        "value": 7
-      },
-      "actions": [
-        {
-          "type": "set_asset",
-          "target": "hole2",
-          "assetId": "hole_closed"
-        },
-        {
-          "type": "emit_particles",
-          "target": "hole2",
-          "value": 22
-        },
-        {
-          "type": "show_text",
-          "value": "The sky is almost whole..."
-        }
-      ]
-    },
-    {
-      "id": "sky-mended",
-      "when": {
-        "event": "score_reached",
-        "source": "player",
-        "value": 10
-      },
-      "actions": [
-        {
-          "type": "show_text",
-          "value": "The sky is mended!"
-        },
-        {
-          "type": "play_sound",
-          "assetId": "theme"
-        },
-        {
-          "type": "end_game",
-          "value": true
-        }
-      ]
-    }
-  ],
-  "scenes": [
-    {
-      "entities": [
-        {
-          "id": "player",
-          "kind": "player",
-          "assetId": "hero",
-          "position": [
-            195,
-            640
-          ],
-          "size": [
-            84,
-            96
-          ],
-          "components": [
-            "movement",
-            "physics_body",
-            "character_controller"
-          ],
-          "physics": {
-            "body": "kinematic_position",
-            "shape": "capsule",
-            "friction": 0.2,
-            "collisionGroups": {
-              "memberships": [
-                0
-              ],
-              "filter": [
-                1,
-                2,
-                3
-              ]
-            }
-          },
-          "character": {
-            "offset": 4,
-            "snapToGroundDistance": 10,
-            "applyImpulsesToDynamicBodies": true
-          },
-          "render": {
-            "particles": {
-              "rate": 26,
-              "tint": "#ffd94d",
-              "lifetime": [
-                0.3,
-                0.6
-              ],
-              "speed": [
-                8,
-                30
-              ],
-              "direction": 90,
-              "spread": 50,
-              "startScale": 0.45,
-              "endScale": 0.05,
-              "blendMode": "add"
-            }
-          },
-          "tweens": [
-            {
-              "property": "scale",
-              "from": 1,
-              "to": 1.05,
-              "durationMs": 1000,
-              "repeat": -1,
-              "yoyo": true,
-              "easing": "sine"
-            }
-          ]
-        },
-        {
-          "id": "shard",
-          "kind": "pickup",
-          "assetId": "shard",
-          "position": [
-            195,
-            220
-          ],
-          "size": [
-            30,
-            30
-          ],
-          "components": [
-            "collider",
-            "collectible",
-            "physics_body"
-          ],
-          "properties": {
-            "recycle": true,
-            "sway": 30
-          },
-          "physics": {
-            "body": "dynamic",
-            "shape": "ball",
-            "density": 0.7,
-            "friction": 0.2,
-            "restitution": 0.55,
-            "initialVelocity": [
-              0,
-              45
-            ],
-            "gravityScale": 1.0,
-            "collisionGroups": {
-              "memberships": [
-                1
-              ],
-              "filter": [
-                0,
-                3
-              ]
-            }
-          },
-          "render": {
-            "particles": {
-              "burst": 12,
-              "tint": "#a5f3fc",
-              "speed": [
-                50,
-                140
-              ],
-              "lifetime": [
-                0.3,
-                0.7
-              ],
-              "spread": 360,
-              "startScale": 0.4,
-              "endScale": 0.05,
-              "rate": 0
-            }
-          }
-        },
-        {
-          "id": "shard_cyan",
-          "kind": "pickup",
-          "assetId": "shard",
-          "position": [
-            80,
-            100
-          ],
-          "size": [
-            30,
-            30
-          ],
-          "components": [
-            "collider",
-            "collectible",
-            "physics_body"
-          ],
-          "properties": {
-            "recycle": true,
-            "sway": 40
-          },
-          "physics": {
-            "body": "dynamic",
-            "shape": "ball",
-            "density": 0.7,
-            "friction": 0.2,
-            "restitution": 0.55,
-            "initialVelocity": [
-              0,
-              60
-            ],
-            "gravityScale": 1.2,
-            "collisionGroups": {
-              "memberships": [
-                1
-              ],
-              "filter": [
-                0,
-                3
-              ]
-            }
-          },
-          "render": {
-            "particles": {
-              "burst": 12,
-              "tint": "#a5f3fc",
-              "speed": [
-                50,
-                140
-              ],
-              "lifetime": [
-                0.3,
-                0.7
-              ],
-              "spread": 360,
-              "startScale": 0.4,
-              "endScale": 0.05,
-              "rate": 0
-            },
-            "tint": "#67e8f9"
-          }
-        },
-        {
-          "id": "shard_gold",
-          "kind": "pickup",
-          "assetId": "shard",
-          "position": [
-            305,
-            60
-          ],
-          "size": [
-            30,
-            30
-          ],
-          "components": [
-            "collider",
-            "collectible",
-            "physics_body"
-          ],
-          "properties": {
-            "recycle": true,
-            "sway": 22
-          },
-          "physics": {
-            "body": "dynamic",
-            "shape": "ball",
-            "density": 0.7,
-            "friction": 0.2,
-            "restitution": 0.55,
-            "initialVelocity": [
-              0,
-              35
-            ],
-            "gravityScale": 0.9,
-            "collisionGroups": {
-              "memberships": [
-                1
-              ],
-              "filter": [
-                0,
-                3
-              ]
-            }
-          },
-          "render": {
-            "particles": {
-              "burst": 12,
-              "tint": "#a5f3fc",
-              "speed": [
-                50,
-                140
-              ],
-              "lifetime": [
-                0.3,
-                0.7
-              ],
-              "spread": 360,
-              "startScale": 0.4,
-              "endScale": 0.05,
-              "rate": 0
-            },
-            "tint": "#fde047"
-          }
-        },
-        {
-          "id": "demon",
-          "kind": "enemy",
-          "assetId": "demon",
-          "position": [
-            300,
-            140
-          ],
-          "size": [
-            64,
-            64
-          ],
-          "components": [
-            "collider",
-            "physics_body"
-          ],
-          "physics": {
-            "body": "dynamic",
-            "shape": "ball",
-            "density": 1,
-            "gravityScale": 0,
-            "linearDamping": 0.4,
-            "collisionGroups": {
-              "memberships": [
-                2
-              ],
-              "filter": [
-                0
-              ]
-            }
-          },
-          "render": {
-            "filters": [
-              {
-                "type": "color_matrix",
-                "operation": "saturate",
-                "value": 1.3
-              }
-            ]
-          },
-          "tweens": [
-            {
-              "property": "scale",
-              "from": 1,
-              "to": 1.12,
-              "durationMs": 700,
-              "repeat": -1,
-              "yoyo": true,
-              "easing": "sine"
-            }
-          ]
-        },
-        {
-          "id": "demon_anchor",
-          "kind": "decoration",
-          "position": [
-            300,
-            140
-          ],
-          "size": [
-            10,
-            10
-          ],
-          "components": [
-            "physics_body"
-          ],
-          "physics": {
-            "body": "fixed",
-            "shape": "ball",
-            "sensor": true
-          },
-          "render": {
-            "alpha": 0,
-            "shape": {
-              "type": "circle",
-              "fill": "#000000"
-            }
-          }
-        },
-        {
-          "id": "hole",
-          "kind": "decoration",
-          "assetId": "hole",
-          "position": [
-            110,
-            180
-          ],
-          "size": [
-            76,
-            48
-          ],
-          "components": [],
-          "render": {
-            "filters": [
-              {
-                "type": "blur",
-                "value": 1.5
-              }
-            ]
-          },
-          "tweens": [
-            {
-              "property": "alpha",
-              "from": 0.75,
-              "to": 1,
-              "durationMs": 1600,
-              "repeat": -1,
-              "yoyo": true,
-              "easing": "sine"
-            }
-          ]
-        },
-        {
-          "id": "hole2",
-          "kind": "decoration",
-          "assetId": "hole",
-          "position": [
-            288,
-            330
-          ],
-          "size": [
-            76,
-            48
-          ],
-          "components": [],
-          "render": {
-            "filters": [
-              {
-                "type": "blur",
-                "value": 1.5
-              }
-            ]
-          },
-          "tweens": [
-            {
-              "property": "alpha",
-              "from": 0.75,
-              "to": 1,
-              "durationMs": 1900,
-              "repeat": -1,
-              "yoyo": true,
-              "easing": "sine"
-            }
-          ]
-        },
-        {
-          "id": "cloudbank",
-          "kind": "decoration",
-          "position": [
-            195,
-            838
-          ],
-          "size": [
-            390,
-            20
-          ],
-          "components": [
-            "collider",
-            "physics_body"
-          ],
-          "physics": {
-            "body": "fixed",
-            "shape": "cuboid",
-            "friction": 0.5,
-            "collisionGroups": {
-              "memberships": [
-                3
-              ],
-              "filter": [
-                1
-              ]
-            }
-          },
-          "render": {
-            "alpha": 0,
-            "shape": {
-              "type": "rect",
-              "fill": "#ffffff"
-            }
-          }
-        },
-        {
-          "id": "cloudbank-a",
-          "kind": "decoration",
-          "position": [
-            80,
-            824
-          ],
-          "size": [
-            150,
-            34
-          ],
-          "components": [],
-          "render": {
-            "alpha": 0.85,
-            "shape": {
-              "type": "ellipse",
-              "fill": "#dbeafe"
-            }
-          }
-        },
-        {
-          "id": "cloudbank-b",
-          "kind": "decoration",
-          "position": [
-            280,
-            830
-          ],
-          "size": [
-            170,
-            30
-          ],
-          "components": [],
-          "render": {
-            "alpha": 0.7,
-            "shape": {
-              "type": "ellipse",
-              "fill": "#bfdbfe"
-            }
-          }
-        }
-      ],
-      "id": "sky",
-      "backgroundColor": "#16235c",
-      "gravity": [
-        0,
-        560
-      ],
-      "layers": [
-        {
-          "id": "bg-layer",
-          "assetId": "bg",
-          "parallax": [
-            0.35,
-            0.2
-          ],
-          "alpha": 0.95,
-          "zIndex": -900
-        }
-      ],
-      "joints": [
-        {
-          "id": "demon-spring",
-          "type": "spring",
-          "bodyA": "demon_anchor",
-          "bodyB": "demon",
-          "restLength": 8,
-          "stiffness": 26,
-          "damping": 3.5
-        }
-      ]
-    }
-  ],
-  "capabilities": [
-    "render.sprite",
-    "render.parallax",
-    "render.filters",
-    "render.particles",
-    "physics.bodies",
-    "physics.colliders",
-    "physics.joints",
-    "physics.character_controller",
-    "fx.tween",
-    "fx.camera",
-    "fx.emitters",
-    "audio",
-    "input.keyboard",
-    "input.pointer",
-    "shell.v1"
-  ],
-  "experience": {
-    "archetype": "catcher",
-    "controls": {
-      "scheme": "drag_x",
-      "hint": "Drag to fly the ribbon"
-    },
-    "objective": {
-      "kind": "collect",
-      "target": 10,
-      "label": "Gather 10 sky shards"
-    },
-    "hud": {
-      "left": "objective_progress",
-      "right": "health"
-    },
-    "start": {
-      "mode": "tap_to_start"
-    },
-    "failure": {
-      "mode": "health",
-      "health": 3,
-      "invulnerableMs": 1000
-    },
-    "pacing": {
-      "targetSessionSec": 25,
-      "firstRewardWithinSec": 10,
-      "expectedCatchRate": 0.15,
-      "ramp": [
-        {
-          "at": 0,
-          "speedMul": 1.0
-        },
-        {
-          "at": 0.5,
-          "speedMul": 1.2
-        },
-        {
-          "at": 0.85,
-          "speedMul": 1.45
-        }
-      ]
-    },
-    "milestones": [
-      0.4,
-      0.7,
-      1
-    ],
-    "milestoneVisuals": {
-      "0.4": "hole",
-      "0.7": "hole2"
-    },
-    "result": {
-      "win": {
-        "title": "The sky is mended!",
-        "stars": {
-          "by": "time",
-          "thresholdsSec": [
-            50,
-            35,
-            22
-          ]
-        }
-      },
-      "lose": {
-        "title": "So close — the sky still needs you"
-      }
-    },
-    "leaderboard": {
-      "metric": "time",
-      "order": "asc"
-    },
-    "feedback": {
-      "haptics": "none",
-      "juice": "standard"
-    }
+  {
+   "altText": "Wind demon",
+   "id": "demon",
+   "kind": "image",
+   "mimeType": "image/png",
+   "source": "generated",
+   "uri": "sprites/demon.png"
+  },
+  {
+   "altText": "A hole torn in the sky",
+   "id": "hole",
+   "kind": "image",
+   "mimeType": "image/png",
+   "source": "generated",
+   "uri": "sprites/hole.png"
+  },
+  {
+   "altText": "A mended patch of sky",
+   "id": "hole_closed",
+   "kind": "image",
+   "mimeType": "image/png",
+   "source": "generated",
+   "uri": "sprites/hole_closed.png"
+  },
+  {
+   "altText": "Sky shard",
+   "id": "shard",
+   "kind": "image",
+   "mimeType": "image/png",
+   "source": "generated",
+   "uri": "sprites/shard.png"
+  },
+  {
+   "altText": "Spark",
+   "id": "spark",
+   "kind": "image",
+   "mimeType": "image/png",
+   "source": "generated",
+   "uri": "sprites/spark.png"
+  },
+  {
+   "altText": "Playful background theme",
+   "id": "theme",
+   "kind": "audio",
+   "mimeType": "audio/wav",
+   "source": "generated",
+   "uri": "audio/theme.wav"
+  },
+  {
+   "id": "glass",
+   "kind": "audio",
+   "mimeType": "audio/wav",
+   "source": "generated",
+   "uri": "audio/glass.wav",
+   "altText": "Glassy chime when a sky shard is gathered"
+  },
+  {
+   "id": "stitch",
+   "kind": "audio",
+   "mimeType": "audio/wav",
+   "source": "generated",
+   "uri": "audio/stitch.wav",
+   "altText": "Soft stitching sweep when a tear in the sky mends"
+  },
+  {
+   "id": "thud",
+   "kind": "audio",
+   "mimeType": "audio/wav",
+   "source": "generated",
+   "uri": "audio/thud.wav",
+   "altText": "Muted thud when the demon bumps the heroine"
   }
+ ],
+ "game": {
+  "audience": "family",
+  "description": "Ride the cloud, catch falling sky shards, and mend the holes torn in the sky.",
+  "entryScene": "sky",
+  "id": "sample-ribbon-sky",
+  "orientation": "portrait",
+  "sessionTargetSeconds": 25,
+  "title": "Ribbon Mends the Sky"
+ },
+ "inputBindings": [
+  {
+   "action": "move",
+   "input": "drag"
+  },
+  {
+   "action": "move",
+   "input": "tap"
+  },
+  {
+   "action": "move_left",
+   "input": "keyboard",
+   "key": "ArrowLeft"
+  },
+  {
+   "action": "move_right",
+   "input": "keyboard",
+   "key": "ArrowRight"
+  },
+  {
+   "action": "move_up",
+   "input": "keyboard",
+   "key": "ArrowUp"
+  },
+  {
+   "action": "move_down",
+   "input": "keyboard",
+   "key": "ArrowDown"
+  }
+ ],
+ "irVersion": "1.2",
+ "metadata": {
+  "tags": [
+   "family",
+   "collecting",
+   "drawing-inspired"
+  ]
+ },
+ "rules": [
+  {
+   "id": "start-music",
+   "when": {
+    "event": "game_start"
+   },
+   "actions": [
+    {
+     "type": "play_sound",
+     "assetId": "theme"
+    }
+   ]
+  },
+  {
+   "id": "shard-caught",
+   "when": {
+    "event": "collected",
+    "source": "player",
+    "target": "shard"
+   },
+   "actions": [
+    {
+     "type": "add_score",
+     "value": 1
+    },
+    {
+     "type": "emit_particles",
+     "target": "shard",
+     "value": 12
+    },
+    {
+     "type": "destroy_entity",
+     "target": "shard"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "glass"
+    }
+   ]
+  },
+  {
+   "id": "shard-cyan-caught",
+   "when": {
+    "event": "collected",
+    "source": "player",
+    "target": "shard_cyan"
+   },
+   "actions": [
+    {
+     "type": "add_score",
+     "value": 2
+    },
+    {
+     "type": "emit_particles",
+     "target": "shard_cyan",
+     "value": 14
+    },
+    {
+     "type": "destroy_entity",
+     "target": "shard_cyan"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "glass"
+    }
+   ]
+  },
+  {
+   "id": "shard-gold-caught",
+   "when": {
+    "event": "collected",
+    "source": "player",
+    "target": "shard_gold"
+   },
+   "actions": [
+    {
+     "type": "add_score",
+     "value": 3
+    },
+    {
+     "type": "emit_particles",
+     "target": "shard_gold",
+     "value": 18
+    },
+    {
+     "type": "destroy_entity",
+     "target": "shard_gold"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "glass"
+    }
+   ]
+  },
+  {
+   "id": "demon-hit",
+   "when": {
+    "event": "collision",
+    "source": "player",
+    "target": "demon"
+   },
+   "actions": [
+    {
+     "type": "change_health",
+     "value": -1
+    },
+    {
+     "type": "set_velocity",
+     "target": "demon",
+     "value": [
+      -260,
+      -140
+     ]
+    },
+    {
+     "type": "camera_shake",
+     "value": 6
+    },
+    {
+     "type": "show_text",
+     "value": "哎呀！被小恶魔撞到了。"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "thud"
+    }
+   ]
+  },
+  {
+   "id": "mend-hole-1",
+   "when": {
+    "event": "score_reached",
+    "value": 4
+   },
+   "actions": [
+    {
+     "type": "set_asset",
+     "target": "hole",
+     "assetId": "hole_closed"
+    },
+    {
+     "type": "emit_particles",
+     "target": "hole",
+     "value": 22
+    },
+    {
+     "type": "show_text",
+     "value": "天空补好了一处裂口！"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "stitch"
+    }
+   ]
+  },
+  {
+   "id": "mend-hole-2",
+   "when": {
+    "event": "score_reached",
+    "value": 7
+   },
+   "actions": [
+    {
+     "type": "set_asset",
+     "target": "hole2",
+     "assetId": "hole_closed"
+    },
+    {
+     "type": "emit_particles",
+     "target": "hole2",
+     "value": 22
+    },
+    {
+     "type": "show_text",
+     "value": "天空快要完整了……"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "stitch"
+    }
+   ]
+  },
+  {
+   "id": "sky-mended",
+   "when": {
+    "event": "score_reached",
+    "source": "player",
+    "value": 10
+   },
+   "actions": [
+    {
+     "type": "show_text",
+     "value": "天空补好了！"
+    },
+    {
+     "type": "play_sound",
+     "assetId": "theme"
+    },
+    {
+     "type": "end_game",
+     "value": true
+    },
+    {
+     "type": "play_sound",
+     "assetId": "stitch"
+    }
+   ]
+  },
+  {
+   "id": "mend-glow",
+   "when": {
+    "event": "score_reached",
+    "value": 2
+   },
+   "actions": [
+    {
+     "type": "emit_particles",
+     "target": "hole",
+     "value": 14
+    },
+    {
+     "type": "emit_particles",
+     "target": "hole2",
+     "value": 14
+    },
+    {
+     "type": "show_text",
+     "value": "天空开始缝合了……"
+    }
+   ]
+  }
+ ],
+ "scenes": [
+  {
+   "entities": [
+    {
+     "id": "player",
+     "kind": "player",
+     "assetId": "hero",
+     "position": [
+      195,
+      640
+     ],
+     "size": [
+      92,
+      104
+     ],
+     "components": [
+      "movement",
+      "physics_body",
+      "character_controller"
+     ],
+     "physics": {
+      "body": "kinematic_position",
+      "shape": "capsule",
+      "friction": 0.2,
+      "collisionGroups": {
+       "memberships": [
+        0
+       ],
+       "filter": [
+        1,
+        2,
+        3
+       ]
+      }
+     },
+     "character": {
+      "offset": 4,
+      "snapToGroundDistance": 10,
+      "applyImpulsesToDynamicBodies": true
+     },
+     "render": {
+      "particles": {
+       "rate": 26,
+       "tint": "#ffd94d",
+       "lifetime": [
+        0.3,
+        0.6
+       ],
+       "speed": [
+        8,
+        30
+       ],
+       "direction": 90,
+       "spread": 50,
+       "startScale": 0.45,
+       "endScale": 0.05,
+       "blendMode": "add"
+      }
+     },
+     "tweens": [
+      {
+       "property": "scale",
+       "from": 1,
+       "to": 1.05,
+       "durationMs": 1000,
+       "repeat": -1,
+       "yoyo": true,
+       "easing": "sine"
+      }
+     ]
+    },
+    {
+     "id": "shard",
+     "kind": "pickup",
+     "assetId": "shard",
+     "position": [
+      195,
+      220
+     ],
+     "size": [
+      40,
+      40
+     ],
+     "components": [
+      "collider",
+      "collectible",
+      "physics_body"
+     ],
+     "properties": {
+      "recycle": true,
+      "sway": 30
+     },
+     "physics": {
+      "body": "dynamic",
+      "shape": "ball",
+      "density": 0.7,
+      "friction": 0.2,
+      "restitution": 0.55,
+      "initialVelocity": [
+       0,
+       45
+      ],
+      "gravityScale": 1.0,
+      "collisionGroups": {
+       "memberships": [
+        1
+       ],
+       "filter": [
+        0,
+        3
+       ]
+      }
+     },
+     "render": {
+      "particles": {
+       "burst": 12,
+       "tint": "#a5f3fc",
+       "speed": [
+        50,
+        140
+       ],
+       "lifetime": [
+        0.3,
+        0.7
+       ],
+       "spread": 360,
+       "startScale": 0.4,
+       "endScale": 0.05,
+       "rate": 0
+      },
+      "tint": "#fff3b0"
+     }
+    },
+    {
+     "id": "shard_cyan",
+     "kind": "pickup",
+     "assetId": "shard",
+     "position": [
+      80,
+      100
+     ],
+     "size": [
+      40,
+      40
+     ],
+     "components": [
+      "collider",
+      "collectible",
+      "physics_body"
+     ],
+     "properties": {
+      "recycle": true,
+      "sway": 40
+     },
+     "physics": {
+      "body": "dynamic",
+      "shape": "ball",
+      "density": 0.7,
+      "friction": 0.2,
+      "restitution": 0.55,
+      "initialVelocity": [
+       0,
+       60
+      ],
+      "gravityScale": 1.2,
+      "collisionGroups": {
+       "memberships": [
+        1
+       ],
+       "filter": [
+        0,
+        3
+       ]
+      }
+     },
+     "render": {
+      "particles": {
+       "burst": 12,
+       "tint": "#a5f3fc",
+       "speed": [
+        50,
+        140
+       ],
+       "lifetime": [
+        0.3,
+        0.7
+       ],
+       "spread": 360,
+       "startScale": 0.4,
+       "endScale": 0.05,
+       "rate": 0
+      },
+      "tint": "#fff3b0"
+     }
+    },
+    {
+     "id": "shard_gold",
+     "kind": "pickup",
+     "assetId": "shard",
+     "position": [
+      305,
+      60
+     ],
+     "size": [
+      40,
+      40
+     ],
+     "components": [
+      "collider",
+      "collectible",
+      "physics_body"
+     ],
+     "properties": {
+      "recycle": true,
+      "sway": 22
+     },
+     "physics": {
+      "body": "dynamic",
+      "shape": "ball",
+      "density": 0.7,
+      "friction": 0.2,
+      "restitution": 0.55,
+      "initialVelocity": [
+       0,
+       35
+      ],
+      "gravityScale": 0.9,
+      "collisionGroups": {
+       "memberships": [
+        1
+       ],
+       "filter": [
+        0,
+        3
+       ]
+      }
+     },
+     "render": {
+      "particles": {
+       "burst": 12,
+       "tint": "#a5f3fc",
+       "speed": [
+        50,
+        140
+       ],
+       "lifetime": [
+        0.3,
+        0.7
+       ],
+       "spread": 360,
+       "startScale": 0.4,
+       "endScale": 0.05,
+       "rate": 0
+      },
+      "tint": "#fff3b0"
+     }
+    },
+    {
+     "id": "demon",
+     "kind": "enemy",
+     "assetId": "demon",
+     "position": [
+      300,
+      140
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "components": [
+      "collider",
+      "physics_body"
+     ],
+     "physics": {
+      "body": "dynamic",
+      "shape": "ball",
+      "density": 1,
+      "gravityScale": 0,
+      "linearDamping": 0.4,
+      "collisionGroups": {
+       "memberships": [
+        2
+       ],
+       "filter": [
+        0
+       ]
+      }
+     },
+     "render": {
+      "filters": [
+       {
+        "type": "color_matrix",
+        "operation": "saturate",
+        "value": 1.3
+       }
+      ]
+     },
+     "tweens": [
+      {
+       "property": "scale",
+       "from": 1,
+       "to": 1.12,
+       "durationMs": 700,
+       "repeat": -1,
+       "yoyo": true,
+       "easing": "sine"
+      }
+     ]
+    },
+    {
+     "id": "demon_anchor",
+     "kind": "decoration",
+     "position": [
+      300,
+      140
+     ],
+     "size": [
+      10,
+      10
+     ],
+     "components": [
+      "physics_body"
+     ],
+     "physics": {
+      "body": "fixed",
+      "shape": "ball",
+      "sensor": true
+     },
+     "render": {
+      "alpha": 0,
+      "shape": {
+       "type": "circle",
+       "fill": "#000000"
+      }
+     }
+    },
+    {
+     "id": "hole",
+     "kind": "decoration",
+     "assetId": "hole",
+     "position": [
+      110,
+      180
+     ],
+     "size": [
+      76,
+      48
+     ],
+     "components": [],
+     "render": {
+      "filters": [
+       {
+        "type": "blur",
+        "value": 1.5
+       }
+      ]
+     },
+     "tweens": [
+      {
+       "property": "alpha",
+       "from": 0.75,
+       "to": 1,
+       "durationMs": 1600,
+       "repeat": -1,
+       "yoyo": true,
+       "easing": "sine"
+      }
+     ]
+    },
+    {
+     "id": "hole2",
+     "kind": "decoration",
+     "assetId": "hole",
+     "position": [
+      288,
+      330
+     ],
+     "size": [
+      76,
+      48
+     ],
+     "components": [],
+     "render": {
+      "filters": [
+       {
+        "type": "blur",
+        "value": 1.5
+       }
+      ]
+     },
+     "tweens": [
+      {
+       "property": "alpha",
+       "from": 0.75,
+       "to": 1,
+       "durationMs": 1900,
+       "repeat": -1,
+       "yoyo": true,
+       "easing": "sine"
+      }
+     ]
+    },
+    {
+     "id": "cloudbank",
+     "kind": "decoration",
+     "position": [
+      195,
+      838
+     ],
+     "size": [
+      390,
+      20
+     ],
+     "components": [
+      "collider",
+      "physics_body"
+     ],
+     "physics": {
+      "body": "fixed",
+      "shape": "cuboid",
+      "friction": 0.5,
+      "collisionGroups": {
+       "memberships": [
+        3
+       ],
+       "filter": [
+        1
+       ]
+      }
+     },
+     "render": {
+      "alpha": 0,
+      "shape": {
+       "type": "rect",
+       "fill": "#ffffff"
+      }
+     }
+    },
+    {
+     "id": "cloudbank-a",
+     "kind": "decoration",
+     "position": [
+      80,
+      824
+     ],
+     "size": [
+      150,
+      34
+     ],
+     "components": [],
+     "render": {
+      "alpha": 0.85,
+      "shape": {
+       "type": "ellipse",
+       "fill": "#dbeafe"
+      }
+     }
+    },
+    {
+     "id": "cloudbank-b",
+     "kind": "decoration",
+     "position": [
+      280,
+      830
+     ],
+     "size": [
+      170,
+      30
+     ],
+     "components": [],
+     "render": {
+      "alpha": 0.7,
+      "shape": {
+       "type": "ellipse",
+       "fill": "#bfdbfe"
+      }
+     }
+    }
+   ],
+   "id": "sky",
+   "backgroundColor": "#16235c",
+   "gravity": [
+    0,
+    560
+   ],
+   "layers": [
+    {
+     "id": "bg-layer",
+     "assetId": "bg",
+     "parallax": [
+      0.35,
+      0.2
+     ],
+     "alpha": 0.95,
+     "zIndex": -900
+    }
+   ],
+   "joints": [
+    {
+     "id": "demon-spring",
+     "type": "spring",
+     "bodyA": "demon_anchor",
+     "bodyB": "demon",
+     "restLength": 8,
+     "stiffness": 26,
+     "damping": 3.5
+    }
+   ]
+  }
+ ],
+ "capabilities": [
+  "render.sprite",
+  "render.parallax",
+  "render.filters",
+  "render.particles",
+  "physics.bodies",
+  "physics.colliders",
+  "physics.joints",
+  "physics.character_controller",
+  "fx.tween",
+  "fx.camera",
+  "fx.emitters",
+  "audio",
+  "input.keyboard",
+  "input.pointer",
+  "shell.v1"
+ ],
+ "experience": {
+  "archetype": "catcher",
+  "controls": {
+   "scheme": "drag_x",
+   "hint": "拖动移动，收集碎片补好天空"
+  },
+  "objective": {
+   "kind": "collect",
+   "target": 10,
+   "label": "收集 10 块天空碎片"
+  },
+  "hud": {
+   "left": "objective_progress",
+   "right": "health"
+  },
+  "start": {
+   "mode": "tap_to_start"
+  },
+  "failure": {
+   "mode": "health",
+   "health": 3,
+   "invulnerableMs": 1000
+  },
+  "pacing": {
+   "targetSessionSec": 25,
+   "firstRewardWithinSec": 10,
+   "expectedCatchRate": 0.15,
+   "ramp": [
+    {
+     "at": 0,
+     "speedMul": 1.0
+    },
+    {
+     "at": 0.5,
+     "speedMul": 1.2
+    },
+    {
+     "at": 0.85,
+     "speedMul": 1.45
+    }
+   ]
+  },
+  "milestones": [
+   0.2,
+   0.4,
+   0.7,
+   1
+  ],
+  "milestoneVisuals": {
+   "0.2": "hole",
+   "0.4": "hole",
+   "0.7": "hole2"
+  },
+  "result": {
+   "win": {
+    "title": "The sky is mended!",
+    "stars": {
+     "by": "time",
+     "thresholdsSec": [
+      50,
+      35,
+      22
+     ]
+    }
+   },
+   "lose": {
+    "title": "So close — the sky still needs you"
+   }
+  },
+  "leaderboard": {
+   "metric": "time",
+   "order": "asc"
+  },
+  "feedback": {
+   "haptics": "none",
+   "juice": "standard"
+  }
+ }
 }
