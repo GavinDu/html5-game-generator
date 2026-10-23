@@ -254,3 +254,19 @@ func TestExperienceRejectsBadSchemeAndRamp(t *testing.T) {
 		t.Fatal("ascending star thresholds must be rejected")
 	}
 }
+
+// The vocabulary is what the runtime implements (2026-10-23, Game IR
+// commitment): kinds that were declarable but never executed — video
+// assets, swipe/tilt/joystick inputs — must now fail validation.
+func TestRejectsUnimplementedKinds(t *testing.T) {
+	base := string(readFixture(t))
+	cases := map[string]string{
+		"video asset": strings.Replace(base, `"kind": "image"`, `"kind": "video"`, 1),
+		"tilt input":  strings.Replace(base, `"input": "drag"`, `"input": "tilt"`, 1),
+	}
+	for name, data := range cases {
+		if _, err := DecodeAndValidate([]byte(data)); err == nil {
+			t.Errorf("%s: expected rejection, got valid", name)
+		}
+	}
+}
