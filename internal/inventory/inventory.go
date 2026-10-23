@@ -44,6 +44,17 @@ type musicSpec struct {
 	Source string `json:"source"`
 }
 
+// sfxSpec is one event sound effect shipped with a game (Phase E):
+// a .b64 WAV file in the game folder, loaded as an artifact under
+// Src so the IR's audio assets and play_sound rules resolve. The
+// theme/music path stays synthesized; SFX are data.
+type sfxSpec struct {
+	ID   string `json:"id"`
+	Src  string `json:"src"`
+	Mime string `json:"mime"`
+	File string `json:"file"` // .b64 text path, relative to the game folder
+}
+
 // manifest is the on-disk description of one inventory game.
 type manifest struct {
 	GameID     string          `json:"game_id"`
@@ -58,6 +69,7 @@ type manifest struct {
 	Elements   []model.Element `json:"elements"`
 	Music      musicSpec       `json:"music"`
 	Sprites    []spriteSpec    `json:"sprites"`
+	SFX        []sfxSpec       `json:"sfx,omitempty"`
 }
 
 // Load reads every inventory/<6-char-id>/ folder under dir and seeds the
@@ -177,6 +189,21 @@ func seedGame(st store.Store, gdir string, m *manifest) error {
 		st.PutArtifact(m.GameID, s.Src, img, s.Mime)
 	}
 	st.PutArtifact(m.GameID, m.Music.Src, media.MusicWAV(m.Music.Mood), "audio/wav")
+	for _, s := range m.SFX {
+		raw, err := os.ReadFile(filepath.Join(gdir, s.File))
+		if err != nil {
+			return fmt.Errorf("inventory: %s: sfx %q: %w", gdir, s.ID, err)
+		}
+		dec, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
+		if err != nil {
+			return fmt.Errorf("inventory: %s: sfx %q: corrupt base64 in %s: %w", gdir, s.ID, s.File, err)
+		}
+		mime := s.Mime
+		if mime == "" {
+			mime = "audio/wav"
+		}
+		st.PutArtifact(m.GameID, s.Src, dec, mime)
+	}
 	return nil
 }
 
