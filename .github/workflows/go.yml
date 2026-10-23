@@ -20,7 +20,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify formatting of new Go files
-        run: test -z "$(gofmt -l .)"
+        run: |
+          gofmt -l .
+          test -z "$(gofmt -l .)"
       - name: Run tests
         run: go test ./...
       - name: Run tests with the race detector
