@@ -102,6 +102,9 @@ var catalog = []checkDef{
 	{id: "experience.milestones", category: CatDesign, severity: SeverityWarning,
 		description:    "Progress milestones are declared as fractions of the objective, with a visual mapping (milestoneVisuals) so progress is visible by construction.",
 		autoRepairable: false},
+	{id: "quality.contract_matches_ir", category: CatDesign, severity: SeverityWarning,
+		description:    "When a game carries quality-rules.json, its generated contract block equals the contract derived from the IR experience block and its prose claims no mechanics the IR contradicts — judges score the game that exists.",
+		autoRepairable: false},
 	// Audio: completeness of the feedback layer.
 	{id: "audio.complete", category: CatAudio, severity: SeverityWarning,
 		description:    "SFX declared per player action, mute toggle present, no autoplay before first input.",
