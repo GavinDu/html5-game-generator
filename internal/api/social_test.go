@@ -1,9 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -114,23 +114,39 @@ func TestSocialInteractionsPublishingAndModeration(t *testing.T) {
 		t.Fatalf("pending post leaked into discovery: %s", resp.Body.String())
 	}
 	t.Setenv("DQ_MODERATION_TOKEN", "test-moderation-token")
-	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/moderation", map[string]any{"status":"approved"}, "moderator")
-	if resp.Code != http.StatusOK { t.Fatalf("approve post: %d %s", resp.Code, resp.Body.String()) }
-	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/publish", map[string]any{"caption":"changed"}, "creator")
-	if resp.Code != http.StatusConflict { t.Fatalf("published post should be immutable: %d %s", resp.Code, resp.Body.String()) }
+	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/moderation", map[string]any{"status": "approved"}, "moderator")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("approve post: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/publish", map[string]any{"caption": "changed"}, "creator")
+	if resp.Code != http.StatusConflict {
+		t.Fatalf("published post should be immutable: %d %s", resp.Code, resp.Body.String())
+	}
 
-	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/reactions", map[string]any{"reaction":"love"}, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("reaction: %d %s", resp.Code, resp.Body.String()) }
-	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/comments", map[string]any{"body":"Nice game!"}, "viewer")
-	if resp.Code != http.StatusCreated { t.Fatalf("comment: %d %s", resp.Code, resp.Body.String()) }
+	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/reactions", map[string]any{"reaction": "love"}, "viewer")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("reaction: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/comments", map[string]any{"body": "Nice game!"}, "viewer")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("comment: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/save", nil, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("save: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK {
+		t.Fatalf("save: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodGet, "/v1/users/me/saved", nil, "viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "post-1") { t.Fatalf("saved list: %d %s", resp.Code, resp.Body.String()) }
-	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/feedback", map[string]any{"kind":"not_interested"}, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("feedback: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "post-1") {
+		t.Fatalf("saved list: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodPost, "/v1/games/post-1/feedback", map[string]any{"kind": "not_interested"}, "viewer")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("feedback: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodGet, "/v1/feed?scope=for_you", nil, "viewer")
-	if strings.Contains(resp.Body.String(), "post-1") { t.Fatalf("not-interested post still in feed: %s", resp.Body.String()) }
+	if strings.Contains(resp.Body.String(), "post-1") {
+		t.Fatalf("not-interested post still in feed: %s", resp.Body.String())
+	}
 }
 
 func TestSocialBlockReportAndEvents(t *testing.T) {
@@ -139,25 +155,40 @@ func TestSocialBlockReportAndEvents(t *testing.T) {
 	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
 	srv := newTestServer()
 	addPublicGame(srv, "alice-game", "alice")
-	resp := do(t, srv, http.MethodPost, "/v1/games/alice-game/report", map[string]any{"reason":"unsafe gameplay"}, "viewer")
-	if resp.Code != http.StatusCreated || !strings.Contains(resp.Body.String(), `"status":"open"`) { t.Fatalf("report: %d %s", resp.Code, resp.Body.String()) }
-	var report struct { ReportID string `json:"report_id"` }
+	resp := do(t, srv, http.MethodPost, "/v1/games/alice-game/report", map[string]any{"reason": "unsafe gameplay"}, "viewer")
+	if resp.Code != http.StatusCreated || !strings.Contains(resp.Body.String(), `"status":"open"`) {
+		t.Fatalf("report: %d %s", resp.Code, resp.Body.String())
+	}
+	var report struct {
+		ReportID string `json:"report_id"`
+	}
 	decode(t, resp, &report)
 	t.Setenv("DQ_MODERATION_TOKEN", "test-moderation-token")
 	resp = do(t, srv, http.MethodGet, "/v1/moderation/reports", nil, "moderator")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), report.ReportID) { t.Fatalf("moderation report queue: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), report.ReportID) {
+		t.Fatalf("moderation report queue: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodPost, "/v1/moderation/reports/"+report.ReportID+"/resolve", nil, "moderator")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"status":"resolved"`) { t.Fatalf("resolve report: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"status":"resolved"`) {
+		t.Fatalf("resolve report: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodPost, "/v1/users/alice/block", nil, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("block: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK {
+		t.Fatalf("block: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodGet, "/v1/feed?scope=for_you", nil, "viewer")
-	if strings.Contains(resp.Body.String(), "alice-game") { t.Fatalf("blocked creator leaked into feed: %s", resp.Body.String()) }
-	resp = do(t, srv, http.MethodPost, "/v1/telemetry/social-event", map[string]any{"game_id":"alice-game","kind":"completion","duration_ms":12000,"expected_duration_ms":15000}, "viewer")
-	if resp.Code != http.StatusAccepted { t.Fatalf("event: %d %s", resp.Code, resp.Body.String()) }
+	if strings.Contains(resp.Body.String(), "alice-game") {
+		t.Fatalf("blocked creator leaked into feed: %s", resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodPost, "/v1/telemetry/social-event", map[string]any{"game_id": "alice-game", "kind": "completion", "duration_ms": 12000, "expected_duration_ms": 15000}, "viewer")
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("event: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodDelete, "/v1/users/alice/block", nil, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("unblock: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unblock: %d %s", resp.Code, resp.Body.String())
+	}
 }
-
 
 func TestSocialInteractionsPersistAcrossServerRestart(t *testing.T) {
 	dir := t.TempDir()
@@ -166,18 +197,25 @@ func TestSocialInteractionsPersistAcrossServerRestart(t *testing.T) {
 	first := newTestServer()
 	addPublicGame(first, "persist-game", "creator")
 	resp := do(t, first, http.MethodPost, "/v1/games/persist-game/save", nil, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("save: %d %s", resp.Code, resp.Body.String()) }
-	resp = do(t, first, http.MethodPost, "/v1/games/persist-game/comments", map[string]any{"body":"keep this comment"}, "viewer")
-	if resp.Code != http.StatusCreated { t.Fatalf("comment: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK {
+		t.Fatalf("save: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, first, http.MethodPost, "/v1/games/persist-game/comments", map[string]any{"body": "keep this comment"}, "viewer")
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("comment: %d %s", resp.Code, resp.Body.String())
+	}
 
 	second := newTestServer()
 	addPublicGame(second, "persist-game", "creator")
 	resp = do(t, second, http.MethodGet, "/v1/users/me/saved", nil, "viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "persist-game") { t.Fatalf("saved state did not persist: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "persist-game") {
+		t.Fatalf("saved state did not persist: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, second, http.MethodGet, "/v1/games/persist-game/comments", nil, "viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "keep this comment") { t.Fatalf("comment did not persist: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "keep this comment") {
+		t.Fatalf("comment did not persist: %d %s", resp.Code, resp.Body.String())
+	}
 }
-
 
 func TestFeedCursorPagination(t *testing.T) {
 	dir := t.TempDir()
@@ -188,19 +226,33 @@ func TestFeedCursorPagination(t *testing.T) {
 	addPublicGame(srv, "page-b", "bob")
 	addPublicGame(srv, "page-c", "carol")
 	resp := do(t, srv, http.MethodGet, "/v1/feed?scope=for_you&limit=1", nil, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("first page: %d %s", resp.Code, resp.Body.String()) }
-	var first struct { Games []model.Game `json:"games"`; Next string `json:"next_cursor"` }
+	if resp.Code != http.StatusOK {
+		t.Fatalf("first page: %d %s", resp.Code, resp.Body.String())
+	}
+	var first struct {
+		Games []model.Game `json:"games"`
+		Next  string       `json:"next_cursor"`
+	}
 	decode(t, resp, &first)
-	if len(first.Games) != 1 || first.Next == "" { t.Fatalf("expected one item and cursor: %+v", first) }
+	if len(first.Games) != 1 || first.Next == "" {
+		t.Fatalf("expected one item and cursor: %+v", first)
+	}
 	resp = do(t, srv, http.MethodGet, "/v1/feed?scope=for_you&limit=1&cursor="+first.Next, nil, "viewer")
-	if resp.Code != http.StatusOK { t.Fatalf("second page: %d %s", resp.Code, resp.Body.String()) }
-	var second struct { Games []model.Game `json:"games"` }
+	if resp.Code != http.StatusOK {
+		t.Fatalf("second page: %d %s", resp.Code, resp.Body.String())
+	}
+	var second struct {
+		Games []model.Game `json:"games"`
+	}
 	decode(t, resp, &second)
-	if len(second.Games) != 1 || second.Games[0].ID == first.Games[0].ID { t.Fatalf("pagination repeated item: first=%+v second=%+v", first, second) }
+	if len(second.Games) != 1 || second.Games[0].ID == first.Games[0].ID {
+		t.Fatalf("pagination repeated item: first=%+v second=%+v", first, second)
+	}
 	resp = do(t, srv, http.MethodGet, "/v1/feed?limit=0", nil, "viewer")
-	if resp.Code != http.StatusBadRequest { t.Fatalf("invalid limit should be rejected: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid limit should be rejected: %d %s", resp.Code, resp.Body.String())
+	}
 }
-
 
 func TestRuntimeTelemetryFeedsSocialPlaySignals(t *testing.T) {
 	dir := t.TempDir()
@@ -211,18 +263,26 @@ func TestRuntimeTelemetryFeedsSocialPlaySignals(t *testing.T) {
 	addPublicGame(srv, "runtime-game", "creator")
 	for i := 0; i < 2; i++ {
 		resp := do(t, srv, http.MethodPost, "/v1/telemetry/events", map[string]any{
-			"gameId":"runtime-game", "kind":"session_start", "runtimeVersion":"test", "sessionId":fmt.Sprintf("session-%d",i),
+			"gameId": "runtime-game", "kind": "session_start", "runtimeVersion": "test", "sessionId": fmt.Sprintf("session-%d", i),
 		}, "viewer")
-		if resp.Code != http.StatusAccepted { t.Fatalf("session start: %d %s", resp.Code, resp.Body.String()) }
+		if resp.Code != http.StatusAccepted {
+			t.Fatalf("session start: %d %s", resp.Code, resp.Body.String())
+		}
 	}
 	resp := do(t, srv, http.MethodPost, "/v1/telemetry/events", map[string]any{
-		"gameId":"runtime-game", "kind":"run_end", "runtimeVersion":"test", "sessionId":"session-2", "won":true, "durationMs":12500,
+		"gameId": "runtime-game", "kind": "run_end", "runtimeVersion": "test", "sessionId": "session-2", "won": true, "durationMs": 12500,
 	}, "viewer")
-	if resp.Code != http.StatusAccepted { t.Fatalf("run end: %d %s", resp.Code, resp.Body.String()) }
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("run end: %d %s", resp.Code, resp.Body.String())
+	}
 	srv.socialMu.RLock()
 	defer srv.socialMu.RUnlock()
 	counts := map[string]int{}
-	for _, event := range srv.events { if event.GameID == "runtime-game" { counts[event.Kind]++ } }
+	for _, event := range srv.events {
+		if event.GameID == "runtime-game" {
+			counts[event.Kind]++
+		}
+	}
 	if counts["play_start"] != 1 || counts["replay"] != 1 || counts["completion"] != 1 {
 		t.Fatalf("runtime social signals not mapped correctly: %#v", counts)
 	}
