@@ -79,6 +79,14 @@ A score is a quality signal, not a substitute for hard delivery gates. The weigh
 
 The scoring library is the standalone package `packages/game-quality-score/`. It has no browser or LLM dependencies and can be used by any game generator, CI pipeline, or evaluation service. It combines objective measurements with optional AI review scores. AI review dimensions require both a rationale and evidence; unsupported scores are ignored. Objective scores cannot be overridden by the AI. If some dimensions are unassessed, `overallScore` stays null and `partialScore` is labeled with its coverage. This avoids presenting a partial score as a complete evaluation.
 
+### Graded scoring and subscores (schema 1.2, scorecard fusion)
+
+Since the fusion, the objective dimensions are **graded** from measured values rather than binary pass/fail: playability starts at the hard gates and deducts for an unobserved win, failed shell conformance, failed determinism/replay, or a missing first reward; reliability grades runtime errors and warnings; input responsiveness scores measured first-input/first-reward timings against the IR's declared targets plus the dead-input rate; performance blends cold start with frame-histogram jank rate and p95 frame time from the runtime verdict. The output always reports two subscores alongside the blend — `subscores.measured` (the four objective dimensions) and `subscores.creative` (the nine judged ones) — because they answer different questions and drive different actions. A failed hard gate caps the measured subscore at 40, and the delivery target additionally requires the measured subscore to reach `minimumMeasuredScore` (default 60).
+
+### Judging protocol
+
+Judges score from an **evidence pack** (`score-report.mjs --pack`): screenshots plus a judge view of observations (scene census, HUD, event tail, the IR experience block, creator intent) that deliberately contains **no check statuses and no scores**. Two **blind** passes score independently; `score-report.mjs` merges them — a spread over 15 on a dimension marks it `contested` and a third pass's median stands. Reviews carry judge provenance (`judge: {model, version}` + the pack hash), which is stamped into the scored output. The three shipped games are frozen as a calibration set under `config/game-quality/calibration/`; a judge model or prompt change must re-score them, and a mean drift over 7 on any dimension blocks adoption until reviewed. Each game's `quality-rules.json` contract is **generated from its IR** (`score-report.mjs --write-contracts`); the validator's `quality.contract_matches_ir` check fails when the contract drifts from the game or its prose claims mechanics the IR contradicts.
+
 ## Delivery policy
 
 - Hard gates: `playtest.boot_clean`, `playtest.render_nonblank`, and `simulation.no_softlock` must all pass.
