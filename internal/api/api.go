@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -122,6 +123,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
 	mux.HandleFunc("POST /v1/users/{id}/follow", s.handleFollow)
 	mux.HandleFunc("DELETE /v1/users/{id}/follow", s.handleUnfollow)
+	mux.HandleFunc("GET /v1/users/me/following", s.handleListFollowing)
 	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
@@ -580,6 +582,19 @@ func (s *Server) handleFollow(w http.ResponseWriter, r *http.Request) {
 	s.follows[followerID][creatorID] = struct{}{}
 	s.socialMu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"follower_id": followerID, "creator_id": creatorID, "following": true})
+}
+
+// GET /v1/users/me/following — IDs followed by the current demo identity.
+func (s *Server) handleListFollowing(w http.ResponseWriter, r *http.Request) {
+	viewerID := strings.TrimSpace(userID(r))
+	s.socialMu.RLock()
+	ids := make([]string, 0, len(s.follows[viewerID]))
+	for id := range s.follows[viewerID] {
+		ids = append(ids, id)
+	}
+	s.socialMu.RUnlock()
+	sort.Strings(ids)
+	writeJSON(w, http.StatusOK, map[string]any{"creator_ids": ids})
 }
 
 // DELETE /v1/users/{id}/follow — remove a follow edge.
