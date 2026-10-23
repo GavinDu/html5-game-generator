@@ -6,15 +6,15 @@ import (
 )
 
 // The shipped sample games are the standard's calibration set: they
-// must pass the experience checks (one documented exception: Escape
-// declares milestones but has no milestone art, so
-// experience.milestones stays a warning there until art exists — the
-// check doing its job, recorded here so it can't silently spread).
+// must pass the experience checks. (Historical note: Escape once
+// declared milestones with no milestone art and pinned a warning
+// here; Phase E gave it hallway scenery visuals and the exception
+// was retired — all three games now pass every experience check.)
 func TestInventoryGamesExperience(t *testing.T) {
 	games := map[string]map[string]string{ // dir -> checkID -> want status (default pass)
 		"13ui1k": {},
 		"u46ex5": {},
-		"2uowg9": {"experience.milestones": StatusFail},
+		"2uowg9": {},
 	}
 	for dir, exceptions := range games {
 		doc, err := readGameIR(filepath.Join("..", "..", "inventory", dir))
