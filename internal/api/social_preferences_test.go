@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"doodlequest/internal/model"
 )
 
 func TestCommentIdempotencyAndTopicPreferenceControls(t *testing.T) {
