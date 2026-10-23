@@ -4,7 +4,7 @@ This document records a low-cost path for the early Hephaestus user base. Do not
 
 ## Current operating model
 
-- Follow relationships remain in-memory by deliberate deferral. Reactions, comments, saves, blocks, feedback, and reports use a local JSON snapshot; social events append to JSONL. These files are single-instance persistence, not shared storage.
+- Follow relationships and social interactions are written to a local JSON snapshot; social events append to JSONL. This is single-instance file persistence only, not shared storage, and has no transactional or multi-replica guarantees. Full shared durable follow storage remains deferred under issue #11.
 - Runtime-error telemetry and existing game artifacts have their own current storage behavior; this social layer does not make them durable.
 - Moderation approval requires the server secret `DQ_MODERATION_TOKEN`; send it only from a trusted operator workflow as `X-Moderation-Token`. Do not ship the token in the iOS app.
 - The current `X-User-ID` is spoofable. Do not use it as a production authorization boundary.
