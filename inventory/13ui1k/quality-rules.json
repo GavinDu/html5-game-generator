@@ -31,24 +31,43 @@
   "title": "Bobo's Rainbow",
   "gameplayContract": {
     "coreLoop": [
-      "tap/drag to move bear",
-      "collect falling hearts",
-      "show score and combo changes",
-      "restore six rainbow bands",
-      "survive the declared miss limit",
-      "advance to next round and restart after game over"
+      "tap Start, then drag to move the bear",
+      "catch falling hearts (gold hearts worth more)",
+      "each catch visibly restores part of the rainbow",
+      "restore all six rainbow bands by reaching 12 hearts to win",
+      "missed hearts simply fall away — no penalty (gentle mode)",
+      "the fall speed ramps up gently as the session progresses",
+      "restart from the result card after a win"
     ],
     "fairness": [
       "hearts must be reachable within the playfield",
       "spawn and fall speed must allow a reasonable reaction window",
-      "round speed increase must not make success practically impossible"
+      "the pacing ramp must not make success practically impossible"
     ],
-    "audience": "family; kid-friendly"
+    "audience": "family; kid-friendly",
+    "generated": {
+      "archetype": "catcher",
+      "controlsScheme": "drag_x",
+      "objective": {
+        "kind": "collect",
+        "target": 12,
+        "label": "Catch 12 hearts"
+      },
+      "failure": {
+        "mode": "gentle",
+        "health": null,
+        "invulnerableMs": null
+      },
+      "targetSessionSec": 20,
+      "firstRewardWithinSec": 10,
+      "milestones": 6,
+      "scenes": 1
+    }
   },
   "reviewFocus": [
     "Check that the bear, kitten, hearts, and rainbow read clearly at portrait mobile size.",
     "Check whether collecting hearts visibly repairs the rainbow and communicates progress toward helping the kitten.",
-    "Evaluate whether missed hearts, combos, levels, and faster rounds create a fair learning curve.",
+    "Evaluate whether missed hearts and the speed ramp create a fair learning curve.",
     "Check touch targets, contrast, HUD overlap, and whether the restart affordance is actually usable."
   ]
 }
