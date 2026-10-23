@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -27,6 +28,10 @@ func TestPublishedPostsCannotBeRepairedOrTuned(t *testing.T) {
 	game.Caption = "Published caption"
 	game.Topics = []string{"puzzle"}
 	st.UpdateGame(game)
+	beforeIR, err := json.Marshal(game.GameIR)
+	if err != nil {
+		t.Fatalf("marshal initial IR: %v", err)
+	}
 
 	// Seed real pending proposals so apply routes reach the published-state
 	// guard rather than passing because a proposal is missing.
@@ -73,5 +78,12 @@ func TestPublishedPostsCannotBeRepairedOrTuned(t *testing.T) {
 	}
 	if after.Caption != "Published caption" || len(after.Topics) != 1 || after.Topics[0] != "puzzle" {
 		t.Fatalf("published social metadata changed: caption=%q topics=%v", after.Caption, after.Topics)
+	}
+	afterIR, err := json.Marshal(after.GameIR)
+	if err != nil {
+		t.Fatalf("marshal final IR: %v", err)
+	}
+	if string(afterIR) != string(beforeIR) {
+		t.Fatal("published game IR changed after rejected mutation requests")
 	}
 }
