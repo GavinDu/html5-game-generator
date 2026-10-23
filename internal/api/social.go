@@ -460,9 +460,31 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "game not found")
 		return
 	}
-	c := socialComment{ID: pipeline.NewID(), GameID: id, UserID: userID(r), Body: body, CreatedAt: time.Now().UTC()}
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if len(key) > 128 {
+		writeErr(w, http.StatusBadRequest, "Idempotency-Key must be at most 128 characters")
+		return
+	}
+	viewer := userID(r)
 	s.socialMu.Lock()
+	if key != "" {
+		if prior, ok := s.commentIdempotency[key]; ok {
+			if prior.UserID != viewer || prior.GameID != id || prior.Body != body {
+				s.socialMu.Unlock()
+				writeErr(w, http.StatusConflict, "Idempotency-Key was already used for a different comment")
+				return
+			}
+			s.socialMu.Unlock()
+			writeJSON(w, http.StatusCreated, map[string]any{"comment": prior.Comment, "idempotent_replay": true})
+			return
+		}
+	}
+	c := socialComment{ID: pipeline.NewID(), GameID: id, UserID: viewer, Body: body, CreatedAt: time.Now().UTC()}
 	s.comments[id] = append(s.comments[id], c)
+	if key != "" {
+		if s.commentIdempotency == nil { s.commentIdempotency = map[string]commentIdempotencyRecord{} }
+		s.commentIdempotency[key] = commentIdempotencyRecord{UserID: viewer, GameID: id, Body: body, Comment: c}
+	}
 	s.persistSocialStateLocked()
 	s.socialMu.Unlock()
 	writeJSON(w, 201, map[string]any{"comment": c})
@@ -572,9 +594,7 @@ func (s *Server) handleUnblock(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 	var req socialFeedbackRequest
-	if !decodeJSON(w, r, &req) {
-		return
-	}
+	if !decodeJSON(w, r, &req) { return }
 	if req.Kind != "not_interested" {
 		writeErr(w, 400, "kind must be not_interested")
 		return
@@ -585,13 +605,63 @@ func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.socialMu.Lock()
-	if s.notInterested[userID(r)] == nil {
-		s.notInterested[userID(r)] = map[string]bool{}
-	}
+	if s.notInterested[userID(r)] == nil { s.notInterested[userID(r)] = map[string]bool{} }
 	s.notInterested[userID(r)][id] = true
 	s.persistSocialStateLocked()
 	s.socialMu.Unlock()
 	writeJSON(w, 200, map[string]any{"accepted": true})
+}
+
+type topicPreferencesRequest struct {
+	MutedTopics []string `json:"muted_topics"`
+}
+
+func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
+	viewer := userID(r)
+	s.socialMu.RLock()
+	muted := make([]string, 0, len(s.mutedTopics[viewer]))
+	for topic, value := range s.mutedTopics[viewer] { if value { muted = append(muted, topic) } }
+	ignored := make([]string, 0, len(s.notInterested[viewer]))
+	for id, value := range s.notInterested[viewer] { if value { ignored = append(ignored, id) } }
+	s.socialMu.RUnlock()
+	sort.Strings(muted)
+	sort.Strings(ignored)
+	writeJSON(w, http.StatusOK, map[string]any{"muted_topics": muted, "not_interested_game_ids": ignored})
+}
+
+func (s *Server) handleSetTopicPreferences(w http.ResponseWriter, r *http.Request) {
+	var req topicPreferencesRequest
+	if !decodeJSON(w, r, &req) { return }
+	if len(req.MutedTopics) > 100 {
+		writeErr(w, http.StatusBadRequest, "at most 100 muted topics are allowed")
+		return
+	}
+	muted := map[string]bool{}
+	for _, raw := range req.MutedTopics {
+		topic := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(raw, "#")))
+		if topic == "" || len(topic) > 40 {
+			writeErr(w, http.StatusBadRequest, "each topic must contain 1–40 characters")
+			return
+		}
+		muted[topic] = true
+	}
+	viewer := userID(r)
+	s.socialMu.Lock()
+	if s.mutedTopics == nil { s.mutedTopics = map[string]map[string]bool{} }
+	s.mutedTopics[viewer] = muted
+	s.persistSocialStateLocked()
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"muted_topics": req.MutedTopics})
+}
+
+func (s *Server) handleResetPreferences(w http.ResponseWriter, r *http.Request) {
+	viewer := userID(r)
+	s.socialMu.Lock()
+	delete(s.mutedTopics, viewer)
+	delete(s.notInterested, viewer)
+	s.persistSocialStateLocked()
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
 }
 func (s *Server) handleModerateGame(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(os.Getenv("DQ_MODERATION_TOKEN"))
