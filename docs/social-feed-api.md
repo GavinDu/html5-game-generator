@@ -14,6 +14,7 @@ Unknown scopes return HTTP 400. A feed with no matches returns `{"games":[]}`.
 
 - `POST /v1/users/{creatorID}/follow`: follow a creator with at least one eligible public game.
 - `DELETE /v1/users/{creatorID}/follow`: unfollow a creator.
+- `GET /v1/users/me/following`: list followed creator IDs for the current demo identity.
 - Self-follow and unknown creator IDs are rejected.
 
 ## MVP limitations and security gate

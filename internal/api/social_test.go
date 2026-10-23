@@ -49,6 +49,12 @@ func TestSocialFeedScopesAndFollowLifecycle(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("follow alice: %d %s", resp.Code, resp.Body.String())
 	}
+	resp = do(t, srv, http.MethodGet, "/v1/users/me/following", nil, "viewer")
+	var following struct { CreatorIDs []string `json:"creator_ids"` }
+	decode(t, resp, &following)
+	if resp.Code != http.StatusOK || len(following.CreatorIDs) != 1 || following.CreatorIDs[0] != "alice" {
+		t.Fatalf("following list: %d %s", resp.Code, resp.Body.String())
+	}
 	resp = do(t, srv, http.MethodGet, "/v1/feed?scope=following", nil, "viewer")
 	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "alice-game") || strings.Contains(resp.Body.String(), "bob-game") || strings.Contains(resp.Body.String(), "private-game") || strings.Contains(resp.Body.String(), "quarantined-game") {
 		t.Fatalf("following feed leaked or missed games: %d %s", resp.Code, resp.Body.String())
