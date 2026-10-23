@@ -20,7 +20,14 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify formatting of new Go files
-        run: test -z "$(gofmt -l .)"
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "The following Go files need gofmt:"
+            echo "$files"
+            for file in $files; do gofmt -d "$file"; done
+            exit 1
+          fi
       - name: Run tests
         run: go test ./...
       - name: Run tests with the race detector
