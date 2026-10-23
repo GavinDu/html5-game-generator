@@ -383,7 +383,7 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	s.runsMu.Lock()
 	s.runSeq++
 	rec := RunRecord{
-		ID: "run-" + time.Now().Format("20060102") + "-" + itoa(s.runSeq),
+		ID:     "run-" + time.Now().Format("20060102") + "-" + itoa(s.runSeq),
 		GameID: id, IRHash: hash, Name: name,
 		Score: req.Score, Won: req.Won, DurationMs: req.DurationMs,
 		Seed: req.Seed, Inputs: req.Inputs, At: time.Now(),
