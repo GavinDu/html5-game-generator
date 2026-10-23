@@ -25,6 +25,7 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 - Search matches creator IDs or public game titles case-insensitively. `topic` is an optional exact, case-insensitive topic filter; a leading `#` is accepted.
 - Private, quarantined, pending, and rejected posts are excluded. Results include creator ID, eligible public post count, and distinct topics.
 - Pagination is stable by creator ID; `limit` defaults to 20 and must be 1–50.
+- This endpoint exposes creator IDs rather than unverified display names or avatars; private creator activity is not included.
 
 ## Interactions
 
