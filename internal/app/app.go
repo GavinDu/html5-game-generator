@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"doodlequest/internal/api"
 	"doodlequest/internal/inventory"
@@ -15,6 +16,18 @@ import (
 // Run starts the HTTP server on $PORT (default 8080).
 func Run() {
 	st := store.NewMemoryStore()
+	// Durable store snapshot (games, jobs, groups, ingests, artifacts):
+	// without it a restart lost every user-generated game while the
+	// social state and run records on disk survived (architecture
+	// review 2026-10-23). Inventory loads AFTER the snapshot so the
+	// shipped games on disk always win over a stale snapshot copy.
+	storePath := os.Getenv("DQ_STORE_FILE")
+	if storePath == "" {
+		storePath = filepath.Join("telemetry", "store-state.json")
+	}
+	if err := st.EnablePersistence(storePath); err != nil {
+		log.Printf("store persistence unavailable (%v); continuing in-memory", err)
+	}
 	invDir := os.Getenv("INVENTORY_DIR")
 	if invDir == "" {
 		invDir = "inventory"
