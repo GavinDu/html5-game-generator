@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
 )
 
 func TestCommentIdempotencyAndTopicPreferenceControls(t *testing.T) {
@@ -26,7 +25,7 @@ func TestCommentIdempotencyAndTopicPreferenceControls(t *testing.T) {
 	racing.Topics = []string{"racing"}
 	srv.store.UpdateGame(racing)
 
-	first := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body":"Great!"}, "viewer", map[string]string{"Idempotency-Key":"comment-1"})
+	first := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body": "Great!"}, "viewer", map[string]string{"Idempotency-Key": "comment-1"})
 	if first.Code != http.StatusCreated {
 		t.Fatalf("first comment: %d %s", first.Code, first.Body.String())
 	}
@@ -43,7 +42,7 @@ func TestCommentIdempotencyAndTopicPreferenceControls(t *testing.T) {
 		t.Fatalf("duplicate comment persisted: %s", comments.Body.String())
 	}
 
-	prefs := do(t, srv, http.MethodPut, "/v1/users/me/preferences/topics", map[string]any{"muted_topics":[]string{"#PUZZLE"}}, "viewer")
+	prefs := do(t, srv, http.MethodPut, "/v1/users/me/preferences/topics", map[string]any{"muted_topics": []string{"#PUZZLE"}}, "viewer")
 	if prefs.Code != http.StatusOK {
 		t.Fatalf("set topic preference: %d %s", prefs.Code, prefs.Body.String())
 	}
@@ -68,7 +67,7 @@ func TestCommentIdempotencySurvivesRestart(t *testing.T) {
 	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
 	first := newTestServer()
 	addPublicGame(first, "persist-idempotency", "creator")
-	resp := doWithHeaders(t, first, http.MethodPost, "/v1/games/persist-idempotency/comments", map[string]any{"body":"Once"}, "viewer", map[string]string{"Idempotency-Key":"persist-key"})
+	resp := doWithHeaders(t, first, http.MethodPost, "/v1/games/persist-idempotency/comments", map[string]any{"body": "Once"}, "viewer", map[string]string{"Idempotency-Key": "persist-key"})
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", resp.Code, resp.Body.String())
 	}
