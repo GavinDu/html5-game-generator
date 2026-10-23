@@ -15,6 +15,13 @@ import (
 	"doodlequest/internal/pipeline"
 )
 
+type commentIdempotencyRecord struct {
+	UserID string `json:"user_id"`
+	GameID string `json:"game_id"`
+	Body string `json:"body"`
+	Comment socialComment `json:"comment"`
+}
+
 type socialComment struct {
 	ID        string    `json:"id"`
 	GameID    string    `json:"game_id"`
@@ -67,6 +74,8 @@ type socialEventRequest struct {
 }
 
 type socialStateSnapshot struct {
+	MutedTopics map[string]map[string]bool `json:"muted_topics"`
+	CommentIdempotency map[string]commentIdempotencyRecord `json:"comment_idempotency"`
 	Reactions     map[string]map[string]string `json:"reactions"`
 	Comments      map[string][]socialComment   `json:"comments"`
 	Saves         map[string]map[string]bool   `json:"saves"`
@@ -130,6 +139,8 @@ func (s *Server) loadSocialState() {
 			if state.NotInterested != nil {
 				s.notInterested = state.NotInterested
 			}
+			if state.MutedTopics != nil { s.mutedTopics = state.MutedTopics }
+			if state.CommentIdempotency != nil { s.commentIdempotency = state.CommentIdempotency }
 			s.reports = state.Reports
 			s.events = state.Events
 			if state.Follows != nil {
@@ -162,7 +173,7 @@ func (s *Server) loadSocialState() {
 }
 
 func (s *Server) persistSocialStateLocked() {
-	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, Reports: s.reports, Follows: s.follows}
+	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, MutedTopics: s.mutedTopics, CommentIdempotency: s.commentIdempotency, Reports: s.reports, Follows: s.follows}
 	data, err := json.Marshal(state)
 	if err != nil {
 		return
@@ -197,6 +208,9 @@ func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/games/{id}/save", s.handleUnsaveGame)
 	mux.HandleFunc("POST /v1/games/{id}/report", s.handleReportGame)
 	mux.HandleFunc("POST /v1/games/{id}/feedback", s.handleSocialFeedback)
+	mux.HandleFunc("GET /v1/users/me/preferences", s.handleGetPreferences)
+	mux.HandleFunc("PUT /v1/users/me/preferences/topics", s.handleSetTopicPreferences)
+	mux.HandleFunc("DELETE /v1/users/me/preferences", s.handleResetPreferences)
 	mux.HandleFunc("POST /v1/games/{id}/moderation", s.handleModerateGame)
 	mux.HandleFunc("GET /v1/moderation/reports", s.handleListReports)
 	mux.HandleFunc("POST /v1/moderation/reports/{id}/resolve", s.handleResolveReport)
