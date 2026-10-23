@@ -40,3 +40,5 @@ The AI-review JSON shape is:
 ```
 
 The scorer reports `reviewRequests` for every missing or below-floor dimension and `missingSuggestions` if the reviewer failed to supply a suggestion. A game is target-ready only when overall score is at least 80, every metric is at least 70, coverage is complete, and every hard playability gate passes.
+
+**Suggestions are guaranteed by construction (Phase E):** the reviewer's suggestions cover the creative dimensions; objective dimensions (playability, reliability, input responsiveness, performance) get theirs from `score-report.mjs`'s measured-evidence suggester, which derives prioritized actions from the actual measurements (cold-start time, jank rate, first-reward timing, error counts) and tags them `source: "measured"`. After the merge, `missingSuggestions` is recomputed and must be empty for a complete delivery report; `score-report.mjs --suggestions-md <path>` renders the human-readable suggestions report.
