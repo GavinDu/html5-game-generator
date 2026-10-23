@@ -218,12 +218,16 @@ async function playGame(browser, gameId) {
   const playDeadline = Date.now() + Math.min(playSeconds, winSeconds) * 1000;
   const isCatcher = probe?.shell?.archetype === 'catcher';
   // Vertical keys are harmful to a catcher: remain in the catch lane.
-  const keys = isCatcher ? ['ArrowLeft', 'ArrowRight'] : ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+  const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
   let ki = 0;
   while (Date.now() < playDeadline) {
-    await page.keyboard.down(keys[ki % keys.length]).catch(() => {});
-    await sleep(450);
-    await page.keyboard.up(keys[ki % keys.length]).catch(() => {});
+    if (!isCatcher) {
+      await page.keyboard.down(keys[ki % keys.length]).catch(() => {});
+      await sleep(450);
+      await page.keyboard.up(keys[ki % keys.length]).catch(() => {});
+    } else {
+      await sleep(120);
+    }
     ki++;
     if (isCatcher) {
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
