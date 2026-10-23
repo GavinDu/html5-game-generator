@@ -268,6 +268,7 @@ func (s *Server) hasPublicCreator(id string) bool {
 	}
 	return false
 }
+
 type creatorDiscoveryEntry struct {
 	CreatorID string   `json:"creator_id"`
 	PostCount int      `json:"post_count"`
