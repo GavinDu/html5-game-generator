@@ -1,11 +1,14 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"doodlequest/internal/model"
 )
@@ -56,5 +59,21 @@ func TestCommentIdempotencySurvivesRestart(t *testing.T) {
 	addPublicGame(second, "persist-idempotency", "creator")
 	resp = doWithHeaders(t, second, http.MethodPost, "/v1/games/persist-idempotency/comments", map[string]any{"body":"Once"}, "viewer", map[string]string{"Idempotency-Key":"persist-key"})
 	if resp.Code != http.StatusCreated || !strings.Contains(resp.Body.String(), `"idempotent_replay":true`) { t.Fatalf("restart replay: %d %s", resp.Code, resp.Body.String()) }
-	_ = time.Now()
+}
+
+func doWithHeaders(t *testing.T, srv *Server, method, path string, body any, user string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	var rdr *bytes.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil { t.Fatal(err) }
+		rdr = bytes.NewReader(b)
+	} else { rdr = bytes.NewReader(nil) }
+	req := httptest.NewRequest(method, path, rdr)
+	if user != "" { req.Header.Set("X-User-ID", user) }
+	if token := os.Getenv("DQ_MODERATION_TOKEN"); token != "" { req.Header.Set("X-Moderation-Token", token) }
+	for key, value := range headers { req.Header.Set(key, value) }
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	return rec
 }
