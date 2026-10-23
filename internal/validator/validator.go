@@ -81,6 +81,7 @@ func Validate(in ValidateInput) (*ValidationReport, error) {
 		checkRightsDeclared(in.DesignInput),
 	}
 	checks = append(checks, experienceChecks(irDoc, irErr)...)
+	checks = append(checks, checkQualityContract(in.GameDir, irDoc, irErr))
 
 	report := &ValidationReport{
 		SchemaVersion: ReportSchemaVersion,
