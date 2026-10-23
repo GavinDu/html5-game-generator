@@ -43,7 +43,7 @@ func TestLoad(t *testing.T) {
 	root := t.TempDir()
 	b64 := base64.StdEncoding.EncodeToString([]byte("fakepng"))
 	writeGame(t, root, "abc123", testManifest, map[string]string{
-		"game.js":         "var x = 1;",
+		"game.js":           "var x = 1;",
 		"assets/s1.png.b64": b64,
 	})
 	// Non-conforming dir names are ignored.
@@ -122,9 +122,9 @@ func TestLoadSeedsGameIR(t *testing.T) {
 	root := t.TempDir()
 	b64 := base64.StdEncoding.EncodeToString([]byte("fakepng"))
 	writeGame(t, root, "abc123", testManifest, map[string]string{
-		"game.js":          "var x = 1;",
+		"game.js":           "var x = 1;",
 		"assets/s1.png.b64": b64,
-		"game-ir.json":     testIR,
+		"game-ir.json":      testIR,
 	})
 	st := store.NewMemoryStore()
 	if err := Load(st, root); err != nil {
@@ -149,9 +149,9 @@ func TestLoadRejectsBadGameIR(t *testing.T) {
 		root := t.TempDir()
 		b64 := base64.StdEncoding.EncodeToString([]byte("fakepng"))
 		writeGame(t, root, "abc123", testManifest, map[string]string{
-			"game.js":          "var x = 1;",
+			"game.js":           "var x = 1;",
 			"assets/s1.png.b64": b64,
-			"game-ir.json":     ir,
+			"game-ir.json":      ir,
 		})
 		if err := Load(store.NewMemoryStore(), root); err == nil {
 			t.Fatalf("%s: expected load error", name)
