@@ -12,7 +12,11 @@ if (!reportPath) {
   console.error('Usage: node score-report.mjs playtest-report.json [ai-review.json|-] [out.json]');
   process.exit(2);
 }
-const report = JSON.parse(await readFile(resolve(reportPath), 'utf8'));
+const reportText = await readFile(resolve(reportPath), 'utf8');
+if (!reportText.trim()) {
+  throw new Error('playtest report is empty; the browser worker may have timed out before emitting its final JSON report');
+}
+const report = JSON.parse(reportText);
 const reviews = reviewPath && reviewPath !== '-' ? JSON.parse(await readFile(resolve(reviewPath), 'utf8')) : {};
 if (!Array.isArray(report.games)) throw new Error('playtest report must contain a games array');
 
