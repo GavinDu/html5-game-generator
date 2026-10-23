@@ -33,7 +33,7 @@ func TestCommentIdempotencyAndTopicPreferenceControls(t *testing.T) {
 	if second.Code != http.StatusCreated || !strings.Contains(second.Body.String(), `"idempotent_replay":true`) {
 		t.Fatalf("replayed comment: %d %s", second.Code, second.Body.String())
 	}
-	conflict := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body":"Different"}, "viewer", map[string]string{"Idempotency-Key": "comment-1"})
+	conflict := doWithHeaders(t, srv, http.MethodPost, "/v1/games/topic-puzzle/comments", map[string]any{"body": "Different"}, "viewer", map[string]string{"Idempotency-Key": "comment-1"})
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("idempotency conflict: %d %s", conflict.Code, conflict.Body.String())
 	}
