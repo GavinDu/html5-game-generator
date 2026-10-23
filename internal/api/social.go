@@ -16,9 +16,9 @@ import (
 )
 
 type commentIdempotencyRecord struct {
-	UserID string `json:"user_id"`
-	GameID string `json:"game_id"`
-	Body string `json:"body"`
+	UserID  string        `json:"user_id"`
+	GameID  string        `json:"game_id"`
+	Body    string        `json:"body"`
 	Comment socialComment `json:"comment"`
 }
 
@@ -74,7 +74,7 @@ type socialEventRequest struct {
 }
 
 type socialStateSnapshot struct {
-	MutedTopics map[string]map[string]bool `json:"muted_topics"`
+	MutedTopics        map[string]map[string]bool            `json:"muted_topics"`
 	CommentIdempotency map[string]commentIdempotencyRecord `json:"comment_idempotency"`
 	Reactions     map[string]map[string]string `json:"reactions"`
 	Comments      map[string][]socialComment   `json:"comments"`
@@ -594,7 +594,9 @@ func (s *Server) handleUnblock(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 	var req socialFeedbackRequest
-	if !decodeJSON(w, r, &req) { return }
+	if !decodeJSON(w, r, &req) {
+		return
+	}
 	if req.Kind != "not_interested" {
 		writeErr(w, 400, "kind must be not_interested")
 		return
@@ -605,7 +607,9 @@ func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.socialMu.Lock()
-	if s.notInterested[userID(r)] == nil { s.notInterested[userID(r)] = map[string]bool{} }
+	if s.notInterested[userID(r)] == nil {
+		s.notInterested[userID(r)] = map[string]bool{}
+	}
 	s.notInterested[userID(r)][id] = true
 	s.persistSocialStateLocked()
 	s.socialMu.Unlock()
@@ -620,9 +624,17 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
 	s.socialMu.RLock()
 	muted := make([]string, 0, len(s.mutedTopics[viewer]))
-	for topic, value := range s.mutedTopics[viewer] { if value { muted = append(muted, topic) } }
+	for topic, value := range s.mutedTopics[viewer] {
+		if value {
+			muted = append(muted, topic)
+		}
+	}
 	ignored := make([]string, 0, len(s.notInterested[viewer]))
-	for id, value := range s.notInterested[viewer] { if value { ignored = append(ignored, id) } }
+	for id, value := range s.notInterested[viewer] {
+		if value {
+			ignored = append(ignored, id)
+		}
+	}
 	s.socialMu.RUnlock()
 	sort.Strings(muted)
 	sort.Strings(ignored)
@@ -647,7 +659,9 @@ func (s *Server) handleSetTopicPreferences(w http.ResponseWriter, r *http.Reques
 	}
 	viewer := userID(r)
 	s.socialMu.Lock()
-	if s.mutedTopics == nil { s.mutedTopics = map[string]map[string]bool{} }
+	if s.mutedTopics == nil {
+		s.mutedTopics = map[string]map[string]bool{}
+	}
 	s.mutedTopics[viewer] = muted
 	s.persistSocialStateLocked()
 	s.socialMu.Unlock()
