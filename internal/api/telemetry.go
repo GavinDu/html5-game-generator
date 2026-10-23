@@ -300,7 +300,10 @@ func (s *Server) handleIncidents(w http.ResponseWriter, r *http.Request) {
 		}
 		return out[i].Fingerprint < out[j].Fingerprint
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"incidents": out})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"incidents":  out,
+		"experience": s.allExperienceIncidents(),
+	})
 }
 
 // POST /v1/games/{id}/quarantine — hide a game from the feed manually.
