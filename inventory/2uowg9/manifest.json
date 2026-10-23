@@ -1,1 +1,142 @@
-{"controls":["tap"],"elements":[{"description":"The blob patient from the kid's drawing: a big white rounded creature with a worried face, redrawn in cute cartoon style","id":"el_1","kind":"character","label":"blob"},{"description":"The chaser from the drawing: a spiky-haired kid with a syringe, determined to give the shot","id":"el_2","kind":"character","label":"chaser kid"},{"description":"Cartoon syringes raining down the escape route — dodge them","id":"el_3","kind":"prop","label":"syringe"},{"description":"Courage stars: collect to score and push the chaser back","id":"el_4","kind":"prop","label":"courage star"},{"description":"Pastel escape-route backdrops that change as the blob flees further: clinic, hallway, playground, park, beach, mall","id":"el_5","kind":"background","label":"escape route"}],"entry":"game.js","game_id":"escape-from-injection","intent":"Dodge the syringes and outrun the chaser as long as you can — escape further and further until you are finally caught","music":{"mood":"adventurous","source":"procedural","src":"audio/theme.wav"},"owner":"doodlequest","shim":"gameshim/v1","sprites":[{"file":"assets/blob.png.b64","id":"blob","label":"blob hero","mime":"image/png","source":"procedural","src":"sprites/blob.png"},{"file":"assets/chaser.png.b64","id":"chaser","label":"chaser kid with syringe","mime":"image/png","source":"procedural","src":"sprites/chaser.png"},{"file":"assets/syringe.png.b64","id":"syringe","label":"syringe obstacle","mime":"image/png","source":"procedural","src":"sprites/syringe.png"},{"file":"assets/star.png.b64","id":"star","label":"courage star","mime":"image/png","source":"procedural","src":"sprites/star.png"},{"file":"assets/bg0.png.b64","id":"bg0","label":"mint clinic backdrop","mime":"image/png","source":"procedural","src":"sprites/bg0.png"},{"file":"assets/bg1.png.b64","id":"bg1","label":"peach hallway backdrop","mime":"image/png","source":"procedural","src":"sprites/bg1.png"},{"file":"assets/bg2.png.b64","id":"bg2","label":"lavender playground backdrop","mime":"image/png","source":"procedural","src":"sprites/bg2.png"}],"title":"Escape from the Injection","version":1,"visibility":"public"}
+{
+ "controls": [
+  "tap"
+ ],
+ "elements": [
+  {
+   "description": "The blob patient from the kid's drawing: a big white rounded creature with a worried face, redrawn in cute cartoon style",
+   "id": "el_1",
+   "kind": "character",
+   "label": "blob"
+  },
+  {
+   "description": "The chaser from the drawing: a spiky-haired kid with a syringe, determined to give the shot",
+   "id": "el_2",
+   "kind": "character",
+   "label": "chaser kid"
+  },
+  {
+   "description": "Cartoon syringes raining down the escape route — dodge them",
+   "id": "el_3",
+   "kind": "prop",
+   "label": "syringe"
+  },
+  {
+   "description": "Courage stars: collect to score and push the chaser back",
+   "id": "el_4",
+   "kind": "prop",
+   "label": "courage star"
+  },
+  {
+   "description": "Pastel escape-route backdrops that change as the blob flees further: clinic, hallway, playground, park, beach, mall",
+   "id": "el_5",
+   "kind": "background",
+   "label": "escape route"
+  }
+ ],
+ "entry": "game.js",
+ "game_id": "escape-from-injection",
+ "intent": "Dodge the syringes and outrun the chaser as long as you can — escape further and further until you are finally caught",
+ "music": {
+  "mood": "adventurous",
+  "source": "procedural",
+  "src": "audio/theme.wav"
+ },
+ "owner": "doodlequest",
+ "shim": "gameshim/v1",
+ "sprites": [
+  {
+   "file": "assets/blob.png.b64",
+   "id": "blob",
+   "label": "blob hero",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/blob.png"
+  },
+  {
+   "file": "assets/chaser.png.b64",
+   "id": "chaser",
+   "label": "chaser kid with syringe",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/chaser.png"
+  },
+  {
+   "file": "assets/syringe.png.b64",
+   "id": "syringe",
+   "label": "syringe obstacle",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/syringe.png"
+  },
+  {
+   "file": "assets/star.png.b64",
+   "id": "star",
+   "label": "courage star",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/star.png"
+  },
+  {
+   "file": "assets/bg0.png.b64",
+   "id": "bg0",
+   "label": "mint clinic backdrop",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/bg0.png"
+  },
+  {
+   "file": "assets/bg1.png.b64",
+   "id": "bg1",
+   "label": "peach hallway backdrop",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/bg1.png"
+  },
+  {
+   "file": "assets/bg2.png.b64",
+   "id": "bg2",
+   "label": "lavender playground backdrop",
+   "mime": "image/png",
+   "source": "procedural",
+   "src": "sprites/bg2.png"
+  },
+  {
+   "id": "runner",
+   "src": "sprites/runner.png",
+   "mime": "image/png",
+   "source": "generated",
+   "label": "runner",
+   "file": "assets/runner.png.b64"
+  }
+ ],
+ "title": "Escape from the Injection",
+ "version": 1,
+ "visibility": "public",
+ "sfx": [
+  {
+   "id": "ding",
+   "src": "audio/ding.wav",
+   "mime": "audio/wav",
+   "file": "assets/ding.wav.b64"
+  },
+  {
+   "id": "boing",
+   "src": "audio/boing.wav",
+   "mime": "audio/wav",
+   "file": "assets/boing.wav.b64"
+  },
+  {
+   "id": "thud",
+   "src": "audio/thud.wav",
+   "mime": "audio/wav",
+   "file": "assets/thud.wav.b64"
+  },
+  {
+   "id": "sting",
+   "src": "audio/sting.wav",
+   "mime": "audio/wav",
+   "file": "assets/sting.wav.b64"
+  }
+ ]
+}
