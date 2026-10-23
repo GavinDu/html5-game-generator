@@ -312,6 +312,20 @@ async function runGame(browser, id) {
         issues.push({ check: c.checkId, severity: BLOCKING.has(c.checkId) && c.status === 'fail' ? 'blocker' : (c.checkId === 'play.progress' ? 'major' : 'minor'), class: m.cls, evidence: c.evidence, fixHint: m.fix });
       }
     }
+    // A brain stall is not proof of a broken game. When every
+    // structural check (load, assets, render, control, resilience,
+    // errors, end flow) passes and only the play checks failed, the
+    // bot simply could not play this game well — the verdict is
+    // NEEDS_REVIEW so the LLM player or a human confirms before a
+    // game is rejected. (The catalog's gate semantics; the prototype
+    // README states this intent but only downgraded play.progress,
+    // leaving the win_possible cascade to escalate stalls to BROKEN.
+    // Observed on sample-ribbon-sky: worker bots and humans collect
+    // shards fine, the kit brain catches none in software rendering.)
+    const structuralFail = checks.some((c) => c.status === 'fail' && !['play.progress', 'play.win_possible'].includes(c.checkId));
+    if (!structuralFail) {
+      for (const i of issues) if (i.check === 'play.progress' || i.check === 'play.win_possible') i.severity = 'major';
+    }
     const verdict = issues.some((i) => i.severity === 'blocker') ? 'BROKEN' : issues.length ? 'NEEDS_REVIEW' : 'PLAYABLE';
     await ctx.close().catch(() => {});
     return { gameId: id, mutant: mutant || null, verdict, checks, issues };
