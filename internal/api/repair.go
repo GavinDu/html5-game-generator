@@ -43,6 +43,10 @@ func (s *Server) handleRepairPropose(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
+	if game.PublishedAt != nil {
+		writeErr(w, http.StatusConflict, "published posts are immutable; create a remix or new draft before repairing")
+		return
+	}
 	if game.GameIR == nil {
 		writeErr(w, http.StatusConflict, "game has no IR to repair")
 		return
@@ -99,6 +103,10 @@ func (s *Server) handleRepairApply(w http.ResponseWriter, r *http.Request) {
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok {
 		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	if game.PublishedAt != nil {
+		writeErr(w, http.StatusConflict, "published posts are immutable; create a remix or new draft before repairing")
 		return
 	}
 	prop := s.getProposal(game.ID)
