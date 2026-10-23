@@ -6,8 +6,11 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +40,15 @@ var rapierVendorJS string
 type Server struct {
 	store  store.Store
 	runner *pipeline.Runner
+	socialMu sync.RWMutex
+	follows map[string]map[string]struct{}
+	reactions map[string]map[string]string
+	comments map[string][]socialComment
+	saves map[string]map[string]bool
+	blocks map[string]map[string]bool
+	notInterested map[string]map[string]bool
+	reports []socialReport
+	events []socialEvent
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -73,7 +85,8 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r}
+	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}}
+	s.loadSocialState()
 	// Load the telemetry backlog once, up front: after this, the index is
 	// fed only by newly accepted reports, so a report is never counted
 	// twice (once from the file, once from memory).
@@ -122,6 +135,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/groups/{id}/games", s.handleGroupGames)
 	mux.HandleFunc("POST /v1/games/{id}/visibility", s.handleVisibility)
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
+	s.registerSocialRoutes(mux)
 	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
@@ -139,8 +153,8 @@ func (s *Server) Routes() http.Handler {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, X-Moderation-Token")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -496,21 +510,58 @@ func (s *Server) handleVisibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, game)
 }
 
-// GET /v1/feed — public, ready games. Quarantined games are hidden
-// (Phase 2): the game still exists and direct links still load it, but
-// it leaves discovery until a human unquarantines it.
+// GET /v1/feed?scope=for_you|following|friends. This is a transparent in-memory
+// baseline; personalized ranking can evolve after event volume is meaningful.
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
+	scope := r.URL.Query().Get("scope"); if scope == "" { scope = "for_you" }
+	if scope != "for_you" && scope != "following" && scope != "friends" { writeErr(w, 400, "scope must be for_you, following, or friends"); return }
+	viewer:=userID(r);s.socialMu.RLock();followed:=map[string]bool{};for id:=range s.follows[viewer]{followed[id]=true};mutual:=map[string]bool{};if scope=="friends"{for id:=range followed{if _,ok:=s.follows[id][viewer];ok{mutual[id]=true}}};blocked:=map[string]bool{};for id:=range s.blocks[viewer]{blocked[id]=true};ignored:=map[string]bool{};for id:=range s.notInterested[viewer]{ignored[id]=true};events:=append([]socialEvent(nil),s.events...);reactionCounts:=map[string]int{};for id,users:=range s.reactions{reactionCounts[id]=len(users)};s.socialMu.RUnlock()
 	var out []*model.Game
-	for _, g := range s.store.ListGames() {
-		if g.Status == model.GameReady && g.Visibility == model.VisibilityPublic && !g.Quarantined {
-			out = append(out, g)
-		}
-	}
-	if out == nil {
-		out = []*model.Game{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"games": out})
+	for _,g:=range s.store.ListGames(){if g.Status!=model.GameReady||g.Visibility!=model.VisibilityPublic||g.Quarantined||g.ModerationStatus=="pending"||g.ModerationStatus=="rejected"||blocked[g.OwnerID]||ignored[g.ID]{continue};if scope=="following"&&!followed[g.OwnerID]{continue};if scope=="friends"&&!mutual[g.OwnerID]{continue};out=append(out,g)}
+	sort.SliceStable(out,func(i,j int)bool{si,sj:=feedScore(out[i],reactionCounts,events),feedScore(out[j],reactionCounts,events);if si==sj{return out[i].CreatedAt.After(out[j].CreatedAt)};return si>sj})
+	out = diversifyFeed(out)
+	if out==nil{out=[]*model.Game{}}
+	page, next, err := paginateGames(out, r)
+	if err != nil { writeErr(w, http.StatusBadRequest, err.Error()); return }
+	writeJSON(w,200,map[string]any{"games":page,"scope":scope,"next_cursor":next})
 }
+
+
+func diversifyFeed(ranked []*model.Game) []*model.Game {
+	// Round-robin creator groups in score order to avoid a single prolific
+	// creator filling the entire feed. Each creator's internal score order stays intact.
+	groups := map[string][]*model.Game{}
+	creatorOrder := []string{}
+	for _, g := range ranked {
+		creator := g.OwnerID
+		if creator == "" { creator = "unknown:" + g.ID }
+		if _, exists := groups[creator]; !exists { creatorOrder = append(creatorOrder, creator) }
+		groups[creator] = append(groups[creator], g)
+	}
+	out := make([]*model.Game, 0, len(ranked))
+	for len(out) < len(ranked) {
+		progress := false
+		for _, creator := range creatorOrder {
+			if len(groups[creator]) == 0 { continue }
+			out = append(out, groups[creator][0])
+			groups[creator] = groups[creator][1:]
+			progress = true
+		}
+		if !progress { break }
+	}
+	return out
+}
+func paginateGames(games []*model.Game, r *http.Request) ([]*model.Game, string, error) {
+	limit := 20
+	if raw := r.URL.Query().Get("limit"); raw != "" { n, err := strconv.Atoi(raw); if err != nil || n < 1 || n > 50 { return nil, "", fmt.Errorf("limit must be between 1 and 50") }; limit = n }
+	start := 0
+	if cursor := r.URL.Query().Get("cursor"); cursor != "" { found := false; for i, g := range games { if g.ID == cursor { start = i + 1; found = true; break } }; if !found { return nil, "", fmt.Errorf("cursor does not match an item in this feed") } }
+	if start >= len(games) { return []*model.Game{}, "", nil }
+	end := start + limit; if end > len(games) { end = len(games) }
+	page := games[start:end]; next := ""; if end < len(games) && len(page) > 0 { next = page[len(page)-1].ID }
+	return page, next, nil
+}
+func feedScore(g *model.Game,reactions map[string]int,events []socialEvent)float64{age:=time.Since(g.CreatedAt).Hours();if age<0{age=0};fresh:=1/(1+age/24);eng:=float64(reactions[g.ID]);for _,e:=range events{if e.GameID!=g.ID{continue};switch e.Kind{case "completion":eng+=2;case "replay":eng+=1.5;case "share","save":eng+=1.25;case "quick_exit":eng-=0.5}};return fresh+0.03*eng}
 
 
 

@@ -38,6 +38,9 @@ func do(t *testing.T, srv *Server, method, path string, body any, user string) *
 	if user != "" {
 		req.Header.Set("X-User-ID", user)
 	}
+	if token := os.Getenv("DQ_MODERATION_TOKEN"); token != "" {
+		req.Header.Set("X-Moderation-Token", token)
+	}
 	rec := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
 	return rec

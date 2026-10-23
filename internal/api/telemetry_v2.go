@@ -113,6 +113,12 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		telemetryMu.Unlock()
 	}
+	if ev.Kind == "session_start" {
+		s.recordSocialPlay(userID(r), ev.GameID)
+	}
+	if ev.Kind == "run_end" && ev.Won {
+		s.recordSocialCompletion(userID(r), ev.GameID, ev.DurationMs)
+	}
 	s.teleMu.Lock()
 	switch ev.Kind {
 	case "session_start":
