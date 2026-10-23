@@ -1,1 +1,140 @@
-{"controls":["tap"],"elements":[{"description":"the little girl in the white-blue fairy dress, riding her cloud (cut out from the photo)","id":"el_1","kind":"character","label":"little girl hero"},{"description":"her golden carved staff, for bonking wind demons (in the hero cutout)","id":"el_2","kind":"prop","label":"golden staff"},{"description":"the somersault cloud she rides (in the hero cutout)","id":"el_3","kind":"vehicle","label":"swirl cloud"},{"description":"blue-white ribbons streaming behind her — the mending magic (in the hero cutout)","id":"el_4","kind":"prop","label":"flowing ribbons"},{"description":"a dark tear in the sky the wind demons ripped open","id":"el_5","kind":"hazard","label":"sky-hole"},{"description":"a grumpy little storm blob; tap to bonk it with the staff","id":"el_6","kind":"character","label":"wind demon"},{"description":"a shard of the nine-colored deer's rainbow; catch for bonus","id":"el_7","kind":"collectible","label":"rainbow shard"}],"entry":"game.js","game_id":"sample-ribbon-sky","intent":"Fly into the dark sky-holes so the ribbons stitch them shut; bonk wind demons with the golden staff","music":{"mood":"playful","source":"synthesized","src":"audio/theme.wav"},"owner":"doodlequest","shim":"gameshim/v1","sprites":[{"file":"assets/bg.jpg.b64","id":"bg","label":"sunset cloud sea","mime":"image/jpeg","source":"generated","src":"sprites/bg.jpg"},{"file":"assets/hero.png.b64","id":"hero","label":"little girl hero on cloud","mime":"image/png","source":"photo","src":"sprites/hero.png"},{"file":"assets/demon.png.b64","id":"demon","label":"wind demon","mime":"image/png","source":"generated","src":"sprites/demon.png"},{"file":"assets/hole.png.b64","id":"hole","label":"open sky-hole","mime":"image/png","source":"generated","src":"sprites/hole.png"},{"file":"assets/hole_closed.png.b64","id":"hole_closed","label":"stitched sky-hole","mime":"image/png","source":"generated","src":"sprites/hole_closed.png"},{"file":"assets/shard.png.b64","id":"shard","label":"rainbow shard","mime":"image/png","source":"generated","src":"sprites/shard.png"},{"file":"assets/spark.png.b64","id":"spark","label":"sparkle burst","mime":"image/png","source":"generated","src":"sprites/spark.png"}],"title":"飘带补天 Ribbon Mends the Sky","version":4,"visibility":"public"}
+{
+ "controls": [
+  "tap"
+ ],
+ "elements": [
+  {
+   "description": "the little girl in the white-blue fairy dress, riding her cloud (cut out from the photo)",
+   "id": "el_1",
+   "kind": "character",
+   "label": "little girl hero"
+  },
+  {
+   "description": "her golden carved staff, for bonking wind demons (in the hero cutout)",
+   "id": "el_2",
+   "kind": "prop",
+   "label": "golden staff"
+  },
+  {
+   "description": "the somersault cloud she rides (in the hero cutout)",
+   "id": "el_3",
+   "kind": "vehicle",
+   "label": "swirl cloud"
+  },
+  {
+   "description": "blue-white ribbons streaming behind her — the mending magic (in the hero cutout)",
+   "id": "el_4",
+   "kind": "prop",
+   "label": "flowing ribbons"
+  },
+  {
+   "description": "a dark tear in the sky the wind demons ripped open",
+   "id": "el_5",
+   "kind": "hazard",
+   "label": "sky-hole"
+  },
+  {
+   "description": "a grumpy little storm blob; tap to bonk it with the staff",
+   "id": "el_6",
+   "kind": "character",
+   "label": "wind demon"
+  },
+  {
+   "description": "a shard of the nine-colored deer's rainbow; catch for bonus",
+   "id": "el_7",
+   "kind": "collectible",
+   "label": "rainbow shard"
+  }
+ ],
+ "entry": "game.js",
+ "game_id": "sample-ribbon-sky",
+ "intent": "Fly into the dark sky-holes so the ribbons stitch them shut; bonk wind demons with the golden staff",
+ "music": {
+  "mood": "playful",
+  "source": "synthesized",
+  "src": "audio/theme.wav"
+ },
+ "owner": "doodlequest",
+ "shim": "gameshim/v1",
+ "sprites": [
+  {
+   "file": "assets/bg.jpg.b64",
+   "id": "bg",
+   "label": "sunset cloud sea",
+   "mime": "image/jpeg",
+   "source": "generated",
+   "src": "sprites/bg.jpg"
+  },
+  {
+   "file": "assets/hero.png.b64",
+   "id": "hero",
+   "label": "little girl hero on cloud",
+   "mime": "image/png",
+   "source": "photo",
+   "src": "sprites/hero.png"
+  },
+  {
+   "file": "assets/demon.png.b64",
+   "id": "demon",
+   "label": "wind demon",
+   "mime": "image/png",
+   "source": "generated",
+   "src": "sprites/demon.png"
+  },
+  {
+   "file": "assets/hole.png.b64",
+   "id": "hole",
+   "label": "open sky-hole",
+   "mime": "image/png",
+   "source": "generated",
+   "src": "sprites/hole.png"
+  },
+  {
+   "file": "assets/hole_closed.png.b64",
+   "id": "hole_closed",
+   "label": "stitched sky-hole",
+   "mime": "image/png",
+   "source": "generated",
+   "src": "sprites/hole_closed.png"
+  },
+  {
+   "file": "assets/shard.png.b64",
+   "id": "shard",
+   "label": "rainbow shard",
+   "mime": "image/png",
+   "source": "generated",
+   "src": "sprites/shard.png"
+  },
+  {
+   "file": "assets/spark.png.b64",
+   "id": "spark",
+   "label": "sparkle burst",
+   "mime": "image/png",
+   "source": "generated",
+   "src": "sprites/spark.png"
+  }
+ ],
+ "title": "飘带补天 Ribbon Mends the Sky",
+ "version": 4,
+ "visibility": "public",
+ "sfx": [
+  {
+   "id": "glass",
+   "src": "audio/glass.wav",
+   "mime": "audio/wav",
+   "file": "assets/glass.wav.b64"
+  },
+  {
+   "id": "stitch",
+   "src": "audio/stitch.wav",
+   "mime": "audio/wav",
+   "file": "assets/stitch.wav.b64"
+  },
+  {
+   "id": "thud",
+   "src": "audio/thud.wav",
+   "mime": "audio/wav",
+   "file": "assets/thud.wav.b64"
+  }
+ ]
+}
