@@ -1,0 +1,344 @@
+{
+  "gameId": "sample-rainbow-bear",
+  "title": null,
+  "irHash": "0f503d3aa9a7",
+  "runtimeVersion": "2026.10.22.4",
+  "frozenAt": "2026-10-22",
+  "source": "CI run 39887049881 (chromium playtest) + two blind judge passes",
+  "quality": {
+    "schemaVersion": "1.2",
+    "profile": "collect-and-restore-family-arcade",
+    "thresholds": {
+      "minimumOverallScore": 80,
+      "minimumMetricScore": 70,
+      "minimumMeasuredScore": 60,
+      "requireCompleteCoverage": true
+    },
+    "subscores": {
+      "measured": {
+        "score": 87.9,
+        "weight": 48
+      },
+      "creative": {
+        "score": 57.2,
+        "weight": 52
+      }
+    },
+    "overallScore": 72,
+    "partialScore": 72,
+    "coveragePercent": 100,
+    "grade": "good",
+    "deliveryGate": "pass",
+    "deliveryReady": true,
+    "hardGates": [
+      {
+        "id": "playtest.boot_clean",
+        "status": "pass"
+      },
+      {
+        "id": "playtest.render_nonblank",
+        "status": "pass"
+      },
+      {
+        "id": "simulation.no_softlock",
+        "status": "pass"
+      }
+    ],
+    "missingMetrics": [],
+    "dimensions": [
+      {
+        "id": "playability",
+        "label": "Minimum playability",
+        "weight": 20,
+        "score": 95,
+        "evidence": "playtest.boot_clean=pass (booted, 86 frames at first verdict, 0 errors); playtest.render_nonblank=pass (probe census shows 4 sampled entities, visible: worldLayer@(0,0) | player@(195,700) a=1 vis=true scale=0.55 | heart@(204,397) a=1 vis=true scale=0.63 | heart_blue@(109,308) a=1 vis=true scale=0.63 | heart_gol); simulation.no_softlock=pass (HUD/status/error state changed during bot play; no frozen state observed); simulation.win_reachable=pass (bot observed the win/end overlay); shell.start_card=pass (start card shown before play: \"Bobo's Rainbow\" / \"Catch 12 hearts\"); shell.result_card=pass (result card presented in-canvas at the end of the run); shell.restart_in_place=pass (Play again restarted in place in 202ms: no reload (marker survived), no start card on retry, frames advancing); simulation.determinism=pass (seed 777 + identical scripted trace produced score 5 in both runs); leaderboard.replay_verified=pass (replay of run-20261023-1 reproduced the submitted score exactly (13)); hook.first_reward=fail (first score increase at 18597ms from navigation)",
+        "rationale": "Graded from measured browser evidence (see evidence)."
+      },
+      {
+        "id": "reliability",
+        "label": "Runtime reliability",
+        "weight": 12,
+        "score": 100,
+        "evidence": "playtest.boot_clean=pass (booted, 86 frames at first verdict, 0 errors); errors=0, warnClasses=0",
+        "rationale": "Measured evidence at full marks."
+      },
+      {
+        "id": "input_responsiveness",
+        "label": "Input responsiveness",
+        "weight": 8,
+        "score": 40,
+        "evidence": "hook.time_to_input=skip (no input prompt observed within 6s); hook.first_reward=fail (first score increase at 18597ms from navigation); firstInputMs=7689, firstRewardMs=1006, deadInputRate=0.294",
+        "rationale": "Graded from measured browser evidence (see evidence)."
+      },
+      {
+        "id": "performance",
+        "label": "Performance",
+        "weight": 8,
+        "score": 100,
+        "evidence": "budgets.cold_start=pass (navigation to booted-with-frames in 776ms (contract <= 3000ms))",
+        "rationale": "Measured evidence at full marks."
+      },
+      {
+        "id": "visual_design",
+        "label": "Visual beauty and cohesion",
+        "weight": 8,
+        "score": 58.5,
+        "evidence": "end.png: header reads 'bo's Rainbow' (left-clipped), result line begins mid-phrase 'of 12 \u2014 Score: 12'; rainbow bands at top of frame are faint arcs at low opacity against a dark background; census confirms only player + 3 hearts on stage at session end.",
+        "rationale": "The result card itself is clean and well-composed \u2014 big win title, three gold stars, score/best/leaderboard line, and a prominent yellow Play again button. But the world behind it is murky and sparse: the completed rainbow, which should be the visual payoff, is only a few faint thin arcs mostly lost behind dark clouds, long stretches of the frame are empty dark blue, and both the header title and the result detail line are clipped at the left edge."
+      },
+      {
+        "id": "character_design",
+        "label": "Character design and readability",
+        "weight": 7,
+        "score": 50,
+        "evidence": "end.png bottom: bear is a dark low-contrast scribble (census scale 0.56) and the kitten at lower right is a faint outline almost indistinguishable from the background.",
+        "rationale": "Bobo and the kitten have hand-drawn charm in principle, but at portrait size in the actual render they read as dark scribbled masses against a dark background. The kitten \u2014 the character the whole premise is about helping \u2014 is barely visible at all, so the emotional center of the game is nearly absent from its own win screen."
+      },
+      {
+        "id": "animation",
+        "label": "Animation and game feel",
+        "weight": 7,
+        "score": 57.5,
+        "evidence": "events: milestone events at 0.1667/0.3333/0.5/0.6667/0.8333/1 each paired with a collect and mapped to band visuals in milestoneVisuals; end.png shows no motion cues; experience.feedback = {haptics: none, juice: standard}.",
+        "rationale": "The event tail shows the milestone system animating progress in steps \u2014 each sixth of the rainbow triggers a band reveal tied to a collect \u2014 which is real, structured feedback. But there is no direct evidence of character animation, collect effects, or win celebration motion; the end frame is static and the declared feedback is only 'juice: standard' with haptics none."
+      },
+      {
+        "id": "plot",
+        "label": "Plot and emotional arc",
+        "weight": 7,
+        "score": 72,
+        "evidence": "intent: 'Catch falling hearts to repaint the fading rainbow so the kitten can cross'; status at end: 'The rainbow is complete - the kitten can cross!'; win title 'The rainbow is whole!'; milestoneVisuals map each progress fraction to a rainbow band.",
+        "rationale": "A clear, complete micro-arc for a kids' game: catch hearts, repaint the fading rainbow band by band, and the kitten can cross. The mechanics literally are the story \u2014 every milestone is a story beat \u2014 and the win state confirms the payoff in words. It loses points only because the kitten's crossing itself is not visibly staged in the end evidence."
+      },
+      {
+        "id": "strategy",
+        "label": "Strategy and meaningful choices",
+        "weight": 8,
+        "score": 55,
+        "evidence": "census shows heart, heart_blue, and heart_gold variants falling simultaneously; pacing ramp rises 1 \u2192 1.2 \u2192 1.45 speedMul; failure.mode = gentle (no penalty state); event tail is an unbroken sequence of collects with no risk decisions.",
+        "rationale": "Judged for a kid-friendly catcher, the depth is thin but not zero: the player chooses positioning under a speed ramp and can prioritize the rarer gold/blue hearts over plain ones. There are no trade-offs, risks, or decisions beyond 'be under the heart', and the gentle failure mode removes any cost to missing, so choices carry little weight."
+      },
+      {
+        "id": "level_design",
+        "label": "Level and progression design",
+        "weight": 5,
+        "score": 64.5,
+        "evidence": "pacing.targetSessionSec 20, ramp at 0/0.5/0.85 of session; first_reward at t=1874 (~1s after start tap at 860); win at t=25016; result.win.stars thresholds [45, 30, 18] seconds.",
+        "rationale": "One arena, but paced sensibly: a three-step speed ramp, six evenly spaced milestones that double as visible progress, a first reward inside a second of play, and a ~24-second observed session close to the 20-second target. Star thresholds by clear time give a reason to replay faster. It is a single flat space with no variety, which caps it at adequate."
+      },
+      {
+        "id": "audio_feedback",
+        "label": "Audio and feedback",
+        "weight": 4,
+        "score": 24,
+        "evidence": "experience.feedback = {haptics: 'none', juice: 'standard'} with no audio fields anywhere in the declared design; 15 events in the tail, none audio-related.",
+        "rationale": "There is no declared sound design at all: the feedback block specifies haptics 'none' and generic 'juice: standard', and the full event tail contains no audio cues for collects, milestones, or the win. For a game whose core loop is repeated collecting, the absence of any evidenced collect/milestone/win sound is a real feedback gap."
+      },
+      {
+        "id": "originality",
+        "label": "Originality and coherence",
+        "weight": 4,
+        "score": 68,
+        "evidence": "intent ties hearts \u2192 rainbow repair \u2192 kitten crossing; milestoneVisuals render progress as rainbow bands (band0\u2013band5), not an abstract meter.",
+        "rationale": "The catcher template is familiar, but the specific premise \u2014 catching falling hearts to repaint a rainbow so a kitten can cross it \u2014 is distinctive and mechanically coherent: the collectible, the progress visual, and the goal are all the same story object. That thematic tightness lifts it well above a generic reskin."
+      },
+      {
+        "id": "accessibility",
+        "label": "Usability and accessibility",
+        "weight": 2,
+        "score": 60.5,
+        "evidence": "end.png: 'bo's Rainbow' and 'of 12 \u2014 Score: 12' clipped at left; 'Catch 12 hearts!' banner partially hidden behind clouds at top; controls.scheme = drag_x; failure.mode = gentle; HUD '\u2605 13/12' is clear.",
+        "rationale": "Strong basics: one-finger drag control, a gentle no-fail mode, a large high-contrast Play again button, and a simple star-counter HUD. Against that: the header title and the result detail line are clipped at the left edge, the main characters are low-contrast dark art on a dark background, and the objective banner at the top of the end frame is obscured \u2014 all real legibility problems at portrait mobile size."
+      }
+    ],
+    "weightsTotal": 100,
+    "target": {
+      "minimumOverallScore": 80,
+      "minimumMetricScore": 70,
+      "minimumMeasuredScore": 60,
+      "measuredScore": 87.9,
+      "measuredTargetMet": true,
+      "overallTargetMet": false,
+      "allMetricsMeetFloor": false,
+      "completeCoverage": true,
+      "targetMet": false
+    },
+    "belowFloor": [
+      {
+        "metricId": "input_responsiveness",
+        "score": 40,
+        "minimum": 70
+      },
+      {
+        "metricId": "visual_design",
+        "score": 58.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "character_design",
+        "score": 50,
+        "minimum": 70
+      },
+      {
+        "metricId": "animation",
+        "score": 57.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "strategy",
+        "score": 55,
+        "minimum": 70
+      },
+      {
+        "metricId": "level_design",
+        "score": 64.5,
+        "minimum": 70
+      },
+      {
+        "metricId": "audio_feedback",
+        "score": 24,
+        "minimum": 70
+      },
+      {
+        "metricId": "originality",
+        "score": 68,
+        "minimum": 70
+      },
+      {
+        "metricId": "accessibility",
+        "score": 60.5,
+        "minimum": 70
+      }
+    ],
+    "improvementSuggestions": [
+      {
+        "metricId": "character_design",
+        "priority": "high",
+        "problem": "Bobo and especially the kitten are dark, low-contrast scribbles that nearly disappear against the dark background at portrait size.",
+        "suggestion": "Add a soft light outline/halo and a subtle light backdrop glow behind both characters, and scale the kitten up; on the win screen, place the kitten visibly on the completed rainbow so the helped character is seen enjoying the payoff."
+      },
+      {
+        "metricId": "visual_design",
+        "priority": "high",
+        "problem": "The completed rainbow \u2014 the game's payoff image \u2014 renders as faint thin arcs, and header/result text is clipped at the left edge of the frame.",
+        "suggestion": "Render completed rainbow bands at full saturation with a gentle glow on the win state, brighten the dimmed world behind the result card, and add safe-area padding to the header and result card so no text touches the frame edge."
+      },
+      {
+        "metricId": "audio_feedback",
+        "priority": "medium",
+        "problem": "No sound feedback is declared or evidenced for collects, milestones, or winning.",
+        "suggestion": "Add three small sounds: a soft pop on heart collect (pitch rising with combo/progress), a chime arpeggio as each rainbow band restores, and a short warm jingle on the win card; declare them in the feedback design so they are part of the contract."
+      },
+      {
+        "metricId": "animation",
+        "priority": "medium",
+        "problem": "Milestone reveals exist in data but there is no evidenced character or celebration animation; the win moment reads as static.",
+        "suggestion": "Add a scale-bounce on Bobo when a heart is caught, a shimmer sweep across a rainbow band when its milestone lands, and a brief confetti/hearts burst behind the win card."
+      },
+      {
+        "metricId": "accessibility",
+        "priority": "medium",
+        "problem": "Low character contrast and edge-clipped text reduce legibility for young players and on small screens.",
+        "suggestion": "Enforce a minimum contrast pass on character sprites against the background, inset all HUD/card text by a safe margin, and keep the objective banner clear of decorative clouds."
+      },
+      {
+        "metricId": "strategy",
+        "priority": "low",
+        "problem": "Beyond positioning there are no meaningful choices; gold/blue hearts are not explained or differentiated in play evidence.",
+        "suggestion": "Make heart types legibly different in value (e.g. gold fills a band chunk, blue is a bonus star) and show that in the collect feedback, so choosing which heart to chase becomes a real micro-decision."
+      },
+      {
+        "metricId": "level_design",
+        "priority": "low",
+        "problem": "A single flat arena with only a speed ramp offers no variety across the session.",
+        "suggestion": "Vary the fall pattern per band (e.g. hearts drift sideways during later bands) so each restored band feels slightly different while keeping the same gentle difficulty curve."
+      },
+      {
+        "metricId": "originality",
+        "priority": "low",
+        "problem": "The premise is distinctive but the moment-to-moment play is a stock catcher; nothing in play expresses the kitten's stake until the final status line.",
+        "suggestion": "Show the kitten waiting at the rainbow's end during play, reacting (hop, wave) at each band milestone, so the original premise is present throughout the session, not only at the end."
+      }
+    ],
+    "missingSuggestions": [
+      {
+        "metricId": "input_responsiveness",
+        "score": 40
+      }
+    ],
+    "reviewRequests": [
+      {
+        "metricId": "input_responsiveness",
+        "currentScore": 40,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "visual_design",
+        "currentScore": 58.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "character_design",
+        "currentScore": 50,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "animation",
+        "currentScore": 57.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "strategy",
+        "currentScore": 55,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "level_design",
+        "currentScore": 64.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "audio_feedback",
+        "currentScore": 24,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "originality",
+        "currentScore": 68,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      },
+      {
+        "metricId": "accessibility",
+        "currentScore": 60.5,
+        "minimumScore": 70,
+        "reason": "below_metric_floor",
+        "requiredOutput": "Provide evidence-backed diagnosis and a concrete, prioritized improvement suggestion."
+      }
+    ],
+    "improvementRequired": true,
+    "rulesFile": "inventory/<game-id>/quality-rules.json",
+    "provenance": {
+      "judge": {
+        "model": "Muse Spark 1.3 (blind subagent pass)",
+        "version": "calibration-2026-10-22"
+      },
+      "passes": 2
+    }
+  }
+}
