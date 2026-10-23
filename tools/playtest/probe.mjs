@@ -61,6 +61,29 @@ async function readProbe(pg) {
   return pg.evaluate(() => window.__dqProbe || null).catch(() => null);
 }
 
+// For catcher games, steer from the live player position toward the nearest
+// falling pickup while keeping the pointer on the player's horizontal lane.
+// Fixed viewport coordinates can move the player away from the catcher lane
+// and make first-reward timing measure a bad bot, not the game.
+async function catcherPointerPoints(pg, fallbackRatio = 0.5) {
+  return pg.evaluate((ratio) => {
+    const snap = window.__dqTest?.snapshot?.();
+    const canvas = document.querySelector('#stage canvas');
+    if (!snap?.player || !canvas || !snap.world?.w || !snap.world?.h) return null;
+    const player = snap.player;
+    const pickup = snap.entities
+      .filter((e) => e.kind === 'pickup' && e.visible && e.y <= player.y + 20)
+      .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
+    const targetX = pickup ? pickup.x : snap.world.w * ratio;
+    const rect = canvas.getBoundingClientRect();
+    const point = (x, y) => ({
+      x: rect.left + (x / snap.world.w) * rect.width,
+      y: rect.top + (y / snap.world.h) * rect.height,
+    });
+    return { from: point(player.x, player.y), to: point(targetX, player.y) };
+  }, fallbackRatio).catch(() => null);
+}
+
 async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
@@ -193,14 +216,24 @@ async function playGame(browser, gameId) {
   let endSeen = false;
   let lastSig = '';
   const playDeadline = Date.now() + Math.min(playSeconds, winSeconds) * 1000;
-  const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+  const isCatcher = probe?.shell?.archetype === 'catcher';
+  // Vertical keys are harmful to a catcher: remain in the catch lane.
+  const keys = isCatcher ? ['ArrowLeft', 'ArrowRight'] : ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
   let ki = 0;
   while (Date.now() < playDeadline) {
     await page.keyboard.down(keys[ki % keys.length]).catch(() => {});
     await sleep(450);
     await page.keyboard.up(keys[ki % keys.length]).catch(() => {});
     ki++;
-    if (ki % 4 === 0) {
+    if (isCatcher) {
+      const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
+      if (points) {
+        await page.mouse.move(points.from.x, points.from.y).catch(() => {});
+        await page.mouse.down().catch(() => {});
+        await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
+        await page.mouse.up().catch(() => {});
+      }
+    } else if (ki % 4 === 0) {
       await page.mouse.move(210, 450).catch(() => {});
       await page.mouse.down().catch(() => {});
       await page.mouse.move(300, 380, { steps: 8 }).catch(() => {});
