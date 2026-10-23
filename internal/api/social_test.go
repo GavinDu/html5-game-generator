@@ -293,18 +293,50 @@ func TestCreatorDiscoveryFiltersAndPagination(t *testing.T) {
 	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
 	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
 	srv := newTestServer()
-	srv.store.CreateGame(&model.Game{ID:"a-game",Title:"Puzzle Adventure",OwnerID:"alice",Status:model.GameReady,Visibility:model.VisibilityPublic,Topics:[]string{"Puzzle","Family"},CreatedAt:time.Now(),UpdatedAt:time.Now()})
-	srv.store.CreateGame(&model.Game{ID:"b-game",Title:"Racing",OwnerID:"bob",Status:model.GameReady,Visibility:model.VisibilityPublic,Topics:[]string{"racing"},CreatedAt:time.Now(),UpdatedAt:time.Now()})
-	srv.store.CreateGame(&model.Game{ID:"c-game",Title:"Private Puzzle",OwnerID:"carol",Status:model.GameReady,Visibility:model.VisibilityPrivate,Topics:[]string{"puzzle"},CreatedAt:time.Now(),UpdatedAt:time.Now()})
-	srv.store.CreateGame(&model.Game{ID:"d-game",Title:"Pending Puzzle",OwnerID:"dave",Status:model.GameReady,Visibility:model.VisibilityPublic,ModerationStatus:"pending",Topics:[]string{"puzzle"},CreatedAt:time.Now(),UpdatedAt:time.Now()})
-	resp := do(t,srv,http.MethodGet,"/v1/creators?q=PUZZLE",nil,"viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(),"alice") || strings.Contains(resp.Body.String(),"carol") || strings.Contains(resp.Body.String(),"dave") { t.Fatalf("search privacy: %d %s",resp.Code,resp.Body.String()) }
-	resp = do(t,srv,http.MethodGet,"/v1/creators?topic=%23PUZZLE",nil,"viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(),"alice") || strings.Contains(resp.Body.String(),"bob") { t.Fatalf("topic filter: %d %s",resp.Code,resp.Body.String()) }
-	resp = do(t,srv,http.MethodGet,"/v1/creators?limit=1",nil,"viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(),"next_cursor") || !strings.Contains(resp.Body.String(),"alice") { t.Fatalf("first page: %d %s",resp.Code,resp.Body.String()) }
-	resp = do(t,srv,http.MethodGet,"/v1/creators?limit=1&cursor=alice",nil,"viewer")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(),"bob") || strings.Contains(resp.Body.String(),"alice") { t.Fatalf("second page: %d %s",resp.Code,resp.Body.String()) }
-	resp = do(t,srv,http.MethodGet,"/v1/creators?limit=51",nil,"viewer")
-	if resp.Code != http.StatusBadRequest { t.Fatalf("invalid limit: %d %s",resp.Code,resp.Body.String()) }
+	srv.store.CreateGame(&model.Game{
+		ID: "a-game", Title: "Puzzle Adventure", OwnerID: "alice",
+		Status: model.GameReady, Visibility: model.VisibilityPublic,
+		Topics: []string{"Puzzle", "Family"}, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	srv.store.CreateGame(&model.Game{
+		ID: "b-game", Title: "Racing", OwnerID: "bob",
+		Status: model.GameReady, Visibility: model.VisibilityPublic,
+		Topics: []string{"racing"}, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	srv.store.CreateGame(&model.Game{
+		ID: "c-game", Title: "Private Puzzle", OwnerID: "carol",
+		Status: model.GameReady, Visibility: model.VisibilityPrivate,
+		Topics: []string{"puzzle"}, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	srv.store.CreateGame(&model.Game{
+		ID: "d-game", Title: "Pending Puzzle", OwnerID: "dave",
+		Status: model.GameReady, Visibility: model.VisibilityPublic,
+		ModerationStatus: "pending", Topics: []string{"puzzle"},
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+
+	resp := do(t, srv, http.MethodGet, "/v1/creators?q=PUZZLE", nil, "viewer")
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "alice") ||
+		strings.Contains(resp.Body.String(), "carol") || strings.Contains(resp.Body.String(), "dave") {
+		t.Fatalf("search privacy: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodGet, "/v1/creators?topic=%23PUZZLE", nil, "viewer")
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "alice") ||
+		strings.Contains(resp.Body.String(), "bob") {
+		t.Fatalf("topic filter: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodGet, "/v1/creators?limit=1", nil, "viewer")
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "next_cursor") ||
+		!strings.Contains(resp.Body.String(), "alice") {
+		t.Fatalf("first page: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodGet, "/v1/creators?limit=1&cursor=alice", nil, "viewer")
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "bob") ||
+		strings.Contains(resp.Body.String(), "alice") {
+		t.Fatalf("second page: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodGet, "/v1/creators?limit=51", nil, "viewer")
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid limit: %d %s", resp.Code, resp.Body.String())
+	}
 }

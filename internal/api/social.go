@@ -270,9 +270,9 @@ func (s *Server) hasPublicCreator(id string) bool {
 }
 
 type creatorDiscoveryEntry struct {
-	CreatorID string `json:"creator_id"`
-	PostCount int `json:"post_count"`
-	Topics []string `json:"topics"`
+	CreatorID string   `json:"creator_id"`
+	PostCount int      `json:"post_count"`
+	Topics    []string `json:"topics"`
 }
 
 // handleDiscoverCreators lists creators with eligible public games.
@@ -282,49 +282,92 @@ func (s *Server) handleDiscoverCreators(w http.ResponseWriter, r *http.Request) 
 	limit := 20
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
-		if err != nil || n < 1 || n > 50 { writeErr(w, http.StatusBadRequest, "limit must be between 1 and 50"); return }
+		if err != nil || n < 1 || n > 50 {
+			writeErr(w, http.StatusBadRequest, "limit must be between 1 and 50")
+			return
+		}
 		limit = n
 	}
 	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
-	type aggregate struct { count int; topics map[string]string; titles []string }
+	type aggregate struct {
+		count  int
+		topics map[string]string
+		titles []string
+	}
 	byCreator := map[string]*aggregate{}
 	for _, game := range s.store.ListGames() {
-		if game.Status != model.GameReady || game.Visibility != model.VisibilityPublic || game.Quarantined || game.ModerationStatus == "pending" || game.ModerationStatus == "rejected" { continue }
+		if game.Status != model.GameReady || game.Visibility != model.VisibilityPublic ||
+			game.Quarantined || game.ModerationStatus == "pending" || game.ModerationStatus == "rejected" {
+			continue
+		}
 		entry := byCreator[game.OwnerID]
-		if entry == nil { entry = &aggregate{topics: map[string]string{}}; byCreator[game.OwnerID] = entry }
+		if entry == nil {
+			entry = &aggregate{topics: map[string]string{}}
+			byCreator[game.OwnerID] = entry
+		}
 		entry.count++
 		entry.titles = append(entry.titles, game.Title)
 		for _, raw := range game.Topics {
 			display := strings.TrimSpace(strings.TrimPrefix(raw, "#"))
 			normalized := strings.ToLower(display)
-			if normalized != "" { if _, ok := entry.topics[normalized]; !ok { entry.topics[normalized] = display } }
+			if normalized != "" {
+				if _, exists := entry.topics[normalized]; !exists {
+					entry.topics[normalized] = display
+				}
+			}
 		}
 	}
 	ids := make([]string, 0, len(byCreator))
 	for id, entry := range byCreator {
-		if id == "" || (cursor != "" && id <= cursor) { continue }
+		if id == "" || (cursor != "" && id <= cursor) {
+			continue
+		}
 		if query != "" {
 			matched := strings.Contains(strings.ToLower(id), query)
-			for _, title := range entry.titles { if strings.Contains(strings.ToLower(title), query) { matched = true; break } }
-			if !matched { continue }
+			for _, title := range entry.titles {
+				if strings.Contains(strings.ToLower(title), query) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
 		}
-		if topic != "" { if _, ok := entry.topics[topic]; !ok { continue } }
+		if topic != "" {
+			if _, exists := entry.topics[topic]; !exists {
+				continue
+			}
+		}
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
 	hasMore := len(ids) > limit
-	if hasMore { ids = ids[:limit] }
+	if hasMore {
+		ids = ids[:limit]
+	}
 	creators := make([]creatorDiscoveryEntry, 0, len(ids))
 	for _, id := range ids {
 		entry := byCreator[id]
 		topics := make([]string, 0, len(entry.topics))
-		for _, value := range entry.topics { topics = append(topics, value) }
+		for _, value := range entry.topics {
+			topics = append(topics, value)
+		}
 		sort.Strings(topics)
-		creators = append(creators, creatorDiscoveryEntry{CreatorID:id, PostCount:entry.count, Topics:topics})
+		creators = append(creators, creatorDiscoveryEntry{
+			CreatorID: id,
+			PostCount: entry.count,
+			Topics:    topics,
+		})
 	}
 	nextCursor := ""
-	if hasMore && len(ids) > 0 { nextCursor = ids[len(ids)-1] }
-	writeJSON(w, http.StatusOK, map[string]any{"creators":creators, "next_cursor":nextCursor})
+	if hasMore && len(ids) > 0 {
+		nextCursor = ids[len(ids)-1]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"creators":   creators,
+		"next_cursor": nextCursor,
+	})
 }
 
 func (s *Server) handleCreatorProfile(w http.ResponseWriter, r *http.Request) {

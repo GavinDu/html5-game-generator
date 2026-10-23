@@ -19,13 +19,6 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 - New posts enter `pending` moderation and are excluded from feeds until approved.
 - `GET /v1/games/{id}/post` returns an eligible published post and basic engagement counts.
 
-## Creator discovery
-
-- `GET /v1/creators?q=puzzle&topic=family&limit=20&cursor=creator-id` lists creators with eligible public games.
-- Search matches creator IDs or public game titles case-insensitively. `topic` is an optional exact, case-insensitive topic filter; a leading `#` is accepted.
-- Private, quarantined, pending, and rejected posts are excluded. Results include creator ID, eligible public post count, and distinct topics.
-- Pagination is stable by creator ID; `limit` defaults to 20 and must be 1–50.
-
 ## Interactions
 
 - `POST /v1/games/{id}/reactions` with reaction `like|love|funny|wow`; `DELETE` removes the current demo user's reaction.
