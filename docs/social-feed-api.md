@@ -1,6 +1,6 @@
 # Social feed API MVP
 
-All social state is currently process-local and resets on restart. The `X-User-ID` header remains a development identity, not authentication. This is an intentionally small-user-base implementation, not a production security boundary.
+Social state uses a local JSON snapshot plus an append-only JSONL event file. Follow edges, reactions, comments, saves, blocks, reports, topic mutes, not-interested feedback, and comment idempotency records are written to the local snapshot. This is single-instance file persistence only; it is not shared storage, has no schema-migration/transaction guarantees, and does not make multi-replica behavior safe. The `X-User-ID` header remains a development identity, not authentication. This is an intentionally small-user-base implementation, not a production security boundary.
 
 ## Feeds and creator profiles
 
@@ -27,6 +27,10 @@ All social state is currently process-local and resets on restart. The `X-User-I
 - `POST /v1/games/{id}/report` with `{"reason":"..."}`.
 - `POST|DELETE /v1/users/{creatorID}/block`.
 - `POST /v1/games/{id}/feedback` with `{"kind":"not_interested"}`.
+- `GET /v1/users/me/preferences` returns muted topics and not-interested game IDs.
+- `PUT /v1/users/me/preferences/topics` with `{"muted_topics":["puzzle"]}` replaces the current muted-topic list; matching topics are excluded from the For You feed (case-insensitive).
+- `DELETE /v1/users/me/preferences` clears topic mutes and not-interested feedback so recommendations can be reset.
+- `POST /v1/games/{id}/comments` accepts an optional `Idempotency-Key` header (up to 128 characters). Reusing the same key with the same user/game/body returns the original comment; reusing it for a different request returns HTTP 409. Idempotency keys are stored in the same local social snapshot, so this is single-instance persistence, not distributed idempotency.
 
 ## Moderation
 
@@ -39,10 +43,10 @@ All social state is currently process-local and resets on restart. The `X-User-I
 ## Events and ranking
 
 - `POST /v1/telemetry/social-event` accepts `impression|play_start|completion|replay|share|save|follow|quick_exit`, with optional `duration_ms` and `expected_duration_ms`. Existing runtime `session_start` events map to play/replay signals and successful `run_end` events map to completion.
-- For You currently uses a small explainable baseline: recency plus bounded engagement from reactions, completions, replays, saves/shares, and a quick-exit penalty. It is not a trained/personalized recommender.
+- For You currently uses a small explainable baseline: recency plus bounded engagement from reactions, completions, replays, saves/shares, and a quick-exit penalty. It is not a trained/personalized recommender. Engagement ranking is held behind a simple low-data guardrail: while fewer than 20 indexed social events plus reaction counts exist, the feed stays newest-first. This avoids overreacting to a handful of early events; the threshold should be evaluated against real usage before changing.
 - Not-interested and block feedback remove matching content from that viewer's feed.
 - Avoid interpreting raw play duration as quality: normalize by expected game length/type when evaluating future ranking.
 
 ## Deferred security and persistence work
 
-Do not treat `X-User-ID` as authentication. Follow edges remain in memory and disappear on restart by deliberate deferral. Reactions, comments, saves, blocks, feedback, and reports are written to a local JSON snapshot (default `telemetry/social-state.json`, override with `DQ_SOCIAL_STATE_FILE`). Events append to `telemetry/social-events.jsonl` (override with `DQ_SOCIAL_EVENTS_FILE`). This is single-instance persistence, not shared durable storage. Those limitations are intentionally deferred while the app has few users, but must be revisited before relying on these features for public production use or multiple server instances.
+Do not treat `X-User-ID` as authentication. Social relations and interactions are persisted in a local JSON snapshot (default `telemetry/social-state.json`, override with `DQ_SOCIAL_STATE_FILE`); social events append to `telemetry/social-events.jsonl` (override with `DQ_SOCIAL_EVENTS_FILE`). This is local single-instance file persistence, not shared durable storage. Full shared persistence, transactional guarantees, migrations, and concurrent multi-instance behavior remain deferred under issue #11 and must be addressed before multiple replicas or relying on this data for production.

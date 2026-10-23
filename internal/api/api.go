@@ -39,17 +39,19 @@ var pixiVendorJS string
 var rapierVendorJS string
 
 type Server struct {
-	store         store.Store
-	runner        *pipeline.Runner
-	socialMu      sync.RWMutex
-	follows       map[string]map[string]struct{}
-	reactions     map[string]map[string]string
-	comments      map[string][]socialComment
-	saves         map[string]map[string]bool
-	blocks        map[string]map[string]bool
-	notInterested map[string]map[string]bool
-	reports       []socialReport
-	events        []socialEvent
+	store              store.Store
+	runner             *pipeline.Runner
+	socialMu           sync.RWMutex
+	follows            map[string]map[string]struct{}
+	reactions          map[string]map[string]string
+	comments           map[string][]socialComment
+	saves              map[string]map[string]bool
+	blocks             map[string]map[string]bool
+	notInterested      map[string]map[string]bool
+	mutedTopics        map[string]map[string]bool
+	commentIdempotency map[string]commentIdempotencyRecord
+	reports            []socialReport
+	events             []socialEvent
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -86,7 +88,7 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}}
+	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, commentIdempotency: map[string]commentIdempotencyRecord{}}
 	s.loadSocialState()
 	// Load the telemetry backlog once, up front: after this, the index is
 	// fed only by newly accepted reports, so a report is never counted
@@ -154,8 +156,8 @@ func (s *Server) Routes() http.Handler {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, X-Moderation-Token")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, X-Moderation-Token, Idempotency-Key")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -576,6 +578,12 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	for id := range s.notInterested[viewer] {
 		ignored[id] = true
 	}
+	mutedTopics := map[string]bool{}
+	for topic, muted := range s.mutedTopics[viewer] {
+		if muted {
+			mutedTopics[strings.ToLower(topic)] = true
+		}
+	}
 	events := append([]socialEvent(nil), s.events...)
 	reactionCounts := map[string]int{}
 	for id, users := range s.reactions {
@@ -587,6 +595,16 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		if g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "pending" || g.ModerationStatus == "rejected" || blocked[g.OwnerID] || ignored[g.ID] {
 			continue
 		}
+		topicMuted := false
+		for _, topic := range g.Topics {
+			if mutedTopics[strings.ToLower(strings.TrimSpace(strings.TrimPrefix(topic, "#")))] {
+				topicMuted = true
+				break
+			}
+		}
+		if topicMuted {
+			continue
+		}
 		if scope == "following" && !followed[g.OwnerID] {
 			continue
 		}
@@ -595,7 +613,19 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, g)
 	}
+	// Keep the ranking explainable and avoid treating a handful of early
+	// interactions as a reliable quality signal. Until at least 20 social
+	// events/reactions exist in the current index, use the newest-first
+	// baseline. This threshold is a guardrail, not a learned parameter.
+	signalCount := len(events)
+	for _, count := range reactionCounts {
+		signalCount += count
+	}
+	useEngagementRanking := signalCount >= 20
 	sort.SliceStable(out, func(i, j int) bool {
+		if !useEngagementRanking {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
 		si, sj := feedScore(out[i], reactionCounts, events), feedScore(out[j], reactionCounts, events)
 		if si == sj {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
