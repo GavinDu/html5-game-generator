@@ -139,8 +139,12 @@ func (s *Server) loadSocialState() {
 			if state.NotInterested != nil {
 				s.notInterested = state.NotInterested
 			}
-			if state.MutedTopics != nil { s.mutedTopics = state.MutedTopics }
-			if state.CommentIdempotency != nil { s.commentIdempotency = state.CommentIdempotency }
+			if state.MutedTopics != nil {
+				s.mutedTopics = state.MutedTopics
+			}
+			if state.CommentIdempotency != nil {
+				s.commentIdempotency = state.CommentIdempotency
+			}
 			s.reports = state.Reports
 			s.events = state.Events
 			if state.Follows != nil {
@@ -643,7 +647,9 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSetTopicPreferences(w http.ResponseWriter, r *http.Request) {
 	var req topicPreferencesRequest
-	if !decodeJSON(w, r, &req) { return }
+	if !decodeJSON(w, r, &req) {
+		return
+	}
 	if len(req.MutedTopics) > 100 {
 		writeErr(w, http.StatusBadRequest, "at most 100 muted topics are allowed")
 		return
