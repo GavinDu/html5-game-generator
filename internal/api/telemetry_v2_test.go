@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,52 @@ func postEvent(t *testing.T, srv *Server, body string) int {
 	rec := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
 	return rec.Code
+}
+
+func TestSocialEventIdempotency(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(t.TempDir(), "social-state.json"))
+	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(t.TempDir(), "social-events.jsonl"))
+	srv := newTestServer()
+	seedReadyGame(srv.store, "event-idempotency-game")
+
+	send := func(user, eventID, kind string) int {
+		t.Helper()
+		body := fmt.Sprintf(`{"event_id":%q,"game_id":"event-idempotency-game","kind":%q}`, eventID, kind)
+		req := httptest.NewRequest(http.MethodPost, "/v1/telemetry/social-event", strings.NewReader(body))
+		req.Header.Set("X-User-ID", user)
+		rec := httptest.NewRecorder()
+		srv.Routes().ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := send("viewer-a", "stable-event-1", "impression"); code != http.StatusAccepted {
+		t.Fatalf("first event: got %d", code)
+	}
+	// A retry may arrive with a different payload after a client-side
+	// timeout; the first accepted event remains authoritative.
+	if code := send("viewer-a", "stable-event-1", "share"); code != http.StatusAccepted {
+		t.Fatalf("duplicate event: got %d", code)
+	}
+	// Event IDs are scoped to the actor, so another viewer can emit the same ID.
+	if code := send("viewer-b", "stable-event-1", "impression"); code != http.StatusAccepted {
+		t.Fatalf("other viewer event: got %d", code)
+	}
+	if code := send("viewer-a", strings.Repeat("x", 129), "impression"); code != http.StatusBadRequest {
+		t.Fatalf("oversized event ID: got %d, want 400", code)
+	}
+
+	srv.socialMu.RLock()
+	defer srv.socialMu.RUnlock()
+	if len(srv.events) != 2 {
+		t.Fatalf("got %d events, want 2 after retry deduplication", len(srv.events))
+	}
+	if srv.events[0].EventID != "stable-event-1" || srv.events[0].Kind != "impression" {
+		t.Fatalf("duplicate overwrote original event: %+v", srv.events[0])
+	}
+	if srv.events[1].UserID != "viewer-b" {
+		t.Fatalf("event ID collision across users: %+v", srv.events[1])
+	}
 }
 
 func TestTelemetryEventsAcceptedAndSummarized(t *testing.T) {
