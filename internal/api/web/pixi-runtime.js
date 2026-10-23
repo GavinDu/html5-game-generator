@@ -56,7 +56,7 @@ function warnOnce(key, cat, msg) {
 // native code can do it. Errors are buffered for the ?probe=1 verdict and
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
-const RUNTIME_VERSION = '2026.10.22.5';
+const RUNTIME_VERSION = '2026.10.23.1';
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -2009,6 +2009,26 @@ async function run(id) {
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
   if (probeMode) { emitProbe(); setInterval(emitProbe, 2000); }
+  // Playability Kit hook (probe mode only): a READ-ONLY structured snapshot
+  // so a user-mimic bot can see entity positions/kinds and drive real
+  // pointer events. It accepts no input and exposes no mutable state, so it
+  // adds no capability a game could abuse.
+  if (probeMode) {
+    window.__dqTest = {
+      snapshot: () => ({
+        t: state.elapsed, score: state.score, health: state.health,
+        ended: state.ended, won: state.won, frames: totalFrames,
+        started: play.shellStarted,
+        player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h } : null,
+        entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
+          id: e.runtimeId, def: e.defId, kind: e.def.kind,
+          x: e.x, y: e.y, w: e.w, h: e.h,
+          visible: !!e.view.visible && e.view.alpha > 0.05,
+        })),
+        world: { w: W, h: H },
+      }),
+    };
+  }
 }
 
 
