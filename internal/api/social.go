@@ -16,10 +16,10 @@ import (
 )
 
 type commentIdempotencyRecord struct {
-	UserID  string        `json:"user_id"`
-	GameID  string        `json:"game_id"`
-	Body    string        `json:"body"`
-	Comment socialComment `json:"comment"`
+	UserID	string	`json:"user_id"`
+	GameID	string	`json:"game_id"`
+	Body	string	`json:"body"`
+	Comment	socialComment	`json:"comment"`
 }
 
 type socialComment struct {
@@ -74,8 +74,8 @@ type socialEventRequest struct {
 }
 
 type socialStateSnapshot struct {
-	MutedTopics        map[string]map[string]bool            `json:"muted_topics"`
-	CommentIdempotency map[string]commentIdempotencyRecord `json:"comment_idempotency"`
+	MutedTopics	map[string]map[string]bool	`json:"muted_topics"`
+	CommentIdempotency	map[string]commentIdempotencyRecord	`json:"comment_idempotency"`
 	Reactions     map[string]map[string]string `json:"reactions"`
 	Comments      map[string][]socialComment   `json:"comments"`
 	Saves         map[string]map[string]bool   `json:"saves"`
@@ -621,7 +621,7 @@ func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 }
 
 type topicPreferencesRequest struct {
-	MutedTopics []string `json:"muted_topics"`
+	MutedTopics	[]string	`json:"muted_topics"`
 }
 
 func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
