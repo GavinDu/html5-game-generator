@@ -1,6 +1,6 @@
 # Social feed API MVP
 
-All social state is currently process-local and resets on restart. The `X-User-ID` header remains a development identity, not authentication. This is an intentionally small-user-base implementation, not a production security boundary.
+Social state is split between a local JSON snapshot and in-memory state. Reactions, comments, saves, blocks, reports, topic mutes, not-interested feedback, and comment idempotency records persist in the snapshot; follow edges remain in memory by deliberate deferral. This is single-instance persistence, not shared storage. The `X-User-ID` header remains a development identity, not authentication. This is an intentionally small-user-base implementation, not a production security boundary.
 
 ## Feeds and creator profiles
 
@@ -27,6 +27,10 @@ All social state is currently process-local and resets on restart. The `X-User-I
 - `POST /v1/games/{id}/report` with `{"reason":"..."}`.
 - `POST|DELETE /v1/users/{creatorID}/block`.
 - `POST /v1/games/{id}/feedback` with `{"kind":"not_interested"}`.
+- `GET /v1/users/me/preferences` returns muted topics and not-interested game IDs.
+- `PUT /v1/users/me/preferences/topics` with `{"muted_topics":["puzzle"]}` replaces the current muted-topic list; matching topics are excluded from the For You feed (case-insensitive).
+- `DELETE /v1/users/me/preferences` clears topic mutes and not-interested feedback so recommendations can be reset.
+- `POST /v1/games/{id}/comments` accepts an optional `Idempotency-Key` header (up to 128 characters). Reusing the same key with the same user/game/body returns the original comment; reusing it for a different request returns HTTP 409. Idempotency keys are stored in the same local social snapshot, so this is single-instance persistence, not distributed idempotency.
 
 ## Moderation
 
