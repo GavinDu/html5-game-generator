@@ -68,6 +68,7 @@ const errReport = `{"gameId":"g-crash","runtimeVersion":"2026.10.22.1","kind":"u
 // from the feed; unquarantine restores it.
 func TestAutoQuarantineAndRestore(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	opEnv(t)
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
 	seedReadyGame(st, "g-crash")
@@ -104,7 +105,7 @@ func TestAutoQuarantineAndRestore(t *testing.T) {
 		t.Fatalf("incidents: %+v", inc.Incidents)
 	}
 	// Unquarantine restores the feed and clears the burst window.
-	if rec := post(t, srv, "/v1/games/g-crash/unquarantine", ""); rec.Code != http.StatusOK {
+	if rec := postOp(t, srv, "/v1/games/g-crash/unquarantine"); rec.Code != http.StatusOK {
 		t.Fatalf("unquarantine: %d", rec.Code)
 	}
 	if !feedIDs(t, srv)["g-crash"] {
@@ -158,6 +159,7 @@ func TestBelowThresholdNoQuarantine(t *testing.T) {
 
 // Shadow repair: propose changes nothing live; apply publishes the fix.
 func TestRepairProposeApplyShadow(t *testing.T) {
+	opEnv(t)
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
 	g := seedReadyGame(st, "g-fix")
@@ -178,7 +180,7 @@ func TestRepairProposeApplyShadow(t *testing.T) {
 	}
 	t.Fatal("propose must not modify the live game")
 shadowOK:
-	if rec := post(t, srv, "/v1/games/g-fix/repair/apply", ""); rec.Code != http.StatusOK {
+	if rec := postOp(t, srv, "/v1/games/g-fix/repair/apply"); rec.Code != http.StatusOK {
 		t.Fatalf("apply: %d %s", rec.Code, rec.Body.String())
 	}
 	live, _ = st.GetGame("g-fix")
