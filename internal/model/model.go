@@ -172,12 +172,12 @@ type Game struct {
 	// manually via the quarantine endpoint; cleared by unquarantine.
 	Quarantined      bool             `json:"quarantined,omitempty"`
 	QuarantineReason string           `json:"quarantine_reason,omitempty"`
-	Caption string `json:"caption,omitempty"`
-	Topics []string `json:"topics,omitempty"`
-	PublishedAt *time.Time `json:"published_at,omitempty"`
-	PublishedVersion int `json:"published_version,omitempty"`
-	RemixParentID string `json:"remix_parent_id,omitempty"`
-	ModerationStatus string `json:"moderation_status,omitempty"`
+	Caption          string           `json:"caption,omitempty"`
+	Topics           []string         `json:"topics,omitempty"`
+	PublishedAt      *time.Time       `json:"published_at,omitempty"`
+	PublishedVersion int              `json:"published_version,omitempty"`
+	RemixParentID    string           `json:"remix_parent_id,omitempty"`
+	ModerationStatus string           `json:"moderation_status,omitempty"`
 	JobID            string           `json:"job_id"`
 	Manifest         *BundleManifest  `json:"manifest,omitempty"`
 	GameIR           *gameir.Document `json:"game_ir,omitempty"`
