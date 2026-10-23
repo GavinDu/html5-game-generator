@@ -127,6 +127,10 @@ func (s *Server) tunerPropose(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
+	if game.PublishedAt != nil {
+		writeErr(w, http.StatusConflict, "published posts are immutable; create a remix or new draft before tuning")
+		return
+	}
 	var exp *gameir.Experience
 	if game.GameIR != nil {
 		exp = game.GameIR.Experience
@@ -175,6 +179,10 @@ func (s *Server) tunerResolve(w http.ResponseWriter, r *http.Request, apply bool
 	s.tunerMu.Unlock()
 	if prop == nil || prop.GameID != game.ID || prop.Status != "proposed" {
 		writeErr(w, http.StatusConflict, "no live tuner proposal with that id")
+		return
+	}
+	if apply && game.PublishedAt != nil {
+		writeErr(w, http.StatusConflict, "published posts are immutable; create a remix or new draft before tuning")
 		return
 	}
 	if !apply {
