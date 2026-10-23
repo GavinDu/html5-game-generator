@@ -120,10 +120,6 @@
       "input": "tap"
     },
     {
-      "action": "move",
-      "input": "swipe"
-    },
-    {
       "action": "move_left",
       "input": "keyboard",
       "key": "ArrowLeft"
