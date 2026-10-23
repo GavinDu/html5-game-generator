@@ -168,9 +168,36 @@ func TestSocialBlockReportAndEvents(t *testing.T) {
 	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), report.ReportID) {
 		t.Fatalf("moderation report queue: %d %s", resp.Code, resp.Body.String())
 	}
-	resp = do(t, srv, http.MethodPost, "/v1/moderation/reports/"+report.ReportID+"/resolve", nil, "moderator")
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"status":"resolved"`) {
-		t.Fatalf("resolve report: %d %s", resp.Code, resp.Body.String())
+	tooLongReason := strings.Repeat("x", 501)
+	resp = do(t, srv, http.MethodPost, "/v1/moderation/reports/"+report.ReportID+"/resolve?reason="+tooLongReason, nil, "moderator")
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("oversized resolution reason: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodGet, "/v1/moderation/reports", nil, "moderator")
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"status":"open"`) {
+		t.Fatalf("invalid resolution changed report state: %d %s", resp.Code, resp.Body.String())
+	}
+	resp = do(t, srv, http.MethodPost, "/v1/moderation/reports/"+report.ReportID+"/resolve?reason=reviewed%20and%20actioned", nil, "moderator")
+	if resp.Code != http.StatusOK ||
+		!strings.Contains(resp.Body.String(), `"status":"resolved"`) ||
+		!strings.Contains(resp.Body.String(), `"resolved_by":"moderator"`) ||
+		!strings.Contains(resp.Body.String(), `"resolution_reason":"reviewed and actioned"`) ||
+		!strings.Contains(resp.Body.String(), `"resolved_at":`) {
+		t.Fatalf("resolve report should return audit fields: %d %s", resp.Code, resp.Body.String())
+	}
+	// Repeated resolution is idempotent and cannot rewrite the audit record.
+	resp = do(t, srv, http.MethodPost, "/v1/moderation/reports/"+report.ReportID+"/resolve?reason=rewritten", nil, "other-moderator")
+	if resp.Code != http.StatusOK ||
+		!strings.Contains(resp.Body.String(), `"resolved_by":"moderator"`) ||
+		!strings.Contains(resp.Body.String(), `"resolution_reason":"reviewed and actioned"`) {
+		t.Fatalf("repeated resolution rewrote audit fields: %d %s", resp.Code, resp.Body.String())
+	}
+	restarted := newTestServer()
+	resp = do(t, restarted, http.MethodGet, "/v1/moderation/reports", nil, "moderator")
+	if resp.Code != http.StatusOK ||
+		!strings.Contains(resp.Body.String(), `"resolved_by":"moderator"`) ||
+		!strings.Contains(resp.Body.String(), `"resolution_reason":"reviewed and actioned"`) {
+		t.Fatalf("report audit did not survive restart: %d %s", resp.Code, resp.Body.String())
 	}
 	resp = do(t, srv, http.MethodPost, "/v1/users/alice/block", nil, "viewer")
 	if resp.Code != http.StatusOK {

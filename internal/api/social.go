@@ -30,12 +30,15 @@ type socialComment struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 type socialReport struct {
-	ID        string    `json:"id"`
-	GameID    string    `json:"game_id"`
-	Reporter  string    `json:"reporter_id"`
-	Reason    string    `json:"reason"`
-	CreatedAt time.Time `json:"created_at"`
-	Status    string    `json:"status"`
+	ID               string     `json:"id"`
+	GameID           string     `json:"game_id"`
+	Reporter         string     `json:"reporter_id"`
+	Reason           string     `json:"reason"`
+	CreatedAt        time.Time  `json:"created_at"`
+	Status           string     `json:"status"`
+	ResolvedAt       *time.Time `json:"resolved_at,omitempty"`
+	ResolvedBy       string     `json:"resolved_by,omitempty"`
+	ResolutionReason string     `json:"resolution_reason,omitempty"`
 }
 type socialEvent struct {
 	EventID    string    `json:"event_id,omitempty"`
@@ -912,13 +915,32 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	reason := strings.TrimSpace(r.URL.Query().Get("reason"))
+	if len(reason) > 500 {
+		writeErr(w, http.StatusBadRequest, "resolution reason must be at most 500 characters")
+		return
+	}
 	s.socialMu.Lock()
 	defer s.socialMu.Unlock()
 	for i := range s.reports {
 		if s.reports[i].ID == id {
-			s.reports[i].Status = "resolved"
-			s.persistSocialStateLocked()
-			writeJSON(w, http.StatusOK, map[string]any{"report_id": id, "status": "resolved"})
+			// Keep the first resolution as the audit record; repeated requests
+			// are safe and cannot rewrite who resolved the report or why.
+			if s.reports[i].Status != "resolved" {
+				now := time.Now().UTC()
+				s.reports[i].Status = "resolved"
+				s.reports[i].ResolvedAt = &now
+				s.reports[i].ResolvedBy = userID(r)
+				s.reports[i].ResolutionReason = reason
+				s.persistSocialStateLocked()
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"report_id": id,
+				"status": s.reports[i].Status,
+				"resolved_at": s.reports[i].ResolvedAt,
+				"resolved_by": s.reports[i].ResolvedBy,
+				"resolution_reason": s.reports[i].ResolutionReason,
+			})
 			return
 		}
 	}
