@@ -39,16 +39,16 @@ const (
 	ArtPolish    = "polish"
 	ArtReimagine = "reimagine"
 
-	ArchCatcher   = "catcher"
-	ArchDodger    = "dodger"
-	ArchTapper    = "tapper"
-	ArchRunner    = "runner"
-	ArchPlatform  = "platformer"
-	ArchPuzzle    = "puzzle"
-	ArchShooter   = "shooter"
-	ArchRacer     = "racer"
-	ArchStory     = "story"
-	ArchSandbox   = "sandbox"
+	ArchCatcher  = "catcher"
+	ArchDodger   = "dodger"
+	ArchTapper   = "tapper"
+	ArchRunner   = "runner"
+	ArchPlatform = "platformer"
+	ArchPuzzle   = "puzzle"
+	ArchShooter  = "shooter"
+	ArchRacer    = "racer"
+	ArchStory    = "story"
+	ArchSandbox  = "sandbox"
 
 	WinScoreTarget  = "score-target"
 	WinSurvivalTime = "survival-time"
@@ -67,10 +67,10 @@ const (
 	InputKeys       = "keys"
 	InputMultitouch = "multitouch"
 
-	StyleKidDrawing = "kid-drawing"
-	StyleCartoon    = "cartoon"
-	StylePixel      = "pixel"
-	StyleVectorFlat = "vector-flat"
+	StyleKidDrawing  = "kid-drawing"
+	StyleCartoon     = "cartoon"
+	StylePixel       = "pixel"
+	StyleVectorFlat  = "vector-flat"
 	StyleRealistic3D = "realistic-3d"
 
 	ParticlesNone   = "none"
@@ -82,9 +82,9 @@ const (
 	AnimSkeletal = "skeletal"
 	AnimFrame    = "frame"
 
-	MusicNone      = "none"
-	MusicProcLoop  = "procedural-loop"
-	MusicLicensed  = "licensed"
+	MusicNone     = "none"
+	MusicProcLoop = "procedural-loop"
+	MusicLicensed = "licensed"
 
 	MoodCheerful = "cheerful"
 	MoodCalm     = "calm"
@@ -166,28 +166,28 @@ type GameSpec struct {
 	Sfx       []string `json:"sfx,omitempty"`
 
 	// Systems.
-	Progression     string   `json:"progression,omitempty"`
-	DifficultyRamp  float64  `json:"difficultyRamp,omitempty"`
-	Powerups        []string `json:"powerups,omitempty"`
-	Combo           bool     `json:"combo,omitempty"`
-	Leaderboard     bool     `json:"leaderboard,omitempty"`
-	Difficulty      string   `json:"difficulty,omitempty"`
+	Progression    string   `json:"progression,omitempty"`
+	DifficultyRamp float64  `json:"difficultyRamp,omitempty"`
+	Powerups       []string `json:"powerups,omitempty"`
+	Combo          bool     `json:"combo,omitempty"`
+	Leaderboard    bool     `json:"leaderboard,omitempty"`
+	Difficulty     string   `json:"difficulty,omitempty"`
 
 	// Platform.
-	Targets      []string `json:"targets,omitempty"`
-	Orientation  string   `json:"orientation,omitempty"`
-	PerfBudget   string   `json:"perfBudget,omitempty"`
+	Targets     []string `json:"targets,omitempty"`
+	Orientation string   `json:"orientation,omitempty"`
+	PerfBudget  string   `json:"perfBudget,omitempty"`
 }
 
 // UserPrefs are per-user defaults overlaid onto a spec. The questionnaire
 // only asks about these when no saved value exists.
 type UserPrefs struct {
-	Difficulty      string `json:"difficulty,omitempty"`
-	SoundOn         bool   `json:"soundOn"`
-	ArtPolicy       string `json:"artPolicy,omitempty"`
-	SessionTargetSec int   `json:"sessionTargetSec,omitempty"`
-	PerfBudget      string `json:"perfBudget,omitempty"`
-	Audience        string `json:"audience,omitempty"`
+	Difficulty       string `json:"difficulty,omitempty"`
+	SoundOn          bool   `json:"soundOn"`
+	ArtPolicy        string `json:"artPolicy,omitempty"`
+	SessionTargetSec int    `json:"sessionTargetSec,omitempty"`
+	PerfBudget       string `json:"perfBudget,omitempty"`
+	Audience         string `json:"audience,omitempty"`
 }
 
 // DefaultPrefs returns the standing defaults (established from shipped games).
