@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"doodlequest/internal/gameir"
+	"doodlequest/internal/model"
 )
 
 const PackageVersion = "2.0"
@@ -32,10 +33,64 @@ type GamePackage struct {
 	IRHash string `json:"irHash"`
 }
 
-func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
+// canDeliver reports whether viewer may load and play g through the
+// delivery endpoints (package, assets, game-ir, game record). The feed
+// has always applied the author's sharing rules and the moderation
+// state; the delivery endpoints applied none of them, so a private,
+// pending, rejected or quarantined game stayed playable by anyone who
+// knew its ID (architecture review 2026-10-23). The author always
+// keeps access to their own game (creator preview and repair routes).
+// Anyone else needs a ready, unquarantined, moderation-cleared game
+// shared with them: public, or a groups game whose groups include
+// them. The /player shell itself carries no game data and stays
+// open; it renders the runtime's error state when delivery refuses.
+func (s *Server) canDeliver(g *model.Game, viewer string) bool {
+	if viewer != "" && viewer == g.OwnerID {
+		return true
+	}
+	if g.Status != model.GameReady || g.Quarantined {
+		return false
+	}
+	if g.ModerationStatus == "pending" || g.ModerationStatus == "rejected" {
+		return false
+	}
+	switch g.Visibility {
+	case model.VisibilityPublic:
+		return true
+	case model.VisibilityGroups:
+		for _, gid := range g.GroupIDs {
+			gr, ok := s.store.GetGroup(gid)
+			if !ok {
+				continue
+			}
+			if gr.OwnerID == viewer {
+				return true
+			}
+			for _, m := range gr.MemberIDs {
+				if m == viewer {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// deliverableGame loads the {id} game and enforces canDeliver,
+// answering 404 for anything the viewer may not see — restricted
+// games stay indistinguishable from missing ones.
+func (s *Server) deliverableGame(w http.ResponseWriter, r *http.Request) (*model.Game, bool) {
 	game, ok := s.store.GetGame(r.PathValue("id"))
-	if !ok {
+	if !ok || !s.canDeliver(game, userID(r)) {
 		writeErr(w, http.StatusNotFound, "game not found")
+		return nil, false
+	}
+	return game, true
+}
+
+func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
+	game, ok := s.deliverableGame(w, r)
+	if !ok {
 		return
 	}
 	if game.GameIR == nil {
@@ -44,15 +99,15 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 	}
 	pkg := GamePackage{
 		PackageVersion: PackageVersion,
-		GameID: game.ID,
-		IR: game.GameIR,
-		Assets: make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
-		IRHash: irHashOf(game.GameIR),
+		GameID:         game.ID,
+		IR:             game.GameIR,
+		Assets:         make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
+		IRHash:         irHashOf(game.GameIR),
 	}
 	for _, asset := range game.GameIR.Assets {
 		pkg.Assets = append(pkg.Assets, GamePackageAsset{
 			ID: asset.ID, Kind: asset.Kind, URI: asset.URI,
-			URL: "/v1/games/" + game.ID + "/assets/" + url.PathEscape(asset.ID),
+			URL:      "/v1/games/" + game.ID + "/assets/" + url.PathEscape(asset.ID),
 			MIMEType: asset.MIMEType, SHA256: asset.SHA256,
 			Source: asset.Source, AltText: asset.AltText,
 		})
@@ -61,9 +116,8 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
-	game, ok := s.store.GetGame(r.PathValue("id"))
+	game, ok := s.deliverableGame(w, r)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
 	if game.GameIR == nil {
