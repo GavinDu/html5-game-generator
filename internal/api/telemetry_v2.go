@@ -167,10 +167,10 @@ type perfSummary struct {
 	P95FrameMs          int     `json:"p95FrameMs"` // bucket-edge approximation
 }
 
-// GET /v1/telemetry/perf — per-game quality aggregation over the
-// indexed telemetry v2 events. ?game=<id> narrows to one game.
-func (s *Server) handlePerfSummary(w http.ResponseWriter, r *http.Request) {
-	only := r.URL.Query().Get("game")
+// perfSummaries aggregates the indexed telemetry v2 events into
+// per-game quality summaries. Shared by the perf endpoint, the
+// experience-incident derivation, and the difficulty tuner.
+func (s *Server) perfSummaries() map[string]*perfSummary {
 	s.teleMu.Lock()
 	games := map[string]*perfSummary{}
 	buckets := map[string][6]int{}
@@ -249,6 +249,14 @@ func (s *Server) handlePerfSummary(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	return games
+}
+
+// GET /v1/telemetry/perf — per-game quality aggregation over the
+// indexed telemetry v2 events. ?game=<id> narrows to one game.
+func (s *Server) handlePerfSummary(w http.ResponseWriter, r *http.Request) {
+	only := r.URL.Query().Get("game")
+	games := s.perfSummaries()
 	out := map[string]*perfSummary{}
 	for id, p := range games {
 		if only == "" || only == id {
