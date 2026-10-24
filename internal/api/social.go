@@ -466,6 +466,26 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 	}
 	g.UpdatedAt = now
 	s.store.UpdateGame(g)
+	if flags := screenPublication(g); len(flags) > 0 {
+		now := time.Now().UTC()
+		report := socialReport{
+			ID: pipeline.NewID(), GameID: g.ID, Reporter: "automated-screening",
+			Reason: "automated_screening: " + strings.Join(flags, ","),
+			CreatedAt: now, Status: "open",
+		}
+		if err := persistModerationAudit(moderationAuditEvent{
+			ID: pipeline.NewID(), Action: "automated_screening_flagged",
+			GameID: g.ID, ReportID: report.ID, ActorID: "automated-screening",
+			Status: "open", Reason: strings.Join(flags, ","), CreatedAt: now,
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+			return
+		}
+		s.socialMu.Lock()
+		s.reports = append(s.reports, report)
+		s.persistSocialStateLocked()
+		s.socialMu.Unlock()
+	}
 	writeJSON(w, 202, map[string]any{"post": g, "moderation_status": "pending"})
 }
 func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {

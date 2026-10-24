@@ -6,10 +6,46 @@ import (
 	"strings"
 	"time"
 
+	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 )
 
-type moderationAppealRequest struct { Reason string `json:"reason"` }
+type moderationAppealRequest struct {
+	Reason string `json:"reason"`
+}
+
+// screenPublication flags a narrow set of high-confidence text patterns for
+// human triage. It is not a semantic classifier and does not inspect binary
+// media. Matches never auto-reject content; publication remains pending.
+func screenPublication(game *model.Game) []string {
+	if game == nil { return nil }
+	parts := []string{game.Title, game.Intent, game.Caption}
+	parts = append(parts, game.Topics...)
+	for _, e := range game.Elements {
+		parts = append(parts, e.Label, e.Description)
+	}
+	text := strings.ToLower(strings.Join(strings.Fields(strings.Join(parts, " ")), " "))
+	rules := []struct {
+		category string
+		phrases []string
+	}{
+		{"self_harm_risk", []string{"kill yourself", "how to kill myself", "how to kill yourself", "suicide method", "how to overdose"}},
+		{"sexual_exploitation_risk", []string{"send nudes", "send me nude", "nude pictures", "explicit private photo"}},
+		{"violent_instruction_risk", []string{"how to make a bomb", "build a bomb", "make an explosive", "make a weapon"}},
+		{"grooming_risk", []string{"don't tell your parents", "dont tell your parents", "meet me in secret", "keep this between us", "send me a private photo"}},
+		{"sensitive_personal_data_risk", []string{"give me your password", "share your password", "send your password", "credit card number", "social security number"}},
+	}
+	var flags []string
+	for _, rule := range rules {
+		for _, phrase := range rule.phrases {
+			if strings.Contains(text, phrase) {
+				flags = append(flags, rule.category)
+				break
+			}
+		}
+	}
+	return flags
+}
 
 func (s *Server) handleModerationAppeal(w http.ResponseWriter, r *http.Request) {
 	gameID := strings.TrimSpace(r.PathValue("id"))

@@ -35,3 +35,14 @@ func TestModerationContactEndpoint(t *testing.T) {
 	rec:=do(t,srv,http.MethodGet,"/v1/moderation/contact",nil,"creator")
 	if rec.Code!=http.StatusOK || !strings.Contains(rec.Body.String(),"safety@example.test") || !strings.Contains(rec.Body.String(),"external_contact_configured") { t.Fatalf("contact response: %d %s",rec.Code,rec.Body.String()) }
 }
+
+func TestScreenPublicationFlagsHighConfidenceTextWithoutAutoReject(t *testing.T) {
+	game := &model.Game{Title: "A game", Intent: "collect stars", Caption: "Don't tell your parents and meet me in secret"}
+	flags := screenPublication(game)
+	if len(flags) != 1 || flags[0] != "grooming_risk" {
+		t.Fatalf("unexpected flags: %#v", flags)
+	}
+	if got := screenPublication(&model.Game{Title: "Friendly star game", Intent: "collect stars"}); len(got) != 0 {
+		t.Fatalf("benign text unexpectedly flagged: %#v", got)
+	}
+}
