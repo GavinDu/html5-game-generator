@@ -121,7 +121,7 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		if s.teleV2EventIDs == nil {
 			s.teleV2EventIDs = map[string]struct{}{}
 		}
-		key := ev.SessionID + "\\x00" + ev.EventID
+		key := ev.SessionID + "\x00" + ev.EventID
 		if _, exists := s.teleV2EventIDs[key]; exists {
 			s.teleMu.Unlock()
 			w.WriteHeader(http.StatusAccepted)
@@ -141,7 +141,7 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		var f *os.File
 		f, mkErr = os.OpenFile(filepath.Join(telemetryDir(), "events.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		if mkErr == nil {
-			_, mkErr = f.Write(append(line, '\\n'))
+			_, mkErr = f.Write(append(line, '\n'))
 			closeErr := f.Close()
 			if mkErr == nil {
 				mkErr = closeErr
@@ -187,7 +187,7 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		s.teleMiles = s.teleMiles[len(s.teleMiles)-teleV2IndexCap:]
 	}
 	if ev.EventID != "" {
-		key := ev.SessionID + "\\x00" + ev.EventID
+		key := ev.SessionID + "\x00" + ev.EventID
 		s.teleV2EventIDs[key] = struct{}{}
 		s.teleV2EventOrder = append(s.teleV2EventOrder, key)
 		if len(s.teleV2EventOrder) > teleV2IndexCap {
