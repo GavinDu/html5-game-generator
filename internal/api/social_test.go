@@ -417,7 +417,6 @@ func TestModerationAuditTrailIsProtectedAndAppendOnly(t *testing.T) {
 	}
 }
 
-
 func TestFeedRankingColdStartEngagementAndRollback(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
