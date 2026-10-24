@@ -1,6 +1,9 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/url"
 
@@ -88,6 +91,38 @@ func (s *Server) deliverableGame(w http.ResponseWriter, r *http.Request) (*model
 	return game, true
 }
 
+// packageIsPublicImmutable limits shared caching to ready, public content whose
+// delivery eligibility does not depend on the requesting user's identity.
+func packageIsPublicImmutable(game *model.Game) bool {
+	return game != nil &&
+		game.Status == model.GameReady &&
+		game.Visibility == model.VisibilityPublic &&
+		!game.Quarantined &&
+		game.ModerationStatus != "pending" &&
+		game.ModerationStatus != "rejected"
+}
+
+// setPackageCacheHeaders gives immutable public artifacts a strong ETag and
+// long-lived shared caching. Owner previews and restricted content are never
+// cacheable by shared proxies. It returns true when a public conditional GET
+// can be answered with 304 Not Modified.
+func setPackageCacheHeaders(w http.ResponseWriter, r *http.Request, game *model.Game, etag string) bool {
+	w.Header().Set("ETag", etag)
+	if !packageIsPublicImmutable(game) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		w.Header().Set("Vary", "X-User-ID")
+		return false
+	}
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Vary", "Accept-Encoding")
+	return r.Header.Get("If-None-Match") == etag || r.Header.Get("If-None-Match") == "*"
+}
+
+func strongETag(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "\"" + hex.EncodeToString(sum[:]) + "\""
+}
+
 func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 	game, ok := s.deliverableGame(w, r)
 	if !ok {
@@ -112,7 +147,18 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 			Source: asset.Source, AltText: asset.AltText,
 		})
 	}
-	writeJSON(w, http.StatusOK, pkg)
+	encoded, err := json.Marshal(pkg)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "could not encode package")
+		return
+	}
+	if setPackageCacheHeaders(w, r, game, strongETag(encoded)) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(encoded)
 }
 
 func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +187,10 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", contentType)
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if setPackageCacheHeaders(w, r, game, strongETag(data)) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(data)
 		return
