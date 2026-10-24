@@ -103,7 +103,7 @@ func packageIsPublicImmutable(game *model.Game) bool {
 }
 
 // setPackageCacheHeaders gives immutable public artifacts a strong ETag and
-// long-lived shared caching. Owner previews and restricted content are never
+// bounded shared caching. Owner previews and restricted content are never
 // cacheable by shared proxies. It returns true when a public conditional GET
 // can be answered with 304 Not Modified.
 func setPackageCacheHeaders(w http.ResponseWriter, r *http.Request, game *model.Game, etag string) bool {
