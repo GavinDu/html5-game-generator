@@ -217,6 +217,8 @@ func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/games/{id}/save", s.handleSaveGame)
 	mux.HandleFunc("DELETE /v1/games/{id}/save", s.handleUnsaveGame)
 	mux.HandleFunc("POST /v1/games/{id}/report", s.handleReportGame)
+	mux.HandleFunc("POST /v1/games/{id}/moderation-appeals", s.handleModerationAppeal)
+	mux.HandleFunc("GET /v1/moderation/contact", s.handleModerationContact)
 	mux.HandleFunc("POST /v1/games/{id}/feedback", s.handleSocialFeedback)
 	mux.HandleFunc("GET /v1/users/me/preferences", s.handleGetPreferences)
 	mux.HandleFunc("PUT /v1/users/me/preferences/topics", s.handleSetTopicPreferences)
