@@ -93,8 +93,12 @@ func TestAutoQuarantineAndRestore(t *testing.T) {
 	if !ids["g-fine"] {
 		t.Error("unrelated game must stay in the feed")
 	}
-	// Incidents aggregate the burst under one fingerprint.
-	rec := get(t, srv, "/v1/telemetry/incidents")
+	// Incidents aggregate the burst under one fingerprint and require an operator token.
+	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "telemetry-test-token")
+	req := httptest.NewRequest(http.MethodGet, "/v1/telemetry/incidents", nil)
+	req.Header.Set("X-Telemetry-Admin-Token", "telemetry-test-token")
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
 	var inc struct {
 		Incidents []incident `json:"incidents"`
 	}
