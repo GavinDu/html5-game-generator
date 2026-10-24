@@ -44,7 +44,7 @@ func TestPruneTelemetryFilesKeepsRecentAndUndatedRecords(t *testing.T) {
 	for path, want := range map[string][]string{
 		filepath.Join(dir, "events.jsonl"):         {"run_end", "not-json-but-preserve"},
 		filepath.Join(dir, "runtime-errors.jsonl"): {"recent"},
-		auditPath:                                  {"recent"},
+		auditPath: {"recent"},
 	} {
 		raw, err := os.ReadFile(path)
 		if err != nil {
