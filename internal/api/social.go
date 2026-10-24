@@ -181,21 +181,21 @@ func (s *Server) loadSocialState() {
 	}
 }
 
-func (s *Server) persistSocialStateLocked() {
+func (s *Server) persistSocialStateLocked() error {
 	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, MutedTopics: s.mutedTopics, CommentIdempotency: s.commentIdempotency, Reports: s.reports, Follows: s.follows}
 	data, err := json.Marshal(state)
 	if err != nil {
-		return
+		return err
 	}
 	path := socialStatePath()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return
+		return err
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return
+		return err
 	}
-	_ = os.Rename(tmp, path)
+	return os.Rename(tmp, path)
 }
 
 func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
@@ -453,6 +453,11 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	original := *g
+	if g.Manifest != nil {
+		manifest := *g.Manifest
+		original.Manifest = &manifest
+	}
 	now := time.Now().UTC()
 	g.Caption = strings.TrimSpace(req.Caption)
 	g.Topics = topics
@@ -465,10 +470,11 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 		g.Manifest.Visibility = model.VisibilityPublic
 	}
 	g.UpdatedAt = now
-	s.store.UpdateGame(g)
-	if flags := screenPublication(g); len(flags) > 0 {
+	flags := screenPublication(g)
+	var report *socialReport
+	if len(flags) > 0 {
 		now := time.Now().UTC()
-		report := socialReport{
+		report = &socialReport{
 			ID: pipeline.NewID(), GameID: g.ID, Reporter: "automated-screening",
 			Reason:    "automated_screening: " + strings.Join(flags, ","),
 			CreatedAt: now, Status: "open",
@@ -481,9 +487,21 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 			return
 		}
+	}
+	// Screening audit must be durable before the immutable publish mutation.
+	// Otherwise an audit-write failure leaves the game pending and immutable
+	// with no moderator queue item, and the creator cannot retry publication.
+	s.store.UpdateGame(g)
+	if report != nil {
 		s.socialMu.Lock()
-		s.reports = append(s.reports, report)
-		s.persistSocialStateLocked()
+		s.reports = append(s.reports, *report)
+		if err := s.persistSocialStateLocked(); err != nil {
+			s.reports = s.reports[:len(s.reports)-1]
+			s.socialMu.Unlock()
+			s.store.UpdateGame(&original)
+			writeErr(w, http.StatusServiceUnavailable, "could not persist moderation queue")
+			return
+		}
 		s.socialMu.Unlock()
 	}
 	writeJSON(w, 202, map[string]any{"post": g, "moderation_status": "pending"})

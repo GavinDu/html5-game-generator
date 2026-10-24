@@ -114,7 +114,11 @@ func (s *Server) handleModerationAppeal(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.reports = append(s.reports, appeal)
-	s.persistSocialStateLocked()
+	if err := s.persistSocialStateLocked(); err != nil {
+		s.reports = s.reports[:len(s.reports)-1]
+		writeErr(w, http.StatusServiceUnavailable, "could not persist appeal queue")
+		return
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"appeal_id": appeal.ID, "status": appeal.Status,
 		"message": "appeal queued for moderator review",
