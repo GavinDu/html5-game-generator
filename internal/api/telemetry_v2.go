@@ -19,6 +19,8 @@ import (
 // by sessions, so a busy game cannot quarantine itself by volume).
 
 type teleEventV2 struct {
+	SchemaVersion  int    `json:"schemaVersion"`
+	EventID        string `json:"eventId,omitempty"`
 	GameID         string `json:"gameId"`
 	RuntimeVersion string `json:"runtimeVersion"`
 	SessionID      string `json:"sessionId"`
@@ -97,21 +99,60 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad event", http.StatusBadRequest)
 		return
 	}
+	if ev.SchemaVersion == 0 {
+		// Older clients omitted the field; interpret those events as the current v2 schema.
+		ev.SchemaVersion = 2
+	}
+	if ev.SchemaVersion != 2 {
+		http.Error(w, "unsupported telemetry schemaVersion", http.StatusBadRequest)
+		return
+	}
 	if !teleV2Kinds[ev.Kind] || ev.GameID == "" {
 		http.Error(w, "unknown kind or missing gameId", http.StatusBadRequest)
 		return
 	}
+	if ev.EventID != "" && (ev.SessionID == "" || len(ev.EventID) > 128) {
+		http.Error(w, "eventId requires sessionId and must be at most 128 bytes", http.StatusBadRequest)
+		return
+	}
 	now := time.Now().UTC()
+	s.teleMu.Lock()
+	if ev.EventID != "" {
+		if s.teleV2EventIDs == nil {
+			s.teleV2EventIDs = map[string]struct{}{}
+		}
+		key := ev.SessionID + "\\x00" + ev.EventID
+		if _, exists := s.teleV2EventIDs[key]; exists {
+			s.teleMu.Unlock()
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+	}
 	rec := map[string]any{"receivedAt": now.Format(time.RFC3339), "event": ev}
-	if line, err := json.Marshal(rec); err == nil {
-		telemetryMu.Lock()
-		if mkErr := os.MkdirAll(telemetryDir(), 0o755); mkErr == nil {
-			if f, ferr := os.OpenFile(filepath.Join(telemetryDir(), "events.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); ferr == nil {
-				_, _ = f.Write(append(line, '\n'))
-				_ = f.Close()
+	line, err := json.Marshal(rec)
+	if err != nil {
+		s.teleMu.Unlock()
+		http.Error(w, "could not encode event", http.StatusInternalServerError)
+		return
+	}
+	telemetryMu.Lock()
+	mkErr := os.MkdirAll(telemetryDir(), 0o755)
+	if mkErr == nil {
+		var f *os.File
+		f, mkErr = os.OpenFile(filepath.Join(telemetryDir(), "events.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if mkErr == nil {
+			_, mkErr = f.Write(append(line, '\\n'))
+			closeErr := f.Close()
+			if mkErr == nil {
+				mkErr = closeErr
 			}
 		}
-		telemetryMu.Unlock()
+	}
+	telemetryMu.Unlock()
+	if mkErr != nil {
+		s.teleMu.Unlock()
+		http.Error(w, "could not persist event", http.StatusServiceUnavailable)
+		return
 	}
 	if ev.Kind == "session_start" {
 		s.recordSocialPlay(userID(r), ev.GameID)
@@ -119,7 +160,6 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 	if ev.Kind == "run_end" && ev.Won {
 		s.recordSocialCompletion(userID(r), ev.GameID, ev.DurationMs)
 	}
-	s.teleMu.Lock()
 	switch ev.Kind {
 	case "session_start":
 		s.teleSessions = append(s.teleSessions, teleSession{GameID: ev.GameID, At: now, DeviceClass: ev.DeviceClass, Quality: ev.Quality})
@@ -145,6 +185,16 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(s.teleMiles) > teleV2IndexCap {
 		s.teleMiles = s.teleMiles[len(s.teleMiles)-teleV2IndexCap:]
+	}
+	if ev.EventID != "" {
+		key := ev.SessionID + "\\x00" + ev.EventID
+		s.teleV2EventIDs[key] = struct{}{}
+		s.teleV2EventOrder = append(s.teleV2EventOrder, key)
+		if len(s.teleV2EventOrder) > teleV2IndexCap {
+			oldest := s.teleV2EventOrder[0]
+			s.teleV2EventOrder = s.teleV2EventOrder[1:]
+			delete(s.teleV2EventIDs, oldest)
+		}
 	}
 	s.teleMu.Unlock()
 	w.WriteHeader(http.StatusAccepted)
