@@ -181,6 +181,7 @@ const rand = (a, b) => a + rng() * (b - a);
 // (session_start, perf_window, milestone, run_end); error reports keep
 // using the original runtime-error endpoint.
 const dqSessionId = Math.floor(Math.random() * 0xffffffff).toString(16);
+let dqTelemetrySeq = 0;
 let dqEvents = [];
 function recordEvent(type, detail) {
   dqEvents.push({ t: Math.round(performance.now()), type, detail: detail || '' });
@@ -195,6 +196,7 @@ function deviceClass() {
 function sendTelemetryEvent(kind, fields) {
   try {
     const payload = JSON.stringify({
+      schemaVersion: 2, eventId: dqSessionId + ':' + (++dqTelemetrySeq),
       gameId, runtimeVersion: RUNTIME_VERSION, sessionId: dqSessionId,
       kind, quality: qualityMode, deviceClass: deviceClass(),
       at: new Date().toISOString(), ...fields,
