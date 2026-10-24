@@ -290,7 +290,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	if first.Code != http.StatusOK {
 		t.Fatalf("first package fetch: %d %s", first.Code, first.Body.String())
 	}
-	if got := first.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+	if got := first.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
 		t.Fatalf("public package cache policy = %q", got)
 	}
 	etag := first.Header().Get("ETag")
@@ -320,7 +320,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	if asset.Code != http.StatusOK || asset.Body.String() != "immutable-asset" {
 		t.Fatalf("asset fetch: %d %q", asset.Code, asset.Body.String())
 	}
-	if got := asset.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+	if got := asset.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
 		t.Fatalf("public asset cache policy = %q", got)
 	}
 	assetETag := asset.Header().Get("ETag")
