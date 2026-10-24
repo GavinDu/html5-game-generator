@@ -199,3 +199,35 @@ func TestTelemetryV2DeduplicatesEventIDsAndRejectsUnknownSchema(t *testing.T) {
 		t.Fatalf("duplicate event counted %d sessions, want 1", got)
 	}
 }
+
+
+func TestTelemetryAggregateEndpointsRequireAdminToken(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "")
+	srv := newTestServer()
+	paths := []string{"/v1/telemetry/perf", "/v1/telemetry/incidents"}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.Routes().ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s without configured token: got %d, want 503", path, rec.Code)
+		}
+	}
+	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "telemetry-test-token")
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.Routes().ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s without header: got %d, want 403", path, rec.Code)
+		}
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("X-Telemetry-Admin-Token", "telemetry-test-token")
+		rec = httptest.NewRecorder()
+		srv.Routes().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s with token: got %d, body %s", path, rec.Code, rec.Body.String())
+		}
+	}
+}
