@@ -165,7 +165,6 @@ func TestRateBasedQuarantine(t *testing.T) {
 	}
 }
 
-
 func TestTelemetryV2DeduplicatesEventIDsAndRejectsUnknownSchema(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
 	srv := newTestServer()
