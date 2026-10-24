@@ -9,3 +9,12 @@ export function selectFirstRewardMeasurement(runtimeFirstRewardMs, hudChanged, h
   }
   return null;
 }
+
+// Keep the per-game probe snapshot in sync with hook.first_reward. The
+// score-report stage reads probe.firstRewardMs rather than hook evidence.
+export function mergeFirstRewardMeasurement(probe, measurement) {
+  if (!measurement || !Number.isFinite(measurement.ms) || measurement.ms < 0) {
+    return probe;
+  }
+  return { ...(probe || {}), firstRewardMs: Math.round(measurement.ms) };
+}

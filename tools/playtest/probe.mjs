@@ -25,7 +25,7 @@
 
 import { chromium, webkit } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { selectFirstRewardMeasurement } from './reward-timing.mjs';
+import { mergeFirstRewardMeasurement, selectFirstRewardMeasurement } from './reward-timing.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -324,6 +324,15 @@ async function playGame(browser, gameId) {
     await page.mouse.up().catch(() => {});
     // winSeen/endSeen are shared with the verdict code below, so a win
     // found here counts for simulation.win_reachable automatically.
+  }
+  // The initial probe was captured before play, so it cannot contain
+  // gameplay milestones. Refresh it before returning the report; then
+  // apply the selected hook measurement as the scoring stage consumes
+  // probe.firstRewardMs rather than hook evidence.
+  const finalProbe = await readProbe(page).catch(() => null);
+  if (finalProbe) probe = finalProbe;
+  if (firstRewardMs !== null) {
+    probe = mergeFirstRewardMeasurement(probe, { ms: firstRewardMs });
   }
   const liveErrs = await page.evaluate(() => (window.__dqErrors || []).length).catch(() => 0);
   if (liveErrs > 0 || pageErrors.length > 0) {
