@@ -311,6 +311,9 @@ func (s *Server) perfSummaries() map[string]*perfSummary {
 // GET /v1/telemetry/perf — per-game quality aggregation over the
 // indexed telemetry v2 events. ?game=<id> narrows to one game.
 func (s *Server) handlePerfSummary(w http.ResponseWriter, r *http.Request) {
+	if !requireTelemetryAdminToken(w, r) {
+		return
+	}
 	only := r.URL.Query().Get("game")
 	games := s.perfSummaries()
 	out := map[string]*perfSummary{}
