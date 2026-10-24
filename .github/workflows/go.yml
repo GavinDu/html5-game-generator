@@ -1,5 +1,11 @@
 name: Go validation
 
+# Avoid overlapping full validation runs for every commit in a fast-moving PR.
+# A newer push supersedes stale validation for the same branch.
+concurrency:
+  group: go-validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
   push:
@@ -13,6 +19,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Validate source before spending runners on browser jobs.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -41,9 +48,13 @@ jobs:
   # iOS WKWebView engine the app embeds). Reports and screenshots are
   # uploaded as artifacts; a FAIL on the gate checks fails the job.
   playtest:
+    needs: test
     runs-on: ubuntu-latest
+    # Run browsers sequentially: WebKit and Chromium are resource-heavy and
+    # simultaneous matrix dispatch adds pressure without improving the gate.
     strategy:
-      fail-fast: false
+      fail-fast: true
+      max-parallel: 1
       matrix:
         browser: [chromium, webkit]
     steps:
@@ -112,6 +123,7 @@ jobs:
   # (conformance/determinism/replay); the kit owns resilience, rule
   # coverage and issue classification for the repair loop.
   playability-kit:
+    needs: playtest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
