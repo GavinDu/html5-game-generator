@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -364,5 +365,54 @@ func TestCreatorDiscoveryFiltersAndPagination(t *testing.T) {
 	resp = do(t, srv, http.MethodGet, "/v1/creators?limit=51", nil, "viewer")
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("invalid limit: %d %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestModerationAuditTrailIsProtectedAndAppendOnly(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
+	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
+	t.Setenv("DQ_MODERATION_AUDIT_FILE", filepath.Join(dir, "moderation-audit.jsonl"))
+	t.Setenv("DQ_MODERATION_TOKEN", "audit-test-token")
+	srv := newTestServer()
+	addPublicGame(srv, "audit-game", "creator")
+
+	reportResp := do(t, srv, http.MethodPost, "/v1/games/audit-game/report", map[string]any{"reason": "unsafe content"}, "viewer")
+	if reportResp.Code != http.StatusCreated {
+		t.Fatalf("create report: %d %s", reportResp.Code, reportResp.Body.String())
+	}
+	var report struct {
+		ReportID string `json:"report_id"`
+	}
+	decode(t, reportResp, &report)
+
+	moderateResp := do(t, srv, http.MethodPost, "/v1/games/audit-game/moderation", map[string]any{"status": "rejected", "reason": "reviewed"}, "moderator")
+	if moderateResp.Code != http.StatusOK {
+		t.Fatalf("moderate game: %d %s", moderateResp.Code, moderateResp.Body.String())
+	}
+	resolveResp := do(t, srv, http.MethodPost, "/v1/moderation/reports/"+report.ReportID+"/resolve?reason=confirmed", nil, "moderator")
+	if resolveResp.Code != http.StatusOK {
+		t.Fatalf("resolve report: %d %s", resolveResp.Code, resolveResp.Body.String())
+	}
+
+	unauthorized := httptest.NewRequest(http.MethodGet, "/v1/moderation/audit", nil)
+	unauthorized.Header.Set("X-Moderation-Token", "wrong")
+	unauthorizedRec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(unauthorizedRec, unauthorized)
+	if unauthorizedRec.Code != http.StatusForbidden {
+		t.Fatalf("audit endpoint should be protected: got %d", unauthorizedRec.Code)
+	}
+
+	auditResp := do(t, srv, http.MethodGet, "/v1/moderation/audit?game_id=audit-game&limit=10", nil, "moderator")
+	if auditResp.Code != http.StatusOK {
+		t.Fatalf("read audit: %d %s", auditResp.Code, auditResp.Body.String())
+	}
+	for _, action := range []string{"report_created", "game_moderation_changed", "report_resolved"} {
+		if !strings.Contains(auditResp.Body.String(), action) {
+			t.Fatalf("audit missing %q: %s", action, auditResp.Body.String())
+		}
+	}
+	if strings.Contains(auditResp.Body.String(), "other-game") {
+		t.Fatalf("game filter leaked another game's audit records: %s", auditResp.Body.String())
 	}
 }

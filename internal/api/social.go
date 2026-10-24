@@ -223,6 +223,7 @@ func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/users/me/preferences", s.handleResetPreferences)
 	mux.HandleFunc("POST /v1/games/{id}/moderation", s.handleModerateGame)
 	mux.HandleFunc("GET /v1/moderation/reports", s.handleListReports)
+	mux.HandleFunc("GET /v1/moderation/audit", s.handleModerationAudit)
 	mux.HandleFunc("POST /v1/moderation/reports/{id}/resolve", s.handleResolveReport)
 	mux.HandleFunc("POST /v1/telemetry/social-event", s.handleSocialEvent)
 }
@@ -678,6 +679,10 @@ func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	report := socialReport{ID: pipeline.NewID(), GameID: r.PathValue("id"), Reporter: userID(r), Reason: reason, CreatedAt: time.Now().UTC(), Status: "open"}
+	if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID, ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt}); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+		return
+	}
 	s.socialMu.Lock()
 	s.reports = append(s.reports, report)
 	s.persistSocialStateLocked()
@@ -818,8 +823,13 @@ func (s *Server) handleModerateGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "game not found")
 		return
 	}
+	moderationReason := strings.TrimSpace(req.Reason)
+	if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "game_moderation_changed", GameID: g.ID, ActorID: userID(r), Status: req.Status, Reason: moderationReason, CreatedAt: time.Now().UTC()}); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+		return
+	}
 	g.ModerationStatus = req.Status
-	g.QuarantineReason = strings.TrimSpace(req.Reason)
+	g.QuarantineReason = moderationReason
 	g.UpdatedAt = time.Now().UTC()
 	if req.Status == "quarantined" {
 		g.Quarantined = true
@@ -928,6 +938,10 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 			// are safe and cannot rewrite who resolved the report or why.
 			if s.reports[i].Status != "resolved" {
 				now := time.Now().UTC()
+				if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_resolved", GameID: s.reports[i].GameID, ReportID: id, ActorID: userID(r), Status: "resolved", Reason: reason, CreatedAt: now}); err != nil {
+					writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+					return
+				}
 				s.reports[i].Status = "resolved"
 				s.reports[i].ResolvedAt = &now
 				s.reports[i].ResolvedBy = userID(r)
