@@ -37,7 +37,7 @@ The telemetry directory may contain `events.jsonl`, `runtime-errors.jsonl`, `mod
 ## Restore drill / recovery
 
 1. Stop the service and preserve a copy of the current files before replacing anything.
-2. Verify the backup checksum (`sha256sum -c SHA256SUMS`) and inspect the archive listing before extraction.
+2. From the project root, verify the backup checksum (`sha256sum -c backups/SHA256SUMS`) and inspect the archive listing before extraction.
 3. Restore files to their configured paths, retaining restrictive permissions (state snapshots should be readable/writable only by the service account). Do not restore a snapshot while the service is writing.
 4. Start one backend instance and inspect logs for persistence/load errors. The service currently logs and continues in memory if the store snapshot cannot be loaded, so a healthy HTTP response alone does not prove state was restored.
 5. Validate `GET /healthz`, fetch a known published game's package and asset, verify expected inventory games, inspect the feed/social state, and verify the most recent expected run and moderation audit record. Do not use real user content in test fixtures.
