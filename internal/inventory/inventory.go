@@ -3,7 +3,8 @@
 // an assets/ directory. Sprites are stored as base64 text (binary-safe for
 // git); they are decoded at server start, never committed as raw images.
 //
-// Loading is idempotent: a game whose id is already in the store is skipped.
+// Loading is idempotent by stable game ID: shipped content is refreshed in
+// place, while operator moderation state is preserved across restarts.
 package inventory
 
 import (
