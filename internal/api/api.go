@@ -624,7 +624,7 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	for _, count := range reactionCounts {
 		signalCount += count
 	}
-	useEngagementRanking := signalCount >= 20
+	useEngagementRanking := engagementRankingEnabled() && signalCount >= 20
 	sort.SliceStable(out, func(i, j int) bool {
 		if !useEngagementRanking {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
@@ -716,6 +716,18 @@ func paginateGames(games []*model.Game, r *http.Request) ([]*model.Game, string,
 	}
 	return page, next, nil
 }
+// engagementRankingEnabled provides an immediate rollback switch while the
+// ranking policy is evaluated against real engagement and diversity metrics.
+// Ranking remains enabled by default, with the newest-first cold-start fallback.
+func engagementRankingEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("DQ_FEED_RANKING_ENABLED"))) {
+	case "false", "0", "off", "disabled":
+		return false
+	default:
+		return true
+	}
+}
+
 func feedScore(g *model.Game, reactions map[string]int, events []socialEvent) float64 {
 	age := time.Since(g.CreatedAt).Hours()
 	if age < 0 {
