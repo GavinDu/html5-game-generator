@@ -416,3 +416,59 @@ func TestModerationAuditTrailIsProtectedAndAppendOnly(t *testing.T) {
 		t.Fatalf("game filter leaked another game's audit records: %s", auditResp.Body.String())
 	}
 }
+
+
+func TestFeedRankingColdStartEngagementAndRollback(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
+	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
+	t.Setenv("DQ_FEED_RANKING_ENABLED", "")
+	srv := newTestServer()
+	now := time.Now()
+	addPublicGame(srv, "old-game", "alice")
+	addPublicGame(srv, "new-game", "bob")
+	oldGame, _ := srv.store.GetGame("old-game")
+	oldGame.CreatedAt = now.Add(-48 * time.Hour)
+	srv.store.UpdateGame(oldGame)
+	newGame, _ := srv.store.GetGame("new-game")
+	newGame.CreatedAt = now
+	srv.store.UpdateGame(newGame)
+
+	readFirst := func() string {
+		t.Helper()
+		resp := do(t, srv, http.MethodGet, "/v1/feed?scope=for_you", nil, "viewer")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("feed: %d %s", resp.Code, resp.Body.String())
+		}
+		var result struct {
+			Games []model.Game `json:"games"`
+		}
+		decode(t, resp, &result)
+		if len(result.Games) != 2 {
+			t.Fatalf("want two feed games, got %d", len(result.Games))
+		}
+		return result.Games[0].ID
+	}
+
+	if got := readFirst(); got != "new-game" {
+		t.Fatalf("cold-start feed should be newest-first, got %q", got)
+	}
+
+	events := make([]socialEvent, 19)
+	for i := range events {
+		events[i] = socialEvent{GameID: "old-game", Kind: "completion", CreatedAt: now}
+	}
+	srv.socialMu.Lock()
+	srv.events = events
+	srv.reactions["old-game"] = map[string]string{"viewer": "love"}
+	srv.socialMu.Unlock()
+
+	if got := readFirst(); got != "old-game" {
+		t.Fatalf("engagement ranking should promote the older completed game after 20 signals, got %q", got)
+	}
+
+	t.Setenv("DQ_FEED_RANKING_ENABLED", "false")
+	if got := readFirst(); got != "new-game" {
+		t.Fatalf("rollback switch should restore newest-first ranking, got %q", got)
+	}
+}
