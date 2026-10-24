@@ -67,7 +67,7 @@ type Server struct {
 	teleRuns     []teleRun
 	teleMiles    []teleMile
 	// Bounded process-lifetime deduplication for client telemetry retries.
-	teleV2EventIDs  map[string]struct{}
+	teleV2EventIDs   map[string]struct{}
 	teleV2EventOrder []string
 
 	// Phase 3 shadow-mode repair proposals, keyed by game id. In-memory
