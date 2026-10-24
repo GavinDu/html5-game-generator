@@ -127,7 +127,7 @@ func (s *Server) handleModerationContact(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"contact_url":                url,
 		"contact_email":              email,
-		"appeals_endpoint":           "POST /v1/games/{id}/moderation-appeals",
+		"appeals_endpoint":            "POST /v1/games/{id}/moderation-appeals",
 		"external_contact_configured": url != "" || email != "",
 	})
 }

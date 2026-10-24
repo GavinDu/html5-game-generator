@@ -470,7 +470,7 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 		now := time.Now().UTC()
 		report := socialReport{
 			ID: pipeline.NewID(), GameID: g.ID, Reporter: "automated-screening",
-			Reason: "automated_screening: " + strings.Join(flags, ","),
+			Reason:    "automated_screening: " + strings.Join(flags, ","),
 			CreatedAt: now, Status: "open",
 		}
 		if err := persistModerationAudit(moderationAuditEvent{
