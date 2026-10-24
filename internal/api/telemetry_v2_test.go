@@ -164,3 +164,35 @@ func TestRateBasedQuarantine(t *testing.T) {
 		t.Fatal("small game at a 33% error rate was not quarantined")
 	}
 }
+
+
+func TestTelemetryV2DeduplicatesEventIDsAndRejectsUnknownSchema(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	srv := newTestServer()
+	body := `{"schemaVersion":2,"eventId":"session-a:1","sessionId":"session-a","gameId":"dedupe-game","kind":"session_start"}`
+	if code := postEvent(t, srv, body); code != http.StatusAccepted {
+		t.Fatalf("first event: got %d", code)
+	}
+	if code := postEvent(t, srv, body); code != http.StatusAccepted {
+		t.Fatalf("duplicate event should be safely acknowledged: got %d", code)
+	}
+	if code := postEvent(t, srv, `{"schemaVersion":3,"eventId":"session-a:2","sessionId":"session-a","gameId":"dedupe-game","kind":"session_start"}`); code != http.StatusBadRequest {
+		t.Fatalf("unknown schema: got %d, want 400", code)
+	}
+	if code := postEvent(t, srv, `{"schemaVersion":2,"eventId":"no-session","gameId":"dedupe-game","kind":"session_start"}`); code != http.StatusBadRequest {
+		t.Fatalf("event ID without session ID: got %d, want 400", code)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/telemetry/perf?game=dedupe-game", nil)
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	var out struct {
+		Games map[string]perfSummary `json:"games"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if got := out.Games["dedupe-game"].Sessions; got != 1 {
+		t.Fatalf("duplicate event counted %d sessions, want 1", got)
+	}
+}
