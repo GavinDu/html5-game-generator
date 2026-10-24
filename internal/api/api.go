@@ -716,6 +716,7 @@ func paginateGames(games []*model.Game, r *http.Request) ([]*model.Game, string,
 	}
 	return page, next, nil
 }
+
 // engagementRankingEnabled provides an immediate rollback switch while the
 // ranking policy is evaluated against real engagement and diversity metrics.
 // Ranking remains enabled by default, with the newest-first cold-start fallback.
