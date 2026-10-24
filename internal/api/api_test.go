@@ -282,7 +282,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
-		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic})
+		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
 	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
 
 	packagePath := "/v1/games/" + doc.Game.ID + "/package"

@@ -98,8 +98,7 @@ func packageIsPublicImmutable(game *model.Game) bool {
 		game.Status == model.GameReady &&
 		game.Visibility == model.VisibilityPublic &&
 		!game.Quarantined &&
-		game.ModerationStatus != "pending" &&
-		game.ModerationStatus != "rejected"
+		game.ModerationStatus == "approved"
 }
 
 // setPackageCacheHeaders gives immutable public artifacts a strong ETag and
