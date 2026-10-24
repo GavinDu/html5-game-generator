@@ -935,10 +935,10 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 				s.persistSocialStateLocked()
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
-				"report_id": id,
-				"status": s.reports[i].Status,
-				"resolved_at": s.reports[i].ResolvedAt,
-				"resolved_by": s.reports[i].ResolvedBy,
+				"report_id":         id,
+				"status":            s.reports[i].Status,
+				"resolved_at":       s.reports[i].ResolvedAt,
+				"resolved_by":       s.reports[i].ResolvedBy,
 				"resolution_reason": s.reports[i].ResolutionReason,
 			})
 			return

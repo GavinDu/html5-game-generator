@@ -491,7 +491,7 @@
               0,
               45
             ],
-            "gravityScale": 1.0,
+            "gravityScale": 1,
             "collisionGroups": {
               "memberships": [
                 1
@@ -527,7 +527,7 @@
           "kind": "pickup",
           "assetId": "shard",
           "position": [
-            80,
+            140,
             100
           ],
           "size": [
@@ -589,7 +589,7 @@
           "kind": "pickup",
           "assetId": "shard",
           "position": [
-            305,
+            250,
             60
           ],
           "size": [
@@ -946,7 +946,7 @@
       "ramp": [
         {
           "at": 0,
-          "speedMul": 1.0
+          "speedMul": 1
         },
         {
           "at": 0.5,
