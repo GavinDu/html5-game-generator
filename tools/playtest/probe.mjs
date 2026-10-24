@@ -25,6 +25,7 @@
 
 import { chromium, webkit } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { selectFirstRewardMeasurement } from './reward-timing.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -215,6 +216,7 @@ async function playGame(browser, gameId) {
   // otherwise inflate first-reward latency by several seconds.
   const playStart = Date.now();
   let firstRewardMs = null;
+  let firstRewardSource = 'HUD score observation';
   let stateChanged = false;
   let winSeen = false;
   let endSeen = false;
@@ -253,6 +255,7 @@ async function playGame(browser, gameId) {
       errors: (window.__dqErrors || []).length,
       census: (window.__dqProbe || {}).census || '',
       frames: (window.__dqProbe || {}).frames || 0,
+      firstRewardMs: (window.__dqProbe || {}).firstRewardMs,
       endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
       endTitle: document.getElementById('end-title')?.textContent || '',
       shellEnd: !!document.querySelector('#shell-result.on'),
@@ -268,8 +271,16 @@ async function playGame(browser, gameId) {
     const sig = live.hud + '|' + live.status + '|' + live.errors + '|' + live.census;
     if (lastSig && sig !== lastSig) stateChanged = true;
     lastSig = sig;
-    if (firstRewardMs === null && scoreOf(live.hud) > score0) {
-      firstRewardMs = Date.now() - playStart;
+    if (firstRewardMs === null) {
+      const measured = selectFirstRewardMeasurement(
+        live.firstRewardMs,
+        scoreOf(live.hud) > score0,
+        Date.now() - playStart,
+      );
+      if (measured) {
+        firstRewardMs = measured.ms;
+        firstRewardSource = measured.source;
+      }
     }
     if (live.endVisible || live.shellEnd) {
       endSeen = true;
@@ -326,7 +337,7 @@ async function playGame(browser, gameId) {
 
   if (firstRewardMs !== null) {
     push('hook.first_reward', firstRewardMs <= 15000 ? 'pass' : 'fail',
-      `first score increase at ${firstRewardMs}ms from active play start`, { firstRewardMs });
+      `first reward from ${firstRewardSource} at ${firstRewardMs}ms`, { firstRewardMs, source: firstRewardSource });
   } else if (endSeen) {
     push('hook.first_reward', 'skip', 'game ended before any score change was observed', null);
   } else {
