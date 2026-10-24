@@ -94,8 +94,8 @@ func (s *Server) handleModerationAppeal(w http.ResponseWriter, r *http.Request) 
 		if prior.GameID == gameID && prior.Reporter == creator &&
 			prior.Status == "open" && strings.HasPrefix(prior.Reason, "creator_appeal:") {
 			writeJSON(w, http.StatusConflict, map[string]any{
-				"error":      "an appeal is already open for this game",
-				"report_id":  prior.ID,
+				"error":     "an appeal is already open for this game",
+				"report_id": prior.ID,
 			})
 			return
 		}
@@ -125,9 +125,9 @@ func (s *Server) handleModerationContact(w http.ResponseWriter, r *http.Request)
 	url := strings.TrimSpace(os.Getenv("DQ_MODERATION_CONTACT_URL"))
 	email := strings.TrimSpace(os.Getenv("DQ_MODERATION_CONTACT_EMAIL"))
 	writeJSON(w, http.StatusOK, map[string]any{
-		"contact_url":                url,
-		"contact_email":              email,
-		"appeals_endpoint":            "POST /v1/games/{id}/moderation-appeals",
+		"contact_url":                 url,
+		"contact_email":               email,
+		"appeals_endpoint":           "POST /v1/games/{id}/moderation-appeals",
 		"external_contact_configured": url != "" || email != "",
 	})
 }
