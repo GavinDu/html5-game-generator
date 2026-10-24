@@ -70,6 +70,7 @@ func TestSocialEventIdempotency(t *testing.T) {
 
 func TestTelemetryEventsAcceptedAndSummarized(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "telemetry-test-token")
 	srv := newTestServer()
 	gid := "sample-rainbow-bear"
 	if code := postEvent(t, srv, fmt.Sprintf(`{"gameId":%q,"kind":"session_start","seed":42,"shell":true,"bootMs":800}`, gid)); code != http.StatusAccepted {
@@ -89,6 +90,7 @@ func TestTelemetryEventsAcceptedAndSummarized(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/telemetry/perf?game="+gid, nil)
+	req.Header.Set("X-Telemetry-Admin-Token", "telemetry-test-token")
 	rec := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -167,6 +169,7 @@ func TestRateBasedQuarantine(t *testing.T) {
 
 func TestTelemetryV2DeduplicatesEventIDsAndRejectsUnknownSchema(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "telemetry-test-token")
 	srv := newTestServer()
 	body := `{"schemaVersion":2,"eventId":"session-a:1","sessionId":"session-a","gameId":"dedupe-game","kind":"session_start"}`
 	if code := postEvent(t, srv, body); code != http.StatusAccepted {
@@ -183,6 +186,7 @@ func TestTelemetryV2DeduplicatesEventIDsAndRejectsUnknownSchema(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/telemetry/perf?game=dedupe-game", nil)
+	req.Header.Set("X-Telemetry-Admin-Token", "telemetry-test-token")
 	rec := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
 	var out struct {
