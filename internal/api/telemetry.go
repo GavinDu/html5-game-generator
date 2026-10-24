@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -252,9 +253,28 @@ type incident struct {
 	RuntimeScope  bool     `json:"runtimeScope"` // same fingerprint on 2+ games => runtime bug, not content
 }
 
+// requireTelemetryAdminToken protects aggregate telemetry endpoints that are
+// intended for trusted operators, not public clients.
+func requireTelemetryAdminToken(w http.ResponseWriter, r *http.Request) bool {
+	expected := strings.TrimSpace(os.Getenv("DQ_TELEMETRY_ADMIN_TOKEN"))
+	if expected == "" {
+		writeErr(w, http.StatusServiceUnavailable, "telemetry admin token is not configured")
+		return false
+	}
+	provided := strings.TrimSpace(r.Header.Get("X-Telemetry-Admin-Token"))
+	if len(provided) != len(expected) || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+		writeErr(w, http.StatusForbidden, "forbidden")
+		return false
+	}
+	return true
+}
+
 // GET /v1/telemetry/incidents — aggregated incidents over every indexed
 // report, worst first.
 func (s *Server) handleIncidents(w http.ResponseWriter, r *http.Request) {
+	if !requireTelemetryAdminToken(w, r) {
+		return
+	}
 	s.teleMu.Lock()
 	s.loadTeleIndexLocked()
 	byFP := map[string]*incident{}
