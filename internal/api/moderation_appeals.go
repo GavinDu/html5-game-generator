@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
@@ -83,7 +84,7 @@ func (s *Server) handleModerationAppeal(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	reason := strings.TrimSpace(req.Reason)
-	if reason == "" || len(reason) > 1000 {
+	if reason == "" || utf8.RuneCountInString(reason) > 1000 {
 		writeErr(w, http.StatusBadRequest, "appeal reason must contain 1–1000 characters")
 		return
 	}
