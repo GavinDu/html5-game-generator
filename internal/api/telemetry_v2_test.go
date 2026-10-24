@@ -200,7 +200,6 @@ func TestTelemetryV2DeduplicatesEventIDsAndRejectsUnknownSchema(t *testing.T) {
 	}
 }
 
-
 func TestTelemetryAggregateEndpointsRequireAdminToken(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
 	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "")
