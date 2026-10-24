@@ -210,6 +210,10 @@ async function playGame(browser, gameId) {
   const hud0 = await page.evaluate(
     () => document.getElementById('score')?.textContent || '').catch(() => '');
   const score0 = scoreOf(hud0);
+  // Measure reward latency from the start of active bot play, not navigation.
+  // Boot, census sampling, and input-prompt waits are measured separately and
+  // otherwise inflate first-reward latency by several seconds.
+  const playStart = Date.now();
   let firstRewardMs = null;
   let stateChanged = false;
   let winSeen = false;
@@ -265,7 +269,7 @@ async function playGame(browser, gameId) {
     if (lastSig && sig !== lastSig) stateChanged = true;
     lastSig = sig;
     if (firstRewardMs === null && scoreOf(live.hud) > score0) {
-      firstRewardMs = Date.now() - navStart;
+      firstRewardMs = Date.now() - playStart;
     }
     if (live.endVisible || live.shellEnd) {
       endSeen = true;
@@ -321,8 +325,8 @@ async function playGame(browser, gameId) {
   }
 
   if (firstRewardMs !== null) {
-    push('hook.first_reward', firstRewardMs <= 15000 + coldStartMs ? 'pass' : 'fail',
-      `first score increase at ${firstRewardMs}ms from navigation`, { firstRewardMs });
+    push('hook.first_reward', firstRewardMs <= 15000 ? 'pass' : 'fail',
+      `first score increase at ${firstRewardMs}ms from active play start`, { firstRewardMs });
   } else if (endSeen) {
     push('hook.first_reward', 'skip', 'game ended before any score change was observed', null);
   } else {
