@@ -34,7 +34,7 @@ Runtime error reports are accepted separately at `POST /v1/telemetry/runtime-err
 
 Raw events are appended to `events.jsonl` and runtime errors to `runtime-errors.jsonl` under `DQ_TELEMETRY_DIR` (default: `telemetry/`). The current code does **not** automatically expire or compact those files. Until a retention job is implemented, operators must restrict filesystem access and rotate/archive/delete the files under the deployment's data-retention policy. Do not expose the telemetry directory as static web content or commit generated telemetry files.
 
-The in-memory indexes are bounded (20,000 structured session/performance/run/milestone records; 10,000 runtime-error records), but this is a memory bound, not a raw-file retention policy. The current perf/incidents endpoints are aggregate operational endpoints; they are not an authorization boundary. Keep them behind trusted deployment/network controls until endpoint-level authorization is added.
+The in-memory indexes are bounded (20,000 structured session/performance/run/milestone records; 10,000 runtime-error records), but this is a memory bound, not a raw-file retention policy. The aggregate `GET /v1/telemetry/perf` and `GET /v1/telemetry/incidents` endpoints require `DQ_TELEMETRY_ADMIN_TOKEN` and the `X-Telemetry-Admin-Token` header. If the token is not configured, the endpoints fail closed with HTTP 503; a missing or incorrect token receives HTTP 403. Use a high-entropy secret, never ship it in a client app, and retain network-level restrictions as defense in depth.
 
 ## Validation and rollout
 
