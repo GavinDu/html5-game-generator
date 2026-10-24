@@ -58,8 +58,8 @@ The generation pipeline writes `game-ir.json`, validates it before publication, 
 
 ## Delivery caching and invalidation
 
-- Public, ready, non-quarantined package envelopes and assets return a strong SHA-256 ETag and `Cache-Control: public, max-age=300, must-revalidate`. Conditional requests with a matching `If-None-Match` receive `304 Not Modified`.
-- Private, group-restricted, creator-preview, quarantined, pending, and rejected delivery responses use `Cache-Control: private, no-store`; they must never enter shared proxy caches.
+- Public, ready, explicitly moderation-approved, non-quarantined package envelopes and assets return a strong SHA-256 ETag and `Cache-Control: public, max-age=300, must-revalidate`. Conditional requests with a matching `If-None-Match` receive `304 Not Modified`.
+- Private, group-restricted, creator-preview, unapproved, quarantined, pending, and rejected delivery responses use `Cache-Control: private, no-store`; they must never enter shared proxy caches.
 - Package ETags hash the serialized package envelope. Asset ETags hash the delivered bytes, so a mismatch between a declared asset hash and delivered bytes does not accidentally create a false cache hit.
 - Published package immutability keeps content hashes stable; the five-minute freshness window bounds exposure when moderation changes. Republishing changed content under the same published game/version identity is not supported; a changed game must receive a new immutable version/identity. Removed or newly restricted content must be blocked by the delivery authorization check, but already-cached public bytes can remain available for up to the five-minute freshness window; deployments with a CDN must purge restricted content when moderation changes. Use short-lived URLs or a revocable delivery layer if future rights/safety requirements demand revocation.
 - Measure package bytes, asset bytes, request latency, 304 rate, and transfer volume before adopting object storage/CDN. Current in-process/file-backed metrics are not a substitute for real traffic measurements, so no CDN is selected by this change.
