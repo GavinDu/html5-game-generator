@@ -304,6 +304,16 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	if conditionalRec.Code != http.StatusNotModified || conditionalRec.Body.Len() != 0 {
 		t.Fatalf("conditional package fetch: %d body=%q", conditionalRec.Code, conditionalRec.Body.String())
 	}
+	privateResponse := httptest.NewRecorder()
+	privateRequest := httptest.NewRequest(http.MethodGet, packagePath, nil)
+	if setPackageCacheHeaders(privateResponse, privateRequest, &model.Game{
+		Status: model.GameReady, Visibility: model.VisibilityPrivate,
+	}, "\"private-etag\"") {
+		t.Fatal("private package must not use a shared conditional cache")
+	}
+	if got := privateResponse.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("private package cache policy = %q", got)
+	}
 
 	assetPath := "/v1/games/" + doc.Game.ID + "/assets/bobo"
 	asset := do(t, srv, http.MethodGet, assetPath, nil, "")
