@@ -41,6 +41,35 @@ func TestModerationAppealRequiresOwnerAndDeduplicates(t *testing.T) {
 	}
 }
 
+func TestModerationAppealReasonLimitCountsUnicodeCharacters(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social.json"))
+	t.Setenv("DQ_MODERATION_AUDIT_FILE", filepath.Join(dir, "audit.jsonl"))
+	srv := newTestServer()
+	now := time.Now().UTC()
+	for _, id := range []string{"appeal-unicode-valid", "appeal-unicode-too-long"} {
+		srv.store.CreateGame(&model.Game{
+			ID: id, Title: "Test", OwnerID: "creator",
+			Status: model.GameReady, Visibility: model.VisibilityPublic,
+			ModerationStatus: "rejected", CreatedAt: now, UpdatedAt: now,
+		})
+	}
+
+	valid := do(t, srv, http.MethodPost, "/v1/games/appeal-unicode-valid/moderation-appeals", map[string]any{
+		"reason": strings.Repeat("中", 1000),
+	}, "creator")
+	if valid.Code != http.StatusCreated {
+		t.Fatalf("1000 Unicode characters should be accepted, got %d: %s", valid.Code, valid.Body.String())
+	}
+
+	tooLong := do(t, srv, http.MethodPost, "/v1/games/appeal-unicode-too-long/moderation-appeals", map[string]any{
+		"reason": strings.Repeat("中", 1001),
+	}, "creator")
+	if tooLong.Code != http.StatusBadRequest {
+		t.Fatalf("1001 Unicode characters should be rejected, got %d: %s", tooLong.Code, tooLong.Body.String())
+	}
+}
+
 func TestModerationContactEndpoint(t *testing.T) {
 	t.Setenv("DQ_MODERATION_CONTACT_URL", "https://example.test/moderation")
 	t.Setenv("DQ_MODERATION_CONTACT_EMAIL", "safety@example.test")
