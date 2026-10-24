@@ -270,6 +270,72 @@ func TestGroupsAndSharing(t *testing.T) {
 }
 
 // The package endpoint exposes the canonical Game IR envelope and asset URLs.
+func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := gameir.DecodeAndValidate(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
+		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
+	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+
+	packagePath := "/v1/games/" + doc.Game.ID + "/package"
+	first := do(t, srv, http.MethodGet, packagePath, nil, "")
+	if first.Code != http.StatusOK {
+		t.Fatalf("first package fetch: %d %s", first.Code, first.Body.String())
+	}
+	if got := first.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
+		t.Fatalf("public package cache policy = %q", got)
+	}
+	etag := first.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("public package response must include a strong ETag")
+	}
+	conditional := httptest.NewRequest(http.MethodGet, packagePath, nil)
+	conditional.Header.Set("If-None-Match", etag)
+	conditionalRec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(conditionalRec, conditional)
+	if conditionalRec.Code != http.StatusNotModified || conditionalRec.Body.Len() != 0 {
+		t.Fatalf("conditional package fetch: %d body=%q", conditionalRec.Code, conditionalRec.Body.String())
+	}
+	privateResponse := httptest.NewRecorder()
+	privateRequest := httptest.NewRequest(http.MethodGet, packagePath, nil)
+	if setPackageCacheHeaders(privateResponse, privateRequest, &model.Game{
+		Status: model.GameReady, Visibility: model.VisibilityPrivate,
+	}, "\"private-etag\"") {
+		t.Fatal("private package must not use a shared conditional cache")
+	}
+	if got := privateResponse.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("private package cache policy = %q", got)
+	}
+
+	assetPath := "/v1/games/" + doc.Game.ID + "/assets/bobo"
+	asset := do(t, srv, http.MethodGet, assetPath, nil, "")
+	if asset.Code != http.StatusOK || asset.Body.String() != "immutable-asset" {
+		t.Fatalf("asset fetch: %d %q", asset.Code, asset.Body.String())
+	}
+	if got := asset.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
+		t.Fatalf("public asset cache policy = %q", got)
+	}
+	assetETag := asset.Header().Get("ETag")
+	if assetETag == "" {
+		t.Fatal("public asset response must include a strong ETag")
+	}
+	assetConditional := httptest.NewRequest(http.MethodGet, assetPath, nil)
+	assetConditional.Header.Set("If-None-Match", assetETag)
+	assetConditionalRec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(assetConditionalRec, assetConditional)
+	if assetConditionalRec.Code != http.StatusNotModified || assetConditionalRec.Body.Len() != 0 {
+		t.Fatalf("conditional asset fetch: %d body=%q", assetConditionalRec.Code, assetConditionalRec.Body.String())
+	}
+}
+
 func TestGetPackage(t *testing.T) {
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
