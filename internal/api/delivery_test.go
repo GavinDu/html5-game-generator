@@ -189,15 +189,14 @@ func TestDeliveryRejectsInvalidPersistedGameIR(t *testing.T) {
 	if game.GameIR == nil {
 		t.Fatal("seeded game has no Game IR")
 	}
-	if len(game.GameIR.Assets) == 0 {
-		t.Fatal("seeded game has no assets to corrupt")
-	}
-	game.GameIR.Assets[0].URI = "../outside.png"
+	// Corrupt a required field so validation fails even for a fixture with
+	// no optional assets. Delivery must validate before serializing/serving.
+	game.GameIR.Game.Title = "   "
 	st.UpdateGame(game)
 
 	for _, path := range []string{
 		"/v1/games/corrupt-ir-game/package",
-		"/v1/games/corrupt-ir-game/assets/" + game.GameIR.Assets[0].ID,
+		"/v1/games/corrupt-ir-game/assets/untrusted-asset",
 	} {
 		rec := getAs(t, srv, path, "parent-1")
 		if rec.Code != http.StatusUnprocessableEntity {
