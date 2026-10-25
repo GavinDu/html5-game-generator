@@ -38,6 +38,8 @@ public struct PlayerTelemetryEvent: Equatable, Sendable {
         case .network: return "network"
         case .httpStatus: return "http_status"
         case .unsupportedPackageFormat: return "unsupported_package_format"
+        case .unsupportedIRVersion: return "unsupported_ir_version"
+        case .irVersionMismatch: return "ir_version_mismatch"
         case .unsupportedRuntime: return "unsupported_runtime"
         case .packageGameIDMismatch: return "game_id_mismatch"
         case .missingIR: return "missing_ir"
