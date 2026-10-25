@@ -36,6 +36,7 @@ type Store interface {
 	SaveGame(ctx context.Context, viewerID, gameID string) error
 	UnsaveGame(ctx context.Context, viewerID, gameID string) error
 	ListSavedGames(ctx context.Context, viewerID string) ([]string, error)
+	AddMutedTopic(ctx context.Context, viewerID, topic string) error
 	SetMutedTopics(ctx context.Context, viewerID string, topics []string) error
 	AddNotInterested(ctx context.Context, viewerID, gameID string) error
 	ListPreferences(ctx context.Context, viewerID string) (Preferences, error)
@@ -431,6 +432,18 @@ func (s *PostgresStore) ImportSaves(ctx context.Context, relations []SaveRelatio
 		return 0, fmt.Errorf("commit save import: %w", err)
 	}
 	return inserted, nil
+}
+func (s *PostgresStore) AddMutedTopic(ctx context.Context, viewerID, rawTopic string) error {
+	viewerID = strings.TrimSpace(viewerID)
+	topic := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(rawTopic, "#")))
+	if viewerID == "" || len(viewerID) > 128 || topic == "" || len(topic) > 40 {
+		return errors.New("viewer ID must be 1–128 characters and topic must contain 1–40 characters")
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO social_muted_topics (viewer_id, topic) VALUES ($1, $2) ON CONFLICT (viewer_id, topic) DO NOTHING`, viewerID, topic)
+	if err != nil {
+		return fmt.Errorf("persist muted topic: %w", err)
+	}
+	return nil
 }
 func (s *PostgresStore) SetMutedTopics(ctx context.Context, viewerID string, topics []string) error {
 	viewerID = strings.TrimSpace(viewerID)
