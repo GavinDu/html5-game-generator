@@ -14,7 +14,7 @@ import (
 var ErrSelfFollow = errors.New("a user cannot follow themselves")
 var ErrSelfBlock = errors.New("a user cannot block themselves")
 
-// Store defines the shared durable creator-follow graph used by all API replicas.
+// Store defines durable follow and block relations shared by all API replicas.
 type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
 	Unfollow(ctx context.Context, viewerID, creatorID string) error
