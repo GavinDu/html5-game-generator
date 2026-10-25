@@ -27,16 +27,16 @@ public enum GamePlatformTheme {
     }
 
     public enum Surface {
-        public static let canvas = Color(uiColor: .systemBackground)
-        public static let secondary = Color(uiColor: .secondarySystemBackground)
-        public static let elevated = Color(uiColor: .tertiarySystemBackground)
-        public static let separator = Color(uiColor: .separator)
+        public static let canvas = Color.primary.opacity(0.02)
+        public static let secondary = Color.primary.opacity(0.045)
+        public static let elevated = Color.primary.opacity(0.07)
+        public static let separator = Color.primary.opacity(0.16)
     }
 
     public enum Feedback {
-        public static let success = Color(uiColor: .systemGreen)
-        public static let warning = Color(uiColor: .systemOrange)
-        public static let danger = Color(uiColor: .systemRed)
+        public static let success = Color.green
+        public static let warning = Color.orange
+        public static let danger = Color.red
         public static let accent = Color.accentColor
     }
 }
