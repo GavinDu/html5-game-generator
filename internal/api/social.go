@@ -14,6 +14,7 @@ import (
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
+	"doodlequest/internal/socialgraph"
 )
 
 type commentIdempotencyRecord struct {
