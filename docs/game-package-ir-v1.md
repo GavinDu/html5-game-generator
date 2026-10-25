@@ -147,3 +147,10 @@ report `pixijs-rapier-capability-inventory`).
   destroyed or leaves the bottom of the stage respawns at the top in a
   fresh column — the renewable-rain pattern from v1.0, generalized to
   dynamic physics bodies.
+
+
+## Game Package compatibility envelope
+
+The server response at `GET /v1/games/{id}/package` includes `packageFormatVersion`, `irVersion`, `minRuntimeVersion`, `gameId`, `ir`, `assets`, and `irHash`. The envelope's `irVersion` must match the embedded Game IR document's `irVersion`; clients reject a mismatch or an unsupported IR version before starting the runtime. Current supported IR versions are 1.0, 1.1, and 1.2. The minimum runtime version remains an independent compatibility gate.
+
+Asset SHA-256 values are verified against downloaded bytes before runtime startup. The IR hash identifies the canonical Game IR document; clients must use the same canonicalization contract as the server rather than hashing arbitrary re-serialized JSON.

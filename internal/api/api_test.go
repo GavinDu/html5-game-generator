@@ -496,7 +496,7 @@ func TestGetPackage(t *testing.T) {
 	if !strings.Contains(string(runtimeJS), MinRuntimeVersion) {
 		t.Fatalf("backend minimum runtime %q drifted from player runtime", MinRuntimeVersion)
 	}
-	if pkg.IR.IRVersion != gameir.Version || len(pkg.Assets) != 5 {
+	if pkg.IRVersion != pkg.IR.IRVersion || pkg.IR.IRVersion != gameir.Version || len(pkg.Assets) != 5 {
 		t.Fatalf("bad canonical IR/assets: version=%s assets=%d", pkg.IR.IRVersion, len(pkg.Assets))
 	}
 	if pkg.Assets[1].ID != "bobo" || pkg.Assets[1].URI != "assets/bear.png" ||
@@ -611,7 +611,7 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 	}
 	var pkg GamePackage
 	decode(t, rec, &pkg)
-	if pkg.PackageFormatVersion != PackageFormatVersion || pkg.MinRuntimeVersion != MinRuntimeVersion || pkg.GameID != child.ID || pkg.IR.Metadata.ParentGameID != parent.ID {
+	if pkg.PackageFormatVersion != PackageFormatVersion || pkg.MinRuntimeVersion != MinRuntimeVersion || pkg.IRVersion != pkg.IR.IRVersion || pkg.GameID != child.ID || pkg.IR.Metadata.ParentGameID != parent.ID {
 		t.Fatalf("package contract mismatch: %+v", pkg)
 	}
 	for _, asset := range pkg.Assets {
