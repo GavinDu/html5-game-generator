@@ -759,7 +759,15 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"games": page, "scope": scope, "next_cursor": next})
+	cards, err := s.buildFeedCards(r.Context(), page, viewer, followed)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not build viewer feed state")
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"games": page, "scope": scope, "next_cursor": next,
+		"card_schema_version": FeedCardSchemaVersion, "cards": cards,
+	})
 }
 
 func diversifyFeed(ranked []*model.Game) []*model.Game {
