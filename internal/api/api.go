@@ -455,6 +455,9 @@ func (s *Server) handleGetBundle(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// GameShim is transitional. Never let shared caches retain its bytes
+	// across visibility or moderation changes.
+	w.Header().Set("Cache-Control", "private, no-store")
 	if game.Manifest == nil {
 		writeErr(w, http.StatusConflict, "bundle not published yet")
 		return
@@ -466,6 +469,8 @@ func (s *Server) serveArtifact(w http.ResponseWriter, r *http.Request, name stri
 	if _, ok := s.deliverableGame(w, r); !ok {
 		return
 	}
+	// Legacy bundle artifacts have no immutable version URL; disable caching.
+	w.Header().Set("Cache-Control", "private, no-store")
 	data, ct, ok := s.store.GetArtifact(r.PathValue("id"), name)
 	if !ok {
 		w.Header().Set("Cache-Control", "private, no-store")
