@@ -241,6 +241,9 @@ func (s *MemoryStore) RestoreFrom(path string) error {
 		snapshot.JobsByGame == nil || snapshot.Groups == nil || snapshot.Artifacts == nil {
 		return fmt.Errorf("backup snapshot is missing required collections")
 	}
+	if err := validateStoreSnapshot(snapshot); err != nil {
+		return fmt.Errorf("invalid backup snapshot: %w", err)
+	}
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("encode restored snapshot: %w", err)
