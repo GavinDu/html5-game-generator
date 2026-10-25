@@ -1,0 +1,30 @@
+name: iOS Player Core
+
+on:
+  pull_request:
+    paths:
+      - "ios/GamePlayerCore/**"
+      - ".github/workflows/ios-player-core.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/GamePlayerCore/**"
+      - ".github/workflows/ios-player-core.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-player-core-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Swift toolchain
+        run: swift --version
+      - name: Run player contract and lifecycle tests
+        working-directory: ios/GamePlayerCore
+        run: swift test
