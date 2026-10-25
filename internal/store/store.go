@@ -3,7 +3,10 @@
 package store
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -88,6 +91,7 @@ type MemoryStore struct {
 	// hundred KB and correctness beats cleverness; a real database
 	// replaces this when volume demands it.
 	persistPath           string
+	persistenceTargetPath string
 	persistenceConfigured bool
 	persistenceErr        string
 }
@@ -119,6 +123,7 @@ type storeSnapshot struct {
 func (s *MemoryStore) EnablePersistence(path string) error {
 	s.mu.Lock()
 	s.persistenceConfigured = true
+	s.persistenceTargetPath = path
 	s.persistenceErr = ""
 	s.mu.Unlock()
 	data, err := os.ReadFile(path)
@@ -126,6 +131,7 @@ func (s *MemoryStore) EnablePersistence(path string) error {
 		if os.IsNotExist(err) {
 			s.mu.Lock()
 			s.persistPath = path
+			s.persistenceTargetPath = path
 			s.mu.Unlock()
 			return nil
 		}
@@ -176,6 +182,109 @@ func (s *MemoryStore) setPersistenceError(err error) {
 	s.mu.Unlock()
 }
 
+type backupEnvelope struct {
+	FormatVersion int             `json:"formatVersion"`
+	SHA256        string          `json:"sha256"`
+	Snapshot      json.RawMessage `json:"snapshot"`
+}
+
+// BackupTo writes a versioned, checksummed backup containing all durable store
+// state, including artifact bytes. It refuses to overwrite the live snapshot.
+func (s *MemoryStore) BackupTo(path string) error {
+	s.mu.RLock()
+	if s.persistenceTargetPath != "" && filepath.Clean(path) == filepath.Clean(s.persistenceTargetPath) {
+		s.mu.RUnlock()
+		return fmt.Errorf("backup path must differ from live store path")
+	}
+	snapshot, err := json.Marshal(storeSnapshot{
+		Ingests: s.ingests, Games: s.games, Jobs: s.jobs,
+		JobsByGame: s.jobsByGame, Groups: s.groups, Artifacts: s.artifacts,
+	})
+	s.mu.RUnlock()
+	if err != nil {
+		return fmt.Errorf("encode store snapshot: %w", err)
+	}
+	sum := sha256.Sum256(snapshot)
+	encoded, err := json.Marshal(backupEnvelope{
+		FormatVersion: 1, SHA256: hex.EncodeToString(sum[:]), Snapshot: snapshot,
+	})
+	if err != nil {
+		return fmt.Errorf("encode backup envelope: %w", err)
+	}
+	return writeAtomicFile(path, encoded)
+}
+
+// RestoreFrom validates a backup before changing memory or the live snapshot.
+// When persistence is configured, the restored snapshot is atomically written
+// to its configured path before it becomes the active in-memory state.
+func (s *MemoryStore) RestoreFrom(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read backup: %w", err)
+	}
+	var envelope backupEnvelope
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return fmt.Errorf("decode backup envelope: %w", err)
+	}
+	if envelope.FormatVersion != 1 {
+		return fmt.Errorf("unsupported backup format version %d", envelope.FormatVersion)
+	}
+	sum := sha256.Sum256(envelope.Snapshot)
+	if envelope.SHA256 != hex.EncodeToString(sum[:]) {
+		return fmt.Errorf("backup checksum mismatch")
+	}
+	var snapshot storeSnapshot
+	if err := json.Unmarshal(envelope.Snapshot, &snapshot); err != nil {
+		return fmt.Errorf("decode backup snapshot: %w", err)
+	}
+	if snapshot.Ingests == nil || snapshot.Games == nil || snapshot.Jobs == nil ||
+		snapshot.JobsByGame == nil || snapshot.Groups == nil || snapshot.Artifacts == nil {
+		return fmt.Errorf("backup snapshot is missing required collections")
+	}
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return fmt.Errorf("encode restored snapshot: %w", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.persistenceConfigured {
+		target := s.persistenceTargetPath
+		if target == "" {
+			return fmt.Errorf("persistence target path is unavailable")
+		}
+		if err := writeAtomicFile(target, encoded); err != nil {
+			s.persistenceErr = err.Error()
+			return fmt.Errorf("write restored snapshot: %w", err)
+		}
+		s.persistPath = target
+	}
+	s.ingests = snapshot.Ingests
+	s.games = snapshot.Games
+	s.jobs = snapshot.Jobs
+	s.jobsByGame = snapshot.JobsByGame
+	s.groups = snapshot.Groups
+	s.artifacts = snapshot.Artifacts
+	s.persistenceErr = ""
+	return nil
+}
+
+func writeAtomicFile(path string, data []byte) error {
+	if path == "" {
+		return fmt.Errorf("file path is required")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
 // persistLocked writes the snapshot; callers hold s.mu. Failures are
 // swallowed by design (same posture as the social state file): a disk
 // problem must not take request handling down with it.
