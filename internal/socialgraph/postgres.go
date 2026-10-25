@@ -125,8 +125,7 @@ CREATE TABLE IF NOT EXISTS social_comment_idempotency (
   game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
   body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 2000),
   comment_id TEXT NOT NULL CHECK (length(comment_id) BETWEEN 1 AND 128),
-  created_at TIMESTAMPTZ NOT NULL,
-  
+  created_at TIMESTAMPTZ NOT NULL
 );
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
