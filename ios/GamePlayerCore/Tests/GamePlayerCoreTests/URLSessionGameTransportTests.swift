@@ -101,3 +101,40 @@ extension URLSessionGameTransportTests {
         session.invalidateAndCancel()
     }
 }
+
+
+extension URLSessionGameTransportTests {
+    func testRedirectPolicyRejectsCrossOriginAndAllowsSameOrigin() {
+        let base = URL(string: "https://api.example.com")!
+        let delegate = OriginRestrictedRedirectDelegate(baseURL: base)
+        let task = URLSession.shared.dataTask(with: base)
+        let response = HTTPURLResponse(
+            url: base.appendingPathComponent("v1"),
+            statusCode: 302,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil
+        )!
+
+        var crossOrigin: URLRequest?
+        delegate.urlSession(
+            URLSession.shared,
+            task: task,
+            willPerformHTTPRedirection: response,
+            newRequest: URLRequest(url: URL(string: "https://attacker.example/collect")!),
+            completionHandler: { crossOrigin = $0 }
+        )
+        XCTAssertNil(crossOrigin)
+
+        var sameOrigin: URLRequest?
+        let allowed = URLRequest(url: URL(string: "https://api.example.com/redirected")!)
+        delegate.urlSession(
+            URLSession.shared,
+            task: task,
+            willPerformHTTPRedirection: response,
+            newRequest: allowed,
+            completionHandler: { sameOrigin = $0 }
+        )
+        XCTAssertEqual(sameOrigin?.url, allowed.url)
+        task.cancel()
+    }
+}
