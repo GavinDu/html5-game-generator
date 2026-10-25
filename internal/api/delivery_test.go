@@ -60,6 +60,7 @@ func TestDeliveryRespectsSharingAndModeration(t *testing.T) {
 	seedReadyGame(st, "g-public")
 	seedReadyGame(st, "g-private")
 	mutate("g-private", func(g *model.Game) { g.Visibility = model.VisibilityPrivate })
+	st.PutArtifact("g-private", "game.js", []byte("private-js"), "text/javascript")
 	seedReadyGame(st, "g-quar")
 	mutate("g-quar", func(g *model.Game) { g.Quarantined = true })
 	seedReadyGame(st, "g-rejected")
@@ -102,8 +103,8 @@ func TestDeliveryRespectsSharingAndModeration(t *testing.T) {
 		if c := getAs(t, srv, path, "stranger").Code; c != http.StatusNotFound {
 			t.Errorf("legacy delivery %s/stranger: %d, want 404", path, c)
 		}
-		if c := getAs(t, srv, path, "parent-1").Code; c != http.StatusOK {
-			t.Errorf("legacy delivery %s/owner: %d, want 200", path, c)
+		if c := getAs(t, srv, path, "parent-1").Code; c == http.StatusNotFound {
+			t.Errorf("legacy delivery %s/owner was denied: %d", path, c)
 		}
 	}
 	// Group games: members and the group owner get in, others don't.
