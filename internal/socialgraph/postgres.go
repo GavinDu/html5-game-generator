@@ -14,6 +14,11 @@ import (
 var ErrSelfFollow = errors.New("a user cannot follow themselves")
 var ErrSelfBlock = errors.New("a user cannot block themselves")
 
+type SaveRelation struct {
+	ViewerID string
+	GameID   string
+}
+
 // Store defines durable follow and block relations shared by all API replicas.
 type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
@@ -23,6 +28,9 @@ type Store interface {
 	Block(ctx context.Context, viewerID, blockedID string) error
 	Unblock(ctx context.Context, viewerID, blockedID string) error
 	ListBlocked(ctx context.Context, viewerID string) ([]string, error)
+	SaveGame(ctx context.Context, viewerID, gameID string) error
+	UnsaveGame(ctx context.Context, viewerID, gameID string) error
+	ListSavedGames(ctx context.Context, viewerID string) ([]string, error)
 	Close() error
 }
 
@@ -73,6 +81,14 @@ CREATE TABLE IF NOT EXISTS social_blocks (
 );
 CREATE INDEX IF NOT EXISTS social_blocks_blocked_idx
   ON social_blocks (blocked_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS social_saves (
+  viewer_id TEXT NOT NULL CHECK (length(viewer_id) BETWEEN 1 AND 128),
+  game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (viewer_id, game_id)
+);
+CREATE INDEX IF NOT EXISTS social_saves_viewer_idx
+  ON social_saves (viewer_id, game_id);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -309,6 +325,89 @@ func (s *PostgresStore) ImportBlocks(ctx context.Context, relations []BlockRelat
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit block import: %w", err)
+	}
+	return inserted, nil
+}
+func (s *PostgresStore) SaveGame(ctx context.Context, viewerID, gameID string) error {
+	viewerID, gameID = strings.TrimSpace(viewerID), strings.TrimSpace(gameID)
+	if viewerID == "" || gameID == "" || len(viewerID) > 128 || len(gameID) > 128 {
+		return errors.New("viewer and game IDs must be 1–128 characters")
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO social_saves (viewer_id, game_id) VALUES ($1, $2) ON CONFLICT (viewer_id, game_id) DO NOTHING`, viewerID, gameID)
+	if err != nil {
+		return fmt.Errorf("persist saved game: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) UnsaveGame(ctx context.Context, viewerID, gameID string) error {
+	viewerID, gameID = strings.TrimSpace(viewerID), strings.TrimSpace(gameID)
+	if viewerID == "" || gameID == "" || len(viewerID) > 128 || len(gameID) > 128 {
+		return errors.New("viewer and game IDs must be 1–128 characters")
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM social_saves WHERE viewer_id = $1 AND game_id = $2`, viewerID, gameID)
+	if err != nil {
+		return fmt.Errorf("delete saved game: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) ListSavedGames(ctx context.Context, viewerID string) ([]string, error) {
+	viewerID = strings.TrimSpace(viewerID)
+	if viewerID == "" || len(viewerID) > 128 {
+		return nil, errors.New("viewer ID must be 1–128 characters")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT game_id FROM social_saves WHERE viewer_id = $1 ORDER BY game_id`, viewerID)
+	if err != nil {
+		return nil, fmt.Errorf("query saved games: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan saved game: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate saved games: %w", err)
+	}
+	return ids, nil
+}
+
+// ImportSaves idempotently imports a local save snapshot in one transaction.
+func (s *PostgresStore) ImportSaves(ctx context.Context, relations []SaveRelation) (int, error) {
+	for _, relation := range relations {
+		viewer, gameID := strings.TrimSpace(relation.ViewerID), strings.TrimSpace(relation.GameID)
+		if viewer == "" || gameID == "" || len(viewer) > 128 || len(gameID) > 128 {
+			return 0, fmt.Errorf("invalid saved-game relation in import")
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin save import: %w", err)
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO social_saves (viewer_id, game_id) VALUES ($1, $2) ON CONFLICT (viewer_id, game_id) DO NOTHING`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare save import: %w", err)
+	}
+	defer stmt.Close()
+	inserted := 0
+	for _, relation := range relations {
+		result, err := stmt.ExecContext(ctx, strings.TrimSpace(relation.ViewerID), strings.TrimSpace(relation.GameID))
+		if err != nil {
+			return 0, fmt.Errorf("import saved game: %w", err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("count imported saved game: %w", err)
+		}
+		inserted += int(n)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit save import: %w", err)
 	}
 	return inserted, nil
 }
