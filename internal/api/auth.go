@@ -64,6 +64,13 @@ func verifyBearerUserID(r *http.Request) string {
 func requireAuthenticatedUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requiresUserAuth(r) {
+			// Public reads may be anonymous, but a valid optional bearer token
+			// still supplies the verified owner identity for private-resource checks.
+			if subject := verifyBearerUserID(r); subject != "" {
+				ctx := context.WithValue(r.Context(), authContextKey{}, subject)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
