@@ -7,6 +7,16 @@ private struct StubPackageTransport: GamePackageTransport {
     func fetchPackage(gameID: String, version: String?) async throws -> Data { data }
 }
 
+private struct DelayedPackageTransport: GamePackageTransport {
+    let data: Data
+    func fetchPackage(gameID: String, version: String?) async throws -> Data {
+        if version == "slow" {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        return data
+    }
+}
+
 private struct StubAssetTransport: GameAssetTransport {
     let responses: [String: Data]
     func fetchAsset(_ asset: PackageAsset) async throws -> Data {
@@ -64,6 +74,34 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
         let stage = await coordinator.stage
         XCTAssertEqual(starts, 1)
         XCTAssertEqual(loadedAssets["sprite"], assets["sprite"])
+        XCTAssertEqual(stage, .running)
+    }
+
+    func testSupersededLaunchCannotOverwriteNewerSessionState() async throws {
+        let (package, assets) = fixturePackage()
+        let runtime = StubRuntimeHost()
+        let coordinator = PlayerLaunchCoordinator(
+            packageTransport: DelayedPackageTransport(data: package),
+            assetTransport: StubAssetTransport(responses: assets),
+            runtime: runtime
+        )
+
+        let staleLaunch = Task {
+            try await coordinator.launch(gameID: "game-123", version: "slow")
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        try await coordinator.launch(gameID: "game-123", version: "fast")
+
+        do {
+            try await staleLaunch.value
+            XCTFail("superseded launch should be cancelled")
+        } catch {
+            XCTAssertEqual(error as? PlayerFailure, .cancelled)
+        }
+
+        let starts = await runtime.starts
+        let stage = await coordinator.stage
+        XCTAssertEqual(starts, 1)
         XCTAssertEqual(stage, .running)
     }
 
