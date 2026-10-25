@@ -509,7 +509,7 @@ async function run(id) {
   let replayTrace = null;
   if (replayRunId) {
     try {
-      const rr = await fetch(`/v1/runs/${encodeURIComponent(replayRunId)}`);
+      const rr = await apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`);
       if (rr.ok) {
         replayTrace = await rr.json();
         if (Number.isFinite(replayTrace.seed)) sessionSeed = replayTrace.seed >>> 0;
@@ -570,7 +570,7 @@ async function run(id) {
     play.frameSamples = [];
     play.longestFrameMs = 0;
   }
-  const res = await fetch(`/v1/games/${encodeURIComponent(id)}/package`);
+  const res = await apiFetch(`/v1/games/${encodeURIComponent(id)}/package`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
@@ -1483,7 +1483,7 @@ async function run(id) {
       const match = state.score === replayTrace.score && won === !!replayTrace.won;
       window.__dqReplay = { runId: replayRunId, match, expected: replayTrace.score, actual: state.score };
       try {
-        fetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
+        apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ match, actualScore: state.score }),
         }).catch(() => {});
@@ -1519,7 +1519,7 @@ async function run(id) {
       irHash: play.irHash || '',
       inputs: play.inputLog,
     };
-    fetch(`/v1/games/${encodeURIComponent(id)}/runs`, {
+    apiFetch(`/v1/games/${encodeURIComponent(id)}/runs`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then(async (res) => {
@@ -1893,7 +1893,7 @@ async function run(id) {
     if (replayTrace && !state.ended && !window.__dqReplay && play.simStep > replayLastTick + 1800) {
       window.__dqReplay = { runId: replayRunId, match: false, reason: 'timeout', expected: replayTrace.score, actual: state.score };
       try {
-        fetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
+        apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ match: false, actualScore: state.score }),
         }).catch(() => {});
