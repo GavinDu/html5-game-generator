@@ -60,7 +60,7 @@ const RUNTIME_VERSION = '2026.10.23.2';
 
 function compareRuntimeVersions(current, minimum) {
   const parse = (value) => {
-    if (typeof value !== 'string' || !/^\\d+(?:\\.\\d+)*$/.test(value)) return null;
+    if (typeof value !== 'string' || !/^\d+(?:\.\d+)*$/.test(value)) return null;
     return value.split('.').map(Number);
   };
   const a = parse(current), b = parse(minimum);
