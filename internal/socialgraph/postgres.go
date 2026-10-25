@@ -773,7 +773,6 @@ func (s *PostgresStore) ResetPreferences(ctx context.Context, viewerID string) e
 	return nil
 }
 
-
 // SetReaction idempotently upserts one viewer's reaction for a game.
 func (s *PostgresStore) SetReaction(ctx context.Context, viewerID, gameID, reaction string) error {
 	viewerID, gameID, reaction = strings.TrimSpace(viewerID), strings.TrimSpace(gameID), strings.TrimSpace(reaction)
