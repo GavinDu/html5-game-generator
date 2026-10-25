@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -30,7 +31,7 @@ func TestPostgresPreferencesAreSharedAndFilterFeedAcrossInstances(t *testing.T) 
 	second := New(st, pipeline.NewRunner(st))
 	t.Cleanup(func() {
 		if first.socialGraph != nil {
-			_ = first.socialGraph.ResetPreferences(t.Context(), "pref-viewer")
+			_ = first.socialGraph.ResetPreferences(context.Background(), "pref-viewer")
 			_ = first.socialGraph.Close()
 		}
 		if second.socialGraph != nil {
