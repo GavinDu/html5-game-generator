@@ -81,16 +81,36 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 	events := append([]socialEvent(nil), s.events...)
 	s.socialMu.RUnlock()
 
-	if viewer != "" && s.socialGraph != nil {
+	if s.socialGraph != nil {
 		dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		ids, err := s.socialGraph.ListSavedGames(dbCtx, viewer)
+		if viewer != "" {
+			ids, err := s.socialGraph.ListSavedGames(dbCtx, viewer)
+			if err != nil {
+				cancel()
+				return nil, err
+			}
+			saved = make(map[string]bool, len(ids))
+			for _, id := range ids {
+				saved[id] = true
+			}
+		}
+		gameIDs := make([]string, 0, len(games))
+		for _, game := range games {
+			if game != nil {
+				gameIDs = append(gameIDs, game.ID)
+			}
+		}
+		counts, viewerReactions, err := s.socialGraph.ListReactionSummary(dbCtx, viewer, gameIDs)
 		cancel()
 		if err != nil {
 			return nil, err
 		}
-		saved = make(map[string]bool, len(ids))
-		for _, id := range ids {
-			saved[id] = true
+		likes = counts
+		liked = map[string]bool{}
+		for gameID, reaction := range viewerReactions {
+			if reaction != "" {
+				liked[gameID] = true
+			}
 		}
 	}
 
