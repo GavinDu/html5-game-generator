@@ -57,6 +57,7 @@ final class PlayerContractTests: XCTestCase {
         {
           "packageFormatVersion":"\(format)",
           "minRuntimeVersion":"\(runtime)",
+          "irVersion":"\(irVersion)",
           "gameId":"\(gameID)",
           "ir":\(ir),
           "assets":\(assets),
@@ -88,6 +89,18 @@ final class PlayerContractTests: XCTestCase {
         XCTAssertThrowsError(try PlayerContract().validate(package(), expectedGameID: "other"))
         XCTAssertThrowsError(try PlayerContract().validate(package(ir: "null"), expectedGameID: "game-123"))
         XCTAssertThrowsError(try PlayerContract().validate(package(irHash: "not-a-hash"), expectedGameID: "game-123"))
+    }
+
+    func testRejectsUnsupportedIRVersion() {
+        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "9.0", ir: #"{\"irVersion\":\"9.0\"}"#), expectedGameID: "game-123")) { error in
+            XCTAssertEqual(error as? PlayerFailure, .unsupportedIRVersion("9.0"))
+        }
+    }
+
+    func testRejectsEnvelopeAndEmbeddedIRVersionMismatch() {
+        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "1.2", ir: #"{\"irVersion\":\"1.1\"}"#), expectedGameID: "game-123")) { error in
+            XCTAssertEqual(error as? PlayerFailure, .irVersionMismatch)
+        }
     }
 
     func testRejectsMalformedAssetReference() {
