@@ -31,7 +31,9 @@ func main() {
 	var snapshot struct {
 		Follows map[string]map[string]struct{} `json:"follows"`
 		Blocks  map[string]map[string]bool     `json:"blocks"`
-		Saves   map[string]map[string]bool     `json:"saves"`
+		Saves          map[string]map[string]bool `json:"saves"`
+		MutedTopics    map[string]map[string]bool `json:"muted_topics"`
+		NotInterested  map[string]map[string]bool `json:"not_interested"`
 	}
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		fatal("decode source snapshot: " + err.Error())
@@ -80,6 +82,32 @@ func main() {
 		fatal("import saved games: " + err.Error())
 	}
 	fmt.Printf("source_saves=%d inserted_saves=%d already_present=%d\n", len(saves), insertedSaves, len(saves)-insertedSaves)
+	mutedTopicCount := 0
+	for viewer, topics := range snapshot.MutedTopics {
+		for topic, enabled := range topics {
+			if !enabled {
+				continue
+			}
+			if err := db.AddMutedTopic(ctx, viewer, topic); err != nil {
+				fatal("import muted topic: " + err.Error())
+			}
+			mutedTopicCount++
+		}
+	}
+	fmt.Printf("source_muted_topics=%d\n", mutedTopicCount)
+	notInterestedCount := 0
+	for viewer, games := range snapshot.NotInterested {
+		for gameID, enabled := range games {
+			if !enabled {
+				continue
+			}
+			if err := db.AddNotInterested(ctx, viewer, gameID); err != nil {
+				fatal("import not-interested game: " + err.Error())
+			}
+			notInterestedCount++
+		}
+	}
+	fmt.Printf("source_not_interested=%d\n", notInterestedCount)
 }
 
 func fatal(message string) {
