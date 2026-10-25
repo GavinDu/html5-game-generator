@@ -87,7 +87,6 @@ func TestFeedRankingFixtureAndNewestFirstRollback(t *testing.T) {
 	}
 }
 
-
 func TestFeedRankingIsRepeatableAndMeasuresCreatorDiversity(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	st := store.NewMemoryStore()
