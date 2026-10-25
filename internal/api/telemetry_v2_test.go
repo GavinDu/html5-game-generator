@@ -231,7 +231,6 @@ func TestTelemetryAggregateEndpointsRequireAdminToken(t *testing.T) {
 	}
 }
 
-
 func TestTelemetryV2RejectsTrailingJSONValues(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
 	srv := newTestServer()
