@@ -51,6 +51,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel("Exit game")
+                .accessibilityIdentifier("player.exit")
 
                 Text(title)
                     .font(.headline)
@@ -84,22 +85,28 @@ public struct PlayerExperienceView<Renderer: View>: View {
             HStack(spacing: 12) {
                 switch state {
                 case .ready:
-                    Button(action: onPlay) { Label("Play", systemImage: "play.fill") }
+                    Button(action: onPlay) { Label("Play", systemImage: "play.fill").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.play")
                 case .playing:
-                    Button(action: onPause) { Label("Pause", systemImage: "pause.fill") }
+                    Button(action: onPause) { Label("Pause", systemImage: "pause.fill").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.pause")
                 case .paused:
-                    Button(action: onResume) { Label("Resume", systemImage: "play.fill") }
+                    Button(action: onResume) { Label("Resume", systemImage: "play.fill").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.resume")
                 case .completed:
-                    Button(action: onRestart) { Label("Play again", systemImage: "arrow.clockwise") }
+                    Button(action: onRestart) { Label("Play again", systemImage: "arrow.clockwise").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.restart")
                 case .failed:
-                    Button(action: onRetry) { Label("Retry", systemImage: "arrow.clockwise") }
+                    Button(action: onRetry) { Label("Retry", systemImage: "arrow.clockwise").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
-                    Button(action: onExit) { Label("Exit", systemImage: "xmark") }
+                        .accessibilityIdentifier("player.retry")
+                    Button(action: onExit) { Label("Exit", systemImage: "xmark").frame(minHeight: 44) }
                         .buttonStyle(.bordered)
+                        .accessibilityIdentifier("player.exit.failure")
                 case .idle, .loading:
                     EmptyView()
                 }
@@ -110,6 +117,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
                     ProgressView(value: min(max(progress, 0), 1))
                         .frame(maxWidth: 120)
                         .accessibilityLabel("Game loading progress")
+                        .accessibilityIdentifier("player.loadingProgress")
                 }
             }
             .padding(.horizontal, 16)
