@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
+	"doodlequest/internal/socialgraph"
 )
 
 type commentIdempotencyRecord struct {
@@ -587,14 +589,34 @@ func (s *Server) handleDeleteReaction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"reaction": ""})
 }
 func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
-	if !s.socialGameAvailableFor(r.PathValue("id"), userID(r)) {
+	gameID := r.PathValue("id")
+	if !s.socialGameAvailableFor(gameID, userID(r)) {
 		writeErr(w, 404, "game not found")
 		return
 	}
-	s.socialMu.RLock()
-	out := append([]socialComment(nil), s.comments[r.PathValue("id")]...)
-	s.socialMu.RUnlock()
-	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	var out []socialComment
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		comments, err := s.socialGraph.ListComments(ctx, gameID)
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read comments")
+			return
+		}
+		out = make([]socialComment, 0, len(comments))
+		for _, c := range comments {
+			out = append(out, socialComment{ID: c.ID, GameID: c.GameID, UserID: c.UserID, Body: c.Body, CreatedAt: c.CreatedAt})
+		}
+	} else {
+		s.socialMu.RLock()
+		out = append([]socialComment(nil), s.comments[gameID]...)
+		s.socialMu.RUnlock()
+		sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	}
 	page, next, err := paginateComments(out, r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -640,6 +662,7 @@ func paginateComments(items []socialComment, r *http.Request) ([]socialComment, 
 	}
 	return page, next, nil
 }
+
 func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	var req textRequest
 	if !decodeJSON(w, r, &req) {
@@ -651,7 +674,8 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if !s.socialGameAvailableFor(id, userID(r)) {
+	viewer := userID(r)
+	if !s.socialGameAvailableFor(id, viewer) {
 		writeErr(w, 404, "game not found")
 		return
 	}
@@ -660,7 +684,32 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "Idempotency-Key must be at most 128 characters")
 		return
 	}
-	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		created := socialgraph.Comment{ID: pipeline.NewID(), GameID: id, UserID: viewer, Body: body, CreatedAt: time.Now().UTC()}
+		comment, replay, err := s.socialGraph.CreateComment(ctx, created, key)
+		if errors.Is(err, socialgraph.ErrCommentIdempotencyConflict) {
+			writeErr(w, http.StatusConflict, "Idempotency-Key was already used for a different comment")
+			return
+		}
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist comment")
+			return
+		}
+		out := socialComment{ID: comment.ID, GameID: comment.GameID, UserID: comment.UserID, Body: comment.Body, CreatedAt: comment.CreatedAt}
+		status := http.StatusCreated
+		if replay {
+			writeJSON(w, status, map[string]any{"comment": out, "idempotent_replay": true})
+		} else {
+			writeJSON(w, status, map[string]any{"comment": out})
+		}
+		return
+	}
 	s.socialMu.Lock()
 	if key != "" {
 		if prior, ok := s.commentIdempotency[key]; ok {
@@ -682,12 +731,49 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		}
 		s.commentIdempotency[key] = commentIdempotencyRecord{UserID: viewer, GameID: id, Body: body, Comment: c}
 	}
-	s.persistSocialStateLocked()
+	if err := s.persistSocialStateLocked(); err != nil {
+		// Roll back the in-memory mutation as well as the failed disk write so
+		// a client retry cannot receive a false idempotent success.
+		items := s.comments[id]
+		if len(items) > 0 && items[len(items)-1].ID == c.ID {
+			s.comments[id] = items[:len(items)-1]
+		}
+		if key != "" {
+			delete(s.commentIdempotency, key)
+		}
+		s.socialMu.Unlock()
+		writeErr(w, http.StatusServiceUnavailable, "could not persist comment")
+		return
+	}
 	s.socialMu.Unlock()
 	writeJSON(w, 201, map[string]any{"comment": c})
 }
+
 func (s *Server) handleDeleteComment(w http.ResponseWriter, r *http.Request) {
 	gameID, commentID, viewer := r.PathValue("id"), r.PathValue("commentID"), userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		found, owned, err := s.socialGraph.DeleteComment(ctx, gameID, commentID, viewer)
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not delete comment")
+			return
+		}
+		if !found {
+			writeErr(w, http.StatusNotFound, "comment not found")
+			return
+		}
+		if !owned {
+			writeErr(w, http.StatusForbidden, "only the comment author can delete it")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+		return
+	}
 	s.socialMu.Lock()
 	defer s.socialMu.Unlock()
 	items := s.comments[gameID]
@@ -699,8 +785,14 @@ func (s *Server) handleDeleteComment(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusForbidden, "only the comment author can delete it")
 			return
 		}
+		previous := append([]socialComment(nil), items...)
 		s.comments[gameID] = append(items[:i], items[i+1:]...)
-		s.persistSocialStateLocked()
+		if err := s.persistSocialStateLocked(); err != nil {
+			// Keep memory consistent with disk when a delete cannot be persisted.
+			s.comments[gameID] = previous
+			writeErr(w, http.StatusServiceUnavailable, "could not persist comment deletion")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 		return
 	}

@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const postgresBackupFormatVersion = 1
+const postgresBackupFormatVersion = 2
 
 type postgresBackupEnvelope struct {
 	FormatVersion int             `json:"formatVersion"`
@@ -21,13 +21,15 @@ type postgresBackupEnvelope struct {
 }
 
 type postgresBackupSnapshot struct {
-	Follows []Edge          `json:"follows"`
-	Blocks  []BlockRelation `json:"blocks"`
-	Saves   []SaveRelation  `json:"saves"`
+	Follows            []Edge                       `json:"follows"`
+	Blocks             []BlockRelation              `json:"blocks"`
+	Saves              []SaveRelation               `json:"saves"`
+	Comments           []Comment                    `json:"comments"`
+	CommentIdempotency []CommentIdempotencyRelation `json:"commentIdempotency"`
 }
 
 // BackupTo exports a consistent, checksummed snapshot of shared follow, block,
-// and saved-game relations. The backup is written with restrictive permissions and an
+// saved-game, comment, and comment-idempotency records. The backup is written with restrictive permissions and an
 // atomic rename so incomplete files are not mistaken for valid backups.
 func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
@@ -36,9 +38,11 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	}
 	defer tx.Rollback()
 	snapshot := postgresBackupSnapshot{
-		Follows: make([]Edge, 0),
-		Blocks:  make([]BlockRelation, 0),
-		Saves:   make([]SaveRelation, 0),
+		Follows:            make([]Edge, 0),
+		Blocks:             make([]BlockRelation, 0),
+		Saves:              make([]SaveRelation, 0),
+		Comments:           make([]Comment, 0),
+		CommentIdempotency: make([]CommentIdempotencyRelation, 0),
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT viewer_id, creator_id FROM social_follows ORDER BY viewer_id, creator_id`)
 	if err != nil {
@@ -96,6 +100,44 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	}
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close saved-game relation rows: %w", err)
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT id, game_id, user_id, body, created_at FROM social_comments ORDER BY game_id, created_at, id`)
+	if err != nil {
+		return fmt.Errorf("query comments for backup: %w", err)
+	}
+	for rows.Next() {
+		var comment Comment
+		if err := rows.Scan(&comment.ID, &comment.GameID, &comment.UserID, &comment.Body, &comment.CreatedAt); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan comment for backup: %w", err)
+		}
+		snapshot.Comments = append(snapshot.Comments, comment)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate comments for backup: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close comment rows: %w", err)
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT user_id, idempotency_key, game_id, body, comment_id, created_at FROM social_comment_idempotency ORDER BY idempotency_key`)
+	if err != nil {
+		return fmt.Errorf("query comment idempotency for backup: %w", err)
+	}
+	for rows.Next() {
+		var relation CommentIdempotencyRelation
+		if err := rows.Scan(&relation.UserID, &relation.Key, &relation.GameID, &relation.Body, &relation.CommentID, &relation.CreatedAt); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan comment idempotency for backup: %w", err)
+		}
+		snapshot.CommentIdempotency = append(snapshot.CommentIdempotency, relation)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate comment idempotency for backup: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close comment idempotency rows: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("finish social graph backup snapshot: %w", err)
@@ -159,6 +201,27 @@ func (s *PostgresStore) RestoreFrom(ctx context.Context, path string) error {
 			return fmt.Errorf("restore saved-game relation: %w", err)
 		}
 	}
+	commentStmt, err := tx.PrepareContext(ctx, `INSERT INTO social_comments (id, game_id, user_id, body, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("prepare comment restore: %w", err)
+	}
+	defer commentStmt.Close()
+	for _, comment := range snapshot.Comments {
+		if _, err := commentStmt.ExecContext(ctx, comment.ID, comment.GameID, comment.UserID, comment.Body, comment.CreatedAt); err != nil {
+			return fmt.Errorf("restore comment: %w", err)
+		}
+	}
+	idempotencyStmt, err := tx.PrepareContext(ctx, `INSERT INTO social_comment_idempotency (user_id, idempotency_key, game_id, body, comment_id, created_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (idempotency_key) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("prepare comment idempotency restore: %w", err)
+	}
+	defer idempotencyStmt.Close()
+	for _, relation := range snapshot.CommentIdempotency {
+		if _, err := idempotencyStmt.ExecContext(ctx, relation.UserID, relation.Key, relation.GameID, relation.Body, relation.CommentID, relation.CreatedAt); err != nil {
+			return fmt.Errorf("restore comment idempotency: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit social graph restore: %w", err)
 	}
@@ -174,7 +237,7 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("decode social graph backup envelope: %w", err)
 	}
-	if envelope.FormatVersion != postgresBackupFormatVersion {
+	if envelope.FormatVersion != 1 && envelope.FormatVersion != postgresBackupFormatVersion {
 		return postgresBackupSnapshot{}, fmt.Errorf("unsupported social graph backup format version %d", envelope.FormatVersion)
 	}
 	sum := sha256.Sum256(envelope.Snapshot)
@@ -187,6 +250,13 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 	}
 	if snapshot.Follows == nil || snapshot.Blocks == nil || snapshot.Saves == nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing required collections")
+	}
+	// Version 1 snapshots predate PostgreSQL comment storage.
+	if envelope.FormatVersion == 1 {
+		snapshot.Comments = []Comment{}
+		snapshot.CommentIdempotency = []CommentIdempotencyRelation{}
+	} else if snapshot.Comments == nil || snapshot.CommentIdempotency == nil {
+		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing comment collections")
 	}
 	for _, edge := range snapshot.Follows {
 		viewer, creator := strings.TrimSpace(edge.ViewerID), strings.TrimSpace(edge.CreatorID)
@@ -206,6 +276,22 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid saved-game relation")
 		}
 	}
+	for _, comment := range snapshot.Comments {
+		if strings.TrimSpace(comment.ID) == "" || strings.TrimSpace(comment.GameID) == "" ||
+			strings.TrimSpace(comment.UserID) == "" || strings.TrimSpace(comment.Body) == "" ||
+			len(comment.ID) > 128 || len(comment.GameID) > 128 || len(comment.UserID) > 128 || len(comment.Body) > 2000 {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid comment")
+		}
+	}
+	for _, relation := range snapshot.CommentIdempotency {
+		if strings.TrimSpace(relation.UserID) == "" || strings.TrimSpace(relation.Key) == "" ||
+			strings.TrimSpace(relation.GameID) == "" || strings.TrimSpace(relation.Body) == "" ||
+			strings.TrimSpace(relation.CommentID) == "" || len(relation.UserID) > 128 ||
+			len(relation.Key) > 128 || len(relation.GameID) > 128 || len(relation.Body) > 2000 || len(relation.CommentID) > 128 {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid comment idempotency record")
+		}
+	}
+
 	return snapshot, nil
 }
 

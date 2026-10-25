@@ -13,10 +13,28 @@ import (
 
 var ErrSelfFollow = errors.New("a user cannot follow themselves")
 var ErrSelfBlock = errors.New("a user cannot block themselves")
+var ErrCommentIdempotencyConflict = errors.New("idempotency key was already used for a different comment")
 
 type SaveRelation struct {
 	ViewerID string
 	GameID   string
+}
+
+type Comment struct {
+	ID        string
+	GameID    string
+	UserID    string
+	Body      string
+	CreatedAt time.Time
+}
+
+type CommentIdempotencyRelation struct {
+	UserID    string
+	Key       string
+	GameID    string
+	Body      string
+	CommentID string
+	CreatedAt time.Time
 }
 
 // Store defines durable follow, block, and saved-game relations shared by all API replicas.
@@ -31,6 +49,9 @@ type Store interface {
 	SaveGame(ctx context.Context, viewerID, gameID string) error
 	UnsaveGame(ctx context.Context, viewerID, gameID string) error
 	ListSavedGames(ctx context.Context, viewerID string) ([]string, error)
+	CreateComment(ctx context.Context, comment Comment, idempotencyKey string) (Comment, bool, error)
+	ListComments(ctx context.Context, gameID string) ([]Comment, error)
+	DeleteComment(ctx context.Context, gameID, commentID, actorID string) (found bool, owned bool, err error)
 	Close() error
 }
 
@@ -89,6 +110,23 @@ CREATE TABLE IF NOT EXISTS social_saves (
 );
 CREATE INDEX IF NOT EXISTS social_saves_viewer_idx
   ON social_saves (viewer_id, game_id);
+CREATE TABLE IF NOT EXISTS social_comments (
+  id TEXT PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 128),
+  game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
+  user_id TEXT NOT NULL CHECK (length(user_id) BETWEEN 1 AND 128),
+  body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS social_comments_game_created_idx
+  ON social_comments (game_id, created_at, id);
+CREATE TABLE IF NOT EXISTS social_comment_idempotency (
+  user_id TEXT NOT NULL CHECK (length(user_id) BETWEEN 1 AND 128),
+  idempotency_key TEXT PRIMARY KEY CHECK (length(idempotency_key) BETWEEN 1 AND 128),
+  game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
+  body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 2000),
+  comment_id TEXT NOT NULL CHECK (length(comment_id) BETWEEN 1 AND 128),
+  created_at TIMESTAMPTZ NOT NULL
+);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -411,6 +449,160 @@ func (s *PostgresStore) ImportSaves(ctx context.Context, relations []SaveRelatio
 	}
 	return inserted, nil
 }
+func (s *PostgresStore) CreateComment(ctx context.Context, comment Comment, idempotencyKey string) (Comment, bool, error) {
+	comment.ID = strings.TrimSpace(comment.ID)
+	comment.GameID = strings.TrimSpace(comment.GameID)
+	comment.UserID = strings.TrimSpace(comment.UserID)
+	comment.Body = strings.TrimSpace(comment.Body)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if comment.ID == "" || comment.GameID == "" || comment.UserID == "" ||
+		len(comment.ID) > 128 || len(comment.GameID) > 128 || len(comment.UserID) > 128 ||
+		comment.Body == "" || len(comment.Body) > 2000 || len(idempotencyKey) > 128 {
+		return Comment{}, false, errors.New("comment IDs must be 1–128 characters, body 1–2000 characters, and idempotency key at most 128 characters")
+	}
+	if comment.CreatedAt.IsZero() {
+		comment.CreatedAt = time.Now().UTC()
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Comment{}, false, fmt.Errorf("begin comment transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if idempotencyKey != "" {
+		prior, found, err := loadIdempotentComment(ctx, tx, idempotencyKey)
+		if err != nil {
+			return Comment{}, false, err
+		}
+		if found {
+			if prior.UserID != comment.UserID || prior.GameID != comment.GameID || prior.Body != comment.Body {
+				return Comment{}, false, ErrCommentIdempotencyConflict
+			}
+			if err := tx.Commit(); err != nil {
+				return Comment{}, false, fmt.Errorf("commit idempotent comment read: %w", err)
+			}
+			return prior, true, nil
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO social_comments (id, game_id, user_id, body, created_at)
+VALUES ($1, $2, $3, $4, $5)`, comment.ID, comment.GameID, comment.UserID, comment.Body, comment.CreatedAt); err != nil {
+		return Comment{}, false, fmt.Errorf("insert comment: %w", err)
+	}
+	if idempotencyKey != "" {
+		result, err := tx.ExecContext(ctx, `
+INSERT INTO social_comment_idempotency
+(user_id, idempotency_key, game_id, body, comment_id, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (idempotency_key) DO NOTHING`,
+			comment.UserID, idempotencyKey, comment.GameID, comment.Body, comment.ID, comment.CreatedAt)
+		if err != nil {
+			return Comment{}, false, fmt.Errorf("persist comment idempotency key: %w", err)
+		}
+		inserted, err := result.RowsAffected()
+		if err != nil {
+			return Comment{}, false, fmt.Errorf("check comment idempotency insert: %w", err)
+		}
+		if inserted == 0 {
+			// A concurrent request won the same idempotency key. Roll back the
+			// speculative comment before loading the winner in a fresh query.
+			_ = tx.Rollback()
+			prior, found, err := loadIdempotentComment(ctx, s.db, idempotencyKey)
+			if err != nil {
+				return Comment{}, false, err
+			}
+			if !found {
+				return Comment{}, false, errors.New("idempotency record disappeared after conflict")
+			}
+			if prior.GameID != comment.GameID || prior.Body != comment.Body {
+				return Comment{}, false, ErrCommentIdempotencyConflict
+			}
+			return prior, true, nil
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return Comment{}, false, fmt.Errorf("commit comment: %w", err)
+	}
+	return comment, false, nil
+}
+
+type commentQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func loadIdempotentComment(ctx context.Context, q commentQueryer, key string) (Comment, bool, error) {
+	var comment Comment
+	err := q.QueryRowContext(ctx, `
+SELECT comment_id, game_id, user_id, body, created_at
+FROM social_comment_idempotency
+WHERE idempotency_key = $1`, key).Scan(
+		&comment.ID, &comment.GameID, &comment.UserID, &comment.Body, &comment.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Comment{}, false, nil
+	}
+	if err != nil {
+		return Comment{}, false, fmt.Errorf("read comment idempotency record: %w", err)
+	}
+	return comment, true, nil
+}
+
+func (s *PostgresStore) ListComments(ctx context.Context, gameID string) ([]Comment, error) {
+	gameID = strings.TrimSpace(gameID)
+	if gameID == "" || len(gameID) > 128 {
+		return nil, errors.New("game ID must be 1–128 characters")
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, game_id, user_id, body, created_at
+FROM social_comments WHERE game_id = $1
+ORDER BY created_at, id`, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("query comments: %w", err)
+	}
+	defer rows.Close()
+	comments := make([]Comment, 0)
+	for rows.Next() {
+		var comment Comment
+		if err := rows.Scan(&comment.ID, &comment.GameID, &comment.UserID, &comment.Body, &comment.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan comment: %w", err)
+		}
+		comments = append(comments, comment)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate comments: %w", err)
+	}
+	return comments, nil
+}
+
+func (s *PostgresStore) DeleteComment(ctx context.Context, gameID, commentID, actorID string) (bool, bool, error) {
+	gameID, commentID, actorID = strings.TrimSpace(gameID), strings.TrimSpace(commentID), strings.TrimSpace(actorID)
+	if gameID == "" || commentID == "" || actorID == "" || len(gameID) > 128 || len(commentID) > 128 || len(actorID) > 128 {
+		return false, false, errors.New("game, comment, and actor IDs must be 1–128 characters")
+	}
+	result, err := s.db.ExecContext(ctx,
+		`DELETE FROM social_comments WHERE game_id = $1 AND id = $2 AND user_id = $3`,
+		gameID, commentID, actorID)
+	if err != nil {
+		return false, false, fmt.Errorf("delete comment: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return false, false, fmt.Errorf("check deleted comment: %w", err)
+	}
+	if n == 1 {
+		return true, true, nil
+	}
+	var owner string
+	err = s.db.QueryRowContext(ctx,
+		`SELECT user_id FROM social_comments WHERE game_id = $1 AND id = $2`, gameID, commentID).Scan(&owner)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, fmt.Errorf("find comment after delete miss: %w", err)
+	}
+	return true, false, nil
+}
+
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
