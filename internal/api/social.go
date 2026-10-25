@@ -1019,6 +1019,19 @@ func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "game not found")
 		return
 	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.MarkNotInterested(ctx, userID(r), id)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist feed preference")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	if s.notInterested[userID(r)] == nil {
 		s.notInterested[userID(r)] = map[string]bool{}
@@ -1035,6 +1048,26 @@ type topicPreferencesRequest struct {
 
 func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		muted, err := s.socialGraph.ListMutedTopics(ctx, viewer)
+		if err == nil {
+			var ignored []string
+			ignored, err = s.socialGraph.ListNotInterested(ctx, viewer)
+			if err == nil {
+				cancel()
+				writeJSON(w, http.StatusOK, map[string]any{"muted_topics": muted, "not_interested_game_ids": ignored})
+				return
+			}
+		}
+		cancel()
+		writeErr(w, http.StatusServiceUnavailable, "could not read shared preferences")
+		return
+	}
 	s.socialMu.RLock()
 	muted := make([]string, 0, len(s.mutedTopics[viewer]))
 	for topic, value := range s.mutedTopics[viewer] {
@@ -1073,6 +1106,19 @@ func (s *Server) handleSetTopicPreferences(w http.ResponseWriter, r *http.Reques
 		muted[topic] = true
 	}
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.SetMutedTopics(ctx, viewer, req.MutedTopics)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist topic preferences")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	if s.mutedTopics == nil {
 		s.mutedTopics = map[string]map[string]bool{}
@@ -1085,6 +1131,19 @@ func (s *Server) handleSetTopicPreferences(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleResetPreferences(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.ResetPreferences(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not reset shared preferences")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	delete(s.mutedTopics, viewer)
 	delete(s.notInterested, viewer)
