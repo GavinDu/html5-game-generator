@@ -12,7 +12,7 @@ public enum GameTransportError: Error, Equatable {
 }
 
 /// Blocks redirects outside the configured origin before redirected requests are sent.
-private final class OriginRestrictedRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class OriginRestrictedRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let scheme: String
     private let host: String
     private let port: Int
