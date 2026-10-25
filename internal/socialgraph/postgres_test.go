@@ -34,7 +34,6 @@ func TestFollowImportRejectsInvalidEdgeBeforeDatabaseAccess(t *testing.T) {
 	}
 }
 
-
 func TestCommentValidationRunsBeforeDatabaseAccess(t *testing.T) {
 	s := &PostgresStore{}
 	if _, _, err := s.CreateComment(context.Background(), Comment{
