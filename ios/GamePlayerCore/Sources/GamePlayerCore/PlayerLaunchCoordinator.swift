@@ -76,6 +76,18 @@ public actor PlayerLaunchCoordinator {
         try await task.value
     }
 
+    /// Sends semantic input only while the runtime is actively playing.
+    /// Returns false when paused/stopped or when the host has no input bridge.
+    @discardableResult
+    public func sendInput(_ event: PlayerInputEvent) async -> Bool {
+        guard currentStage == .running,
+              let inputHost = runtime as? any PlayerInputRuntimeHost else {
+            return false
+        }
+        await inputHost.sendInput(event)
+        return true
+    }
+
     public func pause() async {
         guard currentStage == .running else { return }
         await runtime.pause()

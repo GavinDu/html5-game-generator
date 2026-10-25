@@ -25,8 +25,9 @@ private struct StubAssetTransport: GameAssetTransport {
     }
 }
 
-private actor StubRuntimeHost: GameRuntimeHost {
+private actor StubRuntimeHost: PlayerInputRuntimeHost {
     private(set) var starts = 0
+    private(set) var receivedInputs: [PlayerInputEvent] = []
     private(set) var lastAssets: [String: Data] = [:]
     private(set) var paused = false
     private(set) var stopped = false
@@ -35,6 +36,7 @@ private actor StubRuntimeHost: GameRuntimeHost {
         starts += 1
         lastAssets = assets
     }
+    func sendInput(_ event: PlayerInputEvent) async { receivedInputs.append(event) }
     func pause() async { paused = true }
     func resume() async throws { paused = false }
     func stop() async { stopped = true }
@@ -75,6 +77,36 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
         XCTAssertEqual(starts, 1)
         XCTAssertEqual(loadedAssets["sprite"], assets["sprite"])
         XCTAssertEqual(stage, .running)
+    }
+
+    func testInputIsForwardedOnlyWhileRuntimeIsPlaying() async throws {
+        let (package, assets) = fixturePackage()
+        let runtime = StubRuntimeHost()
+        let coordinator = PlayerLaunchCoordinator(
+            packageTransport: StubPackageTransport(data: package),
+            assetTransport: StubAssetTransport(responses: assets),
+            runtime: runtime
+        )
+        try await coordinator.launch(gameID: "game-123")
+
+        let move = PlayerInputEvent(action: .moveLeft, phase: .began, source: .touch)
+        let deliveredMove = await coordinator.sendInput(move)
+        XCTAssertTrue(deliveredMove)
+        let firstInputs = await runtime.receivedInputs
+        XCTAssertEqual(firstInputs, [move])
+
+        await coordinator.pause()
+        let deliveredWhilePaused = await coordinator.sendInput(move)
+        XCTAssertFalse(deliveredWhilePaused)
+        let pausedInputs = await runtime.receivedInputs
+        XCTAssertEqual(pausedInputs, [move])
+
+        try await coordinator.resume()
+        let release = PlayerInputEvent(action: .moveLeft, phase: .ended, source: .touch)
+        let deliveredRelease = await coordinator.sendInput(release)
+        XCTAssertTrue(deliveredRelease)
+        let allInputs = await runtime.receivedInputs
+        XCTAssertEqual(allInputs, [move, release])
     }
 
     func testSupersededLaunchCannotOverwriteNewerSessionState() async throws {
