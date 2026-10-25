@@ -1,5 +1,26 @@
+import Foundation
 import XCTest
 @testable import GamePlayerCore
+
+private final class CrossOriginRedirectURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let redirected = URL(string: "https://attacker.example/redirected")!
+        let response = HTTPURLResponse(
+            url: redirected,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("{}".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
 
 final class URLSessionGameTransportTests: XCTestCase {
     func testRejectsNonTLSProductionBaseURL() {
@@ -43,6 +64,22 @@ final class URLSessionGameTransportTests: XCTestCase {
             } catch let error as GameTransportError {
                 XCTAssertEqual(error, .rejectedURL)
             }
+        }
+    }
+
+    func testRejectsCrossOriginRedirectBeforeAcceptingResponseBytes() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CrossOriginRedirectURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let transport = try URLSessionGameTransport(
+            baseURL: URL(string: "https://api.example.com")!,
+            session: session
+        )
+        do {
+            _ = try await transport.fetchPackage(gameID: "game-1", version: nil)
+            XCTFail("cross-origin redirect must be rejected")
+        } catch let error as GameTransportError {
+            XCTAssertEqual(error, .rejectedURL)
         }
     }
 }
