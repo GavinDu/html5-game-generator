@@ -76,7 +76,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityHidden(isOverlayBlocking)
 
-                if showsTouchControls, state == .playing {
+                if showsTouchControls, case .playing = state {
                     VStack {
                         Spacer()
                         HStack {
