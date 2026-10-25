@@ -2,6 +2,7 @@ package socialgraph
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
