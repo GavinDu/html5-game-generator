@@ -85,6 +85,7 @@ func (s *Server) canDeliver(g *model.Game, viewer string) bool {
 func (s *Server) deliverableGame(w http.ResponseWriter, r *http.Request) (*model.Game, bool) {
 	game, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok || !s.canDeliver(game, userID(r)) {
+		w.Header().Set("Cache-Control", "private, no-store")
 		writeErr(w, http.StatusNotFound, "game not found")
 		return nil, false
 	}
