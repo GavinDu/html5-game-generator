@@ -16,6 +16,7 @@ type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
 	Unfollow(ctx context.Context, viewerID, creatorID string) error
 	ListFollowing(ctx context.Context, viewerID string) ([]string, error)
+	ListFollowers(ctx context.Context, creatorID string) ([]string, error)
 	Close() error
 }
 
