@@ -155,6 +155,12 @@ type Edge struct {
 // ImportFollows idempotently imports a snapshot's follow edges in one
 // transaction. It never deletes destination rows and is safe to resume.
 func (s *PostgresStore) ImportFollows(ctx context.Context, edges []Edge) (int, error) {
+	for _, edge := range edges {
+		viewer, creator := strings.TrimSpace(edge.ViewerID), strings.TrimSpace(edge.CreatorID)
+		if viewer == "" || creator == "" || len(viewer) > 128 || len(creator) > 128 || viewer == creator {
+			return 0, fmt.Errorf("invalid follow edge in import")
+		}
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin follow import: %w", err)
