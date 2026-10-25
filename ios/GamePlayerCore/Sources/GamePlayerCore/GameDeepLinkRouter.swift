@@ -19,6 +19,7 @@ public enum GameDeepLinkError: Error, Equatable {
     case invalidGameID
     case invalidVersion
     case invalidRemixParentID
+    case duplicateQueryParameter
 }
 
 public struct GameDeepLinkRouter: Sendable {
@@ -40,7 +41,9 @@ public struct GameDeepLinkRouter: Sendable {
         let segments: [String]
         if scheme == "https" {
             guard let host = components.host?.lowercased(), allowedHosts.contains(host),
-                  components.user == nil, components.password == nil else {
+                  components.user == nil, components.password == nil,
+                  (components.port == nil || components.port == 443),
+                  components.fragment == nil else {
                 throw GameDeepLinkError.unsupportedURL
             }
             segments = components.path.split(separator: "/").map(String.init)
@@ -57,8 +60,16 @@ public struct GameDeepLinkRouter: Sendable {
         let gameID = segments[1]
         guard Self.validIdentifier(gameID) else { throw GameDeepLinkError.invalidGameID }
 
+        let queryItems = components.queryItems ?? []
+        let parentKeys: Set<String> = ["parentGameId", "remixParent", "remix_parent"]
+        let recognizedKeys = queryItems.filter { $0.name == "version" || parentKeys.contains($0.name) }
+        let recognizedNames = recognizedKeys.map(\.name)
+        guard Set(recognizedNames).count == recognizedNames.count,
+              recognizedNames.filter({ parentKeys.contains($0) }).count <= 1 else {
+            throw GameDeepLinkError.duplicateQueryParameter
+        }
         let query = Dictionary(
-            (components.queryItems ?? []).compactMap { item -> (String, String)? in
+            queryItems.compactMap { item -> (String, String)? in
                 guard let value = item.value else { return nil }
                 return (item.name, value)
             },

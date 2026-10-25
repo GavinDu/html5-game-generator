@@ -24,6 +24,17 @@ final class GameDeepLinkRouterTests: XCTestCase {
         XCTAssertThrowsError(try router.route(URL(string: "https://evil.example/games/game-123")!))
         XCTAssertThrowsError(try router.route(URL(string: "javascript://games/game-123")!))
         XCTAssertThrowsError(try router.route(URL(string: "http://games.example.com/games/game-123")!))
+        XCTAssertThrowsError(try router.route(URL(string: "https://games.example.com:444/games/game-123")!))
+        XCTAssertThrowsError(try router.route(URL(string: "https://games.example.com/games/game-123#fragment")!))
+    }
+
+    func testRejectsAmbiguousVersionAndRemixQueryParameters() {
+        XCTAssertThrowsError(try router.route(URL(string: "https://games.example.com/games/game-123?version=v1&version=v2")!)) { error in
+            XCTAssertEqual(error as? GameDeepLinkError, .duplicateQueryParameter)
+        }
+        XCTAssertThrowsError(try router.route(URL(string: "https://games.example.com/games/game-123?parentGameId=p1&remixParent=p2")!)) { error in
+            XCTAssertEqual(error as? GameDeepLinkError, .duplicateQueryParameter)
+        }
     }
 
     func testRejectsPathTraversalAndInvalidIdentifiers() {
