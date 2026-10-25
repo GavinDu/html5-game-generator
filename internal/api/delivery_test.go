@@ -234,6 +234,7 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = first.socialGraph.Unblock(context.Background(), viewer, creator)
+		_ = first.socialGraph.UnsaveGame(context.Background(), viewer, savedGameID)
 		_ = first.socialGraph.Close()
 		_ = second.socialGraph.Close()
 	})
