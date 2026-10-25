@@ -5,11 +5,11 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
-	"time"
 )
 
 func TestUserAuthFailsClosedWithoutConfiguration(t *testing.T) {
