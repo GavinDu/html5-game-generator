@@ -285,6 +285,7 @@ func writeAtomicFile(path string, data []byte) error {
 	}
 	return nil
 }
+
 // persistLocked writes the snapshot; callers hold s.mu. Failures are
 // swallowed by design (same posture as the social state file): a disk
 // problem must not take request handling down with it.
