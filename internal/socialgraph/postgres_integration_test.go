@@ -220,6 +220,13 @@ func TestPostgresCommentsAreSharedAndIdempotentAcrossInstances(t *testing.T) {
 		t.Fatalf("conflicting idempotency key error = %v, want ErrCommentIdempotencyConflict", err)
 	}
 
+	_, _, err = second.CreateComment(ctx, Comment{
+		ID: "other-user-" + suffix, GameID: gameID, UserID: "other-user-" + suffix, Body: "hello shared graph",
+	}, key)
+	if !errors.Is(err, ErrCommentIdempotencyConflict) {
+		t.Fatalf("cross-user idempotency key error = %v, want ErrCommentIdempotencyConflict", err)
+	}
+
 	found, owned, err := second.DeleteComment(ctx, gameID, created.ID, "different-user")
 	if err != nil || !found || owned {
 		t.Fatalf("non-author delete = found %v owned %v err %v", found, owned, err)
