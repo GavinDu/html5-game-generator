@@ -25,7 +25,11 @@ func TestPostgresStoreSharesFollowEdgesAcrossInstances(t *testing.T) {
 
 	viewer := "integration-viewer-" + time.Now().UTC().Format("20060102150405.000000000")
 	creator := "integration-creator-" + time.Now().UTC().Format("20060102150405.000000000")
-	t.Cleanup(func() { _ = first.Unfollow(context.Background(), viewer, creator) })
+	t.Cleanup(func() {
+		_ = first.Unfollow(context.Background(), viewer, creator)
+		_ = first.Close()
+		_ = second.Close()
+	})
 
 	if err := first.Follow(ctx, viewer, creator); err != nil {
 		t.Fatalf("follow through first instance: %v", err)
@@ -60,12 +64,10 @@ func TestPostgresStoreSharesBlockRelationsAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open first graph store: %v", err)
 	}
-	defer first.Close()
 	second, err := OpenPostgres(ctx, dsn)
 	if err != nil {
 		t.Fatalf("open second graph store: %v", err)
 	}
-	defer second.Close()
 
 	viewer := "integration-blocker-" + time.Now().UTC().Format("20060102150405.000000000")
 	blocked := "integration-blocked-" + time.Now().UTC().Format("20060102150405.000000000")
@@ -118,12 +120,10 @@ func TestPostgresStoreSharesSavedGamesAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open first graph store: %v", err)
 	}
-	defer first.Close()
 	second, err := OpenPostgres(ctx, dsn)
 	if err != nil {
 		t.Fatalf("open second graph store: %v", err)
 	}
-	defer second.Close()
 	viewer := "integration-save-viewer-" + time.Now().UTC().Format("20060102150405.000000000")
 	gameID := "integration-saved-game-" + time.Now().UTC().Format("20060102150405.000000000")
 	t.Cleanup(func() {
