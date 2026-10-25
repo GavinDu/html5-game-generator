@@ -54,7 +54,6 @@ func TestTelemetryV2IdempotencySurvivesRestart(t *testing.T) {
 	}
 }
 
-
 func TestTelemetryV2MalformedLogDoesNotBlockValidRetryIndex(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DQ_TELEMETRY_DIR", dir)
