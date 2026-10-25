@@ -19,6 +19,11 @@ import (
 )
 
 func newTestServer() *Server {
+	// Existing API tests exercise the explicit local-development identity mode.
+	// Production deployments must configure signed bearer authentication instead.
+	if os.Getenv("DQ_ALLOW_INSECURE_USER_ID") == "" {
+		_ = os.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
+	}
 	st := store.NewMemoryStore()
 	return New(st, pipeline.NewRunner(st))
 }
