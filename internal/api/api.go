@@ -42,6 +42,8 @@ var rapierVendorJS string
 type Server struct {
 	store              store.Store
 	runner             *pipeline.Runner
+	deliveryMu         sync.Mutex
+	deliveryMetrics    map[string]*deliveryMetricSnapshot
 	socialMu           sync.RWMutex
 	follows            map[string]map[string]struct{}
 	reactions          map[string]map[string]string
@@ -120,6 +122,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
 	mux.HandleFunc("POST /v1/telemetry/events", s.handleTelemetryEvent)
 	mux.HandleFunc("GET /v1/telemetry/perf", s.handlePerfSummary)
+	mux.HandleFunc("GET /v1/telemetry/delivery", s.handleDeliveryMetrics)
 	mux.HandleFunc("GET /v1/telemetry/incidents", s.handleIncidents)
 	mux.HandleFunc("POST /v1/games/{id}/quarantine", s.handleQuarantine)
 	mux.HandleFunc("POST /v1/games/{id}/unquarantine", s.handleUnquarantine)
@@ -155,8 +158,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/ir/validate", s.handleIRValidate)
 	mux.HandleFunc("POST /v1/game-ir/validate", s.handleGameIRValidate)
 	mux.HandleFunc("GET /v1/games/{id}/game-ir", s.handleGetGameIR)
-	mux.HandleFunc("GET /v1/games/{id}/assets/{asset}", s.handleGetGameAsset)
-	mux.HandleFunc("GET /v1/games/{id}/package", s.handleGetPackage)
+	mux.Handle("GET /v1/games/{id}/assets/{asset}", s.observeDelivery("asset", s.handleGetGameAsset))
+	mux.Handle("GET /v1/games/{id}/package", s.observeDelivery("package", s.handleGetPackage))
 	return cors(mux)
 }
 

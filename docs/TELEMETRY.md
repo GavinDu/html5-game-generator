@@ -41,3 +41,11 @@ The in-memory indexes are bounded (20,000 structured session/performance/run/mil
 - Regression tests cover accepted event aggregation, unknown-kind/schema rejection, duplicate event IDs, and deduplication of session counts.
 - The idempotency index is process-local. Durable/cross-replica idempotency and automatic raw-file retention remain open work.
 - Before broad public launch, add an automated retention/rotation job, define operator access controls for aggregate endpoints, and verify telemetry delivery end-to-end on real clients.
+
+## Package and asset delivery metrics
+
+The token-protected `GET /v1/telemetry/delivery` endpoint reports aggregate request counts for the package and asset delivery routes. Send the configured `DQ_TELEMETRY_ADMIN_TOKEN` in the `X-Telemetry-Admin-Token` header.
+
+Per route, the response includes total requests, successful responses, `304 Not Modified` responses, 4xx and 5xx counts, response-body bytes written, cumulative latency in milliseconds, and maximum observed latency. The counters are process-local and reset when the service restarts. They deliberately omit game IDs, user IDs, request paths, and headers.
+
+Use these counters to establish a baseline before selecting object storage/CDN infrastructure. They are not durable analytics, do not measure cache hits at an external CDN, and do not replace a production monitoring system. Configure the admin token before exposing operator telemetry; an unset token makes the endpoint unavailable.
