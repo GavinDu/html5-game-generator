@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import GamePlayerCore
 
@@ -57,9 +58,12 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
 
         try await coordinator.launch(gameID: "game-123", version: "v7")
 
-        XCTAssertEqual(await runtime.starts, 1)
-        XCTAssertEqual(await runtime.lastAssets["sprite"], assets["sprite"])
-        XCTAssertEqual(await coordinator.stage, .running)
+        let starts = await runtime.starts
+        let loadedAssets = await runtime.lastAssets
+        let stage = await coordinator.stage
+        XCTAssertEqual(starts, 1)
+        XCTAssertEqual(loadedAssets["sprite"], assets["sprite"])
+        XCTAssertEqual(stage, .running)
     }
 
     func testHashMismatchFailsClosedAndDoesNotStartRuntime() async {
@@ -80,8 +84,10 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
             XCTFail("unexpected error: \(error)")
         }
 
-        XCTAssertEqual(await runtime.starts, 0)
-        XCTAssertEqual(await coordinator.stage, .failed(.malformedPackage))
+        let starts = await runtime.starts
+        let stage = await coordinator.stage
+        XCTAssertEqual(starts, 0)
+        XCTAssertEqual(stage, .failed(.malformedPackage))
     }
 
     func testPrivateAssetWithoutHashFailsClosed() async {
@@ -110,6 +116,7 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
         } catch {
             XCTFail("unexpected error: \(error)")
         }
-        XCTAssertEqual(await runtime.starts, 0)
+        let starts = await runtime.starts
+        XCTAssertEqual(starts, 0)
     }
 }
