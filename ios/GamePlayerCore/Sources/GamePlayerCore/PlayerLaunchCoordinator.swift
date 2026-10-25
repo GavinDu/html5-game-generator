@@ -85,7 +85,7 @@ public actor PlayerLaunchCoordinator {
     public func resume() async throws {
         guard currentStage == .paused else { return }
         try await runtime.resume()
-        transition(to: .running, launchID: launchID)
+        transition(to: .running)
     }
 
     public func stop() async {
