@@ -92,6 +92,10 @@ func OpenPostgres(ctx context.Context, dsn string) (*PostgresStore, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	if err := s.MigrateAudit(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 

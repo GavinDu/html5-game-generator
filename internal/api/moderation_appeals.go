@@ -106,7 +106,7 @@ func (s *Server) handleModerationAppeal(w http.ResponseWriter, r *http.Request) 
 		ID: pipeline.NewID(), GameID: gameID, Reporter: creator,
 		Reason: "creator_appeal: " + reason, CreatedAt: now, Status: "open",
 	}
-	if err := persistModerationAudit(moderationAuditEvent{
+	if err := s.persistAudit(r.Context(), moderationAuditEvent{
 		ID: pipeline.NewID(), Action: "appeal_submitted", GameID: gameID,
 		ReportID: appeal.ID, ActorID: creator, Status: "open",
 		Reason: "creator appeal submitted", CreatedAt: now,

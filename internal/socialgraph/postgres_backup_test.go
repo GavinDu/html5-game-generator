@@ -88,3 +88,32 @@ func TestReadPostgresBackupV3AcceptsAllCollections(t *testing.T) {
 			len(snapshot.NotInterested), len(snapshot.MutedTopics), len(snapshot.Reactions), len(snapshot.Reports))
 	}
 }
+
+func TestReadPostgresBackupV3TreatsMissingAuditAsEmpty(t *testing.T) {
+	path := writeBackupEnvelope(t, 3, `{"follows":[],"blocks":[],"saves":[],"comments":[],"commentIdempotency":[],"notInterested":[],"mutedTopics":[],"reactions":[],"reports":[]}`)
+	snapshot, err := readPostgresBackup(path)
+	if err != nil {
+		t.Fatalf("read v3 backup: %v", err)
+	}
+	if snapshot.Audit == nil {
+		t.Fatalf("v3 backup audit = nil, want empty non-nil slice")
+	}
+}
+
+func TestReadPostgresBackupV4RequiresAudit(t *testing.T) {
+	path := writeBackupEnvelope(t, 4, `{"follows":[],"blocks":[],"saves":[],"comments":[],"commentIdempotency":[],"notInterested":[],"mutedTopics":[],"reactions":[],"reports":[]}`)
+	if _, err := readPostgresBackup(path); err == nil || !strings.Contains(err.Error(), "missing required collections") {
+		t.Fatalf("read v4 backup without audit error = %v, want missing required collections", err)
+	}
+}
+
+func TestReadPostgresBackupV4AcceptsAudit(t *testing.T) {
+	path := writeBackupEnvelope(t, 4, `{"follows":[],"blocks":[],"saves":[],"comments":[],"commentIdempotency":[],"notInterested":[],"mutedTopics":[],"reactions":[],"reports":[],"audit":[{"ID":"a1","Action":"game_quarantined","GameID":"g","ActorID":"moderation-token","Status":"quarantined"}]}`)
+	snapshot, err := readPostgresBackup(path)
+	if err != nil {
+		t.Fatalf("read v4 backup: %v", err)
+	}
+	if len(snapshot.Audit) != 1 || snapshot.Audit[0].Action != "game_quarantined" {
+		t.Fatalf("v4 audit = %+v, want one game_quarantined event", snapshot.Audit)
+	}
+}

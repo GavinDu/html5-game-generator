@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const postgresBackupFormatVersion = 3
+const postgresBackupFormatVersion = 4
 
 type postgresBackupEnvelope struct {
 	FormatVersion int             `json:"formatVersion"`
@@ -31,6 +31,7 @@ type postgresBackupSnapshot struct {
 	MutedTopics        []MutedTopicRelation         `json:"mutedTopics"`
 	Reactions          []ReactionRelation           `json:"reactions"`
 	Reports            []Report                     `json:"reports"`
+	Audit              []AuditEvent                 `json:"audit"`
 }
 
 type NotInterestedRelation struct {
@@ -53,10 +54,11 @@ type ReactionRelation struct {
 
 // BackupTo exports a consistent, checksummed snapshot of all shared social
 // graph records: follow, block, saved-game, comment, comment-idempotency,
-// not-interested, muted-topic, reaction, and moderation-report records.
-// Format version 3 is the first version that includes the last four
-// collections; version 1 and 2 snapshots are still readable, with the
-// collections they predate treated as empty. The backup is written with
+// not-interested, muted-topic, reaction, and moderation-report records,
+// plus moderation audit records.
+// Format version 4 is the first version that includes audit records;
+// versions 1, 2 and 3 are still readable, with the collections they
+// predate treated as empty. The backup is written with
 // restrictive permissions and an atomic rename so incomplete files are
 // not mistaken for valid backups.
 func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
@@ -75,6 +77,7 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 		MutedTopics:        make([]MutedTopicRelation, 0),
 		Reactions:          make([]ReactionRelation, 0),
 		Reports:            make([]Report, 0),
+		Audit:              make([]AuditEvent, 0),
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT viewer_id, creator_id FROM social_follows ORDER BY viewer_id, creator_id`)
 	if err != nil {
@@ -247,6 +250,25 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close moderation report rows: %w", err)
 	}
+	rows, err = tx.QueryContext(ctx, `SELECT id, action, game_id, report_id, actor_id, status, reason, created_at FROM social_moderation_audit ORDER BY seq`)
+	if err != nil {
+		return fmt.Errorf("query moderation audit for backup: %w", err)
+	}
+	for rows.Next() {
+		var ev AuditEvent
+		if err := rows.Scan(&ev.ID, &ev.Action, &ev.GameID, &ev.ReportID, &ev.ActorID, &ev.Status, &ev.Reason, &ev.CreatedAt); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan moderation audit for backup: %w", err)
+		}
+		snapshot.Audit = append(snapshot.Audit, ev)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate moderation audit for backup: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close moderation audit rows: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("finish social graph backup snapshot: %w", err)
 	}
@@ -381,6 +403,17 @@ func (s *PostgresStore) RestoreFrom(ctx context.Context, path string) error {
 		}
 	}
 
+	auditStmt, err := tx.PrepareContext(ctx, `INSERT INTO social_moderation_audit (id, action, game_id, report_id, actor_id, status, reason, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("prepare moderation audit restore: %w", err)
+	}
+	defer auditStmt.Close()
+	for _, ev := range snapshot.Audit {
+		if _, err := auditStmt.ExecContext(ctx, ev.ID, ev.Action, ev.GameID, ev.ReportID, ev.ActorID, ev.Status, ev.Reason, ev.CreatedAt); err != nil {
+			return fmt.Errorf("restore moderation audit: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit social graph restore: %w", err)
 	}
@@ -396,7 +429,7 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("decode social graph backup envelope: %w", err)
 	}
-	if envelope.FormatVersion != 1 && envelope.FormatVersion != 2 && envelope.FormatVersion != postgresBackupFormatVersion {
+	if envelope.FormatVersion != 1 && envelope.FormatVersion != 2 && envelope.FormatVersion != 3 && envelope.FormatVersion != postgresBackupFormatVersion {
 		return postgresBackupSnapshot{}, fmt.Errorf("unsupported social graph backup format version %d", envelope.FormatVersion)
 	}
 	sum := sha256.Sum256(envelope.Snapshot)
@@ -410,11 +443,11 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 	if snapshot.Follows == nil || snapshot.Blocks == nil || snapshot.Saves == nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing required collections")
 	}
-	// Version 1 snapshots predate PostgreSQL comment storage, and versions
+	// Version 1 snapshots predate PostgreSQL comment storage, versions
 	// 1 and 2 predate not-interested, muted-topic, reaction, and report
-	// storage. Those collections are treated as empty in old snapshots.
-	// Version 3 snapshots must carry every collection, so a v3 file missing
-	// one is corrupt rather than merely old.
+	// storage, and versions 1-3 predate audit storage. Those collections
+	// are treated as empty in old snapshots. A current-version file
+	// missing a collection is corrupt rather than merely old.
 	if envelope.FormatVersion == 1 {
 		snapshot.Comments = []Comment{}
 		snapshot.CommentIdempotency = []CommentIdempotencyRelation{}
@@ -422,6 +455,7 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 		snapshot.MutedTopics = []MutedTopicRelation{}
 		snapshot.Reactions = []ReactionRelation{}
 		snapshot.Reports = []Report{}
+		snapshot.Audit = []AuditEvent{}
 	} else if envelope.FormatVersion == 2 {
 		if snapshot.Comments == nil || snapshot.CommentIdempotency == nil {
 			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing comment collections")
@@ -438,7 +472,17 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 		if snapshot.Reports == nil {
 			snapshot.Reports = []Report{}
 		}
-	} else if snapshot.Comments == nil || snapshot.CommentIdempotency == nil || snapshot.NotInterested == nil || snapshot.MutedTopics == nil || snapshot.Reactions == nil || snapshot.Reports == nil {
+		if snapshot.Audit == nil {
+			snapshot.Audit = []AuditEvent{}
+		}
+	} else if envelope.FormatVersion == 3 {
+		if snapshot.Comments == nil || snapshot.CommentIdempotency == nil || snapshot.NotInterested == nil || snapshot.MutedTopics == nil || snapshot.Reactions == nil || snapshot.Reports == nil {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing required collections")
+		}
+		if snapshot.Audit == nil {
+			snapshot.Audit = []AuditEvent{}
+		}
+	} else if snapshot.Comments == nil || snapshot.CommentIdempotency == nil || snapshot.NotInterested == nil || snapshot.MutedTopics == nil || snapshot.Reactions == nil || snapshot.Reports == nil || snapshot.Audit == nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing required collections")
 	}
 	for _, edge := range snapshot.Follows {
@@ -501,6 +545,13 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 			strings.TrimSpace(report.Reason) == "" || len(report.Reason) > 500 || len(report.ResolvedBy) > 128 || len(report.ResolutionReason) > 500 ||
 			(report.Status != "open" && report.Status != "resolved") {
 			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid moderation report")
+		}
+	}
+
+	for _, ev := range snapshot.Audit {
+		if strings.TrimSpace(ev.ID) == "" || strings.TrimSpace(ev.Action) == "" || strings.TrimSpace(ev.GameID) == "" ||
+			len(ev.ID) > 128 || len(ev.Action) > 128 || len(ev.GameID) > 128 || len(ev.ReportID) > 128 || len(ev.ActorID) > 128 || len(ev.Reason) > 2000 {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid moderation audit record")
 		}
 	}
 

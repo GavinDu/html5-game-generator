@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"doodlequest/internal/socialgraph"
 )
 
 type moderationAuditEvent struct {
@@ -29,6 +32,31 @@ func moderationAuditPath() string {
 		return path
 	}
 	return filepath.Join(telemetryDir(), "moderation-audit.jsonl")
+}
+
+// persistAudit writes an append-only operator-action record to exactly one
+// sink: PostgreSQL when a social graph store that implements AuditStore is
+// configured, otherwise the JSONL file. Call before applying a moderation
+// mutation so failed audit writes fail closed. A configured-but-broken
+// store fails closed too, rather than splitting the trail across sinks.
+func (s *Server) persistAudit(ctx context.Context, ev moderationAuditEvent) error {
+	if s.socialGraphErr != nil {
+		return errors.New("shared social storage is unavailable")
+	}
+	if s.socialGraph != nil {
+		if auditStore, ok := s.socialGraph.(socialgraph.AuditStore); ok {
+			if strings.TrimSpace(ev.ActorID) == "" {
+				ev.ActorID = "moderation-token"
+			}
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			return auditStore.AppendAudit(ctx, socialgraph.AuditEvent{
+				ID: ev.ID, Action: ev.Action, GameID: ev.GameID, ReportID: ev.ReportID,
+				ActorID: ev.ActorID, Status: ev.Status, Reason: ev.Reason, CreatedAt: ev.CreatedAt,
+			})
+		}
+	}
+	return persistModerationAudit(ev)
 }
 
 // persistModerationAudit writes an append-only operator-action record.
@@ -81,6 +109,44 @@ func (s *Server) handleModerationAudit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		limit = n
+	}
+	// PostgreSQL sink, when configured, is the audit source of truth;
+	// the JSONL file below is only the fallback for deployments without
+	// a social graph store.
+	if s.socialGraphErr == nil && s.socialGraph != nil {
+		if auditStore, ok := s.socialGraph.(socialgraph.AuditStore); ok {
+			var cursor int64
+			if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+				n, err := strconv.ParseInt(raw, 10, 64)
+				if err != nil || n < 0 {
+					writeErr(w, http.StatusBadRequest, "cursor must be a non-negative sequence number")
+					return
+				}
+				cursor = n
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+			rows, next, err := auditStore.ListAudit(ctx, socialgraph.AuditFilter{
+				GameID:  strings.TrimSpace(r.URL.Query().Get("game_id")),
+				ActorID: strings.TrimSpace(r.URL.Query().Get("actor_id")),
+				Action:  strings.TrimSpace(r.URL.Query().Get("action")),
+				Limit:   limit,
+				Cursor:  cursor,
+			})
+			if err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not read moderation audit")
+				return
+			}
+			events := make([]moderationAuditEvent, 0, len(rows))
+			for _, row := range rows {
+				events = append(events, moderationAuditEvent{
+					ID: row.ID, Action: row.Action, GameID: row.GameID, ReportID: row.ReportID,
+					ActorID: row.ActorID, Status: row.Status, Reason: row.Reason, CreatedAt: row.CreatedAt,
+				})
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"events": events, "next_cursor": next})
+			return
+		}
 	}
 	data, err := os.ReadFile(moderationAuditPath())
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
