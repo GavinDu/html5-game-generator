@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"testing"
+	"testing"\n\n\t"doodlequest/internal/model"\n\t"doodlequest/internal/pipeline"\n\t"doodlequest/internal/store"
 	"time"
 )
 
@@ -63,5 +63,34 @@ func TestUserAuthRejectsExpiredAndTamperedTokens(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized {
 			t.Errorf("token %q got %d, want 401", token, rec.Code)
 		}
+	}
+}
+
+func TestPrivateDeliveryUsesVerifiedIdentityNotXUserID(t *testing.T) {
+	const secret = "test-only-secret-that-is-long-enough"
+	t.Setenv("DQ_AUTH_HMAC_SECRET", secret)
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	game := seedReadyGame(st, "private-auth-game")
+	game.Visibility = model.VisibilityPrivate
+	st.UpdateGame(game)
+
+	// A caller-controlled identity header must not grant access to a private package.
+	req := httptest.NewRequest(http.MethodGet, "/v1/games/private-auth-game/package", nil)
+	req.Header.Set("X-User-ID", game.OwnerID)
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("spoofed X-User-ID got %d, want 404: %s", rec.Code, rec.Body.String())
+	}
+
+	// The same owner is allowed when their identity comes from a verified bearer.
+	req = httptest.NewRequest(http.MethodGet, "/v1/games/private-auth-game/package", nil)
+	req.Header.Set("Authorization", "Bearer "+authTokenForTest(game.OwnerID, time.Now().Add(time.Hour), secret))
+	rec = httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("verified owner got %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 }
