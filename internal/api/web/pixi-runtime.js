@@ -426,31 +426,112 @@ function initializeAccountControls() {
 }
 
 async function listGames() {
-  $('status').textContent = 'Pick a game:';
+  const status = $('status');
+  const list = $('list');
+  const count = $('feed-count');
   const scope = $('feed-scope')?.value || 'for_you';
-  const res = await apiFetch('/v1/feed?scope=' + encodeURIComponent(scope));
+  if (status) status.textContent = 'Choose a game to play.';
+  if (list) {
+    list.setAttribute('aria-busy', 'true');
+    list.replaceChildren();
+    for (let i = 0; i < 3; i++) {
+      const skeleton = document.createElement('div');
+      skeleton.className = 'feed-skeleton';
+      skeleton.setAttribute('aria-hidden', 'true');
+      list.append(skeleton);
+    }
+  }
+  if (count) count.textContent = 'Loading…';
+
+  let res;
+  try {
+    res = await apiFetch('/v1/feed?scope=' + encodeURIComponent(scope));
+  } catch (err) {
+    if (list) {
+      list.replaceChildren();
+      const state = document.createElement('div');
+      state.className = 'feed-state';
+      const title = document.createElement('strong');
+      title.textContent = 'You appear to be offline';
+      const message = document.createElement('span');
+      message.textContent = 'Check your connection and try refreshing the feed.';
+      state.append(title, message);
+      list.append(state);
+      list.setAttribute('aria-busy', 'false');
+    }
+    if (count) count.textContent = '';
+    throw err;
+  }
   if (!res.ok) {
     if (res.status === 401) setAccountStatus('This feed requires a valid session token. Sign in with your trusted provider.');
     else if (res.status === 503) setAccountStatus('Backend authentication is not configured. Public browsing may be restricted by deployment settings.');
+    if (list) {
+      list.replaceChildren();
+      const state = document.createElement('div');
+      state.className = 'feed-state';
+      const title = document.createElement('strong');
+      title.textContent = res.status === 401 ? 'Sign in to see this feed' : 'Games could not be loaded';
+      const message = document.createElement('span');
+      message.textContent = res.status === 401
+        ? 'Use your trusted sign-in provider, then refresh the feed.'
+        : 'The service returned HTTP ' + res.status + '. Try again in a moment.';
+      state.append(title, message);
+      list.append(state);
+      list.setAttribute('aria-busy', 'false');
+    }
+    if (count) count.textContent = '';
     throw new Error('Feed request failed (HTTP ' + res.status + ')');
   }
+
   const data = await res.json();
-  const list = $('list');
-  list.replaceChildren();
-  for (const g of data.games || []) {
-    const card = document.createElement('div');
+  const games = Array.isArray(data.games) ? data.games : [];
+  if (list) list.replaceChildren();
+  if (count) count.textContent = games.length + (games.length === 1 ? ' game' : ' games');
+  if (!games.length && list) {
+    const state = document.createElement('div');
+    state.className = 'feed-state';
+    const title = document.createElement('strong');
+    title.textContent = scope === 'following' ? 'Your feed is just getting started' : 'No games here yet';
+    const message = document.createElement('span');
+    message.textContent = scope === 'following'
+      ? 'Follow a creator from a game card and their public games will show up here.'
+      : 'Try another feed, or come back soon for new games to play.';
+    state.append(title, message);
+    list.append(state);
+  }
+
+  for (const g of games) {
+    const card = document.createElement('article');
     card.className = 'game-card';
-    const a = document.createElement('a');
-    a.href = '/player?game=' + encodeURIComponent(g.game_id);
-    a.textContent = g.title || g.game_id;
+    const topline = document.createElement('div');
+    topline.className = 'card-topline';
+    const tag = document.createElement('span');
+    tag.className = 'playable-tag';
+    tag.textContent = 'PLAYABLE';
+    topline.append(tag);
+
+    const title = document.createElement('a');
+    title.className = 'game-title';
+    title.href = '/player?game=' + encodeURIComponent(g.game_id);
+    title.textContent = g.title || 'Untitled game';
+
     const sub = document.createElement('div');
     sub.className = 'sub';
-    sub.textContent = g.game_id;
-    card.append(a, sub);
     const creatorID = g.owner_id || g.creator_id || g.creatorId;
+    sub.textContent = creatorID ? 'Created by ' + creatorID : 'Community game';
+
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const play = document.createElement('a');
+    play.className = 'play-link';
+    play.href = title.href;
+    play.textContent = '▶ Play now';
+    actions.append(play);
+
     if (creatorID) {
       const follow = document.createElement('button');
       follow.type = 'button';
+      follow.className = 'follow-button';
       follow.textContent = scope === 'following' ? 'Following feed' : 'Follow creator';
       follow.disabled = scope === 'following';
       follow.addEventListener('click', async () => {
@@ -460,13 +541,18 @@ async function listGames() {
           if (!response.ok) throw new Error(response.status === 401 ? 'Sign in to follow creators.' : 'Follow failed (HTTP ' + response.status + ')');
           follow.textContent = 'Following';
           setAccountStatus('Creator followed. Refresh the Following feed to see followed creators.');
-        } catch (err) { follow.disabled = false; setAccountStatus(err.message); }
+        } catch (err) {
+          follow.disabled = false;
+          setAccountStatus(err.message);
+        }
       });
-      card.append(follow);
+      actions.append(follow);
     }
-    list.append(card);
+    card.append(topline, title, sub, actions);
+    list?.append(card);
   }
-  log('PKG', `feed listed ${(data.games || []).length} games in ${scope}`);
+  if (list) list.setAttribute('aria-busy', 'false');
+  log('PKG', `feed listed ${games.length} games in ${scope}`);
 }
 
 // The live session, for in-place restart (Phase A): restarting must
