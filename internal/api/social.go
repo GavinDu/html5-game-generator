@@ -1065,6 +1065,28 @@ func (s *Server) socialGameAvailableFor(id, viewer string) bool {
 	return !s.isBlocked(viewer, g.OwnerID)
 }
 func (s *Server) isBlocked(viewer, creator string) bool {
+	if viewer == "" || creator == "" {
+		return false
+	}
+	if s.socialGraphErr != nil {
+		// If shared storage is configured but unavailable, fail closed for
+		// visibility-sensitive social actions rather than trusting stale maps.
+		return true
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ids, err := s.socialGraph.ListBlocked(ctx, viewer)
+		cancel()
+		if err != nil {
+			return true
+		}
+		for _, id := range ids {
+			if id == creator {
+				return true
+			}
+		}
+		return false
+	}
 	s.socialMu.RLock()
 	defer s.socialMu.RUnlock()
 	return s.blocks[viewer][creator]
