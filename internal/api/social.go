@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -232,6 +233,21 @@ func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
 
 func (s *Server) handleListFollowing(w http.ResponseWriter, r *http.Request) {
 	viewer := strings.TrimSpace(userID(r))
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		ids, err := s.socialGraph.ListFollowing(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read shared social graph")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"creator_ids": ids})
+		return
+	}
 	s.socialMu.RLock()
 	ids := make([]string, 0, len(s.follows[viewer]))
 	for id := range s.follows[viewer] {
@@ -251,6 +267,19 @@ func (s *Server) handleFollow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "creator not found")
 		return
 	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.Follow(ctx, viewer, creator)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "could not create follow relationship")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	if s.follows[viewer] == nil {
 		s.follows[viewer] = map[string]struct{}{}
@@ -262,6 +291,19 @@ func (s *Server) handleFollow(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) handleUnfollow(w http.ResponseWriter, r *http.Request) {
 	viewer, creator := strings.TrimSpace(userID(r)), strings.TrimSpace(r.PathValue("id"))
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.Unfollow(ctx, viewer, creator)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not update shared social graph")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	delete(s.follows[viewer], creator)
 	s.persistSocialStateLocked()
