@@ -26,8 +26,8 @@ type postgresBackupSnapshot struct {
 	Saves   []SaveRelation  `json:"saves"`
 }
 
-// BackupTo exports a consistent, checksummed snapshot of shared follow and
-// block relations. The backup is written with restrictive permissions and an
+// BackupTo exports a consistent, checksummed snapshot of shared follow, block,
+// and saved-game relations. The backup is written with restrictive permissions and an
 // atomic rename so incomplete files are not mistaken for valid backups.
 func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
