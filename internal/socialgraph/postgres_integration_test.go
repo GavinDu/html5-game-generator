@@ -72,6 +72,14 @@ func TestPostgresStoreSharesBlockRelationsAcrossInstances(t *testing.T) {
 	viewer := "integration-blocker-" + time.Now().UTC().Format("20060102150405.000000000")
 	blocked := "integration-blocked-" + time.Now().UTC().Format("20060102150405.000000000")
 	t.Cleanup(func() { _ = first.Unblock(context.Background(), viewer, blocked) })
+	inserted, err := first.ImportBlocks(ctx, []BlockRelation{{ViewerID: viewer, BlockedID: blocked}})
+	if err != nil || inserted != 1 {
+		t.Fatalf("initial block import: inserted=%d err=%v, want 1 row", inserted, err)
+	}
+	inserted, err = second.ImportBlocks(ctx, []BlockRelation{{ViewerID: viewer, BlockedID: blocked}})
+	if err != nil || inserted != 0 {
+		t.Fatalf("resumed block import: inserted=%d err=%v, want 0 new rows", inserted, err)
+	}
 	if err := first.Block(ctx, viewer, blocked); err != nil {
 		t.Fatalf("block through first instance: %v", err)
 	}
