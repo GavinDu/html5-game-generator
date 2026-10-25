@@ -20,7 +20,7 @@
 // warning — never a fake execution.
 //
 // Contract summary (see docs/game-package-ir-v1.md):
-//   GET /v1/games/{id}/package -> { packageVersion: "2.0", gameId, ir, assets[] }
+//   GET /v1/games/{id}/package -> { packageFormatVersion: "2.0", minRuntimeVersion, gameId, ir, assets[] }
 //   Logical stage: 390 x 844, entity positions are centers, sizes px.
 //   Rapier works in meters internally (scene.pixelsPerMeter, default
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
@@ -57,6 +57,20 @@ function warnOnce(key, cat, msg) {
 // beaconed to the backend, which groups them by fingerprint so the same
 // failure across games reads as one incident.
 const RUNTIME_VERSION = '2026.10.23.2';
+
+function compareRuntimeVersions(current, minimum) {
+  const parse = (value) => {
+    if (typeof value !== 'string' || !/^\d+(?:\.\d+)*$/.test(value)) return null;
+    return value.split('.').map(Number);
+  };
+  const a = parse(current), b = parse(minimum);
+  if (!a || !b) return null;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const left = a[i] ?? 0, right = b[i] ?? 0;
+    if (left !== right) return left < right ? -1 : 1;
+  }
+  return 0;
+}
 const errorBuffer = [];
 let totalFrames = 0;
 let lastCensus = '';
@@ -576,8 +590,11 @@ async function run(id) {
     throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
   }
   const pkg = await res.json();
-  log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), package v${pkg.packageVersion}, IR v${pkg.ir?.irVersion}, ${pkg.assets?.length ?? 0} assets`);
-  if (pkg.packageVersion !== '2.0') throw new Error('unsupported packageVersion ' + pkg.packageVersion);
+  log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), format v${pkg.packageFormatVersion}, min runtime ${pkg.minRuntimeVersion}, IR v${pkg.ir?.irVersion}, ${pkg.assets?.length ?? 0} assets`);
+  if (pkg.packageFormatVersion !== '2.0') throw new Error('unsupported packageFormatVersion ' + pkg.packageFormatVersion);
+  const compatibility = compareRuntimeVersions(RUNTIME_VERSION, pkg.minRuntimeVersion);
+  if (compatibility === null) throw new Error('invalid minRuntimeVersion ' + pkg.minRuntimeVersion);
+  if (compatibility < 0) throw new Error('game requires runtime ' + pkg.minRuntimeVersion + ', current runtime is ' + RUNTIME_VERSION);
   const ir = pkg.ir;
   if (!['1.0', '1.1', '1.2'].includes(ir.irVersion)) throw new Error('unsupported irVersion ' + ir.irVersion);
   play.irHash = pkg.irHash || ''; // leaderboard board key (Phase C)

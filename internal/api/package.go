@@ -11,7 +11,9 @@ import (
 	"doodlequest/internal/model"
 )
 
-const PackageVersion = "2.0"
+const PackageFormatVersion = "2.0"
+const PackageVersion = PackageFormatVersion // deprecated name for source compatibility
+const MinRuntimeVersion = "2026.10.23.2"
 
 type GamePackageAsset struct {
 	ID       string `json:"id"`
@@ -27,10 +29,11 @@ type GamePackageAsset struct {
 // GamePackage is the canonical, engine-independent delivery envelope.
 // The IR keeps package-relative asset URIs; URLs here are delivery locations.
 type GamePackage struct {
-	PackageVersion string             `json:"packageVersion"`
-	GameID         string             `json:"gameId"`
-	IR             *gameir.Document   `json:"ir"`
-	Assets         []GamePackageAsset `json:"assets"`
+	PackageFormatVersion string             `json:"packageFormatVersion"`
+	MinRuntimeVersion    string             `json:"minRuntimeVersion"`
+	GameID               string             `json:"gameId"`
+	IR                   *gameir.Document   `json:"ir"`
+	Assets               []GamePackageAsset `json:"assets"`
 	// IRHash identifies this exact IR content; leaderboard boards are
 	// keyed by it, so any IR change starts a fresh board (Phase C).
 	IRHash string `json:"irHash"`
@@ -139,11 +142,12 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pkg := GamePackage{
-		PackageVersion: PackageVersion,
-		GameID:         game.ID,
-		IR:             game.GameIR,
-		Assets:         make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
-		IRHash:         irHashOf(game.GameIR),
+		PackageFormatVersion: PackageFormatVersion,
+		MinRuntimeVersion:    MinRuntimeVersion,
+		GameID:               game.ID,
+		IR:                   game.GameIR,
+		Assets:               make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
+		IRHash:               irHashOf(game.GameIR),
 	}
 	for _, asset := range game.GameIR.Assets {
 		pkg.Assets = append(pkg.Assets, GamePackageAsset{

@@ -51,7 +51,7 @@ Validate more than JSON syntax: unique IDs, references, supported event/action t
 
 - `POST /v1/game-ir/validate`: validates one Game IR document, rejecting unknown fields, unsupported capabilities and invalid references. Request size is capped at 2 MiB.
 - `GET /v1/games/{id}/game-ir`: returns the published canonical Game IR.
-- `GET /v1/games/{id}/package`: returns the Game Package envelope with `packageVersion: "2.0"`, `gameId`, `ir`, and asset descriptors.
+- `GET /v1/games/{id}/package`: returns the Game Package envelope with `packageFormatVersion: "2.0"`, `minRuntimeVersion`, `gameId`, `ir`, and asset descriptors. The player checks the minimum runtime before interpreting the package.
 - `GET /v1/games/{id}/assets/{assetId}`: delivers the corresponding package asset after resolving its ID through the validated IR.
 
 The generation pipeline writes `game-ir.json`, validates it before publication, and stores the validated document on the published game. The GameShim `game.js` artifact remains temporary HTML5 reference infrastructure; it is not the canonical package entry point and should be removed after Defold contract tests pass.

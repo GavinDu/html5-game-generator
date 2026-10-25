@@ -418,8 +418,15 @@ func TestGetPackage(t *testing.T) {
 	}
 	var pkg GamePackage
 	decode(t, rec, &pkg)
-	if pkg.PackageVersion != "2.0" || pkg.GameID != doc.Game.ID || pkg.IR == nil {
+	if pkg.PackageFormatVersion != PackageFormatVersion || pkg.MinRuntimeVersion != MinRuntimeVersion || pkg.GameID != doc.Game.ID || pkg.IR == nil {
 		t.Fatalf("bad package envelope: %+v", pkg)
+	}
+	runtimeJS, err := os.ReadFile("web/pixi-runtime.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(runtimeJS), MinRuntimeVersion) {
+		t.Fatalf("backend minimum runtime %q drifted from player runtime", MinRuntimeVersion)
 	}
 	if pkg.IR.IRVersion != gameir.Version || len(pkg.Assets) != 5 {
 		t.Fatalf("bad canonical IR/assets: version=%s assets=%d", pkg.IR.IRVersion, len(pkg.Assets))
@@ -536,7 +543,7 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 	}
 	var pkg GamePackage
 	decode(t, rec, &pkg)
-	if pkg.PackageVersion != PackageVersion || pkg.GameID != child.ID || pkg.IR.Metadata.ParentGameID != parent.ID {
+	if pkg.PackageFormatVersion != PackageFormatVersion || pkg.MinRuntimeVersion != MinRuntimeVersion || pkg.GameID != child.ID || pkg.IR.Metadata.ParentGameID != parent.ID {
 		t.Fatalf("package contract mismatch: %+v", pkg)
 	}
 	for _, asset := range pkg.Assets {
