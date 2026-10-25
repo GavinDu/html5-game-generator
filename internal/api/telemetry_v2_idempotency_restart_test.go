@@ -76,3 +76,39 @@ func TestTelemetryV2MalformedLogDoesNotBlockValidRetryIndex(t *testing.T) {
 		t.Fatalf("existing event was duplicated: %s", after)
 	}
 }
+
+
+func TestTelemetryV2SummariesSurviveRestart(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_TELEMETRY_DIR", dir)
+	st := store.NewMemoryStore()
+	first := New(st, pipeline.NewRunner(st))
+	events := []string{
+		`{"schemaVersion":2,"eventId":"session-1","gameId":"game-a","sessionId":"session-a","kind":"session_start","at":"2026-10-25T00:00:00Z"}`,
+		`{"schemaVersion":2,"eventId":"perf-1","gameId":"game-a","sessionId":"session-a","kind":"perf_window","frames":100,"buckets":[10,20,30,20,10,10],"at":"2026-10-25T00:00:05Z"}`,
+		`{"schemaVersion":2,"eventId":"run-1","gameId":"game-a","sessionId":"session-a","kind":"run_end","won":true,"durationMs":12000,"inputs":10,"deadInputs":2,"at":"2026-10-25T00:00:10Z"}`,
+		`{"schemaVersion":2,"eventId":"mile-1","gameId":"game-a","sessionId":"session-a","kind":"milestone","milestone":"first_input","ms":1500,"at":"2026-10-25T00:00:02Z"}`,
+	}
+	for _, body := range events {
+		if code := postEvent(t, first, body); code != http.StatusAccepted {
+			t.Fatalf("event post got %d, want %d: %s", code, http.StatusAccepted, body)
+		}
+	}
+	before := first.perfSummaries()["game-a"]
+	if before == nil || before.Sessions != 1 || before.Runs != 1 || before.PerfWindows != 1 || before.Frames != 100 || before.FirstInputMedianMs != 1500 {
+		t.Fatalf("unexpected pre-restart summary: %+v", before)
+	}
+
+	second := New(st, pipeline.NewRunner(st))
+	after := second.perfSummaries()["game-a"]
+	if after == nil {
+		t.Fatal("telemetry summary disappeared after restart")
+	}
+	if after.Sessions != before.Sessions || after.Runs != before.Runs ||
+		after.WinRate != before.WinRate || after.AvgRunMs != before.AvgRunMs ||
+		after.PerfWindows != before.PerfWindows || after.Frames != before.Frames ||
+		after.JankRate != before.JankRate || after.P95FrameMs != before.P95FrameMs ||
+		after.FirstInputMedianMs != before.FirstInputMedianMs {
+		t.Fatalf("summary changed after restart: before=%+v after=%+v", before, after)
+	}
+}
