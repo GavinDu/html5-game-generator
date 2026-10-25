@@ -208,6 +208,8 @@ func TestDeliveryRejectsInvalidPersistedGameIR(t *testing.T) {
 }
 
 func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
+	t.Setenv("DQ_AUTH_HMAC_SECRET", "")
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
 	if os.Getenv("DQ_SOCIAL_DATABASE_URL") == "" {
 		t.Skip("DQ_SOCIAL_DATABASE_URL is not configured")
 	}
