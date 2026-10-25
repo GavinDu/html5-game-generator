@@ -647,6 +647,8 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	mutual := map[string]bool{}
 	blockedIDs := []string{}
+	ignoredIDs := []string{}
+	mutedTopicIDs := []string{}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
@@ -661,6 +663,12 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 					followers[id] = true
 				}
 			}
+		}
+		if err == nil {
+			ignoredIDs, err = s.socialGraph.ListNotInterested(ctx, viewer)
+		}
+		if err == nil {
+			mutedTopicIDs, err = s.socialGraph.ListMutedTopics(ctx, viewer)
 		}
 		cancel()
 		if err != nil {
@@ -690,13 +698,25 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ignored := map[string]bool{}
-	for id := range s.notInterested[viewer] {
-		ignored[id] = true
+	if s.socialGraph != nil {
+		for _, id := range ignoredIDs {
+			ignored[id] = true
+		}
+	} else {
+		for id := range s.notInterested[viewer] {
+			ignored[id] = true
+		}
 	}
 	mutedTopics := map[string]bool{}
-	for topic, muted := range s.mutedTopics[viewer] {
-		if muted {
+	if s.socialGraph != nil {
+		for _, topic := range mutedTopicIDs {
 			mutedTopics[strings.ToLower(topic)] = true
+		}
+	} else {
+		for topic, muted := range s.mutedTopics[viewer] {
+			if muted {
+				mutedTopics[strings.ToLower(topic)] = true
+			}
 		}
 	}
 	events := append([]socialEvent(nil), s.events...)
