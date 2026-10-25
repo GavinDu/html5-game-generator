@@ -181,3 +181,47 @@ func TestFollowsSurviveRestart(t *testing.T) {
 		t.Fatalf("following after restart: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+
+func TestDeliveryMetricsAreAggregatedAndOperatorProtected(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "delivery-metrics-test-token")
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+
+	serve := func(kind string, status int, body string) {
+		t.Helper()
+		handler := srv.observeDelivery(kind, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+			if body != "" {
+				_, _ = w.Write([]byte(body))
+			}
+		})
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/games/private-game/"+kind, nil))
+	}
+	serve("package", http.StatusOK, "abc")
+	serve("asset", http.StatusNotModified, "")
+
+	unauthorized := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/v1/telemetry/delivery", nil))
+	if unauthorized.Code != http.StatusForbidden {
+		t.Fatalf("delivery metrics without token: got %d, want 403", unauthorized.Code)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/telemetry/delivery", nil)
+	req.Header.Set("X-Telemetry-Admin-Token", "delivery-metrics-test-token")
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delivery metrics: %d %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"\"package\"", "\"asset\"", "\"requests\":1", "\"bytes_written\":3", "\"not_modified\":1", "process-local-since-startup"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("metrics response missing %s: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "private-game") {
+		t.Fatalf("metrics must not expose game IDs: %s", body)
+	}
+}
