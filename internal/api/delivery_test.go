@@ -181,3 +181,26 @@ func TestFollowsSurviveRestart(t *testing.T) {
 		t.Fatalf("following after restart: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestDeliveryRejectsInvalidPersistedGameIR(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	game := seedReadyGame(st, "corrupt-ir-game")
+	if game.GameIR == nil {
+		t.Fatal("seeded game has no Game IR")
+	}
+	// Corrupt a required field so validation fails even for a fixture with
+	// no optional assets. Delivery must validate before serializing/serving.
+	game.GameIR.Game.Title = "   "
+	st.UpdateGame(game)
+
+	for _, path := range []string{
+		"/v1/games/corrupt-ir-game/package",
+		"/v1/games/corrupt-ir-game/assets/untrusted-asset",
+	} {
+		rec := getAs(t, srv, path, "parent-1")
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Errorf("%s: got %d, want %d; body=%s", path, rec.Code, http.StatusUnprocessableEntity, rec.Body.String())
+		}
+	}
+}
