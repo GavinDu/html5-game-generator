@@ -44,20 +44,20 @@ type socialReport struct {
 	ResolutionReason string     `json:"resolution_reason,omitempty"`
 }
 type socialEvent struct {
-	SchemaVersion int       `json:"schema_version,omitempty"`
-	EventID    string    `json:"event_id,omitempty"`
-	UserID     string    `json:"user_id"`
-	GameID     string    `json:"game_id"`
-	Kind       string    `json:"kind"`
-	DurationMS int       `json:"duration_ms,omitempty"`
-	ExpectedMS int       `json:"expected_duration_ms,omitempty"`
-	PreviewDwellMS int   `json:"preview_dwell_ms,omitempty"`
-	TimeToInteractiveMS int `json:"time_to_interactive_ms,omitempty"`
-	TimeToFirstInputMS int `json:"time_to_first_input_ms,omitempty"`
-	FrameTimeP95MS int   `json:"frame_time_p95_ms,omitempty"`
-	FrameTimeAvgMS int   `json:"frame_time_avg_ms,omitempty"`
-	FrameCount int       `json:"frame_count,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	SchemaVersion       int       `json:"schema_version,omitempty"`
+	EventID             string    `json:"event_id,omitempty"`
+	UserID              string    `json:"user_id"`
+	GameID              string    `json:"game_id"`
+	Kind                string    `json:"kind"`
+	DurationMS          int       `json:"duration_ms,omitempty"`
+	ExpectedMS          int       `json:"expected_duration_ms,omitempty"`
+	PreviewDwellMS      int       `json:"preview_dwell_ms,omitempty"`
+	TimeToInteractiveMS int       `json:"time_to_interactive_ms,omitempty"`
+	TimeToFirstInputMS  int       `json:"time_to_first_input_ms,omitempty"`
+	FrameTimeP95MS      int       `json:"frame_time_p95_ms,omitempty"`
+	FrameTimeAvgMS      int       `json:"frame_time_avg_ms,omitempty"`
+	FrameCount          int       `json:"frame_count,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 type publishPostRequest struct {
 	Caption       string   `json:"caption"`
@@ -81,18 +81,18 @@ type socialFeedbackRequest struct {
 	Kind string `json:"kind"`
 }
 type socialEventRequest struct {
-	SchemaVersion int    `json:"schema_version"`
-	EventID    string `json:"event_id"`
-	GameID     string `json:"game_id"`
-	Kind       string `json:"kind"`
-	DurationMS int    `json:"duration_ms"`
-	ExpectedMS int    `json:"expected_duration_ms"`
-	PreviewDwellMS int `json:"preview_dwell_ms"`
-	TimeToInteractiveMS int `json:"time_to_interactive_ms"`
-	TimeToFirstInputMS int `json:"time_to_first_input_ms"`
-	FrameTimeP95MS int `json:"frame_time_p95_ms"`
-	FrameTimeAvgMS int `json:"frame_time_avg_ms"`
-	FrameCount int `json:"frame_count"`
+	SchemaVersion       int    `json:"schema_version"`
+	EventID             string `json:"event_id"`
+	GameID              string `json:"game_id"`
+	Kind                string `json:"kind"`
+	DurationMS          int    `json:"duration_ms"`
+	ExpectedMS          int    `json:"expected_duration_ms"`
+	PreviewDwellMS      int    `json:"preview_dwell_ms"`
+	TimeToInteractiveMS int    `json:"time_to_interactive_ms"`
+	TimeToFirstInputMS  int    `json:"time_to_first_input_ms"`
+	FrameTimeP95MS      int    `json:"frame_time_p95_ms"`
+	FrameTimeAvgMS      int    `json:"frame_time_avg_ms"`
+	FrameCount          int    `json:"frame_count"`
 }
 
 type socialStateSnapshot struct {
