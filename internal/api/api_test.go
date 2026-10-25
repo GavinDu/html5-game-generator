@@ -349,18 +349,30 @@ func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
 	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	doc, err := gameir.DecodeAndValidate(data)
-	if err != nil { t.Fatal(err) }
-	game := &model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
-		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"}
+	if err != nil {
+		t.Fatal(err)
+	}
+	game := &model.Game{
+		ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
+		OwnerID: "pkg-owner", Status: model.GameReady,
+		Visibility: model.VisibilityPublic, ModerationStatus: "approved",
+	}
 	st.CreateGame(game)
 	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+
 	path := "/v1/games/" + doc.Game.ID + "/package"
 	first := do(t, srv, http.MethodGet, path, nil, "")
-	if first.Code != http.StatusOK { t.Fatalf("initial public fetch: %d %s", first.Code, first.Body.String()) }
+	if first.Code != http.StatusOK {
+		t.Fatalf("initial public fetch: %d %s", first.Code, first.Body.String())
+	}
 	etag := first.Header().Get("ETag")
-	if etag == "" { t.Fatal("missing ETag") }
+	if etag == "" {
+		t.Fatal("missing ETag")
+	}
 
 	game.Visibility = model.VisibilityPrivate
 	st.UpdateGame(game)
@@ -368,7 +380,9 @@ func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
 	req.Header.Set("If-None-Match", etag)
 	rec := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotFound { t.Fatalf("revoked package returned %d, want 404: %s", rec.Code, rec.Body.String()) }
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("revoked package returned %d, want 404: %s", rec.Code, rec.Body.String())
+	}
 	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
 		t.Fatalf("revoked response cache policy = %q", got)
 	}
