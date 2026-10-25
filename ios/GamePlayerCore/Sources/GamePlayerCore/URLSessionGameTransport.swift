@@ -26,7 +26,7 @@ private final class OriginRestrictedRedirectDelegate: NSObject, URLSessionTaskDe
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
-        willPerformHTTPRedirection newRequest: URLRequest,
+        willPerformHTTPRedirection response: HTTPURLResponse,
         newRequest: URLRequest,
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
