@@ -162,3 +162,30 @@ jobs:
             /tmp/dq-server.log
             /tmp/kit-out/
           if-no-files-found: ignore
+
+  socialgraph-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: socialgraph_test
+          POSTGRES_PASSWORD: socialgraph_test
+          POSTGRES_DB: socialgraph_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U socialgraph_test -d socialgraph_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DQ_SOCIAL_DATABASE_URL: postgres://socialgraph_test:socialgraph_test@localhost:5432/socialgraph_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test shared graph behavior across database clients
+        run: go test -race ./internal/socialgraph -count=1

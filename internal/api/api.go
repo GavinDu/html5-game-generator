@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -19,7 +20,9 @@ import (
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
+	"doodlequest/internal/socialgraph"
 	"doodlequest/internal/store"
+	_ "github.com/lib/pq"
 )
 
 //go:embed web/player.html
@@ -45,6 +48,8 @@ type Server struct {
 	deliveryMu         sync.Mutex
 	deliveryMetrics    map[string]*deliveryMetricSnapshot
 	socialMu           sync.RWMutex
+	socialGraph        socialgraph.Store
+	socialGraphErr     error
 	follows            map[string]map[string]struct{}
 	reactions          map[string]map[string]string
 	comments           map[string][]socialComment
@@ -95,6 +100,17 @@ type Server struct {
 
 func New(st store.Store, r *pipeline.Runner) *Server {
 	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}}
+	if dsn := strings.TrimSpace(os.Getenv("DQ_SOCIAL_DATABASE_URL")); dsn != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		graph, err := socialgraph.OpenPostgres(ctx, dsn)
+		cancel()
+		if err != nil {
+			s.socialGraphErr = err
+			log.Printf("shared social graph unavailable: %v", err)
+		} else {
+			s.socialGraph = graph
+		}
+	}
 	if err := pruneTelemetryOnStartup(); err != nil {
 		log.Printf("telemetry retention skipped: %v", err)
 	}
@@ -270,6 +286,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // loaded and written. Liveness remains available through /healthz.
 func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	status := map[string]any{"status": "ok", "service": "doodlequest"}
+	if s.socialGraphErr != nil {
+		status["status"] = "degraded"
+		status["shared_social_graph"] = false
+		writeJSON(w, http.StatusServiceUnavailable, status)
+		return
+	}
+	if s.socialGraph != nil {
+		status["shared_social_graph"] = true
+	}
 	if persistence, ok := s.store.(interface{ PersistenceStatus() (bool, bool) }); ok {
 		enabled, healthy := persistence.PersistenceStatus()
 		status["persistence_enabled"] = enabled
@@ -592,15 +617,51 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
 	s.socialMu.RLock()
 	followed := map[string]bool{}
-	for id := range s.follows[viewer] {
-		followed[id] = true
+	followers := map[string]bool{}
+	if s.socialGraph == nil {
+		for id := range s.follows[viewer] {
+			followed[id] = true
+		}
+		if scope == "friends" {
+			for id := range s.follows {
+				if _, ok := s.follows[id][viewer]; ok {
+					followers[id] = true
+				}
+			}
+		}
 	}
 	mutual := map[string]bool{}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
+		if err == nil && scope == "friends" {
+			var followerIDs []string
+			followerIDs, err = s.socialGraph.ListFollowers(ctx, viewer)
+			if err == nil {
+				for _, id := range followerIDs {
+					followers[id] = true
+				}
+			}
+		}
+		cancel()
+		if err != nil {
+			s.socialMu.RUnlock()
+			writeErr(w, http.StatusServiceUnavailable, "could not read shared social graph")
+			return
+		}
+		for _, id := range followingIDs {
+			followed[id] = true
+		}
+	}
 	if scope == "friends" {
 		for id := range followed {
-			if _, ok := s.follows[id][viewer]; ok {
+			if followers[id] {
 				mutual[id] = true
 			}
 		}
