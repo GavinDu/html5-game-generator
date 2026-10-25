@@ -26,6 +26,7 @@ type Report struct {
 // need a database. Production deployments should use it for durable reports.
 type ModerationStore interface {
 	CreateReport(context.Context, Report) error
+	GetReport(context.Context, string) (Report, bool, error)
 	ResolveReport(context.Context, string, string, string, time.Time) (Report, bool, error)
 	ListReports(context.Context, string, string, int) ([]Report, error)
 }
@@ -82,6 +83,23 @@ ON CONFLICT (id) DO NOTHING`,
 		return fmt.Errorf("insert moderation report: %w", err)
 	}
 	return nil
+}
+
+func (s *PostgresStore) GetReport(ctx context.Context, id string) (Report, bool, error) {
+	id = strings.TrimSpace(id)
+	if id == "" || len(id) > 128 {
+		return Report{}, false, errors.New("report ID must be 1–128 characters")
+	}
+	report, err := scanReport(s.db.QueryRowContext(ctx, `
+SELECT id, game_id, reporter_id, reason, created_at, status, resolved_at, resolved_by, resolution_reason
+FROM social_moderation_reports WHERE id = $1`, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Report{}, false, nil
+	}
+	if err != nil {
+		return Report{}, false, fmt.Errorf("read moderation report: %w", err)
+	}
+	return report, true, nil
 }
 
 func (s *PostgresStore) ResolveReport(ctx context.Context, id, actorID, reason string, now time.Time) (Report, bool, error) {
