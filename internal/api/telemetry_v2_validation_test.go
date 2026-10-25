@@ -12,7 +12,8 @@ import (
 
 func TestTelemetryV2RejectsInvalidMeasurements(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
-	srv := New(store.NewMemoryStore(), pipeline.NewRunner(store.NewMemoryStore()))
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
 	cases := []struct {
 		name string
 		body string
