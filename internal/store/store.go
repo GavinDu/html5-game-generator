@@ -88,6 +88,8 @@ type MemoryStore struct {
 	// hundred KB and correctness beats cleverness; a real database
 	// replaces this when volume demands it.
 	persistPath string
+	persistenceConfigured bool
+	persistenceErr string
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -115,6 +117,10 @@ type storeSnapshot struct {
 // corrupt or unreadable snapshot is an error the caller may log and
 // continue past in-memory; a missing file is a fresh start.
 func (s *MemoryStore) EnablePersistence(path string) error {
+	s.mu.Lock()
+	s.persistenceConfigured = true
+	s.persistenceErr = ""
+	s.mu.Unlock()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -123,10 +129,12 @@ func (s *MemoryStore) EnablePersistence(path string) error {
 			s.mu.Unlock()
 			return nil
 		}
+		s.setPersistenceError(err)
 		return err
 	}
 	var snap storeSnapshot
 	if err := json.Unmarshal(data, &snap); err != nil {
+		s.setPersistenceError(err)
 		return err
 	}
 	s.mu.Lock()
@@ -150,7 +158,22 @@ func (s *MemoryStore) EnablePersistence(path string) error {
 		s.artifacts = snap.Artifacts
 	}
 	s.persistPath = path
+	s.persistenceErr = ""
 	return nil
+}
+
+// PersistenceStatus reports whether persistence was configured and whether the
+// most recent load/write succeeded. It never exposes filesystem paths or errors.
+func (s *MemoryStore) PersistenceStatus() (enabled bool, healthy bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.persistenceConfigured, s.persistenceErr == ""
+}
+
+func (s *MemoryStore) setPersistenceError(err error) {
+	s.mu.Lock()
+	s.persistenceErr = err.Error()
+	s.mu.Unlock()
 }
 
 // persistLocked writes the snapshot; callers hold s.mu. Failures are
@@ -165,16 +188,23 @@ func (s *MemoryStore) persistLocked() {
 		JobsByGame: s.jobsByGame, Groups: s.groups, Artifacts: s.artifacts,
 	})
 	if err != nil {
+		s.persistenceErr = err.Error()
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(s.persistPath), 0o700); err != nil {
+		s.persistenceErr = err.Error()
 		return
 	}
 	tmp := s.persistPath + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		s.persistenceErr = err.Error()
 		return
 	}
-	_ = os.Rename(tmp, s.persistPath)
+	if err := os.Rename(tmp, s.persistPath); err != nil {
+		s.persistenceErr = err.Error()
+		return
+	}
+	s.persistenceErr = ""
 }
 
 func (s *MemoryStore) CreateIngest(r *model.IngestResult) {
