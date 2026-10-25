@@ -86,3 +86,51 @@ func TestFeedRankingFixtureAndNewestFirstRollback(t *testing.T) {
 		}
 	}
 }
+
+func TestFeedRankingIsRepeatableAndHasUniqueGameIDs(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	st := store.NewMemoryStore()
+	fixtures := []struct {
+		id, creator string
+		age         time.Duration
+	}{
+		{"a-newest", "creator-a", time.Hour},
+		{"a-middle", "creator-a", 2 * time.Hour},
+		{"a-old", "creator-a", 3 * time.Hour},
+		{"b-new", "creator-b", 90 * time.Minute},
+		{"c-new", "creator-c", 2 * time.Hour},
+		{"d-new", "creator-d", 150 * time.Minute},
+	}
+	for _, fixture := range fixtures {
+		st.CreateGame(feedFixtureGame(fixture.id, fixture.creator, now.Add(-fixture.age)))
+	}
+	srv := New(st, pipeline.NewRunner(st))
+	t.Setenv("DQ_FEED_RANKING_ENABLED", "false")
+
+	first := feedFixtureIDs(t, srv)
+	second := feedFixtureIDs(t, srv)
+	if len(first) != len(fixtures) {
+		t.Fatalf("feed returned %d games, want %d: %v", len(first), len(fixtures), first)
+	}
+	if len(second) != len(first) {
+		t.Fatalf("second feed returned %d games, want %d", len(second), len(first))
+	}
+	for i := range first {
+		if first[i] != second[i] {
+			t.Fatalf("feed order is not repeatable: first=%v second=%v", first, second)
+		}
+	}
+
+	seen := make(map[string]bool, len(first))
+	for _, id := range first {
+		if seen[id] {
+			t.Errorf("duplicate game ID %q in feed: %v", id, first)
+		}
+		seen[id] = true
+	}
+	for _, fixture := range fixtures {
+		if !seen[fixture.id] {
+			t.Errorf("game %q missing from feed: %v", fixture.id, first)
+		}
+	}
+}
