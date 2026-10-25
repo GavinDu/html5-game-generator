@@ -8,6 +8,8 @@ public struct PlayerExperienceView<Renderer: View>: View {
     public let title: String
     public let progress: Double?
     public let gameAspectRatio: CGFloat
+    public let showsTouchControls: Bool
+    public let onInput: (PlayerInputEvent) -> Void
     public let renderer: Renderer
     public let onPlay: () -> Void
     public let onPause: () -> Void
@@ -21,6 +23,8 @@ public struct PlayerExperienceView<Renderer: View>: View {
         title: String,
         progress: Double? = nil,
         gameAspectRatio: CGFloat = 16.0 / 9.0,
+        showsTouchControls: Bool = false,
+        onInput: @escaping (PlayerInputEvent) -> Void = { _ in },
         @ViewBuilder renderer: () -> Renderer,
         onPlay: @escaping () -> Void,
         onPause: @escaping () -> Void,
@@ -33,6 +37,8 @@ public struct PlayerExperienceView<Renderer: View>: View {
         self.title = title
         self.progress = progress
         self.gameAspectRatio = gameAspectRatio.isFinite ? min(max(gameAspectRatio, 0.25), 4.0) : (16.0 / 9.0)
+        self.showsTouchControls = showsTouchControls
+        self.onInput = onInput
         self.renderer = renderer()
         self.onPlay = onPlay
         self.onPause = onPause
@@ -69,6 +75,18 @@ public struct PlayerExperienceView<Renderer: View>: View {
                     .aspectRatio(gameAspectRatio, contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityHidden(isOverlayBlocking)
+
+                if showsTouchControls, state == .playing {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            PlayerTouchControls(onInput: onInput)
+                        }
+                    }
+                    .padding(8)
+                    .accessibilityIdentifier("player.touchControls")
+                }
 
                 if isOverlayBlocking {
                     overlay
