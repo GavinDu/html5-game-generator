@@ -133,12 +133,14 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if game.GameIR == nil {
+		w.Header().Set("Cache-Control", "private, no-store")
 		writeErr(w, http.StatusConflict, "Game IR has not been published")
 		return
 	}
 	// Revalidate persisted Game IR at the delivery boundary. Stored records
 	// may predate current hardening or be corrupted independently of publish.
 	if err := gameir.Validate(game.GameIR); err != nil {
+		w.Header().Set("Cache-Control", "private, no-store")
 		writeErr(w, http.StatusUnprocessableEntity, "published Game IR failed validation")
 		return
 	}
@@ -219,5 +221,6 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(data)
 		return
 	}
+	w.Header().Set("Cache-Control", "private, no-store")
 	writeErr(w, http.StatusNotFound, "asset not found in Game IR")
 }

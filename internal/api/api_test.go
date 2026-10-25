@@ -385,6 +385,42 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 
 // A previously public package must not remain usable from a fresh conditional
 // request after its owner changes visibility. Public delivery requires revalidation.
+
+func TestPackageErrorsAreNeverCacheable(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := gameir.DecodeAndValidate(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
+		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
+	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+
+	missingAsset := do(t, srv, http.MethodGet, "/v1/games/"+doc.Game.ID+"/assets/not-in-ir", nil, "")
+	if missingAsset.Code != http.StatusNotFound {
+		t.Fatalf("missing asset status = %d, want 404", missingAsset.Code)
+	}
+	if got := missingAsset.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("missing asset cache policy = %q", got)
+	}
+
+	draft := &model.Game{ID: "package-without-ir", Title: "Draft", OwnerID: "pkg-owner",
+		Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"}
+	st.CreateGame(draft)
+	noIR := do(t, srv, http.MethodGet, "/v1/games/"+draft.ID+"/package", nil, "")
+	if noIR.Code != http.StatusConflict {
+		t.Fatalf("missing IR status = %d, want 409", noIR.Code)
+	}
+	if got := noIR.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("missing IR cache policy = %q", got)
+	}
+}
+
 func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
