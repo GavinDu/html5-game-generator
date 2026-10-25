@@ -27,6 +27,19 @@ final class PlayerSessionModelTests: XCTestCase {
         XCTAssertEqual(session.state, .paused(gameID: "g-1", packageVersion: "v4", reason: .interruption))
     }
 
+    func testSceneActivationDoesNotOverrideUserPause() {
+        let session = PlayerSessionModel()
+        session.beginLoad(title: "Platformer")
+        session.packageReady(gameID: "g-3", version: "v1")
+        session.start()
+        session.pauseByUser()
+        session.resumeFromBackground()
+        XCTAssertEqual(session.state, .paused(gameID: "g-3", packageVersion: "v1", reason: .user))
+        session.pauseForBackground()
+        session.resumeFromBackground()
+        XCTAssertEqual(session.state, .playing(gameID: "g-3", packageVersion: "v1"))
+    }
+
     func testRetryStartsFreshLoadingStateAndResetClearsMetadata() {
         let session = PlayerSessionModel()
         session.beginLoad(title: "Runner")
