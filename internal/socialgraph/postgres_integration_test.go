@@ -3,6 +3,7 @@ package socialgraph
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -200,6 +201,10 @@ func TestPostgresCommentsAreSharedAndIdempotentAcrossInstances(t *testing.T) {
 	if len(comments) != 1 || comments[0].ID != created.ID || comments[0].Body != "hello shared graph" {
 		t.Fatalf("second instance saw comments=%+v, want created comment", comments)
 	}
+	backupPath := filepath.Join(t.TempDir(), "social-graph.json")
+	if err := first.BackupTo(ctx, backupPath); err != nil {
+		t.Fatalf("backup social graph with comments: %v", err)
+	}
 
 	replayed, wasReplay, err := second.CreateComment(ctx, Comment{
 		ID: "duplicate-" + suffix, GameID: gameID, UserID: viewer, Body: "hello shared graph",
@@ -225,6 +230,13 @@ func TestPostgresCommentsAreSharedAndIdempotentAcrossInstances(t *testing.T) {
 	comments, err = first.ListComments(ctx, gameID)
 	if err != nil || len(comments) != 0 {
 		t.Fatalf("first instance still sees comments after delete: comments=%+v err=%v", comments, err)
+	}
+	if err := first.RestoreFrom(ctx, backupPath); err != nil {
+		t.Fatalf("restore social graph with comments: %v", err)
+	}
+	comments, err = second.ListComments(ctx, gameID)
+	if err != nil || len(comments) != 1 || comments[0].ID != created.ID {
+		t.Fatalf("second instance did not recover comment from backup: comments=%+v err=%v", comments, err)
 	}
 }
 
