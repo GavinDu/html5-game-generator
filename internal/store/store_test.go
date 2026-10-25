@@ -201,7 +201,7 @@ func TestRestoreRejectsSnapshotWithAssetHashMismatch(t *testing.T) {
 	targetPath := filepath.Join(root, "restored", "store.json")
 	source := NewMemoryStore()
 	game := &model.Game{
-		ID: "g-bad-asset",
+		ID:     "g-bad-asset",
 		GameIR: &gameir.Document{Assets: []gameir.Asset{{ID: "asset-1", URI: "assets/asset-1.png", SHA256: strings.Repeat("0", 64)}}},
 	}
 	source.CreateGame(game)
