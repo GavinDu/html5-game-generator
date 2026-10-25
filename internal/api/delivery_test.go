@@ -92,6 +92,20 @@ func TestDeliveryRespectsSharingAndModeration(t *testing.T) {
 			t.Errorf("%s/owner: %d, want 200", id, c)
 		}
 	}
+	// Transitional GameShim endpoints must obey the same visibility gate as
+	// the canonical package API; otherwise a private game remains playable
+	// through the legacy bundle URL.
+	for _, path := range []string{
+		"/v1/games/g-private/bundle",
+		"/v1/games/g-private/bundle/game.js",
+	} {
+		if c := getAs(t, srv, path, "stranger").Code; c != http.StatusNotFound {
+			t.Errorf("legacy delivery %s/stranger: %d, want 404", path, c)
+		}
+		if c := getAs(t, srv, path, "parent-1").Code; c != http.StatusOK {
+			t.Errorf("legacy delivery %s/owner: %d, want 200", path, c)
+		}
+	}
 	// Group games: members and the group owner get in, others don't.
 	if c := pkg("g-group", "cousin-1"); c != http.StatusOK {
 		t.Errorf("group/member: %d, want 200", c)
