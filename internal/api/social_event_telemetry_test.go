@@ -14,16 +14,16 @@ func TestSocialEventPerformanceFieldsAreVersionedAndIdempotent(t *testing.T) {
 	addPublicGame(srv, "game-1", "creator")
 
 	body := map[string]any{
-		"schema_version": 1,
-		"event_id": "event-1",
-		"game_id": "game-1",
-		"kind": "play_start",
-		"preview_dwell_ms": 1200,
+		"schema_version":         1,
+		"event_id":               "event-1",
+		"game_id":                "game-1",
+		"kind":                   "play_start",
+		"preview_dwell_ms":       1200,
 		"time_to_interactive_ms": 450,
 		"time_to_first_input_ms": 800,
-		"frame_time_p95_ms": 24,
-		"frame_time_avg_ms": 17,
-		"frame_count": 300,
+		"frame_time_p95_ms":      24,
+		"frame_time_avg_ms":      17,
+		"frame_count":            300,
 	}
 	resp := do(t, srv, http.MethodPost, "/v1/telemetry/social-event", body, "viewer")
 	if resp.Code != http.StatusAccepted {
