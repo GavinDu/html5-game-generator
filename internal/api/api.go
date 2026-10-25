@@ -20,8 +20,8 @@ import (
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
-	"doodlequest/internal/store"
 	"doodlequest/internal/socialgraph"
+	"doodlequest/internal/store"
 	_ "github.com/lib/pq"
 )
 
