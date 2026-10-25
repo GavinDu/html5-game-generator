@@ -451,11 +451,13 @@ func (s *Server) handleGetJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetBundle(w http.ResponseWriter, r *http.Request) {
-	game, ok := s.store.GetGame(r.PathValue("id"))
+	game, ok := s.deliverableGame(w, r)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
+	// GameShim is transitional. Never let shared caches retain its bytes
+	// across visibility or moderation changes.
+	w.Header().Set("Cache-Control", "private, no-store")
 	if game.Manifest == nil {
 		writeErr(w, http.StatusConflict, "bundle not published yet")
 		return
@@ -464,8 +466,14 @@ func (s *Server) handleGetBundle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveArtifact(w http.ResponseWriter, r *http.Request, name string) {
+	if _, ok := s.deliverableGame(w, r); !ok {
+		return
+	}
+	// Legacy bundle artifacts have no immutable version URL; disable caching.
+	w.Header().Set("Cache-Control", "private, no-store")
 	data, ct, ok := s.store.GetArtifact(r.PathValue("id"), name)
 	if !ok {
+		w.Header().Set("Cache-Control", "private, no-store")
 		writeErr(w, http.StatusNotFound, "artifact not found")
 		return
 	}
