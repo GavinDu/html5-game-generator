@@ -516,16 +516,22 @@ func TestDecodeJSONRejectsTrailingJSONAndOversizedBodies(t *testing.T) {
 		t.Fatalf("oversized JSON: want 413, got %d body=%s", oversizedRec.Code, oversizedRec.Body.String())
 	}
 }
-
-
 func TestReadinessFailsWhenConfiguredPersistenceCannotLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "store-state.json")
-	if err := os.WriteFile(path, []byte("{broken"), 0o600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(path, []byte("{broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	st := store.NewMemoryStore()
-	if err := st.EnablePersistence(path); err == nil { t.Fatal("expected invalid snapshot") }
+	if err := st.EnablePersistence(path); err == nil {
+		t.Fatal("expected invalid snapshot")
+	}
 	srv := New(st, pipeline.NewRunner(st))
 	rec := do(t, srv, http.MethodGet, "/readyz", nil, "")
-	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "degraded") { t.Fatalf("readiness should fail on persistence load error: %d %s", rec.Code, rec.Body.String()) }
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "degraded") {
+		t.Fatalf("readiness should fail on persistence load error: %d %s", rec.Code, rec.Body.String())
+	}
 	live := do(t, srv, http.MethodGet, "/healthz", nil, "")
-	if live.Code != http.StatusOK { t.Fatalf("liveness should remain available, got %d", live.Code) }
+	if live.Code != http.StatusOK {
+		t.Fatalf("liveness should remain available, got %d", live.Code)
+	}
 }

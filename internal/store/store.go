@@ -87,9 +87,9 @@ type MemoryStore struct {
 	// is whole-state on purpose: at this scale the data is a few
 	// hundred KB and correctness beats cleverness; a real database
 	// replaces this when volume demands it.
-	persistPath string
+	persistPath           string
 	persistenceConfigured bool
-	persistenceErr string
+	persistenceErr        string
 }
 
 func NewMemoryStore() *MemoryStore {
