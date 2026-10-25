@@ -114,6 +114,28 @@
   button, input, select { font: inherit; }
   button { min-height: 44px; }
   #list { width: min(100%, 600px); }
+  #list[aria-busy="true"] { opacity: .78; }
+  .feed-heading { width: min(100% - 32px, 900px); margin: 22px auto 0; display: flex; align-items: end; gap: 12px; }
+  .feed-heading h2 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+  .feed-heading p { margin: 4px 0 0; color: var(--dq-muted); font-size: 13px; }
+  .feed-heading .feed-count { margin-left: auto; color: var(--dq-muted); font-size: 12px; white-space: nowrap; }
+  .game-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .game-card .card-topline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .game-card .playable-tag { color: #201a00; background: var(--dq-accent); border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+  .game-card .game-title { font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+  .game-card .sub { overflow-wrap: anywhere; }
+  .game-card .card-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+  .game-card .play-link, .game-card .follow-button {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
+    border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 750; text-decoration: none;
+  }
+  .game-card .play-link { background: var(--dq-accent); color: #201a00; }
+  .game-card .follow-button { background: transparent; color: var(--dq-text); border: 1px solid var(--dq-border); cursor: pointer; }
+  .game-card .follow-button:disabled { opacity: .65; cursor: default; }
+  .feed-state { grid-column: 1 / -1; border: 1px dashed var(--dq-border); border-radius: var(--dq-radius); padding: 24px 18px; text-align: center; color: var(--dq-muted); }
+  .feed-state strong { display: block; color: var(--dq-text); font-size: 16px; margin-bottom: 6px; }
+  .feed-skeleton { min-height: 142px; border-radius: var(--dq-radius); background: linear-gradient(100deg, #151d37 20%, #202b4b 38%, #151d37 56%); background-size: 220% 100%; animation: dq-shimmer 1.25s linear infinite; }
+  @keyframes dq-shimmer { to { background-position-x: -220%; } }
   .game-card { transition: border-color .16s ease, transform .16s ease; }
   .game-card:hover { border-color: rgba(255, 217, 77, .55); }
   .game-card a { display: inline-block; padding: 4px 0; line-height: 1.4; }
@@ -193,7 +215,13 @@
   </div>
   <div id="account-status" role="status" aria-live="polite">Public games can be browsed without signing in. Social actions require a valid session token.</div>
 </section>
-<div id="list"></div>
+<section aria-labelledby="feed-title">
+  <div class="feed-heading">
+    <div><h2 id="feed-title">Discover games</h2><p>Small games made from big imaginations.</p></div>
+    <span class="feed-count" id="feed-count" aria-live="polite"></span>
+  </div>
+  <div id="list" aria-live="polite" aria-busy="false"></div>
+</section>
 <details>
   <summary>Developer log</summary>
   <pre id="devlog"></pre>
