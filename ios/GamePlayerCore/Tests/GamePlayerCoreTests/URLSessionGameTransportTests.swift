@@ -22,6 +22,26 @@ private final class CrossOriginRedirectURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class FixedBodyURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let body = Data("payload".utf8)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Length": String(body.count)]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 final class URLSessionGameTransportTests: XCTestCase {
     func testRejectsNonTLSProductionBaseURL() {
         XCTAssertThrowsError(try URLSessionGameTransport(baseURL: URL(string: "http://api.example.com")!)) { error in
@@ -65,6 +85,38 @@ final class URLSessionGameTransportTests: XCTestCase {
                 XCTAssertEqual(error, .rejectedURL)
             }
         }
+    }
+
+    func testRejectsOversizedResponseBeforeBufferingEntireBody() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FixedBodyURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let transport = try URLSessionGameTransport(
+            baseURL: URL(string: "https://api.example.com")!,
+            session: session,
+            packageByteLimit: 3
+        )
+        do {
+            _ = try await transport.fetchPackage(gameID: "game-1", version: nil)
+            XCTFail("response above configured limit must be rejected")
+        } catch let error as GameTransportError {
+            XCTAssertEqual(error, .responseTooLarge(limit: 3))
+        }
+        session.invalidateAndCancel()
+    }
+
+    func testAcceptsResponseExactlyAtConfiguredLimit() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FixedBodyURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let transport = try URLSessionGameTransport(
+            baseURL: URL(string: "https://api.example.com")!,
+            session: session,
+            packageByteLimit: 7
+        )
+        let data = try await transport.fetchPackage(gameID: "game-1", version: nil)
+        XCTAssertEqual(data, Data("payload".utf8))
+        session.invalidateAndCancel()
     }
 
     func testRejectsCrossOriginRedirectBeforeAcceptingResponseBytes() async throws {
