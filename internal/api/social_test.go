@@ -471,3 +471,25 @@ func TestFeedRankingColdStartEngagementAndRollback(t *testing.T) {
 		t.Fatalf("rollback switch should restore newest-first ranking, got %q", got)
 	}
 }
+
+func TestFeedEngagementAggregationUsesDocumentedWeights(t *testing.T) {
+	events := []socialEvent{
+		{GameID: "game-a", Kind: "completion"},
+		{GameID: "game-a", Kind: "replay"},
+		{GameID: "game-a", Kind: "share"},
+		{GameID: "game-a", Kind: "save"},
+		{GameID: "game-a", Kind: "quick_exit"},
+		{GameID: "game-b", Kind: "unknown"},
+		{GameID: "", Kind: "completion"},
+	}
+	got := feedEngagementByGame(events)
+	if got["game-a"] != 5.5 {
+		t.Fatalf("game-a engagement = %v, want 5.5", got["game-a"])
+	}
+	if got["game-b"] != 0 {
+		t.Fatalf("unknown event should not affect ranking, got %v", got["game-b"])
+	}
+	if _, exists := got[""]; exists {
+		t.Fatal("events without a game ID must not affect ranking")
+	}
+}

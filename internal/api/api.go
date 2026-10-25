@@ -629,11 +629,14 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		signalCount += count
 	}
 	useEngagementRanking := engagementRankingEnabled() && signalCount >= 20
+	// Aggregate event weights once so ranking cost is O(events + games log games),
+	// rather than rescanning every event for every pairwise sort comparison.
+	engagementScores := feedEngagementByGame(events)
 	sort.SliceStable(out, func(i, j int) bool {
 		if !useEngagementRanking {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
-		si, sj := feedScore(out[i], reactionCounts, events), feedScore(out[j], reactionCounts, events)
+		si, sj := feedScore(out[i], reactionCounts, engagementScores), feedScore(out[j], reactionCounts, engagementScores)
 		if si == sj {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
@@ -733,27 +736,31 @@ func engagementRankingEnabled() bool {
 	}
 }
 
-func feedScore(g *model.Game, reactions map[string]int, events []socialEvent) float64 {
+func feedEngagementByGame(events []socialEvent) map[string]float64 {
+	// Keep the current explainable weights in one pass over the event window.
+	// Unknown event kinds intentionally contribute nothing to ranking.
+	weights := map[string]float64{
+		"completion": 2,
+		"replay":     1.5,
+		"share":      1.25,
+		"save":       1.25,
+		"quick_exit": -0.5,
+	}
+	byGame := make(map[string]float64)
+	for _, event := range events {
+		if weight, ok := weights[event.Kind]; ok && event.GameID != "" {
+			byGame[event.GameID] += weight
+		}
+	}
+	return byGame
+}
+
+func feedScore(g *model.Game, reactions map[string]int, engagement map[string]float64) float64 {
 	age := time.Since(g.CreatedAt).Hours()
 	if age < 0 {
 		age = 0
 	}
 	fresh := 1 / (1 + age/24)
-	eng := float64(reactions[g.ID])
-	for _, e := range events {
-		if e.GameID != g.ID {
-			continue
-		}
-		switch e.Kind {
-		case "completion":
-			eng += 2
-		case "replay":
-			eng += 1.5
-		case "share", "save":
-			eng += 1.25
-		case "quick_exit":
-			eng -= 0.5
-		}
-	}
+	eng := float64(reactions[g.ID]) + engagement[g.ID]
 	return fresh + 0.03*eng
 }
