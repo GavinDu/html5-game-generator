@@ -19,14 +19,6 @@ public enum PlayerLaunchError: Error, Equatable {
     case duplicateAssetID(String)
 }
 
-public protocol GamePackageTransport: Sendable {
-    func fetchPackage(gameID: String, version: String?) async throws -> Data
-}
-
-public protocol GameAssetTransport: Sendable {
-    func fetchAsset(_ asset: PackageAsset) async throws -> Data
-}
-
 public protocol GameRuntimeHost: Sendable {
     func start(package: GamePackageEnvelope, assets: [String: Data]) async throws
     func pause() async
