@@ -97,6 +97,7 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
         {
           "packageFormatVersion":"2.0",
           "minRuntimeVersion":"2026.10.23.2",
+          "irVersion":"1.0",
           "gameId":"game-123",
           "ir":{"irVersion":"1.0"},
           "assets":[{"id":"sprite","kind":"image","uri":"sprite.png","url":"/asset"}],
