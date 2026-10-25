@@ -628,7 +628,6 @@ func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
 
-
 // MarkNotInterested is an idempotent viewer/game preference mutation.
 func (s *PostgresStore) MarkNotInterested(ctx context.Context, viewerID, gameID string) error {
 	viewerID, gameID = strings.TrimSpace(viewerID), strings.TrimSpace(gameID)
