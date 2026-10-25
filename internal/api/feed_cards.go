@@ -12,49 +12,49 @@ import (
 const FeedCardSchemaVersion = 1
 
 type feedCreator struct {
-	ID string `json:"id"`
+	ID          string `json:"id"`
 	DisplayName string `json:"display_name,omitempty"`
-	AvatarURL string `json:"avatar_url,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
 }
 
 type feedPreview struct {
-	PosterURL string `json:"poster_url,omitempty"`
-	ClipURL string `json:"clip_url,omitempty"`
-	Aspect float64 `json:"aspect,omitempty"`
-	DurationMS int `json:"duration_ms,omitempty"`
-	DominantColor string `json:"dominant_color,omitempty"`
-	Status string `json:"status"`
+	PosterURL     string  `json:"poster_url,omitempty"`
+	ClipURL       string  `json:"clip_url,omitempty"`
+	Aspect        float64 `json:"aspect,omitempty"`
+	DurationMS    int     `json:"duration_ms,omitempty"`
+	DominantColor string  `json:"dominant_color,omitempty"`
+	Status        string  `json:"status"`
 }
 
 type feedCardStats struct {
-	Likes int `json:"likes,omitempty"`
-	PlayStarts int `json:"play_starts,omitempty"`
+	Likes       int `json:"likes,omitempty"`
+	PlayStarts  int `json:"play_starts,omitempty"`
 	Completions int `json:"completions,omitempty"`
-	Replays int `json:"replays,omitempty"`
-	Shares int `json:"shares,omitempty"`
+	Replays     int `json:"replays,omitempty"`
+	Shares      int `json:"shares,omitempty"`
 }
 
 type feedCardViewer struct {
-	Liked bool `json:"liked"`
-	Saved bool `json:"saved"`
+	Liked     bool `json:"liked"`
+	Saved     bool `json:"saved"`
 	Following bool `json:"following"`
 }
 
 type feedCardPackage struct {
-	URL string `json:"url"`
+	URL               string `json:"url"`
 	MinRuntimeVersion string `json:"min_runtime_version"`
 }
 
 type feedCard struct {
-	GameID string `json:"game_id"`
-	Version string `json:"version,omitempty"`
-	Title string `json:"title"`
-	Caption string `json:"caption,omitempty"`
-	Topics []string `json:"topics,omitempty"`
-	Creator feedCreator `json:"creator"`
-	Preview feedPreview `json:"preview"`
-	Stats *feedCardStats `json:"stats,omitempty"`
-	Viewer feedCardViewer `json:"viewer"`
+	GameID  string          `json:"game_id"`
+	Version string          `json:"version,omitempty"`
+	Title   string          `json:"title"`
+	Caption string          `json:"caption,omitempty"`
+	Topics  []string        `json:"topics,omitempty"`
+	Creator feedCreator     `json:"creator"`
+	Preview feedPreview     `json:"preview"`
+	Stats   *feedCardStats  `json:"stats,omitempty"`
+	Viewer  feedCardViewer  `json:"viewer"`
 	Package feedCardPackage `json:"package"`
 }
 
@@ -111,21 +111,39 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 
 	cards := make([]feedCard, 0, len(games))
 	for _, game := range games {
-		if game == nil { continue }
+		if game == nil {
+			continue
+		}
 		version := ""
-		if game.PublishedVersion > 0 { version = strconv.Itoa(game.PublishedVersion) }
+		if game.PublishedVersion > 0 {
+			version = strconv.Itoa(game.PublishedVersion)
+		}
 		stats := eventStats[game.ID]
 		stats.Likes = likes[game.ID]
 		var statsPtr *feedCardStats
-		if stats.Likes > 0 || stats.PlayStarts > 0 || stats.Completions > 0 || stats.Replays > 0 || stats.Shares > 0 { statsPtr = &stats }
+		if stats.Likes > 0 || stats.PlayStarts > 0 || stats.Completions > 0 || stats.Replays > 0 || stats.Shares > 0 {
+			statsPtr = &stats
+		}
 		cards = append(cards, feedCard{
-			GameID: game.ID, Version: version, Title: game.Title, Caption: game.Caption,
-			Topics: append([]string(nil), game.Topics...), Creator: feedCreator{ID: game.OwnerID},
+			GameID:  game.ID,
+			Version: version,
+			Title:   game.Title,
+			Caption: game.Caption,
+			Topics:  append([]string(nil), game.Topics...),
+			Creator: feedCreator{ID: game.OwnerID},
 			// Preview generation is a separate pipeline. Explicitly mark a missing
 			// preview pending rather than inventing a URL or metrics.
-			Preview: feedPreview{Status: "pending"}, Stats: statsPtr,
-			Viewer: feedCardViewer{Liked: liked[game.ID], Saved: saved[game.ID], Following: followed[game.OwnerID]},
-			Package: feedCardPackage{URL: "/v1/games/" + url.PathEscape(game.ID) + "/package", MinRuntimeVersion: MinRuntimeVersion},
+			Preview: feedPreview{Status: "pending"},
+			Stats:   statsPtr,
+			Viewer: feedCardViewer{
+				Liked:     liked[game.ID],
+				Saved:     saved[game.ID],
+				Following: followed[game.OwnerID],
+			},
+			Package: feedCardPackage{
+				URL:               "/v1/games/" + url.PathEscape(game.ID) + "/package",
+				MinRuntimeVersion: MinRuntimeVersion,
+			},
 		})
 	}
 	return cards, nil
