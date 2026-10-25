@@ -44,12 +44,19 @@ type socialReport struct {
 	ResolutionReason string     `json:"resolution_reason,omitempty"`
 }
 type socialEvent struct {
+	SchemaVersion int       `json:"schema_version,omitempty"`
 	EventID    string    `json:"event_id,omitempty"`
 	UserID     string    `json:"user_id"`
 	GameID     string    `json:"game_id"`
 	Kind       string    `json:"kind"`
 	DurationMS int       `json:"duration_ms,omitempty"`
 	ExpectedMS int       `json:"expected_duration_ms,omitempty"`
+	PreviewDwellMS int   `json:"preview_dwell_ms,omitempty"`
+	TimeToInteractiveMS int `json:"time_to_interactive_ms,omitempty"`
+	TimeToFirstInputMS int `json:"time_to_first_input_ms,omitempty"`
+	FrameTimeP95MS int   `json:"frame_time_p95_ms,omitempty"`
+	FrameTimeAvgMS int   `json:"frame_time_avg_ms,omitempty"`
+	FrameCount int       `json:"frame_count,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 type publishPostRequest struct {
@@ -74,11 +81,18 @@ type socialFeedbackRequest struct {
 	Kind string `json:"kind"`
 }
 type socialEventRequest struct {
+	SchemaVersion int    `json:"schema_version"`
 	EventID    string `json:"event_id"`
 	GameID     string `json:"game_id"`
 	Kind       string `json:"kind"`
 	DurationMS int    `json:"duration_ms"`
 	ExpectedMS int    `json:"expected_duration_ms"`
+	PreviewDwellMS int `json:"preview_dwell_ms"`
+	TimeToInteractiveMS int `json:"time_to_interactive_ms"`
+	TimeToFirstInputMS int `json:"time_to_first_input_ms"`
+	FrameTimeP95MS int `json:"frame_time_p95_ms"`
+	FrameTimeAvgMS int `json:"frame_time_avg_ms"`
+	FrameCount int `json:"frame_count"`
 }
 
 type socialStateSnapshot struct {
@@ -1126,13 +1140,21 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if req.SchemaVersion == 0 {
+		// Existing clients omit the version; treat them as schema v1.
+		req.SchemaVersion = 1
+	}
+	if req.SchemaVersion != 1 {
+		writeErr(w, 400, "unsupported social event schema_version")
+		return
+	}
 	allowed := map[string]bool{"impression": true, "play_start": true, "completion": true, "replay": true, "share": true, "save": true, "follow": true, "quick_exit": true}
 	if !allowed[req.Kind] {
 		writeErr(w, 400, "unsupported social event kind")
 		return
 	}
-	if req.DurationMS < 0 || req.ExpectedMS < 0 {
-		writeErr(w, 400, "durations cannot be negative")
+	if req.DurationMS < 0 || req.ExpectedMS < 0 || req.PreviewDwellMS < 0 || req.TimeToInteractiveMS < 0 || req.TimeToFirstInputMS < 0 || req.FrameTimeP95MS < 0 || req.FrameTimeAvgMS < 0 || req.FrameCount < 0 || req.PreviewDwellMS > 3600000 || req.TimeToInteractiveMS > 3600000 || req.TimeToFirstInputMS > 3600000 || req.FrameTimeP95MS > 60000 || req.FrameTimeAvgMS > 60000 {
+		writeErr(w, 400, "invalid social event measurement")
 		return
 	}
 	req.EventID = strings.TrimSpace(req.EventID)
@@ -1158,7 +1180,7 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	ev := socialEvent{EventID: req.EventID, UserID: viewer, GameID: req.GameID, Kind: req.Kind, DurationMS: req.DurationMS, ExpectedMS: req.ExpectedMS, CreatedAt: time.Now().UTC()}
+	ev := socialEvent{SchemaVersion: req.SchemaVersion, EventID: req.EventID, UserID: viewer, GameID: req.GameID, Kind: req.Kind, DurationMS: req.DurationMS, ExpectedMS: req.ExpectedMS, PreviewDwellMS: req.PreviewDwellMS, TimeToInteractiveMS: req.TimeToInteractiveMS, TimeToFirstInputMS: req.TimeToFirstInputMS, FrameTimeP95MS: req.FrameTimeP95MS, FrameTimeAvgMS: req.FrameTimeAvgMS, FrameCount: req.FrameCount, CreatedAt: time.Now().UTC()}
 	s.events = append(s.events, ev)
 	if len(s.events) > 20000 {
 		s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
