@@ -37,6 +37,18 @@ type CommentIdempotencyRelation struct {
 	CreatedAt time.Time
 }
 
+type Report struct {
+	ID               string
+	GameID           string
+	Reporter         string
+	Reason           string
+	CreatedAt        time.Time
+	Status           string
+	ResolvedAt       *time.Time
+	ResolvedBy       string
+	ResolutionReason string
+}
+
 // Store defines durable follow, block, and saved-game relations shared by all API replicas.
 type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
@@ -52,6 +64,10 @@ type Store interface {
 	CreateComment(ctx context.Context, comment Comment, idempotencyKey string) (Comment, bool, error)
 	ListComments(ctx context.Context, gameID string) ([]Comment, error)
 	DeleteComment(ctx context.Context, gameID, commentID, actorID string) (found bool, owned bool, err error)
+	CreateReport(ctx context.Context, report Report) error
+	GetReport(ctx context.Context, reportID string) (Report, bool, error)
+	ListReports(ctx context.Context, status, gameID string, limit int) ([]Report, error)
+	ResolveReport(ctx context.Context, reportID, actorID, reason string, at time.Time) (Report, bool, error)
 	Close() error
 }
 
@@ -127,6 +143,21 @@ CREATE TABLE IF NOT EXISTS social_comment_idempotency (
   comment_id TEXT NOT NULL CHECK (length(comment_id) BETWEEN 1 AND 128),
   created_at TIMESTAMPTZ NOT NULL
 );
+CREATE TABLE IF NOT EXISTS social_reports (
+  id TEXT PRIMARY KEY CHECK (length(id) BETWEEN 1 AND 128),
+  game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
+  reporter TEXT NOT NULL CHECK (length(reporter) BETWEEN 1 AND 128),
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 500),
+  created_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'resolved')),
+  resolved_at TIMESTAMPTZ,
+  resolved_by TEXT NOT NULL DEFAULT '' CHECK (length(resolved_by) <= 128),
+  resolution_reason TEXT NOT NULL DEFAULT '' CHECK (length(resolution_reason) <= 500)
+);
+CREATE INDEX IF NOT EXISTS social_reports_status_created_idx
+  ON social_reports (status, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS social_reports_game_created_idx
+  ON social_reports (game_id, created_at DESC, id DESC);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -601,6 +632,138 @@ func (s *PostgresStore) DeleteComment(ctx context.Context, gameID, commentID, ac
 		return false, false, fmt.Errorf("find comment after delete miss: %w", err)
 	}
 	return true, false, nil
+}
+
+func (s *PostgresStore) CreateReport(ctx context.Context, report Report) error {
+	report.ID = strings.TrimSpace(report.ID)
+	report.GameID = strings.TrimSpace(report.GameID)
+	report.Reporter = strings.TrimSpace(report.Reporter)
+	report.Reason = strings.TrimSpace(report.Reason)
+	if report.ID == "" || report.GameID == "" || report.Reporter == "" ||
+		len(report.ID) > 128 || len(report.GameID) > 128 || len(report.Reporter) > 128 ||
+		report.Reason == "" || len(report.Reason) > 500 {
+		return errors.New("report IDs must be 1–128 characters and reason 1–500 characters")
+	}
+	if report.CreatedAt.IsZero() {
+		report.CreatedAt = time.Now().UTC()
+	}
+	if report.Status == "" {
+		report.Status = "open"
+	}
+	if report.Status != "open" {
+		return errors.New("new report status must be open")
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO social_reports (id, game_id, reporter, reason, created_at, status)
+VALUES ($1, $2, $3, $4, $5, 'open')`,
+		report.ID, report.GameID, report.Reporter, report.Reason, report.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert moderation report: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) GetReport(ctx context.Context, reportID string) (Report, bool, error) {
+	reportID = strings.TrimSpace(reportID)
+	if reportID == "" || len(reportID) > 128 {
+		return Report{}, false, errors.New("report ID must be 1–128 characters")
+	}
+	report, err := scanReport(s.db.QueryRowContext(ctx, `
+SELECT id, game_id, reporter, reason, created_at, status, resolved_at, resolved_by, resolution_reason
+FROM social_reports WHERE id = $1`, reportID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Report{}, false, nil
+	}
+	if err != nil {
+		return Report{}, false, fmt.Errorf("read moderation report: %w", err)
+	}
+	return report, true, nil
+}
+
+func (s *PostgresStore) ListReports(ctx context.Context, status, gameID string, limit int) ([]Report, error) {
+	status = strings.TrimSpace(status)
+	gameID = strings.TrimSpace(gameID)
+	if status != "" && status != "open" && status != "resolved" {
+		return nil, errors.New("report status must be open or resolved")
+	}
+	if len(gameID) > 128 || limit < 1 || limit > 500 {
+		return nil, errors.New("game ID must be at most 128 characters and limit between 1 and 500")
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, game_id, reporter, reason, created_at, status, resolved_at, resolved_by, resolution_reason
+FROM social_reports
+WHERE ($1 = '' OR status = $1) AND ($2 = '' OR game_id = $2)
+ORDER BY created_at DESC, id DESC
+LIMIT $3`, status, gameID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query moderation reports: %w", err)
+	}
+	defer rows.Close()
+	reports := make([]Report, 0)
+	for rows.Next() {
+		report, err := scanReport(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan moderation report: %w", err)
+		}
+		reports = append(reports, report)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate moderation reports: %w", err)
+	}
+	return reports, nil
+}
+
+type reportScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanReport(scanner reportScanner) (Report, error) {
+	var report Report
+	err := scanner.Scan(&report.ID, &report.GameID, &report.Reporter, &report.Reason, &report.CreatedAt,
+		&report.Status, &report.ResolvedAt, &report.ResolvedBy, &report.ResolutionReason)
+	return report, err
+}
+
+func (s *PostgresStore) ResolveReport(ctx context.Context, reportID, actorID, reason string, at time.Time) (Report, bool, error) {
+	reportID = strings.TrimSpace(reportID)
+	actorID = strings.TrimSpace(actorID)
+	reason = strings.TrimSpace(reason)
+	if reportID == "" || actorID == "" || len(reportID) > 128 || len(actorID) > 128 || len(reason) > 500 {
+		return Report{}, false, errors.New("report and actor IDs must be 1–128 characters and resolution reason at most 500 characters")
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Report{}, false, fmt.Errorf("begin report resolution: %w", err)
+	}
+	defer tx.Rollback()
+	report, err := scanReport(tx.QueryRowContext(ctx, `
+SELECT id, game_id, reporter, reason, created_at, status, resolved_at, resolved_by, resolution_reason
+FROM social_reports WHERE id = $1 FOR UPDATE`, reportID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Report{}, false, nil
+	}
+	if err != nil {
+		return Report{}, false, fmt.Errorf("lock moderation report: %w", err)
+	}
+	if report.Status != "resolved" {
+		if _, err := tx.ExecContext(ctx, `
+UPDATE social_reports
+SET status = 'resolved', resolved_at = $2, resolved_by = $3, resolution_reason = $4
+WHERE id = $1`, reportID, at, actorID, reason); err != nil {
+			return Report{}, false, fmt.Errorf("resolve moderation report: %w", err)
+		}
+		report.Status = "resolved"
+		report.ResolvedAt = &at
+		report.ResolvedBy = actorID
+		report.ResolutionReason = reason
+	}
+	if err := tx.Commit(); err != nil {
+		return Report{}, false, fmt.Errorf("commit report resolution: %w", err)
+	}
+	return report, true, nil
 }
 
 func (s *PostgresStore) Close() error {
