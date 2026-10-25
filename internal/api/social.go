@@ -1323,7 +1323,36 @@ func (s *Server) isBlockedEitherDirection(viewer, creator string) bool {
 	if viewer == "" || creator == "" || viewer == creator {
 		return false
 	}
-	return s.isBlocked(viewer, creator) || s.isBlocked(creator, viewer)
+	if s.socialGraphErr != nil {
+		return true
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		outgoing, err := s.socialGraph.ListBlocked(ctx, viewer)
+		if err == nil {
+			var incoming []string
+			incoming, err = s.socialGraph.ListBlockers(ctx, viewer)
+			if err == nil {
+				for _, id := range outgoing {
+					if id == creator {
+						cancel()
+						return true
+					}
+				}
+				for _, id := range incoming {
+					if id == creator {
+						cancel()
+						return true
+					}
+				}
+			}
+		}
+		cancel()
+		return err != nil
+	}
+	s.socialMu.RLock()
+	defer s.socialMu.RUnlock()
+	return s.blocks[viewer][creator] || s.blocks[creator][viewer]
 }
 
 func (s *Server) blockedCreatorIDs(ctx context.Context, viewer string) (map[string]bool, error) {
