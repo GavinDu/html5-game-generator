@@ -42,7 +42,7 @@ var rapierVendorJS string
 type Server struct {
 	store              store.Store
 	runner             *pipeline.Runner
-	deliveryMu sync.Mutex
+	deliveryMu      sync.Mutex
 	deliveryMetrics map[string]*deliveryMetricSnapshot
 	socialMu           sync.RWMutex
 	follows            map[string]map[string]struct{}
