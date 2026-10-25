@@ -92,13 +92,13 @@ final class PlayerContractTests: XCTestCase {
     }
 
     func testRejectsUnsupportedIRVersion() {
-        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "9.0", ir: #"{\"irVersion\":\"9.0\"}"#), expectedGameID: "game-123")) { error in
+        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "9.0", ir: #"{"irVersion":"9.0"}"#), expectedGameID: "game-123")) { error in
             XCTAssertEqual(error as? PlayerFailure, .unsupportedIRVersion("9.0"))
         }
     }
 
     func testRejectsEnvelopeAndEmbeddedIRVersionMismatch() {
-        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "1.2", ir: #"{\"irVersion\":\"1.1\"}"#), expectedGameID: "game-123")) { error in
+        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "1.2", ir: #"{"irVersion":"1.1"}"#), expectedGameID: "game-123")) { error in
             XCTAssertEqual(error as? PlayerFailure, .irVersionMismatch)
         }
     }
