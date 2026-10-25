@@ -37,10 +37,10 @@ public struct GameFeedCard: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: GamePlatformTheme.Spacing.medium) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                RoundedRectangle(cornerRadius: GamePlatformTheme.Radius.medium, style: .continuous)
+                    .fill(GamePlatformTheme.Surface.elevated)
                 if let thumbnailURL {
                     AsyncImage(url: thumbnailURL) { phase in
                         switch phase {
@@ -65,7 +65,7 @@ public struct GameFeedCard: View {
             .frame(height: 176)
             .accessibilityHidden(thumbnailURL == nil)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: GamePlatformTheme.Spacing.small) {
                 Text(title)
                     .font(.headline)
                     .lineLimit(2)
@@ -93,17 +93,17 @@ public struct GameFeedCard: View {
                     .foregroundStyle(.tertiary)
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: GamePlatformTheme.Spacing.small) {
                 Button(action: onPlay) {
                     Label("Play", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity, minHeight: GamePlatformTheme.Control.minimumHitTarget)
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityHint("Opens \(title) in the game player")
 
                 Button(action: onRemix) {
                     Label("Remix", systemImage: "arrow.triangle.branch")
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: GamePlatformTheme.Control.minimumHitTarget, minHeight: GamePlatformTheme.Control.minimumHitTarget)
                 }
                 .buttonStyle(.bordered)
                 .accessibilityHint("Create your own version of \(title)")
@@ -116,13 +116,8 @@ public struct GameFeedCard: View {
                 .accessibilityLabel("Share \(title)")
             }
         }
-        .padding(16)
-        .background(Color.primary.opacity(0.025))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        }
+        .gamePlatformCard(padding: GamePlatformTheme.Spacing.large)
+        .accessibilityElement(children: .contain)
     }
 
     private var placeholder: some View {
