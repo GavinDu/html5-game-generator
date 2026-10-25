@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,7 +48,17 @@ func persistModerationAudit(ev moderationAuditEvent) error {
 	if err != nil {
 		return err
 	}
-	_, writeErr := f.Write(append(data, '\n'))
+	record := append(data, '\n')
+	n, writeErr := f.Write(record)
+	if writeErr == nil && n != len(record) {
+		writeErr = io.ErrShortWrite
+	}
+	if writeErr == nil {
+		// A successful Write may only have reached the OS page cache.
+		// Sync before acknowledging the moderation mutation so a crash
+		// is less likely to lose the audit record.
+		writeErr = f.Sync()
+	}
 	closeErr := f.Close()
 	if writeErr != nil {
 		return writeErr
