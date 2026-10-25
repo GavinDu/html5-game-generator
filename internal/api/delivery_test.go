@@ -217,10 +217,15 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 	viewer := "integration-feed-viewer-" + pipeline.NewID()
 	creator := "integration-feed-creator-" + pipeline.NewID()
 	gameID := "integration-blocked-game-" + pipeline.NewID()
+	savedGameID := "integration-saved-game-" + pipeline.NewID()
 	st.CreateGame(&model.Game{
 		ID: gameID, Title: "Blocked creator game", OwnerID: creator,
 		Status: model.GameReady, Visibility: model.VisibilityPublic,
 		ModerationStatus: "approved",
+	})
+	st.CreateGame(&model.Game{
+		ID: savedGameID, Title: "Saved game", OwnerID: "integration-save-creator-" + pipeline.NewID(),
+		Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved",
 	})
 	first := New(st, pipeline.NewRunner(st))
 	second := New(st, pipeline.NewRunner(st))
@@ -251,7 +256,7 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 		}
 	}
 
-	saved := do(t, first, http.MethodPost, "/v1/games/"+gameID+"/save", nil, viewer)
+	saved := do(t, first, http.MethodPost, "/v1/games/"+savedGameID+"/save", nil, viewer)
 	if saved.Code != http.StatusOK {
 		t.Fatalf("save game: %d %s", saved.Code, saved.Body.String())
 	}
@@ -263,10 +268,10 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 		Games []model.Game `json:"games"`
 	}
 	decode(t, savedList, &savedResponse)
-	if len(savedResponse.Games) != 1 || savedResponse.Games[0].ID != gameID {
-		t.Fatalf("saved list from second instance = %+v, want game %s", savedResponse.Games, gameID)
+	if len(savedResponse.Games) != 1 || savedResponse.Games[0].ID != savedGameID {
+		t.Fatalf("saved list from second instance = %+v, want game %s", savedResponse.Games, savedGameID)
 	}
-	unsaved := do(t, second, http.MethodDelete, "/v1/games/"+gameID+"/save", nil, viewer)
+	unsaved := do(t, second, http.MethodDelete, "/v1/games/"+savedGameID+"/save", nil, viewer)
 	if unsaved.Code != http.StatusOK {
 		t.Fatalf("un-save through second instance: %d %s", unsaved.Code, unsaved.Body.String())
 	}
