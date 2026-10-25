@@ -610,15 +610,51 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
 	s.socialMu.RLock()
 	followed := map[string]bool{}
-	for id := range s.follows[viewer] {
-		followed[id] = true
+	followers := map[string]bool{}
+	if s.socialGraph == nil {
+		for id := range s.follows[viewer] {
+			followed[id] = true
+		}
+		if scope == "friends" {
+			for id := range s.follows {
+				if _, ok := s.follows[id][viewer]; ok {
+					followers[id] = true
+				}
+			}
+		}
 	}
 	mutual := map[string]bool{}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
+		if err == nil && scope == "friends" {
+			var followerIDs []string
+			followerIDs, err = s.socialGraph.ListFollowers(ctx, viewer)
+			if err == nil {
+				for _, id := range followerIDs {
+					followers[id] = true
+				}
+			}
+		}
+		cancel()
+		if err != nil {
+			s.socialMu.RUnlock()
+			writeErr(w, http.StatusServiceUnavailable, "could not read shared social graph")
+			return
+		}
+		for _, id := range followingIDs {
+			followed[id] = true
+		}
+	}
 	if scope == "friends" {
 		for id := range followed {
-			if _, ok := s.follows[id][viewer]; ok {
+			if followers[id] {
 				mutual[id] = true
 			}
 		}
