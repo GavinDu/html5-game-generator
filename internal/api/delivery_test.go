@@ -182,7 +182,6 @@ func TestFollowsSurviveRestart(t *testing.T) {
 	}
 }
 
-
 func TestDeliveryMetricsAreAggregatedAndOperatorProtected(t *testing.T) {
 	t.Setenv("DQ_TELEMETRY_ADMIN_TOKEN", "delivery-metrics-test-token")
 	st := store.NewMemoryStore()
