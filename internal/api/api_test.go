@@ -342,7 +342,6 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	}
 }
 
-
 // A previously public package must not remain usable from a fresh conditional
 // request after its owner changes visibility. Public delivery requires revalidation.
 func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
