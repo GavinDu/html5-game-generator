@@ -19,7 +19,7 @@ type SaveRelation struct {
 	GameID   string
 }
 
-// Store defines durable follow and block relations shared by all API replicas.
+// Store defines durable follow, block, and saved-game relations shared by all API replicas.
 type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
 	Unfollow(ctx context.Context, viewerID, creatorID string) error
