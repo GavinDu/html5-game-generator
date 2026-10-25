@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A reusable, accessible player shell. The runtime renderer is supplied by the
-/// host app; this view owns the surrounding loading/error/pause/completion UX.
+/// host app; this view owns loading/error/pause/completion UX and can optionally
+/// forward semantic touch events through onInput to the host runtime bridge.
 @available(iOS 16.0, macOS 13.0, *)
 public struct PlayerExperienceView<Renderer: View>: View {
     public let state: PlayerState
