@@ -3,8 +3,10 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
 )
 
@@ -190,5 +192,33 @@ func TestRestoreRejectsCorruptBackupWithoutMutatingStore(t *testing.T) {
 	}
 	if game, ok := target.GetGame("g-existing"); !ok || game.Title != "Keep me" {
 		t.Fatalf("failed restore mutated target: %+v, ok=%v", game, ok)
+	}
+}
+
+func TestRestoreRejectsSnapshotWithAssetHashMismatch(t *testing.T) {
+	root := t.TempDir()
+	backupPath := filepath.Join(root, "bad-asset.backup.json")
+	targetPath := filepath.Join(root, "restored", "store.json")
+	source := NewMemoryStore()
+	game := &model.Game{
+		ID: "g-bad-asset",
+		GameIR: &gameir.Document{Assets: []gameir.Asset{{ID: "asset-1", URI: "assets/asset-1.png", SHA256: strings.Repeat("0", 64)}}},
+	}
+	source.CreateGame(game)
+	source.PutArtifact(game.ID, "assets/asset-1.png", []byte("actual-bytes"), "image/png")
+	if err := source.BackupTo(backupPath); err != nil {
+		t.Fatal(err)
+	}
+
+	target := NewMemoryStore()
+	target.CreateGame(&model.Game{ID: "g-existing", Title: "Keep existing state"})
+	if err := target.EnablePersistence(targetPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := target.RestoreFrom(backupPath); err == nil || !strings.Contains(err.Error(), "SHA-256 mismatch") {
+		t.Fatalf("restore error = %v, want asset SHA-256 mismatch", err)
+	}
+	if got, ok := target.GetGame("g-existing"); !ok || got.Title != "Keep existing state" {
+		t.Fatalf("invalid backup mutated target state: game=%+v ok=%v", got, ok)
 	}
 }
