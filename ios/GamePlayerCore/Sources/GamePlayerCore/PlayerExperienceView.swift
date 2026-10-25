@@ -110,7 +110,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(Color.primary.opacity(0.04))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
     }
