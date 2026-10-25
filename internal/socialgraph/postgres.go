@@ -121,6 +121,31 @@ func (s *PostgresStore) ListFollowing(ctx context.Context, viewerID string) ([]s
 	return ids, nil
 }
 
+func (s *PostgresStore) ListFollowers(ctx context.Context, creatorID string) ([]string, error) {
+	creatorID = strings.TrimSpace(creatorID)
+	if creatorID == "" || len(creatorID) > 128 {
+		return nil, errors.New("creator ID must be 1–128 characters")
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT viewer_id FROM social_follows WHERE creator_id = $1 ORDER BY viewer_id`, creatorID)
+	if err != nil {
+		return nil, fmt.Errorf("query follower edges: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan follower edge: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate follower edges: %w", err)
+	}
+	return ids, nil
+}
+
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
