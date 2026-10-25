@@ -8,9 +8,7 @@ final class PlayerLifecycleTests: XCTestCase {
         player.packageReady(gameID: "game-123", version: "v7")
         player.start()
         player.pause(.appBackgrounded)
-
         XCTAssertEqual(player.state, .paused(gameID: "game-123", packageVersion: "v7", reason: .appBackgrounded))
-
         player.resume()
         XCTAssertEqual(player.state, .playing(gameID: "game-123", packageVersion: "v7"))
     }
@@ -49,10 +47,15 @@ final class PlayerLifecycleTests: XCTestCase {
 }
 
 final class PlayerContractTests: XCTestCase {
-    private func package(format: String = "2.0", runtime: String = "2026.10.23.2",
-                         gameID: String = "game-123", ir: String = #"{"schemaVersion":"1.0"}"#,
-                         irHash: String = String(repeating: "a", count: 64),
-                         assets: String = "[]") -> Data {
+    private func package(
+        format: String = "2.0",
+        runtime: String = "2026.10.23.2",
+        gameID: String = "game-123",
+        irVersion: String = "1.0",
+        ir: String = #"{"irVersion":"1.0"}"#,
+        irHash: String = String(repeating: "a", count: 64),
+        assets: String = "[]"
+    ) -> Data {
         Data("""
         {
           "packageFormatVersion":"\(format)",
@@ -69,6 +72,7 @@ final class PlayerContractTests: XCTestCase {
     func testAcceptsSupportedPackageEnvelope() throws {
         let result = try PlayerContract().validate(package(), expectedGameID: "game-123")
         XCTAssertEqual(result.gameId, "game-123")
+        XCTAssertEqual(result.irVersion, "1.0")
         XCTAssertEqual(result.assets.count, 0)
     }
 
@@ -80,8 +84,7 @@ final class PlayerContractTests: XCTestCase {
 
     func testRejectsNewerMinimumRuntime() {
         XCTAssertThrowsError(try PlayerContract().validate(package(runtime: "2027.1"), expectedGameID: "game-123")) { error in
-            XCTAssertEqual(error as? PlayerFailure,
-                           .unsupportedRuntime(required: "2027.1", current: "2026.10.23.2"))
+            XCTAssertEqual(error as? PlayerFailure, .unsupportedRuntime(required: "2027.1", current: "2026.10.23.2"))
         }
     }
 
@@ -92,13 +95,23 @@ final class PlayerContractTests: XCTestCase {
     }
 
     func testRejectsUnsupportedIRVersion() {
-        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "9.0", ir: #"{\"irVersion\":\"9.0\"}"#), expectedGameID: "game-123")) { error in
+        XCTAssertThrowsError(
+            try PlayerContract().validate(
+                package(irVersion: "9.0", ir: #"{"irVersion":"9.0"}"#),
+                expectedGameID: "game-123"
+            )
+        ) { error in
             XCTAssertEqual(error as? PlayerFailure, .unsupportedIRVersion("9.0"))
         }
     }
 
     func testRejectsEnvelopeAndEmbeddedIRVersionMismatch() {
-        XCTAssertThrowsError(try PlayerContract().validate(package(irVersion: "1.2", ir: #"{\"irVersion\":\"1.1\"}"#), expectedGameID: "game-123")) { error in
+        XCTAssertThrowsError(
+            try PlayerContract().validate(
+                package(irVersion: "1.2", ir: #"{"irVersion":"1.1"}"#),
+                expectedGameID: "game-123"
+            )
+        ) { error in
             XCTAssertEqual(error as? PlayerFailure, .irVersionMismatch)
         }
     }
