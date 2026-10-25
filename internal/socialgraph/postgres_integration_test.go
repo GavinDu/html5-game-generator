@@ -191,9 +191,9 @@ func TestPostgresStorePersistsModerationReportsAcrossInstances(t *testing.T) {
 	if err := first.CreateReport(ctx, report); err != nil {
 		t.Fatalf("create report: %v", err)
 	}
-	found, err := second.GetReport(ctx, report.ID)
-	if err != nil || !found || found.ID != report.ID || found.Status != "open" {
-		t.Fatalf("read report across instances: found=%v report=%+v err=%v", found, found, err)
+	got, found, err := second.GetReport(ctx, report.ID)
+	if err != nil || !found || got.ID != report.ID || got.Status != "open" {
+		t.Fatalf("read report across instances: found=%v report=%+v err=%v", found, got, err)
 	}
 	items, err := second.ListReports(ctx, "open", report.GameID, 10)
 	if err != nil || len(items) != 1 || items[0].ID != report.ID {
