@@ -160,9 +160,9 @@ func TestFullPipeline(t *testing.T) {
 	// Every sprite URL exactly as the manifest declares it must be fetchable.
 	for _, sp := range manifest.Assets.Sprites {
 		p := bundleBase + "/" + sp.Src
-		rec = do(t, srv, "GET", p, nil, "")
+		rec = do(t, srv, "GET", p, nil, "parent-1")
 		if rec.Code != 200 || rec.Body.Len() == 0 {
-			t.Fatalf("sprite %s (%s): %d, len %d", sp.ID, p, rec.Code, rec.Body.Len())
+			t.Fatalf("sprite %s (%s): %d, len %d: %s", sp.ID, p, rec.Code, rec.Body.Len(), rec.Body.String())
 		}
 	}
 }
