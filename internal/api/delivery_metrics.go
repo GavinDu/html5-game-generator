@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"sync"
 	"time"
 )
 
