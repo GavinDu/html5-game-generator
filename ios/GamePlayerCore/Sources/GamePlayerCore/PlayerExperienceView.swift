@@ -196,7 +196,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
             return "The server couldn’t load this game (HTTP \(code)). You can retry or exit."
         case .unsupportedPackageFormat, .unsupportedRuntime:
             return "This game needs a newer player version. Update the app and try again."
-        case .packageGameIDMismatch, .missingIR, .invalidIRHash, .malformedPackage:
+        case .packageGameIDMismatch, .missingIR, .invalidIRHash, .assetHashMissing, .assetHashMismatch, .assetTooLarge, .assetOriginMismatch, .malformedPackage:
             return "The game package could not be verified. It wasn’t started. Try again later."
         case .cancelled:
             return "Loading was interrupted. Try again when you’re ready."
