@@ -42,6 +42,10 @@ public struct PlayerTelemetryEvent: Equatable, Sendable {
         case .packageGameIDMismatch: return "game_id_mismatch"
         case .missingIR: return "missing_ir"
         case .invalidIRHash: return "invalid_ir_hash"
+        case .assetHashMissing: return "asset_hash_missing"
+        case .assetHashMismatch: return "asset_hash_mismatch"
+        case .assetTooLarge: return "asset_too_large"
+        case .assetOriginMismatch: return "asset_origin_mismatch"
         case .malformedPackage: return "malformed_package"
         case .cancelled: return "cancelled"
         }
