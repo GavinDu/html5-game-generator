@@ -44,7 +44,6 @@ func TestModerationAuditReturnsEmptyListWhenFileMissing(t *testing.T) {
 	}
 }
 
-
 func TestPersistModerationAuditAppendsDurableJSONLRecords(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
 	t.Setenv("DQ_MODERATION_AUDIT_FILE", path)
