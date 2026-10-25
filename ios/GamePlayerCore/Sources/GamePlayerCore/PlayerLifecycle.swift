@@ -23,6 +23,8 @@ public enum PlayerFailure: Error, Equatable, Sendable {
     case network(String)
     case httpStatus(Int)
     case unsupportedPackageFormat(String)
+    case unsupportedIRVersion(String)
+    case irVersionMismatch
     case unsupportedRuntime(required: String, current: String)
     case packageGameIDMismatch
     case missingIR
@@ -56,6 +58,7 @@ public struct PackageAsset: Decodable, Equatable, Sendable {
 public struct GamePackageEnvelope: Decodable, Sendable {
     public let packageFormatVersion: String
     public let minRuntimeVersion: String
+    public let irVersion: String
     public let gameId: String
     public let ir: JSONValue?
     public let assets: [PackageAsset]
@@ -85,10 +88,12 @@ public indirect enum JSONValue: Decodable, Sendable {
 public struct PlayerContract: Sendable {
     public let packageFormatVersion: String
     public let runtimeVersion: String
+    public let supportedIRVersions: Set<String>
 
-    public init(packageFormatVersion: String = "2.0", runtimeVersion: String = "2026.10.23.2") {
+    public init(packageFormatVersion: String = "2.0", runtimeVersion: String = "2026.10.23.2", supportedIRVersions: Set<String> = ["1.0", "1.1", "1.2"]) {
         self.packageFormatVersion = packageFormatVersion
         self.runtimeVersion = runtimeVersion
+        self.supportedIRVersions = supportedIRVersions
     }
 
     public func validate(_ data: Data, expectedGameID: String) throws -> GamePackageEnvelope {
@@ -106,6 +111,16 @@ public struct PlayerContract: Sendable {
             throw PlayerFailure.unsupportedRuntime(required: envelope.minRuntimeVersion, current: runtimeVersion)
         }
         guard envelope.ir != nil else { throw PlayerFailure.missingIR }
+        guard supportedIRVersions.contains(envelope.irVersion) else {
+            throw PlayerFailure.unsupportedIRVersion(envelope.irVersion)
+        }
+        if case .object(let irObject)? = envelope.ir {
+            guard case .string(let embeddedIRVersion)? = irObject["irVersion"], embeddedIRVersion == envelope.irVersion else {
+                throw PlayerFailure.irVersionMismatch
+            }
+        } else {
+            throw PlayerFailure.missingIR
+        }
         guard envelope.irHash.count == 64, envelope.irHash.allSatisfy({ $0.isHexDigit }) else {
             throw PlayerFailure.invalidIRHash
         }
