@@ -142,3 +142,50 @@ func packageRequestForID(t *testing.T, srv *Server, id, etag, user string) *http
 	srv.Routes().ServeHTTP(rec, req)
 	return rec
 }
+
+func TestPackageStaleETagCannotBypassVisibilityOrModeration(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*model.Game)
+	}{
+		{name: "private", mutate: func(g *model.Game) { g.Visibility = model.VisibilityPrivate }},
+		{name: "quarantined", mutate: func(g *model.Game) { g.Quarantined = true }},
+		{name: "pending moderation", mutate: func(g *model.Game) { g.ModerationStatus = "pending" }},
+		{name: "rejected moderation", mutate: func(g *model.Game) { g.ModerationStatus = "rejected" }},
+		{name: "unpublished", mutate: func(g *model.Game) { g.Status = model.GameDraft }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := store.NewMemoryStore()
+			srv := New(st, pipeline.NewRunner(st))
+			gameID := "cache-transition-game"
+			game := seedReadyGame(st, gameID)
+			game.ModerationStatus = "approved"
+			st.UpdateGame(game)
+
+			first := packageRequestForID(t, srv, gameID, "", "")
+			if first.Code != http.StatusOK {
+				t.Fatalf("initial public package: got %d: %s", first.Code, first.Body.String())
+			}
+			etag := first.Header().Get("ETag")
+			if etag == "" {
+				t.Fatal("initial package has no ETag")
+			}
+
+			updated, ok := st.GetGame(gameID)
+			if !ok {
+				t.Fatal("game disappeared")
+			}
+			tc.mutate(updated)
+			st.UpdateGame(updated)
+
+			stale := packageRequestForID(t, srv, gameID, etag, "")
+			if stale.Code != http.StatusNotFound {
+				t.Fatalf("stale conditional request got %d, want 404: %s", stale.Code, stale.Body.String())
+			}
+			if got := stale.Header().Get("Cache-Control"); got != "private, no-store" {
+				t.Fatalf("restricted response Cache-Control = %q, want private, no-store", got)
+			}
+		})
+	}
+}
