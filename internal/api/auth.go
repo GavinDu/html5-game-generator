@@ -63,8 +63,16 @@ func verifyBearerUserID(r *http.Request) string {
 // accepted as an identity in this mode.
 func requireAuthenticatedUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.TrimSpace(os.Getenv("DQ_AUTH_HMAC_SECRET")) == "" || !requiresUserAuth(r) {
+		if !requiresUserAuth(r) {
 			next.ServeHTTP(w, r)
+			return
+		}
+		if strings.TrimSpace(os.Getenv("DQ_AUTH_HMAC_SECRET")) == "" {
+			if strings.EqualFold(strings.TrimSpace(os.Getenv("DQ_ALLOW_INSECURE_USER_ID")), "true") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			writeErr(w, http.StatusServiceUnavailable, "user authentication is not configured")
 			return
 		}
 		sub := verifyBearerUserID(r)
