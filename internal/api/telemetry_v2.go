@@ -101,8 +101,8 @@ func (s *Server) loadTeleV2IndexesLocked() {
 	scanner.Buffer(make([]byte, 64*1024), 1<<20)
 	for scanner.Scan() {
 		var record struct {
-			ReceivedAt string       `json:"receivedAt"`
-			Event      teleEventV2  `json:"event"`
+			ReceivedAt string      `json:"receivedAt"`
+			Event      teleEventV2 `json:"event"`
 		}
 		if json.Unmarshal(scanner.Bytes(), &record) != nil {
 			continue
