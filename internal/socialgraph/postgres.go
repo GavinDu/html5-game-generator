@@ -147,6 +147,49 @@ func (s *PostgresStore) ListFollowers(ctx context.Context, creatorID string) ([]
 	return ids, nil
 }
 
+type Edge struct {
+	ViewerID  string
+	CreatorID string
+}
+
+// ImportFollows idempotently imports a snapshot's follow edges in one
+// transaction. It never deletes destination rows and is safe to resume.
+func (s *PostgresStore) ImportFollows(ctx context.Context, edges []Edge) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin follow import: %w", err)
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(ctx, `
+INSERT INTO social_follows (viewer_id, creator_id)
+VALUES ($1, $2)
+ON CONFLICT (viewer_id, creator_id) DO NOTHING`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare follow import: %w", err)
+	}
+	defer stmt.Close()
+	inserted := 0
+	for _, edge := range edges {
+		viewer, creator := strings.TrimSpace(edge.ViewerID), strings.TrimSpace(edge.CreatorID)
+		if viewer == "" || creator == "" || len(viewer) > 128 || len(creator) > 128 || viewer == creator {
+			return 0, fmt.Errorf("invalid follow edge in import")
+		}
+		result, err := stmt.ExecContext(ctx, viewer, creator)
+		if err != nil {
+			return 0, fmt.Errorf("import follow edge: %w", err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("count imported follow edge: %w", err)
+		}
+		inserted += int(n)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit follow import: %w", err)
+	}
+	return inserted, nil
+}
+
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
