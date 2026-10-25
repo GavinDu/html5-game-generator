@@ -51,7 +51,7 @@ Validate more than JSON syntax: unique IDs, references, supported event/action t
 
 - `POST /v1/game-ir/validate`: validates one Game IR document, rejecting unknown fields, unsupported capabilities and invalid references. Request size is capped at 2 MiB.
 - `GET /v1/games/{id}/game-ir`: returns the published canonical Game IR.
-- `GET /v1/games/{id}/package`: returns the Game Package envelope with `packageFormatVersion: "2.0"`, `minRuntimeVersion`, `gameId`, `ir`, and asset descriptors. The player checks the minimum runtime before interpreting the package.
+- `GET /v1/games/{id}/package`: returns the Game Package envelope with `packageFormatVersion: "2.0"`, `irVersion`, `minRuntimeVersion`, `gameId`, `ir`, and asset descriptors. The player checks the minimum runtime before interpreting the package.
 - `GET /v1/games/{id}/assets/{assetId}`: delivers the corresponding package asset after resolving its ID through the validated IR.
 
 The generation pipeline writes `game-ir.json`, validates it before publication, and stores the validated document on the published game. The GameShim `game.js` artifact remains temporary HTML5 reference infrastructure; it is not the canonical package entry point and should be removed after Defold contract tests pass.
@@ -154,3 +154,12 @@ report `pixijs-rapier-capability-inventory`).
 The server response at `GET /v1/games/{id}/package` includes `packageFormatVersion`, `irVersion`, `minRuntimeVersion`, `gameId`, `ir`, `assets`, and `irHash`. The envelope's `irVersion` must match the embedded Game IR document's `irVersion`; clients reject a mismatch or an unsupported IR version before starting the shipped runtime. Current supported IR versions are 1.0, 1.1, and 1.2. The minimum runtime version remains an independent compatibility gate.
 
 Asset SHA-256 values are verified against downloaded bytes before runtime startup. The IR hash identifies the canonical Game IR document; clients must use the same canonicalization contract as the server rather than hashing arbitrary re-serialized JSON.
+
+
+## Client-side IR compatibility gate
+
+- `packageFormatVersion` versions the outer delivery envelope; `irVersion` versions the semantics of the embedded Game IR. They are not interchangeable.
+- The server publishes `irVersion` from the validated IR document. The envelope value must exactly match `ir.irVersion`; missing or mismatched values are invalid.
+- The iOS player accepts only its explicitly supported IR versions (currently `1.0`, `1.1`, and `1.2`) and rejects unknown versions before starting the runtime. A package that passes JSON decoding but requires unknown semantics must fail closed with an actionable compatibility error.
+- `minRuntimeVersion` remains a separate runtime capability gate. A recognized IR version does not imply the current runtime satisfies the package's minimum runtime version.
+- The iOS contract currently checks the shape of the IR hash. Byte-for-byte canonical hash verification must use the exact server canonicalization algorithm before it is treated as an integrity proof; asset bytes are independently checked against each declared SHA-256 before launch.
