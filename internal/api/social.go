@@ -772,26 +772,60 @@ func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, map[string]any{"report_id": report.ID, "status": report.Status})
 }
 func (s *Server) handleBlock(w http.ResponseWriter, r *http.Request) {
+	viewer := userID(r)
 	creator := strings.TrimSpace(r.PathValue("id"))
-	if creator == "" || creator == userID(r) {
-		writeErr(w, 400, "a different creator ID is required")
+	if creator == "" || creator == viewer {
+		writeErr(w, http.StatusBadRequest, "a different creator ID is required")
 		return
 	}
-	s.socialMu.Lock()
-	if s.blocks[userID(r)] == nil {
-		s.blocks[userID(r)] = map[string]bool{}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
 	}
-	s.blocks[userID(r)][creator] = true
-	s.persistSocialStateLocked()
-	s.socialMu.Unlock()
-	writeJSON(w, 200, map[string]any{"blocked": true, "creator_id": creator})
-}
-func (s *Server) handleUnblock(w http.ResponseWriter, r *http.Request) {
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.Block(ctx, viewer, creator)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist block relation")
+			return
+		}
+	}
 	s.socialMu.Lock()
-	delete(s.blocks[userID(r)], r.PathValue("id"))
-	s.persistSocialStateLocked()
+	if s.blocks[viewer] == nil {
+		s.blocks[viewer] = map[string]bool{}
+	}
+	s.blocks[viewer][creator] = true
+	_ = s.persistSocialStateLocked()
 	s.socialMu.Unlock()
-	writeJSON(w, 200, map[string]any{"blocked": false, "creator_id": r.PathValue("id")})
+	writeJSON(w, http.StatusOK, map[string]any{"blocked": true, "creator_id": creator})
+}
+
+func (s *Server) handleUnblock(w http.ResponseWriter, r *http.Request) {
+	viewer := userID(r)
+	creator := strings.TrimSpace(r.PathValue("id"))
+	if creator == "" || creator == viewer {
+		writeErr(w, http.StatusBadRequest, "a different creator ID is required")
+		return
+	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.Unblock(ctx, viewer, creator)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist block relation")
+			return
+		}
+	}
+	s.socialMu.Lock()
+	delete(s.blocks[viewer], creator)
+	_ = s.persistSocialStateLocked()
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"blocked": false, "creator_id": creator})
 }
 func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 	var req socialFeedbackRequest
