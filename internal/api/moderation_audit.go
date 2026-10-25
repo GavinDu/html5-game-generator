@@ -84,7 +84,11 @@ func (s *Server) handleModerationAudit(w http.ResponseWriter, r *http.Request) {
 		}
 		var ev moderationAuditEvent
 		if json.Unmarshal([]byte(line), &ev) != nil || ev.ID == "" || ev.Action == "" {
-			continue
+			// Do not silently present a partial audit trail as complete. A
+			// malformed line may indicate truncation or tampering; fail closed
+			// so operators investigate the underlying file before acting.
+			writeErr(w, http.StatusServiceUnavailable, "moderation audit contains an invalid record")
+			return
 		}
 		if gameID == "" || ev.GameID == gameID {
 			events = append(events, ev)
