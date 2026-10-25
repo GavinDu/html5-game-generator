@@ -32,6 +32,7 @@ type GamePackageAsset struct {
 type GamePackage struct {
 	PackageFormatVersion string             `json:"packageFormatVersion"`
 	MinRuntimeVersion    string             `json:"minRuntimeVersion"`
+	IRVersion            string             `json:"irVersion"`
 	GameID               string             `json:"gameId"`
 	IR                   *gameir.Document   `json:"ir"`
 	Assets               []GamePackageAsset `json:"assets"`
@@ -147,6 +148,7 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 	pkg := GamePackage{
 		PackageFormatVersion: PackageFormatVersion,
 		MinRuntimeVersion:    MinRuntimeVersion,
+		IRVersion:            game.GameIR.IRVersion,
 		GameID:               game.ID,
 		IR:                   game.GameIR,
 		Assets:               make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
