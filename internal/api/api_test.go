@@ -296,7 +296,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	if first.Code != http.StatusOK {
 		t.Fatalf("first package fetch: %d %s", first.Code, first.Body.String())
 	}
-	if got := first.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
+	if got := first.Header().Get("Cache-Control"); got != "public, max-age=0, must-revalidate" {
 		t.Fatalf("public package cache policy = %q", got)
 	}
 	etag := first.Header().Get("ETag")
@@ -326,7 +326,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	if asset.Code != http.StatusOK || asset.Body.String() != "immutable-asset" {
 		t.Fatalf("asset fetch: %d %q", asset.Code, asset.Body.String())
 	}
-	if got := asset.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
+	if got := asset.Header().Get("Cache-Control"); got != "public, max-age=0, must-revalidate" {
 		t.Fatalf("public asset cache policy = %q", got)
 	}
 	assetETag := asset.Header().Get("ETag")
@@ -339,6 +339,38 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	srv.Routes().ServeHTTP(assetConditionalRec, assetConditional)
 	if assetConditionalRec.Code != http.StatusNotModified || assetConditionalRec.Body.Len() != 0 {
 		t.Fatalf("conditional asset fetch: %d body=%q", assetConditionalRec.Code, assetConditionalRec.Body.String())
+	}
+}
+
+
+// A previously public package must not remain usable from a fresh conditional
+// request after its owner changes visibility. Public delivery requires revalidation.
+func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
+	if err != nil { t.Fatal(err) }
+	doc, err := gameir.DecodeAndValidate(data)
+	if err != nil { t.Fatal(err) }
+	game := &model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
+		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"}
+	st.CreateGame(game)
+	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+	path := "/v1/games/" + doc.Game.ID + "/package"
+	first := do(t, srv, http.MethodGet, path, nil, "")
+	if first.Code != http.StatusOK { t.Fatalf("initial public fetch: %d %s", first.Code, first.Body.String()) }
+	etag := first.Header().Get("ETag")
+	if etag == "" { t.Fatal("missing ETag") }
+
+	game.Visibility = model.VisibilityPrivate
+	st.UpdateGame(game)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.Header.Set("If-None-Match", etag)
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound { t.Fatalf("revoked package returned %d, want 404: %s", rec.Code, rec.Body.String()) }
+	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("revoked response cache policy = %q", got)
 	}
 }
 
