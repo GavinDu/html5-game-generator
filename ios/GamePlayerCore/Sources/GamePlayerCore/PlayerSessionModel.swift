@@ -30,7 +30,7 @@ public final class PlayerSessionModel: ObservableObject {
 
     public func updateLoadProgress(_ progress: Double) {
         guard state == .loading else { return }
-        loadProgress = min(max(progress, 0), 1)
+        loadProgress = min(max(progress.isFinite ? progress : 0, 0), 1)
     }
 
     public func packageReady(gameID: String, version: String) {

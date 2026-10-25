@@ -9,6 +9,8 @@ final class PlayerSessionModelTests: XCTestCase {
         XCTAssertEqual(session.state, .loading)
         session.updateLoadProgress(1.5)
         XCTAssertEqual(session.loadProgress, 1)
+        session.updateLoadProgress(.nan)
+        XCTAssertEqual(session.loadProgress, 0)
         session.fail(.network("offline"))
         XCTAssertEqual(session.state, .failed(.network("offline")))
         XCTAssertNil(session.loadProgress)
