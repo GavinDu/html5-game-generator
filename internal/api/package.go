@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
@@ -187,8 +188,17 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 		}
 		data, contentType, found := s.store.GetArtifact(game.ID, asset.URI)
 		if !found {
+			w.Header().Set("Cache-Control", "private, no-store")
 			writeErr(w, http.StatusNotFound, "asset content not found")
 			return
+		}
+		if asset.SHA256 != "" {
+			sum := sha256.Sum256(data)
+			if !strings.EqualFold(asset.SHA256, hex.EncodeToString(sum[:])) {
+				w.Header().Set("Cache-Control", "private, no-store")
+				writeErr(w, http.StatusUnprocessableEntity, "asset content failed integrity validation")
+				return
+			}
 		}
 		if contentType == "" {
 			contentType = asset.MIMEType
