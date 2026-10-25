@@ -49,3 +49,18 @@ The token-protected `GET /v1/telemetry/delivery` endpoint reports aggregate requ
 Per route, the response includes total requests, successful responses, `304 Not Modified` responses, 4xx and 5xx counts, response-body bytes written, cumulative latency in milliseconds, and maximum observed latency. The counters are process-local and reset when the service restarts. They deliberately omit game IDs, user IDs, request paths, and headers.
 
 Use these counters to establish a baseline before selecting object storage/CDN infrastructure. They are not durable analytics, do not measure cache hits at an external CDN, and do not replace a production monitoring system. Configure the admin token before exposing operator telemetry; an unset token makes the endpoint unavailable.
+
+
+## Social feed preview and play-quality events
+
+`POST /v1/telemetry/social-event` accepts the existing event kinds and an optional `schema_version`. Omitted versions remain compatible and are treated as schema v1; unsupported explicit versions are rejected. Event IDs remain scoped to the authenticated viewer and duplicate delivery acknowledges the first stored event without overwriting its measurements.
+
+Schema v1 optionally accepts these non-negative, bounded measurements:
+
+- `preview_dwell_ms`: time a preview card remained visible.
+- `time_to_interactive_ms`: time from launch request to an interactive game.
+- `time_to_first_input_ms`: time until the first user input.
+- `frame_time_p95_ms` and `frame_time_avg_ms`: client-computed frame-time summary, in milliseconds.
+- `frame_count`: frames represented by the summary.
+
+Dwell and startup/input times are capped at one hour; frame-time values are capped at 60 seconds. These bounds catch corrupt or mis-scaled measurements, not user behavior. Keep values aggregate and avoid adding device IDs, account identifiers beyond the authenticated server context, precise location, raw input, or full user-agent strings. The server stores the event once; downstream ranking should use only events that pass the established eligibility and visibility rules.
