@@ -114,6 +114,7 @@ func New(st store.Store, r *pipeline.Runner) *Server {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("GET /readyz", s.handleReadiness)
 	mux.HandleFunc("GET /", s.handleRoot)
 	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
@@ -255,6 +256,22 @@ func decodeJSONLimit(w http.ResponseWriter, r *http.Request, v any, limit int64)
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "doodlequest"})
+}
+
+// handleReadiness reports whether configured durable state can currently be
+// loaded and written. Liveness remains available through /healthz.
+func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
+	status := map[string]any{"status": "ok", "service": "doodlequest"}
+	if persistence, ok := s.store.(interface{ PersistenceStatus() (bool, bool) }); ok {
+		enabled, healthy := persistence.PersistenceStatus()
+		status["persistence_enabled"] = enabled
+		if enabled && !healthy {
+			status["status"] = "degraded"
+			writeJSON(w, http.StatusServiceUnavailable, status)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 // GET / — send browsers straight to the player.
