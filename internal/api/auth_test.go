@@ -4,7 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"testing"\n\n\t"doodlequest/internal/model"\n\t"doodlequest/internal/pipeline"\n\t"doodlequest/internal/store"
+	"testing"
+
+	"doodlequest/internal/model"
+	"doodlequest/internal/pipeline"
+	"doodlequest/internal/store"
 	"time"
 )
 
