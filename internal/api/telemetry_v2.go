@@ -85,6 +85,68 @@ type teleMile struct {
 	Ms     int
 }
 
+// loadTeleV2IndexesLocked rebuilds the bounded in-memory aggregation indexes
+// from the durable JSONL event log at startup. It intentionally does not replay
+// social side effects: those are separate state transitions, not telemetry reads.
+// Caller must hold s.teleMu.
+func (s *Server) loadTeleV2IndexesLocked() {
+	path := filepath.Join(telemetryDir(), "events.jsonl")
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64*1024), 1<<20)
+	for scanner.Scan() {
+		var record struct {
+			ReceivedAt string      `json:"receivedAt"`
+			Event      teleEventV2 `json:"event"`
+		}
+		if json.Unmarshal(scanner.Bytes(), &record) != nil {
+			continue
+		}
+		ev := record.Event
+		if ev.GameID == "" || !teleV2Kinds[ev.Kind] || !validTelemetryV2Event(ev) {
+			continue
+		}
+		at, parseErr := time.Parse(time.RFC3339, record.ReceivedAt)
+		if parseErr != nil {
+			at, parseErr = time.Parse(time.RFC3339, ev.At)
+		}
+		if parseErr != nil {
+			continue
+		}
+		switch ev.Kind {
+		case "session_start":
+			s.teleSessions = append(s.teleSessions, teleSession{GameID: ev.GameID, At: at, DeviceClass: ev.DeviceClass, Quality: ev.Quality})
+		case "perf_window":
+			pw := telePerfWin{GameID: ev.GameID, At: at, Frames: ev.Frames, Longest: ev.LongestFrameMs}
+			for i := 0; i < 6 && i < len(ev.Buckets); i++ {
+				pw.Buckets[i] = ev.Buckets[i]
+			}
+			s.telePerf = append(s.telePerf, pw)
+		case "milestone":
+			s.teleMiles = append(s.teleMiles, teleMile{GameID: ev.GameID, At: at, Name: ev.Milestone, Ms: ev.Ms})
+		case "run_end":
+			s.teleRuns = append(s.teleRuns, teleRun{GameID: ev.GameID, At: at, Won: ev.Won, DurationMs: ev.DurationMs, Inputs: ev.Inputs, DeadInputs: ev.DeadInputs})
+		}
+	}
+	if len(s.teleSessions) > teleV2IndexCap {
+		s.teleSessions = s.teleSessions[len(s.teleSessions)-teleV2IndexCap:]
+	}
+	if len(s.telePerf) > teleV2IndexCap {
+		s.telePerf = s.telePerf[len(s.telePerf)-teleV2IndexCap:]
+	}
+	if len(s.teleRuns) > teleV2IndexCap {
+		s.teleRuns = s.teleRuns[len(s.teleRuns)-teleV2IndexCap:]
+	}
+	if len(s.teleMiles) > teleV2IndexCap {
+		s.teleMiles = s.teleMiles[len(s.teleMiles)-teleV2IndexCap:]
+	}
+}
+
 // loadTeleV2EventIDsLocked restores the bounded idempotency index from the
 // durable event log so client retries remain safe across process restarts.
 // Caller must hold s.teleMu.

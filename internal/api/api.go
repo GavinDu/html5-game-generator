@@ -121,6 +121,7 @@ func New(st store.Store, r *pipeline.Runner) *Server {
 	s.teleMu.Lock()
 	s.loadTeleIndexLocked()
 	s.loadTeleV2EventIDsLocked()
+	s.loadTeleV2IndexesLocked()
 	s.teleMu.Unlock()
 	s.runsMu.Lock()
 	s.loadRunsLocked()
