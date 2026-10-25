@@ -748,6 +748,20 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, g)
 	}
+	if s.socialGraph != nil {
+		gameIDs := make([]string, 0, len(out))
+		for _, game := range out {
+			gameIDs = append(gameIDs, game.ID)
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		counts, _, err := s.socialGraph.ListReactionSummary(ctx, viewer, gameIDs)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read shared reactions")
+			return
+		}
+		reactionCounts = counts
+	}
 	// Keep the ranking explainable and avoid treating a handful of early
 	// interactions as a reliable quality signal. Until at least 20 social
 	// events/reactions exist in the current index, use the newest-first

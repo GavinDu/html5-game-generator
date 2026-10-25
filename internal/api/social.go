@@ -565,12 +565,21 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 202, map[string]any{"post": g, "moderation_status": "pending"})
 }
 func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
 	g, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok || g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "rejected" || g.ModerationStatus == "pending" {
 		writeErr(w, 404, "published post not found")
 		return
 	}
-	writeJSON(w, 200, map[string]any{"post": g, "engagement": s.engagement(g.ID)})
+	engagement, err := s.engagement(r.Context(), g.ID)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not read engagement summary")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"post": g, "engagement": engagement})
 }
 func (s *Server) handleSetReaction(w http.ResponseWriter, r *http.Request) {
 	var req reactionRequest
@@ -582,22 +591,54 @@ func (s *Server) handleSetReaction(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "reaction must be like, love, funny, or wow")
 		return
 	}
-	if !s.socialGameAvailableFor(r.PathValue("id"), userID(r)) {
+	gameID, viewer := r.PathValue("id"), userID(r)
+	if !s.socialGameAvailableFor(gameID, viewer) {
 		writeErr(w, 404, "game not found")
 		return
 	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.SetReaction(ctx, viewer, gameID, req.Reaction)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist reaction")
+			return
+		}
+	}
 	s.socialMu.Lock()
-	if s.reactions[r.PathValue("id")] == nil {
+	if s.reactions[gameID] == nil {
 		s.reactions[r.PathValue("id")] = map[string]string{}
 	}
-	s.reactions[r.PathValue("id")][userID(r)] = req.Reaction
+	s.reactions[gameID][viewer] = req.Reaction
 	s.persistSocialStateLocked()
 	s.socialMu.Unlock()
 	writeJSON(w, 200, map[string]any{"reaction": req.Reaction})
 }
 func (s *Server) handleDeleteReaction(w http.ResponseWriter, r *http.Request) {
+	gameID, viewer := r.PathValue("id"), userID(r)
+	if !s.socialGameAvailableFor(gameID, viewer) {
+		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.DeleteReaction(ctx, viewer, gameID)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not delete reaction")
+			return
+		}
+	}
 	s.socialMu.Lock()
-	delete(s.reactions[r.PathValue("id")], userID(r))
+	delete(s.reactions[gameID], viewer)
 	s.persistSocialStateLocked()
 	s.socialMu.Unlock()
 	writeJSON(w, 200, map[string]any{"reaction": ""})
@@ -1284,10 +1325,26 @@ func (s *Server) isBlocked(viewer, creator string) bool {
 	defer s.socialMu.RUnlock()
 	return s.blocks[viewer][creator]
 }
-func (s *Server) engagement(gameID string) map[string]any {
+func (s *Server) engagement(ctx context.Context, gameID string) (map[string]any, error) {
+	reactionCount := 0
+	if s.socialGraph != nil {
+		dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		counts, _, err := s.socialGraph.ListReactionSummary(dbCtx, "", []string{gameID})
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		reactionCount = counts[gameID]
+	} else {
+		s.socialMu.RLock()
+		reactionCount = len(s.reactions[gameID])
+		s.socialMu.RUnlock()
+	}
 	s.socialMu.RLock()
-	defer s.socialMu.RUnlock()
-	return map[string]any{"reaction_count": len(s.reactions[gameID]), "comment_count": len(s.comments[gameID]), "event_count": countGameEvents(s.events, gameID)}
+	commentCount := len(s.comments[gameID])
+	eventCount := countGameEvents(s.events, gameID)
+	s.socialMu.RUnlock()
+	return map[string]any{"reaction_count": reactionCount, "comment_count": commentCount, "event_count": eventCount}, nil
 }
 func countGameEvents(events []socialEvent, gameID string) int {
 	n := 0
