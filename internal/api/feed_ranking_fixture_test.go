@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -132,5 +133,46 @@ func TestFeedRankingIsRepeatableAndHasUniqueGameIDs(t *testing.T) {
 		if !seen[fixture.id] {
 			t.Errorf("game %q missing from feed: %v", fixture.id, first)
 		}
+	}
+}
+
+
+// BenchmarkFeedRanking measures end-to-end feed handler cost with fixed-size
+// synthetic candidate/event sets. Run with:
+// go test ./internal/api -run '^$' -bench '^BenchmarkFeedRanking$' -benchmem
+func BenchmarkFeedRanking(b *testing.B) {
+	for _, size := range []int{100, 1000} {
+		b.Run(strconv.Itoa(size)+"_games", func(b *testing.B) {
+			now := time.Now().UTC().Truncate(time.Second)
+			st := store.NewMemoryStore()
+			for i := 0; i < size; i++ {
+				st.CreateGame(feedFixtureGame(
+					"game-"+strconv.Itoa(i),
+					"creator-"+strconv.Itoa(i%100),
+					now.Add(-time.Duration(i)*time.Minute),
+				))
+			}
+			srv := New(st, pipeline.NewRunner(st))
+			srv.socialMu.Lock()
+			for i := 0; i < size*2; i++ {
+				srv.events = append(srv.events, socialEvent{
+					EventID: "bench-" + strconv.Itoa(i),
+					GameID: "game-" + strconv.Itoa(i%size),
+					Kind: "completion",
+					CreatedAt: now,
+				})
+			}
+			srv.socialMu.Unlock()
+			req := httptest.NewRequest(http.MethodGet, "/v1/feed?scope=for_you&limit=20", nil)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				rec := httptest.NewRecorder()
+				srv.Routes().ServeHTTP(rec, req)
+				if rec.Code != http.StatusOK {
+					b.Fatalf("feed returned %d: %s", rec.Code, rec.Body.String())
+				}
+			}
+		})
 	}
 }
