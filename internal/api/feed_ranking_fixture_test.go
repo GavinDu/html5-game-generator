@@ -55,7 +55,7 @@ func TestFeedRankingFixtureAndNewestFirstRollback(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		srv.events = append(srv.events, socialEvent{
 			EventID: "fixture-" + string(rune('a'+i)),
-			GameID: "old-engaged-a", Kind: "completion", CreatedAt: now,
+			GameID:  "old-engaged-a", Kind: "completion", CreatedAt: now,
 		})
 	}
 	srv.socialMu.Unlock()
