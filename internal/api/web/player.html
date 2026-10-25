@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DoodleQuest Player — PixiJS + Rapier</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -53,6 +53,93 @@
   summary { color: #9fb2ff; font-size: 13px; cursor: pointer; }
   #devlog { background: #070a18; border-radius: 10px; padding: 10px; font-size: 11px;
             line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow: auto; }
+
+  /* Mobile-first player shell: safe-area aware, keyboard accessible, and
+     responsive to rotation without stretching the logical game canvas. */
+  :root {
+    color-scheme: dark;
+    --dq-bg: #0b0f22;
+    --dq-surface: #151d37;
+    --dq-surface-raised: #1b2340;
+    --dq-border: #465174;
+    --dq-text: #ffffff;
+    --dq-muted: #cfe0ff;
+    --dq-accent: #ffd94d;
+    --dq-radius: 14px;
+    --dq-space-1: 4px;
+    --dq-space-2: 8px;
+    --dq-space-3: 12px;
+    --dq-space-4: 16px;
+    --dq-space-5: 24px;
+  }
+  html { min-height: 100%; background: var(--dq-bg); }
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: radial-gradient(ellipse at top, #182447 0%, var(--dq-bg) 56%);
+    overscroll-behavior-y: contain;
+  }
+  header {
+    padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+    background: rgba(20, 28, 54, .94);
+    border-bottom: 1px solid rgba(159, 178, 255, .16);
+    backdrop-filter: blur(14px);
+  }
+  #stage-wrap { width: min(100%, 520px); padding: 0 10px; }
+  #stage { width: 100%; padding: 8px 0; }
+  #stage canvas {
+    width: 100%;
+    max-height: min(72dvh, 900px);
+    object-fit: contain;
+    background: #080c1e;
+    border: 1px solid rgba(159, 178, 255, .18);
+    border-radius: var(--dq-radius);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #status { padding: 4px 18px; line-height: 1.45; }
+  #account, .game-card, #end {
+    border: 1px solid rgba(159, 178, 255, .16);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+  }
+  #account { width: min(calc(100% - 24px), 560px); }
+  #account input:focus-visible, #account select:focus-visible,
+  #account button:focus-visible, .shell-card button:focus-visible,
+  #end button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--dq-accent);
+    outline-offset: 3px;
+  }
+  button, input, select { font: inherit; }
+  button { min-height: 44px; }
+  #list { width: min(100%, 600px); }
+  .game-card { transition: border-color .16s ease, transform .16s ease; }
+  .game-card:hover { border-color: rgba(255, 217, 77, .55); }
+  .game-card a { display: inline-block; padding: 4px 0; line-height: 1.4; }
+  .game-card .sub { line-height: 1.5; }
+  #devlog { border: 1px solid rgba(159, 178, 255, .18); }
+  @media (min-width: 760px) {
+    body { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+    header { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))); }
+    #stage-wrap { width: min(100%, 600px); }
+    #stage canvas { max-height: 78dvh; }
+    #account { margin-top: 20px; }
+    #list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 900px; }
+  }
+  @media (orientation: landscape) and (max-height: 600px) {
+    header { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: 6px; }
+    header .title { font-size: 15px; }
+    #stage-wrap { width: min(56vw, 460px); }
+    #stage { padding: 4px 0; }
+    #stage canvas { max-height: calc(100dvh - 64px); }
+    #status { min-height: 0; font-size: 12px; }
+    #account { margin-top: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+
 </style>
 <script type="importmap">
 {
