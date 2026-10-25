@@ -43,11 +43,17 @@ public struct PlayerAspectFitContainer<Renderer: View>: View {
                         .position(x: rect.x + rect.width / 2, y: rect.y + rect.height / 2)
                         .clipped()
                 } else {
-                    ContentUnavailableView(
-                        "Unsupported game size",
-                        systemImage: "rectangle.expand.vertical",
-                        description: Text("This game has an invalid aspect ratio or the player area is too small.")
-                    )
+                    VStack(spacing: 8) {
+                        Image(systemName: "rectangle.expand.vertical")
+                            .font(.title2)
+                        Text("Unsupported game size")
+                            .font(.headline)
+                        Text("This game has an invalid aspect ratio or the player area is too small.")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
