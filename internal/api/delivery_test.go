@@ -232,10 +232,15 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 	viewer := "integration-feed-viewer-" + pipeline.NewID()
 	creator := "integration-feed-creator-" + pipeline.NewID()
 	gameID := "integration-blocked-game-" + pipeline.NewID()
+	savedGameID := "integration-saved-game-" + pipeline.NewID()
 	st.CreateGame(&model.Game{
 		ID: gameID, Title: "Blocked creator game", OwnerID: creator,
 		Status: model.GameReady, Visibility: model.VisibilityPublic,
 		ModerationStatus: "approved",
+	})
+	st.CreateGame(&model.Game{
+		ID: savedGameID, Title: "Saved game", OwnerID: "integration-save-creator-" + pipeline.NewID(),
+		Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved",
 	})
 	first := New(st, pipeline.NewRunner(st))
 	second := New(st, pipeline.NewRunner(st))
@@ -244,6 +249,7 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = first.socialGraph.Unblock(context.Background(), viewer, creator)
+		_ = first.socialGraph.UnsaveGame(context.Background(), viewer, savedGameID)
 		_ = first.socialGraph.Close()
 		_ = second.socialGraph.Close()
 	})
@@ -260,9 +266,41 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 		Games []model.Game `json:"games"`
 	}
 	decode(t, feed, &response)
+	foundUnblockedGame := false
 	for _, game := range response.Games {
 		if game.ID == gameID {
 			t.Fatalf("blocked creator's game %q remained in feed from second instance", gameID)
 		}
+		if game.ID == savedGameID {
+			foundUnblockedGame = true
+		}
+	}
+	if !foundUnblockedGame {
+		t.Fatalf("unblocked creator's game %q missing from feed; block filter test is inconclusive", savedGameID)
+	}
+
+	saved := do(t, first, http.MethodPost, "/v1/games/"+savedGameID+"/save", nil, viewer)
+	if saved.Code != http.StatusOK {
+		t.Fatalf("save game: %d %s", saved.Code, saved.Body.String())
+	}
+	savedList := do(t, second, http.MethodGet, "/v1/users/me/saved", nil, viewer)
+	if savedList.Code != http.StatusOK {
+		t.Fatalf("saved list through second instance: %d %s", savedList.Code, savedList.Body.String())
+	}
+	var savedResponse struct {
+		Games []model.Game `json:"games"`
+	}
+	decode(t, savedList, &savedResponse)
+	if len(savedResponse.Games) != 1 || savedResponse.Games[0].ID != savedGameID {
+		t.Fatalf("saved list from second instance = %+v, want game %s", savedResponse.Games, savedGameID)
+	}
+	unsaved := do(t, second, http.MethodDelete, "/v1/games/"+savedGameID+"/save", nil, viewer)
+	if unsaved.Code != http.StatusOK {
+		t.Fatalf("un-save through second instance: %d %s", unsaved.Code, unsaved.Body.String())
+	}
+	savedList = do(t, first, http.MethodGet, "/v1/users/me/saved", nil, viewer)
+	decode(t, savedList, &savedResponse)
+	if len(savedResponse.Games) != 0 {
+		t.Fatalf("saved list still contains games after cross-instance un-save: %+v", savedResponse.Games)
 	}
 }

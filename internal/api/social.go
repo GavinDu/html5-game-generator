@@ -708,43 +708,115 @@ func (s *Server) handleDeleteComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSaveGame(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if !s.socialGameAvailableFor(id, userID(r)) {
-		writeErr(w, 404, "game not found")
+	viewer := userID(r)
+	id := strings.TrimSpace(r.PathValue("id"))
+	if !s.socialGameAvailableFor(id, viewer) {
+		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
-	s.socialMu.Lock()
-	if s.saves[userID(r)] == nil {
-		s.saves[userID(r)] = map[string]bool{}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
 	}
-	s.saves[userID(r)][id] = true
-	s.persistSocialStateLocked()
-	s.socialMu.Unlock()
-	writeJSON(w, 200, map[string]any{"saved": true})
-}
-func (s *Server) handleUnsaveGame(w http.ResponseWriter, r *http.Request) {
-	s.socialMu.Lock()
-	delete(s.saves[userID(r)], r.PathValue("id"))
-	s.persistSocialStateLocked()
-	s.socialMu.Unlock()
-	writeJSON(w, 200, map[string]any{"saved": false})
-}
-func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
-	s.socialMu.RLock()
-	ids := make([]string, 0, len(s.saves[userID(r)]))
-	for id := range s.saves[userID(r)] {
-		ids = append(ids, id)
-	}
-	s.socialMu.RUnlock()
-	sort.Strings(ids)
-	games := make([]*model.Game, 0, len(ids))
-	for _, id := range ids {
-		if s.socialGameAvailableFor(id, userID(r)) {
-			g, _ := s.store.GetGame(id)
-			games = append(games, g)
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.SaveGame(ctx, viewer, id)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist saved game")
+			return
 		}
 	}
-	writeJSON(w, 200, map[string]any{"games": games})
+	s.socialMu.Lock()
+	if s.saves[viewer] == nil {
+		s.saves[viewer] = map[string]bool{}
+	}
+	s.saves[viewer][id] = true
+	_ = s.persistSocialStateLocked()
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"saved": true, "game_id": id})
+}
+
+func (s *Server) handleUnsaveGame(w http.ResponseWriter, r *http.Request) {
+	viewer := userID(r)
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeErr(w, http.StatusBadRequest, "game ID is required")
+		return
+	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.UnsaveGame(ctx, viewer, id)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist saved game")
+			return
+		}
+	}
+	s.socialMu.Lock()
+	delete(s.saves[viewer], id)
+	_ = s.persistSocialStateLocked()
+	s.socialMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"saved": false, "game_id": id})
+}
+
+func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
+	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	var ids []string
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		var err error
+		ids, err = s.socialGraph.ListSavedGames(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read saved games")
+			return
+		}
+	} else {
+		s.socialMu.RLock()
+		ids = make([]string, 0, len(s.saves[viewer]))
+		for id := range s.saves[viewer] {
+			ids = append(ids, id)
+		}
+		s.socialMu.RUnlock()
+	}
+	sort.Strings(ids)
+	blocked := map[string]bool{}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		blockedIDs, err := s.socialGraph.ListBlocked(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
+			return
+		}
+		for _, id := range blockedIDs {
+			blocked[id] = true
+		}
+	} else {
+		s.socialMu.RLock()
+		for id := range s.blocks[viewer] {
+			blocked[id] = true
+		}
+		s.socialMu.RUnlock()
+	}
+	games := make([]*model.Game, 0, len(ids))
+	for _, id := range ids {
+		game, ok := s.store.GetGame(id)
+		if !ok || !socialGamePubliclyAvailable(game) || blocked[game.OwnerID] {
+			continue
+		}
+		games = append(games, game)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"games": games})
 }
 func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 	var req reportRequest
@@ -1005,12 +1077,36 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) socialGameAvailableFor(id, viewer string) bool {
 	g, ok := s.store.GetGame(id)
-	if !ok || g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "pending" || g.ModerationStatus == "rejected" {
-		return false
-	}
-	return !s.isBlocked(viewer, g.OwnerID)
+	return ok && socialGamePubliclyAvailable(g) && !s.isBlocked(viewer, g.OwnerID)
+}
+
+func socialGamePubliclyAvailable(g *model.Game) bool {
+	return g != nil && g.Status == model.GameReady && g.Visibility == model.VisibilityPublic &&
+		!g.Quarantined && g.ModerationStatus != "pending" && g.ModerationStatus != "rejected"
 }
 func (s *Server) isBlocked(viewer, creator string) bool {
+	if viewer == "" || creator == "" {
+		return false
+	}
+	if s.socialGraphErr != nil {
+		// If shared storage is configured but unavailable, fail closed for
+		// visibility-sensitive social actions rather than trusting stale maps.
+		return true
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ids, err := s.socialGraph.ListBlocked(ctx, viewer)
+		cancel()
+		if err != nil {
+			return true
+		}
+		for _, id := range ids {
+			if id == creator {
+				return true
+			}
+		}
+		return false
+	}
 	s.socialMu.RLock()
 	defer s.socialMu.RUnlock()
 	return s.blocks[viewer][creator]

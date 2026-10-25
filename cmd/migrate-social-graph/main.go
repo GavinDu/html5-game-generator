@@ -31,6 +31,7 @@ func main() {
 	var snapshot struct {
 		Follows map[string]map[string]struct{} `json:"follows"`
 		Blocks  map[string]map[string]bool     `json:"blocks"`
+		Saves   map[string]map[string]bool     `json:"saves"`
 	}
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		fatal("decode source snapshot: " + err.Error())
@@ -66,6 +67,19 @@ func main() {
 		fatal("import block relations: " + err.Error())
 	}
 	fmt.Printf("source_blocks=%d inserted_blocks=%d already_present=%d\n", len(blocks), insertedBlocks, len(blocks)-insertedBlocks)
+	saves := make([]socialgraph.SaveRelation, 0)
+	for viewer, games := range snapshot.Saves {
+		for gameID, enabled := range games {
+			if enabled {
+				saves = append(saves, socialgraph.SaveRelation{ViewerID: viewer, GameID: gameID})
+			}
+		}
+	}
+	insertedSaves, err := db.ImportSaves(ctx, saves)
+	if err != nil {
+		fatal("import saved games: " + err.Error())
+	}
+	fmt.Printf("source_saves=%d inserted_saves=%d already_present=%d\n", len(saves), insertedSaves, len(saves)-insertedSaves)
 }
 
 func fatal(message string) {
