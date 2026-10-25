@@ -46,3 +46,58 @@ final class URLSessionGameTransportTests: XCTestCase {
         }
     }
 }
+
+
+private final class FixedResponseURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let bytes = Data("payload".utf8)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Length": String(bytes.count)]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: bytes)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+extension URLSessionGameTransportTests {
+    func testRejectsOversizedResponseWhileStreaming() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FixedResponseURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let transport = try URLSessionGameTransport(
+            baseURL: URL(string: "https://api.example.com")!,
+            session: session,
+            packageByteLimit: 3
+        )
+        do {
+            _ = try await transport.fetchPackage(gameID: "game-123", version: nil)
+            XCTFail("response larger than the configured byte limit must be rejected")
+        } catch let error as GameTransportError {
+            XCTAssertEqual(error, .responseTooLarge(limit: 3))
+        }
+        session.invalidateAndCancel()
+    }
+
+    func testAcceptsResponseExactlyAtByteLimit() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FixedResponseURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let transport = try URLSessionGameTransport(
+            baseURL: URL(string: "https://api.example.com")!,
+            session: session,
+            packageByteLimit: 7
+        )
+        let data = try await transport.fetchPackage(gameID: "game-123", version: nil)
+        XCTAssertEqual(data, Data("payload".utf8))
+        session.invalidateAndCancel()
+    }
+}
