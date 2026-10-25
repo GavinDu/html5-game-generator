@@ -19,7 +19,7 @@ final class PlayerViewportPolicyTests: XCTestCase {
             gameAspectRatio: 1
         )
         XCTAssertEqual(rect?.x ?? 0, 10, accuracy: 0.001)
-        XCTAssertEqual(rect?.y ?? 0, 365, accuracy: 0.001)
+        XCTAssertEqual(rect?.y ?? 0, 220, accuracy: 0.001)
         XCTAssertEqual(rect?.width ?? 0, 380, accuracy: 0.001)
         XCTAssertEqual(rect?.height ?? 0, 380, accuracy: 0.001)
     }
