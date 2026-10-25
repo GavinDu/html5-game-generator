@@ -18,12 +18,10 @@ func TestPostgresStoreSharesFollowEdgesAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open first graph store: %v", err)
 	}
-	defer first.Close()
 	second, err := OpenPostgres(ctx, dsn)
 	if err != nil {
 		t.Fatalf("open second graph store: %v", err)
 	}
-	defer second.Close()
 
 	viewer := "integration-viewer-" + time.Now().UTC().Format("20060102150405.000000000")
 	creator := "integration-creator-" + time.Now().UTC().Format("20060102150405.000000000")
@@ -71,7 +69,11 @@ func TestPostgresStoreSharesBlockRelationsAcrossInstances(t *testing.T) {
 
 	viewer := "integration-blocker-" + time.Now().UTC().Format("20060102150405.000000000")
 	blocked := "integration-blocked-" + time.Now().UTC().Format("20060102150405.000000000")
-	t.Cleanup(func() { _ = first.Unblock(context.Background(), viewer, blocked) })
+	t.Cleanup(func() {
+		_ = first.Unblock(context.Background(), viewer, blocked)
+		_ = first.Close()
+		_ = second.Close()
+	})
 	inserted, err := first.ImportBlocks(ctx, []BlockRelation{{ViewerID: viewer, BlockedID: blocked}})
 	if err != nil || inserted != 1 {
 		t.Fatalf("initial block import: inserted=%d err=%v, want 1 row", inserted, err)
@@ -124,7 +126,11 @@ func TestPostgresStoreSharesSavedGamesAcrossInstances(t *testing.T) {
 	defer second.Close()
 	viewer := "integration-save-viewer-" + time.Now().UTC().Format("20060102150405.000000000")
 	gameID := "integration-saved-game-" + time.Now().UTC().Format("20060102150405.000000000")
-	t.Cleanup(func() { _ = first.UnsaveGame(context.Background(), viewer, gameID) })
+	t.Cleanup(func() {
+		_ = first.UnsaveGame(context.Background(), viewer, gameID)
+		_ = first.Close()
+		_ = second.Close()
+	})
 	inserted, err := first.ImportSaves(ctx, []SaveRelation{{ViewerID: viewer, GameID: gameID}})
 	if err != nil || inserted != 1 {
 		t.Fatalf("initial save import: inserted=%d err=%v, want 1 row", inserted, err)
