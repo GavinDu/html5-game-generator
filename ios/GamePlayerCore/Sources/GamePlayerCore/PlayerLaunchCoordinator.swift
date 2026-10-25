@@ -85,7 +85,7 @@ public actor PlayerLaunchCoordinator {
     public func resume() async throws {
         guard currentStage == .paused else { return }
         try await runtime.resume()
-        transition(to: .running, launchID: launchID)
+        transition(to: .running)
     }
 
     public func stop() async {
@@ -130,7 +130,7 @@ public actor PlayerLaunchCoordinator {
             transition(to: .startingRuntime, launchID: launchID)
             try await runtime.start(package: package, assets: assets)
             try Task.checkCancellation()
-            transition(to: .running)
+            transition(to: .running, launchID: launchID)
         } catch is CancellationError {
             transition(to: .failed(.cancelled), launchID: launchID)
             throw PlayerFailure.cancelled
