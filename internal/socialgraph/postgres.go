@@ -19,6 +19,11 @@ type SaveRelation struct {
 	GameID   string
 }
 
+type Preferences struct {
+	MutedTopics        []string
+	NotInterestedGameIDs []string
+}
+
 // Store defines durable follow, block, and saved-game relations shared by all API replicas.
 type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
@@ -31,6 +36,10 @@ type Store interface {
 	SaveGame(ctx context.Context, viewerID, gameID string) error
 	UnsaveGame(ctx context.Context, viewerID, gameID string) error
 	ListSavedGames(ctx context.Context, viewerID string) ([]string, error)
+	SetMutedTopics(ctx context.Context, viewerID string, topics []string) error
+	AddNotInterested(ctx context.Context, viewerID, gameID string) error
+	ListPreferences(ctx context.Context, viewerID string) (Preferences, error)
+	ResetPreferences(ctx context.Context, viewerID string) error
 	Close() error
 }
 
@@ -89,6 +98,18 @@ CREATE TABLE IF NOT EXISTS social_saves (
 );
 CREATE INDEX IF NOT EXISTS social_saves_viewer_idx
   ON social_saves (viewer_id, game_id);
+CREATE TABLE IF NOT EXISTS social_muted_topics (
+  viewer_id TEXT NOT NULL CHECK (length(viewer_id) BETWEEN 1 AND 128),
+  topic TEXT NOT NULL CHECK (length(topic) BETWEEN 1 AND 40),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (viewer_id, topic)
+);
+CREATE TABLE IF NOT EXISTS social_not_interested (
+  viewer_id TEXT NOT NULL CHECK (length(viewer_id) BETWEEN 1 AND 128),
+  game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (viewer_id, game_id)
+);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -410,6 +431,127 @@ func (s *PostgresStore) ImportSaves(ctx context.Context, relations []SaveRelatio
 		return 0, fmt.Errorf("commit save import: %w", err)
 	}
 	return inserted, nil
+}
+func (s *PostgresStore) SetMutedTopics(ctx context.Context, viewerID string, topics []string) error {
+	viewerID = strings.TrimSpace(viewerID)
+	if viewerID == "" || len(viewerID) > 128 || len(topics) > 100 {
+		return errors.New("viewer ID must be 1–128 characters and at most 100 topics are allowed")
+	}
+	normalized := make([]string, 0, len(topics))
+	seen := map[string]bool{}
+	for _, raw := range topics {
+		topic := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(raw, "#")))
+		if topic == "" || len(topic) > 40 {
+			return errors.New("muted topic must contain 1–40 characters")
+		}
+		if !seen[topic] {
+			seen[topic] = true
+			normalized = append(normalized, topic)
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin muted-topic update: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM social_muted_topics WHERE viewer_id = $1`, viewerID); err != nil {
+		return fmt.Errorf("replace muted topics: %w", err)
+	}
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO social_muted_topics (viewer_id, topic) VALUES ($1, $2) ON CONFLICT (viewer_id, topic) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("prepare muted-topic update: %w", err)
+	}
+	defer stmt.Close()
+	for _, topic := range normalized {
+		if _, err := stmt.ExecContext(ctx, viewerID, topic); err != nil {
+			return fmt.Errorf("persist muted topic: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit muted-topic update: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) AddNotInterested(ctx context.Context, viewerID, gameID string) error {
+	viewerID, gameID = strings.TrimSpace(viewerID), strings.TrimSpace(gameID)
+	if viewerID == "" || gameID == "" || len(viewerID) > 128 || len(gameID) > 128 {
+		return errors.New("viewer and game IDs must be 1–128 characters")
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO social_not_interested (viewer_id, game_id) VALUES ($1, $2) ON CONFLICT (viewer_id, game_id) DO NOTHING`, viewerID, gameID)
+	if err != nil {
+		return fmt.Errorf("persist not-interested preference: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) ListPreferences(ctx context.Context, viewerID string) (Preferences, error) {
+	viewerID = strings.TrimSpace(viewerID)
+	if viewerID == "" || len(viewerID) > 128 {
+		return Preferences{}, errors.New("viewer ID must be 1–128 characters")
+	}
+	result := Preferences{MutedTopics: make([]string, 0), NotInterestedGameIDs: make([]string, 0)}
+	rows, err := s.db.QueryContext(ctx, `SELECT topic FROM social_muted_topics WHERE viewer_id = $1 ORDER BY topic`, viewerID)
+	if err != nil {
+		return Preferences{}, fmt.Errorf("query muted topics: %w", err)
+	}
+	for rows.Next() {
+		var topic string
+		if err := rows.Scan(&topic); err != nil {
+			rows.Close()
+			return Preferences{}, fmt.Errorf("scan muted topic: %w", err)
+		}
+		result.MutedTopics = append(result.MutedTopics, topic)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return Preferences{}, fmt.Errorf("iterate muted topics: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return Preferences{}, fmt.Errorf("close muted topic rows: %w", err)
+	}
+	rows, err = s.db.QueryContext(ctx, `SELECT game_id FROM social_not_interested WHERE viewer_id = $1 ORDER BY game_id`, viewerID)
+	if err != nil {
+		return Preferences{}, fmt.Errorf("query not-interested games: %w", err)
+	}
+	for rows.Next() {
+		var gameID string
+		if err := rows.Scan(&gameID); err != nil {
+			rows.Close()
+			return Preferences{}, fmt.Errorf("scan not-interested game: %w", err)
+		}
+		result.NotInterestedGameIDs = append(result.NotInterestedGameIDs, gameID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return Preferences{}, fmt.Errorf("iterate not-interested games: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return Preferences{}, fmt.Errorf("close not-interested rows: %w", err)
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) ResetPreferences(ctx context.Context, viewerID string) error {
+	viewerID = strings.TrimSpace(viewerID)
+	if viewerID == "" || len(viewerID) > 128 {
+		return errors.New("viewer ID must be 1–128 characters")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin preference reset: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM social_muted_topics WHERE viewer_id = $1`, viewerID); err != nil {
+		return fmt.Errorf("reset muted topics: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM social_not_interested WHERE viewer_id = $1`, viewerID); err != nil {
+		return fmt.Errorf("reset not-interested preferences: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit preference reset: %w", err)
+	}
+	return nil
 }
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
