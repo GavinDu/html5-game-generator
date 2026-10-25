@@ -647,6 +647,8 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	mutual := map[string]bool{}
 	blockedIDs := []string{}
+	var sharedPreferences socialgraph.Preferences
+	sharedPreferencesLoaded := false
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
@@ -661,6 +663,10 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 					followers[id] = true
 				}
 			}
+		}
+		if err == nil {
+			sharedPreferences, err = s.socialGraph.ListPreferences(ctx, viewer)
+			sharedPreferencesLoaded = err == nil
 		}
 		cancel()
 		if err != nil {
@@ -690,13 +696,22 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ignored := map[string]bool{}
-	for id := range s.notInterested[viewer] {
-		ignored[id] = true
-	}
 	mutedTopics := map[string]bool{}
-	for topic, muted := range s.mutedTopics[viewer] {
-		if muted {
+	if sharedPreferencesLoaded {
+		for _, id := range sharedPreferences.NotInterestedGameIDs {
+			ignored[id] = true
+		}
+		for _, topic := range sharedPreferences.MutedTopics {
 			mutedTopics[strings.ToLower(topic)] = true
+		}
+	} else {
+		for id := range s.notInterested[viewer] {
+			ignored[id] = true
+		}
+		for topic, muted := range s.mutedTopics[viewer] {
+			if muted {
+				mutedTopics[strings.ToLower(topic)] = true
+			}
 		}
 	}
 	events := append([]socialEvent(nil), s.events...)
