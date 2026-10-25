@@ -343,6 +343,11 @@ type creatorDiscoveryEntry struct {
 
 // handleDiscoverCreators lists creators with eligible public games.
 func (s *Server) handleDiscoverCreators(w http.ResponseWriter, r *http.Request) {
+	blocked, err := s.blockedCreatorIDs(r.Context(), userID(r))
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
+		return
+	}
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	topic := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(r.URL.Query().Get("topic"), "#")))
 	limit := 20
@@ -363,7 +368,7 @@ func (s *Server) handleDiscoverCreators(w http.ResponseWriter, r *http.Request) 
 	byCreator := map[string]*aggregate{}
 	for _, game := range s.store.ListGames() {
 		if game.Status != model.GameReady || game.Visibility != model.VisibilityPublic ||
-			game.Quarantined || game.ModerationStatus == "pending" || game.ModerationStatus == "rejected" {
+			game.Quarantined || game.ModerationStatus == "pending" || game.ModerationStatus == "rejected" || blocked[game.OwnerID] {
 			continue
 		}
 		entry := byCreator[game.OwnerID]
@@ -438,6 +443,14 @@ func (s *Server) handleDiscoverCreators(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCreatorProfile(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.isBlockedEitherDirection(userID(r), id) {
+		writeErr(w, http.StatusNotFound, "creator not found")
+		return
+	}
 	var games []*model.Game
 	for _, g := range s.store.ListGames() {
 		if g.OwnerID == id && g.Status == model.GameReady && g.Visibility == model.VisibilityPublic && !g.Quarantined && g.ModerationStatus != "rejected" && g.ModerationStatus != "pending" {
@@ -570,7 +583,7 @@ func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g, ok := s.store.GetGame(r.PathValue("id"))
-	if !ok || g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "rejected" || g.ModerationStatus == "pending" {
+	if !ok || !s.socialGameAvailableFor(g.ID, userID(r)) {
 		writeErr(w, 404, "published post not found")
 		return
 	}
@@ -940,6 +953,13 @@ func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		blockedIDs, err := s.socialGraph.ListBlocked(ctx, viewer)
+		if err == nil {
+			var blockerIDs []string
+			blockerIDs, err = s.socialGraph.ListBlockers(ctx, viewer)
+			if err == nil {
+				blockedIDs = append(blockedIDs, blockerIDs...)
+			}
+		}
 		cancel()
 		if err != nil {
 			writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
@@ -952,6 +972,11 @@ func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 		s.socialMu.RLock()
 		for id := range s.blocks[viewer] {
 			blocked[id] = true
+		}
+		for creator, users := range s.blocks {
+			if users[viewer] {
+				blocked[creator] = true
+			}
 		}
 		s.socialMu.RUnlock()
 	}
@@ -1291,7 +1316,83 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) socialGameAvailableFor(id, viewer string) bool {
 	g, ok := s.store.GetGame(id)
-	return ok && socialGamePubliclyAvailable(g) && !s.isBlocked(viewer, g.OwnerID)
+	return ok && socialGamePubliclyAvailable(g) && !s.isBlockedEitherDirection(viewer, g.OwnerID)
+}
+
+func (s *Server) isBlockedEitherDirection(viewer, creator string) bool {
+	if viewer == "" || creator == "" || viewer == creator {
+		return false
+	}
+	if s.socialGraphErr != nil {
+		return true
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		outgoing, err := s.socialGraph.ListBlocked(ctx, viewer)
+		if err == nil {
+			var incoming []string
+			incoming, err = s.socialGraph.ListBlockers(ctx, viewer)
+			if err == nil {
+				for _, id := range outgoing {
+					if id == creator {
+						cancel()
+						return true
+					}
+				}
+				for _, id := range incoming {
+					if id == creator {
+						cancel()
+						return true
+					}
+				}
+			}
+		}
+		cancel()
+		return err != nil
+	}
+	s.socialMu.RLock()
+	defer s.socialMu.RUnlock()
+	return s.blocks[viewer][creator] || s.blocks[creator][viewer]
+}
+
+func (s *Server) blockedCreatorIDs(ctx context.Context, viewer string) (map[string]bool, error) {
+	blocked := map[string]bool{}
+	if viewer == "" {
+		return blocked, nil
+	}
+	if s.socialGraphErr != nil {
+		return nil, s.socialGraphErr
+	}
+	if s.socialGraph != nil {
+		dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		outgoing, err := s.socialGraph.ListBlocked(dbCtx, viewer)
+		if err == nil {
+			var incoming []string
+			incoming, err = s.socialGraph.ListBlockers(dbCtx, viewer)
+			if err == nil {
+				outgoing = append(outgoing, incoming...)
+			}
+		}
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range outgoing {
+			blocked[id] = true
+		}
+		return blocked, nil
+	}
+	s.socialMu.RLock()
+	for id := range s.blocks[viewer] {
+		blocked[id] = true
+	}
+	for creator, users := range s.blocks {
+		if users[viewer] {
+			blocked[creator] = true
+		}
+	}
+	s.socialMu.RUnlock()
+	return blocked, nil
 }
 
 func socialGamePubliclyAvailable(g *model.Game) bool {

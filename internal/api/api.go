@@ -647,6 +647,7 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	mutual := map[string]bool{}
 	blockedIDs := []string{}
+	blockerIDs := []string{}
 	ignoredIDs := []string{}
 	mutedTopicIDs := []string{}
 	if s.socialGraph != nil {
@@ -654,6 +655,9 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
 		if err == nil {
 			blockedIDs, err = s.socialGraph.ListBlocked(ctx, viewer)
+		}
+		if err == nil {
+			blockerIDs, err = s.socialGraph.ListBlockers(ctx, viewer)
 		}
 		if err == nil && scope == "friends" {
 			var followerIDs []string
@@ -692,9 +696,17 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		for _, id := range blockedIDs {
 			blocked[id] = true
 		}
+		for _, id := range blockerIDs {
+			blocked[id] = true
+		}
 	} else {
 		for id := range s.blocks[viewer] {
 			blocked[id] = true
+		}
+		for creator, users := range s.blocks {
+			if users[viewer] {
+				blocked[creator] = true
+			}
 		}
 	}
 	ignored := map[string]bool{}

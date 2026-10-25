@@ -46,6 +46,7 @@ type Store interface {
 	Block(ctx context.Context, viewerID, blockedID string) error
 	Unblock(ctx context.Context, viewerID, blockedID string) error
 	ListBlocked(ctx context.Context, viewerID string) ([]string, error)
+	ListBlockers(ctx context.Context, blockedID string) ([]string, error)
 	SaveGame(ctx context.Context, viewerID, gameID string) error
 	UnsaveGame(ctx context.Context, viewerID, gameID string) error
 	ListSavedGames(ctx context.Context, viewerID string) ([]string, error)
@@ -357,6 +358,32 @@ func (s *PostgresStore) ListBlocked(ctx context.Context, viewerID string) ([]str
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate block relations: %w", err)
+	}
+	return ids, nil
+}
+
+// ListBlockers returns creators who have blocked the specified user. The
+// social_blocks_blocked_idx index keeps reverse visibility checks bounded.
+func (s *PostgresStore) ListBlockers(ctx context.Context, blockedID string) ([]string, error) {
+	blockedID = strings.TrimSpace(blockedID)
+	if blockedID == "" || len(blockedID) > 128 {
+		return nil, errors.New("blocked ID must be 1–128 characters")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT viewer_id FROM social_blocks WHERE blocked_id = $1 ORDER BY viewer_id`, blockedID)
+	if err != nil {
+		return nil, fmt.Errorf("query users who blocked viewer: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan user who blocked viewer: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate users who blocked viewer: %w", err)
 	}
 	return ids, nil
 }
