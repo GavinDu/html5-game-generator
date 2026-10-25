@@ -905,22 +905,35 @@ func (s *Server) handleSocialFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Kind != "not_interested" {
-		writeErr(w, 400, "kind must be not_interested")
+		writeErr(w, http.StatusBadRequest, "kind must be not_interested")
 		return
 	}
-	id := r.PathValue("id")
-	if !s.socialGameAvailableFor(id, userID(r)) {
-		writeErr(w, 404, "game not found")
+	viewer, id := userID(r), r.PathValue("id")
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
 		return
+	}
+	if !s.socialGameAvailableFor(id, viewer) {
+		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.AddNotInterested(ctx, viewer, id)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist social preference")
+			return
+		}
 	}
 	s.socialMu.Lock()
-	if s.notInterested[userID(r)] == nil {
-		s.notInterested[userID(r)] = map[string]bool{}
+	if s.notInterested[viewer] == nil {
+		s.notInterested[viewer] = map[string]bool{}
 	}
-	s.notInterested[userID(r)][id] = true
-	s.persistSocialStateLocked()
+	s.notInterested[viewer][id] = true
+	_ = s.persistSocialStateLocked()
 	s.socialMu.Unlock()
-	writeJSON(w, 200, map[string]any{"accepted": true})
+	writeJSON(w, http.StatusOK, map[string]any{"accepted": true})
 }
 
 type topicPreferencesRequest struct {
@@ -929,6 +942,21 @@ type topicPreferencesRequest struct {
 
 func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		prefs, err := s.socialGraph.ListPreferences(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read social preferences")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"muted_topics": prefs.MutedTopics, "not_interested_game_ids": prefs.NotInterestedGameIDs})
+		return
+	}
 	s.socialMu.RLock()
 	muted := make([]string, 0, len(s.mutedTopics[viewer]))
 	for topic, value := range s.mutedTopics[viewer] {
@@ -967,22 +995,58 @@ func (s *Server) handleSetTopicPreferences(w http.ResponseWriter, r *http.Reques
 		muted[topic] = true
 	}
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		topics := make([]string, 0, len(muted))
+		for topic := range muted {
+			topics = append(topics, topic)
+		}
+		sort.Strings(topics)
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.SetMutedTopics(ctx, viewer, topics)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist topic preferences")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	if s.mutedTopics == nil {
 		s.mutedTopics = map[string]map[string]bool{}
 	}
 	s.mutedTopics[viewer] = muted
-	s.persistSocialStateLocked()
+	_ = s.persistSocialStateLocked()
 	s.socialMu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"muted_topics": req.MutedTopics})
+	topics := make([]string, 0, len(muted))
+	for topic := range muted {
+		topics = append(topics, topic)
+	}
+	sort.Strings(topics)
+	writeJSON(w, http.StatusOK, map[string]any{"muted_topics": topics})
 }
 
 func (s *Server) handleResetPreferences(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		err := s.socialGraph.ResetPreferences(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not reset social preferences")
+			return
+		}
+	}
 	s.socialMu.Lock()
 	delete(s.mutedTopics, viewer)
 	delete(s.notInterested, viewer)
-	s.persistSocialStateLocked()
+	_ = s.persistSocialStateLocked()
 	s.socialMu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"reset": true})
 }
