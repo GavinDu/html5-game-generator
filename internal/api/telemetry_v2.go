@@ -103,8 +103,14 @@ func validTelemetryV2Event(ev teleEventV2) bool {
 		ev.DurationMs < 0 || ev.Inputs < 0 || ev.DeadInputs < 0 || ev.Retries < 0 {
 		return false
 	}
-	if ev.DeadInputs > ev.Inputs || len(ev.Buckets) > 6 { return false }
-	for _, bucket := range ev.Buckets { if bucket < 0 { return false } }
+	if ev.DeadInputs > ev.Inputs || len(ev.Buckets) > 6 {
+		return false
+	}
+	for _, bucket := range ev.Buckets {
+		if bucket < 0 {
+			return false
+		}
+	}
 	return true
 }
 
