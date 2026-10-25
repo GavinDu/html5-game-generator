@@ -838,17 +838,21 @@ func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
 		return
 	}
+	var shared socialgraph.ModerationStore
+	if s.socialGraph != nil {
+		var ok bool
+		shared, ok = s.socialGraph.(socialgraph.ModerationStore)
+		if !ok {
+			writeErr(w, http.StatusServiceUnavailable, "shared social storage does not support moderation reports")
+			return
+		}
+	}
 	report := socialReport{ID: pipeline.NewID(), GameID: gameID, Reporter: userID(r), Reason: reason, CreatedAt: time.Now().UTC(), Status: "open"}
 	if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID, ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt}); err != nil {
 		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 		return
 	}
-	if s.socialGraph != nil {
-		shared, ok := s.socialGraph.(socialgraph.ModerationStore)
-		if !ok {
-			writeErr(w, http.StatusServiceUnavailable, "shared social storage does not support moderation reports")
-			return
-		}
+	if shared != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 		err := shared.CreateReport(ctx, socialgraph.Report{
