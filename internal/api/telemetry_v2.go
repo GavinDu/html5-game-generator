@@ -184,8 +184,9 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
+	// New() restores this bounded index from the durable log once at startup.
+	// Re-reading the append-only log on every event would make ingestion O(log size).
 	s.teleMu.Lock()
-	s.loadTeleV2EventIDsLocked()
 	if ev.EventID != "" {
 		if s.teleV2EventIDs == nil {
 			s.teleV2EventIDs = map[string]struct{}{}
