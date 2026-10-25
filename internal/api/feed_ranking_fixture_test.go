@@ -122,6 +122,12 @@ func TestFeedRankingIsRepeatableAndHasUniqueGameIDs(t *testing.T) {
 	}
 
 	seen := make(map[string]bool, len(first))
+	for _, id := range first {
+		if seen[id] {
+			t.Errorf("duplicate game ID %q in feed: %v", id, first)
+		}
+		seen[id] = true
+	}
 	for _, fixture := range fixtures {
 		if !seen[fixture.id] {
 			t.Errorf("game %q missing from feed: %v", fixture.id, first)
