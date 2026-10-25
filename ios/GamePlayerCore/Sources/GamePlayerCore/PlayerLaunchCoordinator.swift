@@ -19,14 +19,6 @@ public enum PlayerLaunchError: Error, Equatable {
     case duplicateAssetID(String)
 }
 
-public protocol GamePackageTransport: Sendable {
-    func fetchPackage(gameID: String, version: String?) async throws -> Data
-}
-
-public protocol GameAssetTransport: Sendable {
-    func fetchAsset(_ asset: PackageAsset) async throws -> Data
-}
-
 public protocol GameRuntimeHost: Sendable {
     func start(package: GamePackageEnvelope, assets: [String: Data]) async throws
     func pause() async
@@ -47,6 +39,7 @@ public actor PlayerLaunchCoordinator {
     private let onStageChange: StageHandler
     private var currentStage: PlayerLaunchStage = .idle
     private var activeTask: Task<Void, Error>?
+    private var activeLaunchID: UUID?
 
     public init(
         packageTransport: any GamePackageTransport,
@@ -65,10 +58,21 @@ public actor PlayerLaunchCoordinator {
     public var stage: PlayerLaunchStage { currentStage }
 
     public func launch(gameID: String, version: String? = nil) async throws {
+        let launchID = UUID()
         activeTask?.cancel()
-        let task = Task { try await self.performLaunch(gameID: gameID, version: version) }
+        activeTask = nil
+        activeLaunchID = launchID
+        await runtime.stop()
+        guard activeLaunchID == launchID else { throw PlayerFailure.cancelled }
+
+        let task = Task { try await self.performLaunch(gameID: gameID, version: version, launchID: launchID) }
         activeTask = task
-        defer { activeTask = nil }
+        defer {
+            if activeLaunchID == launchID {
+                activeTask = nil
+                activeLaunchID = nil
+            }
+        }
         try await task.value
     }
 
@@ -81,23 +85,24 @@ public actor PlayerLaunchCoordinator {
     public func resume() async throws {
         guard currentStage == .paused else { return }
         try await runtime.resume()
-        transition(to: .running)
+        transition(to: .running, launchID: launchID)
     }
 
     public func stop() async {
+        activeLaunchID = nil
         activeTask?.cancel()
         activeTask = nil
         await runtime.stop()
         transition(to: .stopped)
     }
 
-    private func performLaunch(gameID: String, version: String?) async throws {
+    private func performLaunch(gameID: String, version: String?, launchID: UUID) async throws {
         do {
             try Task.checkCancellation()
-            transition(to: .fetchingPackage)
+            transition(to: .fetchingPackage, launchID: launchID)
             let bytes = try await packageTransport.fetchPackage(gameID: gameID, version: version)
             try Task.checkCancellation()
-            transition(to: .validatingPackage)
+            transition(to: .validatingPackage, launchID: launchID)
             let package = try contract.validate(bytes, expectedGameID: gameID)
 
             var assets = [String: Data]()
@@ -118,30 +123,31 @@ public actor PlayerLaunchCoordinator {
                     throw PlayerLaunchError.assetHashMismatch(asset.id)
                 }
                 assets[asset.id] = assetBytes
-                transition(to: .loadingAssets(completed: index + 1, total: total))
+                transition(to: .loadingAssets(completed: index + 1, total: total), launchID: launchID)
             }
 
             try Task.checkCancellation()
-            transition(to: .startingRuntime)
+            transition(to: .startingRuntime, launchID: launchID)
             try await runtime.start(package: package, assets: assets)
             try Task.checkCancellation()
             transition(to: .running)
         } catch is CancellationError {
-            transition(to: .failed(.cancelled))
+            transition(to: .failed(.cancelled), launchID: launchID)
             throw PlayerFailure.cancelled
         } catch let failure as PlayerFailure {
-            transition(to: .failed(failure))
+            transition(to: .failed(failure), launchID: launchID)
             throw failure
         } catch let failure as PlayerLaunchError {
-            transition(to: .failed(.malformedPackage))
+            transition(to: .failed(.malformedPackage), launchID: launchID)
             throw failure
         } catch {
-            transition(to: .failed(.network(String(describing: error))))
+            transition(to: .failed(.network(String(describing: error))), launchID: launchID)
             throw error
         }
     }
 
-    private func transition(to stage: PlayerLaunchStage) {
+    private func transition(to stage: PlayerLaunchStage, launchID: UUID? = nil) {
+        if let launchID, activeLaunchID != launchID { return }
         currentStage = stage
         onStageChange(stage)
     }
