@@ -89,10 +89,14 @@ type Server struct {
 	tunerMu        sync.Mutex
 	tunerProposals map[string]*tunerProposal
 	tunerSeq       int
+
+	// Bounded-cardinality delivery metrics for package and asset endpoints.
+	deliveryMu    sync.Mutex
+	deliveryStats map[string]deliveryMetric
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}}
+	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}, deliveryStats: map[string]deliveryMetric{}}
 	if err := pruneTelemetryOnStartup(); err != nil {
 		log.Printf("telemetry retention skipped: %v", err)
 	}
@@ -120,6 +124,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
 	mux.HandleFunc("POST /v1/telemetry/events", s.handleTelemetryEvent)
 	mux.HandleFunc("GET /v1/telemetry/perf", s.handlePerfSummary)
+	mux.HandleFunc("GET /v1/telemetry/delivery", s.handleDeliveryMetrics)
 	mux.HandleFunc("GET /v1/telemetry/incidents", s.handleIncidents)
 	mux.HandleFunc("POST /v1/games/{id}/quarantine", s.handleQuarantine)
 	mux.HandleFunc("POST /v1/games/{id}/unquarantine", s.handleUnquarantine)
@@ -155,8 +160,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/ir/validate", s.handleIRValidate)
 	mux.HandleFunc("POST /v1/game-ir/validate", s.handleGameIRValidate)
 	mux.HandleFunc("GET /v1/games/{id}/game-ir", s.handleGetGameIR)
-	mux.HandleFunc("GET /v1/games/{id}/assets/{asset}", s.handleGetGameAsset)
-	mux.HandleFunc("GET /v1/games/{id}/package", s.handleGetPackage)
+	mux.HandleFunc("GET /v1/games/{id}/assets/{asset}", s.observeDelivery("asset", s.handleGetGameAsset))
+	mux.HandleFunc("GET /v1/games/{id}/package", s.observeDelivery("package", s.handleGetPackage))
 	return cors(mux)
 }
 
