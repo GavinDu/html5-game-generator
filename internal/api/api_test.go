@@ -141,6 +141,9 @@ func TestFullPipeline(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("bundle: %d %s", rec.Code, rec.Body.String())
 	}
+	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("legacy bundle cache policy = %q", got)
+	}
 	var manifest model.BundleManifest
 	decode(t, rec, &manifest)
 	if manifest.Shim != "gameshim/v1" || len(manifest.Assets.Sprites) != 3 {
@@ -156,6 +159,9 @@ func TestFullPipeline(t *testing.T) {
 		if rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Fatalf("artifact %s: %d, len %d", p, rec.Code, rec.Body.Len())
 		}
+		if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+			t.Fatalf("legacy artifact %s cache policy = %q", p, got)
+		}
 	}
 	// Every sprite URL exactly as the manifest declares it must be fetchable.
 	for _, sp := range manifest.Assets.Sprites {
@@ -163,6 +169,9 @@ func TestFullPipeline(t *testing.T) {
 		rec = do(t, srv, "GET", p, nil, "parent-1")
 		if rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Fatalf("sprite %s (%s): %d, len %d: %s", sp.ID, p, rec.Code, rec.Body.Len(), rec.Body.String())
+		}
+		if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+			t.Fatalf("legacy sprite %s cache policy = %q", p, got)
 		}
 	}
 }
