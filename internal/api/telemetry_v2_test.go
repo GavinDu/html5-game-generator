@@ -230,3 +230,22 @@ func TestTelemetryAggregateEndpointsRequireAdminToken(t *testing.T) {
 		}
 	}
 }
+
+
+func TestTelemetryV2RejectsTrailingJSONValues(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	srv := newTestServer()
+	body := `{"schemaVersion":2,"gameId":"game-trailing","runtimeVersion":"test","sessionId":"session-trailing","kind":"session_start","quality":"ok","deviceClass":"test","at":"2026-10-25T00:00:00Z"} {"unexpected":true}`
+	if got := postEvent(t, srv, body); got != http.StatusBadRequest {
+		t.Fatalf("trailing JSON value got status %d, want %d", got, http.StatusBadRequest)
+	}
+}
+
+func TestTelemetryV2RejectsTrailingGarbage(t *testing.T) {
+	t.Setenv("DQ_TELEMETRY_DIR", t.TempDir())
+	srv := newTestServer()
+	body := `{"schemaVersion":2,"gameId":"game-trailing","runtimeVersion":"test","sessionId":"session-trailing","kind":"session_start","quality":"ok","deviceClass":"test","at":"2026-10-25T00:00:00Z"} garbage`
+	if got := postEvent(t, srv, body); got != http.StatusBadRequest {
+		t.Fatalf("trailing garbage got status %d, want %d", got, http.StatusBadRequest)
+	}
+}
