@@ -2,6 +2,9 @@
 
 The file-backed `MemoryStore` supports versioned, SHA-256-checksummed backups. The snapshot includes games, jobs, ingests, groups, and artifact bytes; artifact bytes are base64-encoded by JSON. Backup writes use a temporary file followed by an atomic rename, with restrictive file permissions.
 
+## Recovery objectives
+
+For an initial small-user deployment, a **provisional target** is an RPO of at most 24 hours and an RTO of at most 4 hours. These are planning defaults, not a production SLA; confirm them against the expected cost of lost creations and downtime before public launch. Until a scheduler, retention policy, and alerting are configured in the deployment, do not claim the service meets either target.
 ## Create a backup
 
 ```sh
