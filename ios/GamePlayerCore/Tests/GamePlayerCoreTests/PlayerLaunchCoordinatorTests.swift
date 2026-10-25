@@ -38,8 +38,9 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
         {
           "packageFormatVersion":"2.0",
           "minRuntimeVersion":"2026.10.23.2",
+          "irVersion":"1.0",
           "gameId":"game-123",
-          "ir":{"schemaVersion":"1.0","nodes":[]},
+          "ir":{"irVersion":"1.0","nodes":[]},
           "assets":[{"id":"sprite","kind":"image","uri":"assets/sprite.png","url":"/v1/games/game-123/assets/sprite","mimeType":"image/png","sha256":"\(hash)"}],
           "irHash":"\(String(repeating: "a", count: 64))"
         }
@@ -97,7 +98,7 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
           "packageFormatVersion":"2.0",
           "minRuntimeVersion":"2026.10.23.2",
           "gameId":"game-123",
-          "ir":{"schemaVersion":"1.0"},
+          "ir":{"irVersion":"1.0"},
           "assets":[{"id":"sprite","kind":"image","uri":"sprite.png","url":"/asset"}],
           "irHash":"\(String(repeating: "a", count: 64))"
         }
