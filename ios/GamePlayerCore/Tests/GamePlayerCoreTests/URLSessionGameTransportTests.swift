@@ -119,6 +119,36 @@ final class URLSessionGameTransportTests: XCTestCase {
         session.invalidateAndCancel()
     }
 
+    func testRedirectPolicyAllowsOnlySameOriginTargets() {
+        let base = URL(string: "https://api.example.com/v1")!
+        let delegate = OriginRestrictedRedirectDelegate(baseURL: base)
+        let task = URLSession.shared.dataTask(with: base)
+        let response = HTTPURLResponse(
+            url: base,
+            statusCode: 302,
+            httpVersion: "HTTP/1.1",
+            headerFields: nil
+        )!
+
+        var sameOrigin: URLRequest?
+        delegate.urlSession(
+            URLSession.shared,
+            task: task,
+            willPerformHTTPRedirection: response,
+            newRequest: URLRequest(url: URL(string: "https://api.example.com/next")!)
+        ) { sameOrigin = $0 }
+        XCTAssertNotNil(sameOrigin)
+
+        var crossOrigin: URLRequest?
+        delegate.urlSession(
+            URLSession.shared,
+            task: task,
+            willPerformHTTPRedirection: response,
+            newRequest: URLRequest(url: URL(string: "https://attacker.example/collect")!)
+        ) { crossOrigin = $0 }
+        XCTAssertNil(crossOrigin)
+    }
+
     func testRejectsCrossOriginRedirectBeforeAcceptingResponseBytes() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CrossOriginRedirectURLProtocol.self]
