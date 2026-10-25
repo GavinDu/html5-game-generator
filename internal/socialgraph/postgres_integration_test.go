@@ -301,3 +301,63 @@ func TestPostgresStoreSharesCommentsAcrossInstances(t *testing.T) {
 		t.Fatalf("cross-instance delete result: comments=%+v err=%v", comments, err)
 	}
 }
+
+func TestPostgresReportsAreSharedAndResolutionIsFirstWriteWins(t *testing.T) {
+	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("DQ_SOCIAL_DATABASE_URL is not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	first, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open first graph store: %v", err)
+	}
+	second, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open second graph store: %v", err)
+	}
+	suffix := time.Now().UTC().Format("20060102150405.000000000")
+	reportID := "integration-report-" + suffix
+	gameID := "integration-reported-game-" + suffix
+	reporter := "integration-reporter-" + suffix
+	t.Cleanup(func() {
+		_ = first.Close()
+		_ = second.Close()
+	})
+
+	if err := first.CreateReport(ctx, Report{
+		ID: reportID, GameID: gameID, Reporter: reporter, Reason: "unsafe game content",
+		CreatedAt: time.Now().UTC(), Status: "open",
+	}); err != nil {
+		t.Fatalf("create report: %v", err)
+	}
+	openReports, err := second.ListReports(ctx, "open", gameID, 20)
+	if err != nil || len(openReports) != 1 || openReports[0].ID != reportID {
+		t.Fatalf("second instance did not see open report: reports=%+v err=%v", openReports, err)
+	}
+
+	firstResolution := time.Now().UTC()
+	resolved, found, err := second.ResolveReport(ctx, reportID, "moderator-one", "first decision", firstResolution)
+	if err != nil || !found || resolved.Status != "resolved" || resolved.ResolvedBy != "moderator-one" || resolved.ResolutionReason != "first decision" {
+		t.Fatalf("resolve report: report=%+v found=%v err=%v", resolved, found, err)
+	}
+	repeated, found, err := first.ResolveReport(ctx, reportID, "moderator-two", "replacement decision", time.Now().UTC())
+	if err != nil || !found || repeated.ResolvedBy != "moderator-one" || repeated.ResolutionReason != "first decision" {
+		t.Fatalf("repeated resolution overwrote first decision: report=%+v found=%v err=%v", repeated, found, err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "reports-backup.json")
+	if err := first.BackupTo(ctx, backupPath); err != nil {
+		t.Fatalf("backup report: %v", err)
+	}
+	if err := first.RestoreFrom(ctx, backupPath); err != nil {
+		t.Fatalf("restore report backup: %v", err)
+	}
+	restored, found, err := second.GetReport(ctx, reportID)
+	if err != nil || !found || restored.Status != "resolved" || restored.ResolvedBy != "moderator-one" ||
+		restored.ResolutionReason != "first decision" || restored.ResolvedAt == nil {
+		t.Fatalf("report lost resolution state across backup/restore: report=%+v found=%v err=%v", restored, found, err)
+	}
+}
+
