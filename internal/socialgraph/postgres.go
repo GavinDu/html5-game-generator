@@ -167,6 +167,11 @@ type Edge struct {
 	CreatorID string
 }
 
+type BlockRelation struct {
+	ViewerID  string
+	BlockedID string
+}
+
 // ImportFollows idempotently imports a snapshot's follow edges in one
 // transaction. It never deletes destination rows and is safe to resume.
 func (s *PostgresStore) ImportFollows(ctx context.Context, edges []Edge) (int, error) {
@@ -268,6 +273,45 @@ func (s *PostgresStore) ListBlocked(ctx context.Context, viewerID string) ([]str
 	return ids, nil
 }
 
+// ImportBlocks idempotently imports a block snapshot in one transaction.
+// It never deletes destination rows and can safely resume after interruption.
+func (s *PostgresStore) ImportBlocks(ctx context.Context, relations []BlockRelation) (int, error) {
+	for _, relation := range relations {
+		viewer, blocked := strings.TrimSpace(relation.ViewerID), strings.TrimSpace(relation.BlockedID)
+		if viewer == "" || blocked == "" || len(viewer) > 128 || len(blocked) > 128 || viewer == blocked {
+			return 0, fmt.Errorf("invalid block relation in import")
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin block import: %w", err)
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO social_blocks (viewer_id, blocked_id)
+		VALUES ($1, $2)
+		ON CONFLICT (viewer_id, blocked_id) DO NOTHING`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare block import: %w", err)
+	}
+	defer stmt.Close()
+	inserted := 0
+	for _, relation := range relations {
+		result, err := stmt.ExecContext(ctx, strings.TrimSpace(relation.ViewerID), strings.TrimSpace(relation.BlockedID))
+		if err != nil {
+			return 0, fmt.Errorf("import block relation: %w", err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("count imported block relation: %w", err)
+		}
+		inserted += int(n)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit block import: %w", err)
+	}
+	return inserted, nil
+}
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }
