@@ -96,7 +96,6 @@ func TestSocialEventLegacyClientDefaultsToSchemaV1(t *testing.T) {
 	}
 }
 
-
 func TestSocialPreviewDwellEventIsAcceptedAndIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
@@ -105,12 +104,12 @@ func TestSocialPreviewDwellEventIsAcceptedAndIdempotent(t *testing.T) {
 	addPublicGame(srv, "game-1", "creator")
 
 	body := map[string]any{
-		"schema_version": 1,
-		"event_id": "preview-dwell-1",
-		"game_id": "game-1",
-		"kind": "preview_dwell",
-		"preview_dwell_ms": 700,
-		"duration_ms": 700,
+		"schema_version":       1,
+		"event_id":             "preview-dwell-1",
+		"game_id":              "game-1",
+		"kind":                 "preview_dwell",
+		"preview_dwell_ms":     700,
+		"duration_ms":          700,
 		"expected_duration_ms": 700,
 	}
 	resp := do(t, srv, http.MethodPost, "/v1/telemetry/social-event", body, "viewer")
