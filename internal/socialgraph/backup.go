@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const postgresBackupFormatVersion = 2
+const postgresBackupFormatVersion = 3
 
 type postgresBackupEnvelope struct {
 	FormatVersion int             `json:"formatVersion"`
@@ -26,10 +26,11 @@ type postgresBackupSnapshot struct {
 	Saves              []SaveRelation               `json:"saves"`
 	Comments           []Comment                    `json:"comments"`
 	CommentIdempotency []CommentIdempotencyRelation `json:"commentIdempotency"`
+	Reports            []Report                     `json:"reports"`
 }
 
 // BackupTo exports a consistent, checksummed snapshot of shared follow, block,
-// saved-game, comment, and comment-idempotency records. The backup is written with restrictive permissions and an
+// saved-game, comment, comment-idempotency, and moderation report records. The backup is written with restrictive permissions and an
 // atomic rename so incomplete files are not mistaken for valid backups.
 func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
@@ -43,6 +44,7 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 		Saves:              make([]SaveRelation, 0),
 		Comments:           make([]Comment, 0),
 		CommentIdempotency: make([]CommentIdempotencyRelation, 0),
+		Reports: make([]Report, 0),
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT viewer_id, creator_id FROM social_follows ORDER BY viewer_id, creator_id`)
 	if err != nil {
@@ -139,6 +141,25 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close comment idempotency rows: %w", err)
 	}
+	rows, err = tx.QueryContext(ctx, `SELECT id, game_id, reporter, reason, created_at, status, resolved_at, resolved_by, resolution_reason FROM social_reports ORDER BY created_at, id`)
+	if err != nil {
+		return fmt.Errorf("query reports for backup: %w", err)
+	}
+	for rows.Next() {
+		report, err := scanReport(rows)
+		if err != nil {
+			rows.Close()
+			return fmt.Errorf("scan report for backup: %w", err)
+		}
+		snapshot.Reports = append(snapshot.Reports, report)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate reports for backup: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close report rows: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("finish social graph backup snapshot: %w", err)
 	}
@@ -222,6 +243,16 @@ func (s *PostgresStore) RestoreFrom(ctx context.Context, path string) error {
 		}
 	}
 
+	reportStmt, err := tx.PrepareContext(ctx, `INSERT INTO social_reports (id, game_id, reporter, reason, created_at, status, resolved_at, resolved_by, resolution_reason) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("prepare report restore: %w", err)
+	}
+	defer reportStmt.Close()
+	for _, report := range snapshot.Reports {
+		if _, err := reportStmt.ExecContext(ctx, report.ID, report.GameID, report.Reporter, report.Reason, report.CreatedAt, report.Status, report.ResolvedAt, report.ResolvedBy, report.ResolutionReason); err != nil {
+			return fmt.Errorf("restore moderation report: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit social graph restore: %w", err)
 	}
@@ -237,7 +268,7 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("decode social graph backup envelope: %w", err)
 	}
-	if envelope.FormatVersion != 1 && envelope.FormatVersion != postgresBackupFormatVersion {
+	if envelope.FormatVersion < 1 || envelope.FormatVersion > postgresBackupFormatVersion {
 		return postgresBackupSnapshot{}, fmt.Errorf("unsupported social graph backup format version %d", envelope.FormatVersion)
 	}
 	sum := sha256.Sum256(envelope.Snapshot)
@@ -251,12 +282,19 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 	if snapshot.Follows == nil || snapshot.Blocks == nil || snapshot.Saves == nil {
 		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing required collections")
 	}
-	// Version 1 snapshots predate PostgreSQL comment storage.
+	// Version 1 snapshots predate PostgreSQL comment storage; version 2
+	// snapshots predate PostgreSQL moderation reports.
 	if envelope.FormatVersion == 1 {
 		snapshot.Comments = []Comment{}
 		snapshot.CommentIdempotency = []CommentIdempotencyRelation{}
-	} else if snapshot.Comments == nil || snapshot.CommentIdempotency == nil {
-		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing comment collections")
+		snapshot.Reports = []Report{}
+	} else if envelope.FormatVersion == 2 {
+		if snapshot.Comments == nil || snapshot.CommentIdempotency == nil {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing comment collections")
+		}
+		snapshot.Reports = []Report{}
+	} else if snapshot.Comments == nil || snapshot.CommentIdempotency == nil || snapshot.Reports == nil {
+		return postgresBackupSnapshot{}, fmt.Errorf("social graph backup is missing comment or report collections")
 	}
 	for _, edge := range snapshot.Follows {
 		viewer, creator := strings.TrimSpace(edge.ViewerID), strings.TrimSpace(edge.CreatorID)
@@ -292,6 +330,18 @@ func readPostgresBackup(path string) (postgresBackupSnapshot, error) {
 		}
 	}
 
+	for _, report := range snapshot.Reports {
+		if strings.TrimSpace(report.ID) == "" || strings.TrimSpace(report.GameID) == "" ||
+			strings.TrimSpace(report.Reporter) == "" || strings.TrimSpace(report.Reason) == "" ||
+			len(report.ID) > 128 || len(report.GameID) > 128 || len(report.Reporter) > 128 ||
+			len(report.Reason) > 500 || (report.Status != "open" && report.Status != "resolved") {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid moderation report")
+		}
+		if report.Status == "resolved" && (report.ResolvedAt == nil || strings.TrimSpace(report.ResolvedBy) == "" ||
+			len(report.ResolvedBy) > 128 || len(report.ResolutionReason) > 500) {
+			return postgresBackupSnapshot{}, fmt.Errorf("social graph backup contains an invalid resolved report")
+		}
+	}
 	return snapshot, nil
 }
 
