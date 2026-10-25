@@ -9,9 +9,14 @@ public struct GameShareButton: View {
     public let shareURL: URL
     public let compact: Bool
 
-    public init(title: String, shareURL: URL, compact: Bool = false) {
+    public init(
+        title: String,
+        lineage: GameShareLineage,
+        builder: GameShareLinkBuilder,
+        compact: Bool = false
+    ) throws {
         self.title = title
-        self.shareURL = shareURL
+        self.shareURL = try builder.makeLink(for: lineage)
         self.compact = compact
     }
 
