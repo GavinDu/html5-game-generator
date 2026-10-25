@@ -112,7 +112,7 @@ func setPackageCacheHeaders(w http.ResponseWriter, r *http.Request, game *model.
 		w.Header().Set("Vary", "X-User-ID")
 		return false
 	}
-	w.Header().Set("Cache-Control", "public, max-age=300, must-revalidate")
+	w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
 	w.Header().Set("Vary", "Accept-Encoding")
 	return r.Header.Get("If-None-Match") == etag || r.Header.Get("If-None-Match") == "*"
 }
