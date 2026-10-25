@@ -135,7 +135,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
 
     private var isOverlayBlocking: Bool {
         switch state {
-        case .idle, .loading, .failed, .completed:
+        case .idle, .loading, .paused, .failed, .completed:
             return true
         default:
             return false
