@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"doodlequest/internal/pipeline"
 )
 
 // Runtime-error telemetry (auto detect-and-fix flow). The player page is
@@ -235,6 +238,9 @@ func (s *Server) observeTelemetry(ev teleEvent) {
 	if !ok || game.Quarantined {
 		return
 	}
+	if err := s.persistAudit(context.Background(), moderationAuditEvent{ID: pipeline.NewID(), Action: "game_auto_quarantined", GameID: game.ID, ActorID: "telemetry", Status: "quarantined", Reason: reason, CreatedAt: time.Now().UTC()}); err != nil {
+		return
+	}
 	game.Quarantined = true
 	game.QuarantineReason = reason
 	game.UpdatedAt = time.Now()
@@ -346,6 +352,10 @@ func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
 	if game.QuarantineReason == "" {
 		game.QuarantineReason = "manual quarantine"
 	}
+	if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "game_quarantined", GameID: game.ID, ActorID: userID(r), Status: "quarantined", Reason: game.QuarantineReason, CreatedAt: time.Now().UTC()}); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+		return
+	}
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
 	writeJSON(w, http.StatusOK, map[string]any{"game_id": game.ID, "quarantined": true, "reason": game.QuarantineReason})
@@ -365,6 +375,10 @@ func (s *Server) handleUnquarantine(w http.ResponseWriter, r *http.Request) {
 	}
 	game.Quarantined = false
 	game.QuarantineReason = ""
+	if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "game_unquarantined", GameID: game.ID, ActorID: userID(r), Status: "unquarantined", CreatedAt: time.Now().UTC()}); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+		return
+	}
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
 	s.teleMu.Lock()

@@ -550,7 +550,7 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 			Reason:    "automated_screening: " + strings.Join(flags, ","),
 			CreatedAt: now, Status: "open",
 		}
-		if err := persistModerationAudit(moderationAuditEvent{
+		if err := s.persistAudit(r.Context(), moderationAuditEvent{
 			ID: pipeline.NewID(), Action: "automated_screening_flagged",
 			GameID: g.ID, ReportID: report.ID, ActorID: "automated-screening",
 			Status: "open", Reason: strings.Join(flags, ","), CreatedAt: now,
@@ -1019,13 +1019,29 @@ func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	report := socialReport{ID: pipeline.NewID(), GameID: gameID, Reporter: userID(r), Reason: reason, CreatedAt: time.Now().UTC(), Status: "open"}
-	if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID, ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt}); err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
-		return
-	}
 	if shared != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
+		if auditStore, ok := shared.(socialgraph.AuditStore); ok {
+			// Single transaction: report and its audit row commit together.
+			err := auditStore.CreateReportWithAudit(ctx, socialgraph.Report{
+				ID: report.ID, GameID: report.GameID, ReporterID: report.Reporter, Reason: report.Reason,
+				CreatedAt: report.CreatedAt, Status: report.Status,
+			}, socialgraph.AuditEvent{
+				ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID,
+				ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt,
+			})
+			if err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not persist moderation report")
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"report_id": report.ID, "status": report.Status})
+			return
+		}
+		if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID, ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+			return
+		}
 		err := shared.CreateReport(ctx, socialgraph.Report{
 			ID: report.ID, GameID: report.GameID, ReporterID: report.Reporter, Reason: report.Reason,
 			CreatedAt: report.CreatedAt, Status: report.Status,
@@ -1035,6 +1051,10 @@ func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{"report_id": report.ID, "status": report.Status})
+		return
+	}
+	if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID, ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt}); err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 		return
 	}
 	s.socialMu.Lock()
@@ -1276,7 +1296,7 @@ func (s *Server) handleModerateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	moderationReason := strings.TrimSpace(req.Reason)
-	if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "game_moderation_changed", GameID: g.ID, ActorID: userID(r), Status: req.Status, Reason: moderationReason, CreatedAt: time.Now().UTC()}); err != nil {
+	if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "game_moderation_changed", GameID: g.ID, ActorID: userID(r), Status: req.Status, Reason: moderationReason, CreatedAt: time.Now().UTC()}); err != nil {
 		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 		return
 	}
@@ -1531,9 +1551,23 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		if actor == "" {
 			actor = "moderation-token"
 		}
+		if auditStore, ok := shared.(socialgraph.AuditStore); ok {
+			// Single transaction: resolution (or a repeat attempt, which
+			// leaves the first resolution untouched) and its audit row.
+			report, _, err := auditStore.ResolveReportWithAudit(ctx, id, actor, reason, time.Now().UTC(), pipeline.NewID())
+			if err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not resolve moderation report")
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"report_id": report.ID, "status": report.Status, "resolved_at": report.ResolvedAt,
+				"resolved_by": report.ResolvedBy, "resolution_reason": report.ResolutionReason,
+			})
+			return
+		}
 		if prior.Status != "resolved" {
 			now := time.Now().UTC()
-			if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_resolved", GameID: prior.GameID, ReportID: id, ActorID: actor, Status: "resolved", Reason: reason, CreatedAt: now}); err != nil {
+			if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "report_resolved", GameID: prior.GameID, ReportID: id, ActorID: actor, Status: "resolved", Reason: reason, CreatedAt: now}); err != nil {
 				writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 				return
 			}
@@ -1554,9 +1588,10 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 	defer s.socialMu.Unlock()
 	for i := range s.reports {
 		if s.reports[i].ID == id {
+			wasResolved := s.reports[i].Status == "resolved"
 			if s.reports[i].Status != "resolved" {
 				now := time.Now().UTC()
-				if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_resolved", GameID: s.reports[i].GameID, ReportID: id, ActorID: userID(r), Status: "resolved", Reason: reason, CreatedAt: now}); err != nil {
+				if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "report_resolved", GameID: s.reports[i].GameID, ReportID: id, ActorID: userID(r), Status: "resolved", Reason: reason, CreatedAt: now}); err != nil {
 					writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 					return
 				}
@@ -1566,6 +1601,13 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 				s.reports[i].ResolutionReason = reason
 				if err := s.persistSocialStateLocked(); err != nil {
 					writeErr(w, http.StatusServiceUnavailable, "could not persist moderation report")
+					return
+				}
+			}
+			if wasResolved {
+				// Repeat attempts are audited even though the first decision stands.
+				if err := s.persistAudit(r.Context(), moderationAuditEvent{ID: pipeline.NewID(), Action: "report_resolve_attempted", GameID: s.reports[i].GameID, ReportID: id, ActorID: userID(r), Status: "resolved", Reason: reason, CreatedAt: time.Now().UTC()}); err != nil {
+					writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 					return
 				}
 			}

@@ -78,8 +78,16 @@ func TestPostgresBackupRestoreRoundTrip(t *testing.T) {
 	if _, _, err := graph.ResolveReport(ctx, report.ID, "moderator-1", "reviewed", time.Now().UTC()); err != nil {
 		t.Fatalf("resolve moderation report before backup: %v", err)
 	}
+	auditID := "integration-backup-audit-" + time.Now().UTC().Format("20060102150405.000000000")
+	if err := graph.AppendAudit(ctx, AuditEvent{ID: auditID, Action: "game_quarantined", GameID: gameID, ActorID: "moderation-token", Status: "quarantined", Reason: "backup test", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatalf("create audit event before backup: %v", err)
+	}
 	if err := graph.BackupTo(ctx, backupPath); err != nil {
 		t.Fatalf("backup: %v", err)
+	}
+	backupData, err := os.ReadFile(backupPath)
+	if err != nil || !strings.Contains(string(backupData), auditID) {
+		t.Fatalf("backup file contains audit id: err=%v, want %s in backup", err, auditID)
 	}
 	if err := graph.Unfollow(ctx, viewer, creator); err != nil {
 		t.Fatalf("remove follow before restore: %v", err)
@@ -125,6 +133,19 @@ func TestPostgresBackupRestoreRoundTrip(t *testing.T) {
 	counts, viewerReactions, err := graph.ListReactionSummary(ctx, viewer, []string{gameID})
 	if err != nil || counts[gameID] != 1 || viewerReactions[gameID] != "like" {
 		t.Fatalf("restored reactions counts=%v viewer=%v err=%v, want count 1 and like", counts, viewerReactions, err)
+	}
+	auditEvents, _, err := graph.ListAudit(ctx, AuditFilter{GameID: gameID, Limit: 500})
+	if err != nil {
+		t.Fatalf("list audit after restore: %v", err)
+	}
+	var sawAudit bool
+	for _, ev := range auditEvents {
+		if ev.ID == auditID {
+			sawAudit = true
+		}
+	}
+	if !sawAudit {
+		t.Fatalf("restored audit events=%+v, want event %s", auditEvents, auditID)
 	}
 	gotReport, found, err := graph.GetReport(ctx, report.ID)
 	if err != nil || !found || gotReport.Status != "resolved" || gotReport.ResolvedBy != "moderator-1" || gotReport.ResolutionReason != "reviewed" {
