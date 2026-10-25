@@ -159,6 +159,7 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UTC()
 	s.teleMu.Lock()
+	s.loadTeleV2EventIDsLocked()
 	if ev.EventID != "" {
 		if s.teleV2EventIDs == nil {
 			s.teleV2EventIDs = map[string]struct{}{}
