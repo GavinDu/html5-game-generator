@@ -472,7 +472,6 @@ func TestFeedRankingColdStartEngagementAndRollback(t *testing.T) {
 	}
 }
 
-
 func TestFeedEngagementAggregationUsesDocumentedWeights(t *testing.T) {
 	events := []socialEvent{
 		{GameID: "game-a", Kind: "completion"},
