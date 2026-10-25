@@ -625,6 +625,44 @@ func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"comments": page, "next_cursor": next})
 }
 
+func paginateComments(items []socialComment, r *http.Request) ([]socialComment, string, error) {
+	limit := 20
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 50 {
+			return nil, "", fmt.Errorf("limit must be between 1 and 50")
+		}
+		limit = n
+	}
+	start := 0
+	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
+		found := false
+		for i, c := range items {
+			if c.ID == cursor {
+				start = i + 1
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, "", fmt.Errorf("cursor does not match a comment")
+		}
+	}
+	if start >= len(items) {
+		return []socialComment{}, "", nil
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := items[start:end]
+	next := ""
+	if end < len(items) && len(page) > 0 {
+		next = page[len(page)-1].ID
+	}
+	return page, next, nil
+}
+
 func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	var req textRequest
 	if !decodeJSON(w, r, &req) {
