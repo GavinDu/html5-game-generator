@@ -136,7 +136,6 @@ func TestFeedRankingIsRepeatableAndHasUniqueGameIDs(t *testing.T) {
 	}
 }
 
-
 // BenchmarkFeedRanking measures end-to-end feed handler cost with fixed-size
 // synthetic candidate/event sets. Run with:
 // go test ./internal/api -run '^$' -bench '^BenchmarkFeedRanking$' -benchmem
@@ -156,9 +155,9 @@ func BenchmarkFeedRanking(b *testing.B) {
 			srv.socialMu.Lock()
 			for i := 0; i < size*2; i++ {
 				srv.events = append(srv.events, socialEvent{
-					EventID: "bench-" + strconv.Itoa(i),
-					GameID: "game-" + strconv.Itoa(i%size),
-					Kind: "completion",
+					EventID:   "bench-" + strconv.Itoa(i),
+					GameID:    "game-" + strconv.Itoa(i%size),
+					Kind:      "completion",
 					CreatedAt: now,
 				})
 			}
