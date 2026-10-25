@@ -362,7 +362,6 @@ func (s *PostgresStore) ListBlocked(ctx context.Context, viewerID string) ([]str
 	return ids, nil
 }
 
-
 // ListBlockers returns creators who have blocked the specified user. The
 // social_blocks_blocked_idx index keeps reverse visibility checks bounded.
 func (s *PostgresStore) ListBlockers(ctx context.Context, blockedID string) ([]string, error) {
