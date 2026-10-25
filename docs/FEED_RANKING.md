@@ -10,7 +10,7 @@ The For You feed is intentionally simple and explainable. It uses newest-first o
 - Stable tie-break: newer post first
 - Creator diversity: round-robin creator groups while preserving each creator's internal ranking order
 
-This is a guardrail baseline, not a learned recommender. The event/reaction index is process-local and may be incomplete after a restart; it must not be treated as a durable analytics warehouse. Following/Friends scopes, block, not-interested, muted topics, moderation state, and quarantine filters are applied before ranking.
+Event weights are aggregated once per feed request, so ranking scales as O(events + games log games) instead of rescanning the event list inside sort comparisons. This is a guardrail baseline, not a learned recommender. The event/reaction index is process-local and may be incomplete after a restart; it must not be treated as a durable analytics warehouse. Following/Friends scopes, block, not-interested, muted topics, moderation state, and quarantine filters are applied before ranking.
 
 ## Immediate rollback
 
