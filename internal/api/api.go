@@ -20,6 +20,8 @@ import (
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
+	"doodlequest/internal/socialgraph"
+	_ "github.com/lib/pq"
 )
 
 //go:embed web/player.html
@@ -45,6 +47,8 @@ type Server struct {
 	deliveryMu         sync.Mutex
 	deliveryMetrics    map[string]*deliveryMetricSnapshot
 	socialMu           sync.RWMutex
+	socialGraph        socialgraph.Store
+	socialGraphErr     error
 	follows            map[string]map[string]struct{}
 	reactions          map[string]map[string]string
 	comments           map[string][]socialComment
@@ -95,6 +99,17 @@ type Server struct {
 
 func New(st store.Store, r *pipeline.Runner) *Server {
 	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}}
+	if dsn := strings.TrimSpace(os.Getenv("DQ_SOCIAL_DATABASE_URL")); dsn != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		graph, err := socialgraph.OpenPostgres(ctx, dsn)
+		cancel()
+		if err != nil {
+			s.socialGraphErr = err
+			log.Printf("shared social graph unavailable: %v", err)
+		} else {
+			s.socialGraph = graph
+		}
+	}
 	if err := pruneTelemetryOnStartup(); err != nil {
 		log.Printf("telemetry retention skipped: %v", err)
 	}
@@ -263,6 +278,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // loaded and written. Liveness remains available through /healthz.
 func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	status := map[string]any{"status": "ok", "service": "doodlequest"}
+	if s.socialGraphErr != nil {
+		status["status"] = "degraded"
+		status["shared_social_graph"] = false
+		writeJSON(w, http.StatusServiceUnavailable, status)
+		return
+	}
+	if s.socialGraph != nil {
+		status["shared_social_graph"] = true
+	}
 	if persistence, ok := s.store.(interface{ PersistenceStatus() (bool, bool) }); ok {
 		enabled, healthy := persistence.PersistenceStatus()
 		status["persistence_enabled"] = enabled
