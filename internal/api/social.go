@@ -920,20 +920,43 @@ func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "a report reason of 1–500 characters is required")
 		return
 	}
-	if _, ok := s.store.GetGame(r.PathValue("id")); !ok {
+	gameID := r.PathValue("id")
+	if _, ok := s.store.GetGame(gameID); !ok {
 		writeErr(w, 404, "game not found")
 		return
 	}
-	report := socialReport{ID: pipeline.NewID(), GameID: r.PathValue("id"), Reporter: userID(r), Reason: reason, CreatedAt: time.Now().UTC(), Status: "open"}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
+		return
+	}
+	report := socialReport{ID: pipeline.NewID(), GameID: gameID, Reporter: userID(r), Reason: reason, CreatedAt: time.Now().UTC(), Status: "open"}
 	if err := persistModerationAudit(moderationAuditEvent{ID: pipeline.NewID(), Action: "report_created", GameID: report.GameID, ReportID: report.ID, ActorID: report.Reporter, Reason: reason, CreatedAt: report.CreatedAt}); err != nil {
 		writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
 		return
 	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		if err := s.socialGraph.CreateReport(ctx, socialgraph.Report{
+			ID: report.ID, GameID: report.GameID, Reporter: report.Reporter, Reason: report.Reason,
+			CreatedAt: report.CreatedAt, Status: report.Status,
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist report")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"report_id": report.ID, "status": report.Status})
+		return
+	}
 	s.socialMu.Lock()
 	s.reports = append(s.reports, report)
-	s.persistSocialStateLocked()
+	if err := s.persistSocialStateLocked(); err != nil {
+		s.reports = s.reports[:len(s.reports)-1]
+		s.socialMu.Unlock()
+		writeErr(w, http.StatusServiceUnavailable, "could not persist report")
+		return
+	}
 	s.socialMu.Unlock()
-	writeJSON(w, 201, map[string]any{"report_id": report.ID, "status": report.Status})
+	writeJSON(w, http.StatusCreated, map[string]any{"report_id": report.ID, "status": report.Status})
 }
 func (s *Server) handleBlock(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
@@ -1234,6 +1257,48 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "resolution reason must be at most 500 characters")
 		return
 	}
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		report, found, err := s.socialGraph.GetReport(ctx, id)
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read report")
+			return
+		}
+		if !found {
+			writeErr(w, http.StatusNotFound, "report not found")
+			return
+		}
+		if report.Status != "resolved" {
+			now := time.Now().UTC()
+			if err := persistModerationAudit(moderationAuditEvent{
+				ID: pipeline.NewID(), Action: "report_resolved", GameID: report.GameID, ReportID: id,
+				ActorID: userID(r), Status: "resolved", Reason: reason, CreatedAt: now,
+			}); err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not persist moderation audit")
+				return
+			}
+			report, found, err = s.socialGraph.ResolveReport(ctx, id, userID(r), reason, now)
+			if err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not resolve report")
+				return
+			}
+			if !found {
+				writeErr(w, http.StatusNotFound, "report not found")
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"report_id": id, "status": report.Status, "resolved_at": report.ResolvedAt,
+			"resolved_by": report.ResolvedBy, "resolution_reason": report.ResolutionReason,
+		})
+		return
+	}
+
 	s.socialMu.Lock()
 	defer s.socialMu.Unlock()
 	for i := range s.reports {
@@ -1250,14 +1315,14 @@ func (s *Server) handleResolveReport(w http.ResponseWriter, r *http.Request) {
 				s.reports[i].ResolvedAt = &now
 				s.reports[i].ResolvedBy = userID(r)
 				s.reports[i].ResolutionReason = reason
-				s.persistSocialStateLocked()
+				if err := s.persistSocialStateLocked(); err != nil {
+					writeErr(w, http.StatusServiceUnavailable, "could not persist report resolution")
+					return
+				}
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
-				"report_id":         id,
-				"status":            s.reports[i].Status,
-				"resolved_at":       s.reports[i].ResolvedAt,
-				"resolved_by":       s.reports[i].ResolvedBy,
-				"resolution_reason": s.reports[i].ResolutionReason,
+				"report_id": id, "status": s.reports[i].Status, "resolved_at": s.reports[i].ResolvedAt,
+				"resolved_by": s.reports[i].ResolvedBy, "resolution_reason": s.reports[i].ResolutionReason,
 			})
 			return
 		}
@@ -1290,6 +1355,29 @@ func (s *Server) handleListReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gameID := strings.TrimSpace(r.URL.Query().Get("game_id"))
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
+		return
+	}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		stored, err := s.socialGraph.ListReports(ctx, status, gameID, limit)
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not list reports")
+			return
+		}
+		reports := make([]socialReport, 0, len(stored))
+		for _, report := range stored {
+			reports = append(reports, socialReport{
+				ID: report.ID, GameID: report.GameID, Reporter: report.Reporter, Reason: report.Reason,
+				CreatedAt: report.CreatedAt, Status: report.Status, ResolvedAt: report.ResolvedAt,
+				ResolvedBy: report.ResolvedBy, ResolutionReason: report.ResolutionReason,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"reports": reports})
+		return
+	}
 	s.socialMu.RLock()
 	reports := make([]socialReport, 0, len(s.reports))
 	for _, report := range s.reports {
