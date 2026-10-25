@@ -120,7 +120,7 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close comment rows: %w", err)
 	}
-	rows, err = tx.QueryContext(ctx, `SELECT user_id, idempotency_key, game_id, body, comment_id, created_at FROM social_comment_idempotency ORDER BY user_id, idempotency_key`)
+	rows, err = tx.QueryContext(ctx, `SELECT user_id, idempotency_key, game_id, body, comment_id, created_at FROM social_comment_idempotency ORDER BY idempotency_key`)
 	if err != nil {
 		return fmt.Errorf("query comment idempotency for backup: %w", err)
 	}
@@ -211,7 +211,7 @@ func (s *PostgresStore) RestoreFrom(ctx context.Context, path string) error {
 			return fmt.Errorf("restore comment: %w", err)
 		}
 	}
-	idempotencyStmt, err := tx.PrepareContext(ctx, `INSERT INTO social_comment_idempotency (user_id, idempotency_key, game_id, body, comment_id, created_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (user_id, idempotency_key) DO NOTHING`)
+	idempotencyStmt, err := tx.PrepareContext(ctx, `INSERT INTO social_comment_idempotency (user_id, idempotency_key, game_id, body, comment_id, created_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (idempotency_key) DO NOTHING`)
 	if err != nil {
 		return fmt.Errorf("prepare comment idempotency restore: %w", err)
 	}
