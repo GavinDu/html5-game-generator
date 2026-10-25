@@ -121,12 +121,12 @@ CREATE INDEX IF NOT EXISTS social_comments_game_created_idx
   ON social_comments (game_id, created_at, id);
 CREATE TABLE IF NOT EXISTS social_comment_idempotency (
   user_id TEXT NOT NULL CHECK (length(user_id) BETWEEN 1 AND 128),
-  idempotency_key TEXT NOT NULL CHECK (length(idempotency_key) BETWEEN 1 AND 128),
+  idempotency_key TEXT PRIMARY KEY CHECK (length(idempotency_key) BETWEEN 1 AND 128),
   game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
   body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 2000),
   comment_id TEXT NOT NULL CHECK (length(comment_id) BETWEEN 1 AND 128),
   created_at TIMESTAMPTZ NOT NULL,
-  PRIMARY KEY (user_id, idempotency_key)
+  
 );
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
@@ -471,12 +471,12 @@ func (s *PostgresStore) CreateComment(ctx context.Context, comment Comment, idem
 	defer tx.Rollback()
 
 	if idempotencyKey != "" {
-		prior, found, err := loadIdempotentComment(ctx, tx, comment.UserID, idempotencyKey)
+		prior, found, err := loadIdempotentComment(ctx, tx, idempotencyKey)
 		if err != nil {
 			return Comment{}, false, err
 		}
 		if found {
-			if prior.GameID != comment.GameID || prior.Body != comment.Body {
+			if prior.UserID != comment.UserID || prior.GameID != comment.GameID || prior.Body != comment.Body {
 				return Comment{}, false, ErrCommentIdempotencyConflict
 			}
 			if err := tx.Commit(); err != nil {
@@ -495,7 +495,7 @@ VALUES ($1, $2, $3, $4, $5)`, comment.ID, comment.GameID, comment.UserID, commen
 INSERT INTO social_comment_idempotency
 (user_id, idempotency_key, game_id, body, comment_id, created_at)
 VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (user_id, idempotency_key) DO NOTHING`,
+ON CONFLICT (idempotency_key) DO NOTHING`,
 			comment.UserID, idempotencyKey, comment.GameID, comment.Body, comment.ID, comment.CreatedAt)
 		if err != nil {
 			return Comment{}, false, fmt.Errorf("persist comment idempotency key: %w", err)
@@ -508,7 +508,7 @@ ON CONFLICT (user_id, idempotency_key) DO NOTHING`,
 			// A concurrent request won the same idempotency key. Roll back the
 			// speculative comment before loading the winner in a fresh query.
 			_ = tx.Rollback()
-			prior, found, err := loadIdempotentComment(ctx, s.db, comment.UserID, idempotencyKey)
+			prior, found, err := loadIdempotentComment(ctx, s.db, idempotencyKey)
 			if err != nil {
 				return Comment{}, false, err
 			}
@@ -531,12 +531,12 @@ type commentQueryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-func loadIdempotentComment(ctx context.Context, q commentQueryer, userID, key string) (Comment, bool, error) {
+func loadIdempotentComment(ctx context.Context, q commentQueryer, key string) (Comment, bool, error) {
 	var comment Comment
 	err := q.QueryRowContext(ctx, `
 SELECT comment_id, game_id, user_id, body, created_at
 FROM social_comment_idempotency
-WHERE user_id = $1 AND idempotency_key = $2`, userID, key).Scan(
+WHERE idempotency_key = $1`, key).Scan(
 		&comment.ID, &comment.GameID, &comment.UserID, &comment.Body, &comment.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Comment{}, false, nil
