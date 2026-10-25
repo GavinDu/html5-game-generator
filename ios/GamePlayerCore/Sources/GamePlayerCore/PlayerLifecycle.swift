@@ -27,6 +27,10 @@ public enum PlayerFailure: Error, Equatable, Sendable {
     case packageGameIDMismatch
     case missingIR
     case invalidIRHash
+    case assetHashMissing
+    case assetHashMismatch
+    case assetTooLarge
+    case assetOriginMismatch
     case malformedPackage
     case cancelled
 }
