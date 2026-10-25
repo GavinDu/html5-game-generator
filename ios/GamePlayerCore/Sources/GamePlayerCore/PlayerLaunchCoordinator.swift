@@ -46,7 +46,7 @@ public actor PlayerLaunchCoordinator {
     private let contract: PlayerContract
     private let onStageChange: StageHandler
     private var currentStage: PlayerLaunchStage = .idle
-    private var activeTask: Task<Void, Never>?
+    private var activeTask: Task<Void, Error>?
 
     public init(
         packageTransport: any GamePackageTransport,
@@ -67,7 +67,8 @@ public actor PlayerLaunchCoordinator {
     public func launch(gameID: String, version: String? = nil) async throws {
         activeTask?.cancel()
         let task = Task { try await self.performLaunch(gameID: gameID, version: version) }
-        activeTask = Task { _ = try? await task.value }
+        activeTask = task
+        defer { activeTask = nil }
         try await task.value
     }
 
