@@ -162,7 +162,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/games/{id}/game-ir", s.handleGetGameIR)
 	mux.Handle("GET /v1/games/{id}/assets/{asset}", s.observeDelivery("asset", s.handleGetGameAsset))
 	mux.Handle("GET /v1/games/{id}/package", s.observeDelivery("package", s.handleGetPackage))
-	return cors(mux)
+	return cors(requireAuthenticatedUser(mux))
 }
 
 func cors(next http.Handler) http.Handler {
@@ -201,10 +201,17 @@ func requireModerationToken(w http.ResponseWriter, r *http.Request) bool {
 
 // userID is a stub for Sign in with Apple; the parent account owns creations.
 func userID(r *http.Request) string {
-	if u := r.Header.Get("X-User-ID"); u != "" {
-		return u
+	if subject, ok := r.Context().Value(authContextKey{}).(string); ok && subject != "" {
+		return subject
 	}
-	return "demo-parent"
+	// Legacy identity headers are only honored when explicitly enabled for local development.
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("DQ_ALLOW_INSECURE_USER_ID")), "true") {
+		if u := strings.TrimSpace(r.Header.Get("X-User-ID")); u != "" {
+			return u
+		}
+		return "demo-parent"
+	}
+	return ""
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
