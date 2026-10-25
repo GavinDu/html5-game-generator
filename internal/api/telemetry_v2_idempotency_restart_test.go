@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,5 +51,28 @@ func TestTelemetryV2IdempotencySurvivesRestart(t *testing.T) {
 	}
 	if len(afterDistinct) <= len(after) {
 		t.Fatal("distinct event was not persisted")
+	}
+}
+
+func TestTelemetryV2MalformedLogDoesNotBlockValidRetryIndex(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_TELEMETRY_DIR", dir)
+	logPath := filepath.Join(dir, "events.jsonl")
+	valid := `{"receivedAt":"2026-10-25T00:00:00Z","event":{"schemaVersion":2,"eventId":"persisted-event","gameId":"game-a","sessionId":"session-a","kind":"session_start","at":"2026-10-25T00:00:00Z"}}`
+	if err := os.WriteFile(logPath, []byte(valid+"\nnot-json\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(store.NewMemoryStore(), pipeline.NewRunner(store.NewMemoryStore()))
+	body := `{"schemaVersion":2,"eventId":"persisted-event","gameId":"game-a","sessionId":"session-a","kind":"session_start","at":"2026-10-25T00:00:00Z"}`
+	if code := postEvent(t, srv, body); code != http.StatusAccepted {
+		t.Fatalf("retry against existing event got %d, want %d", code, http.StatusAccepted)
+	}
+	after, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(after), `"eventId":"persisted-event"`) != 1 {
+		t.Fatalf("existing event was duplicated: %s", after)
 	}
 }
