@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
