@@ -29,12 +29,12 @@ type Comment struct {
 }
 
 type CommentIdempotencyRelation struct {
-	UserID        string
-	Key           string
-	GameID        string
-	Body          string
-	CommentID     string
-	CreatedAt     time.Time
+	UserID    string
+	Key       string
+	GameID    string
+	Body      string
+	CommentID string
+	CreatedAt time.Time
 }
 
 // Store defines durable follow, block, and saved-game relations shared by all API replicas.
