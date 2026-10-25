@@ -250,4 +250,29 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 			t.Fatalf("blocked creator's game %q remained in feed from second instance", gameID)
 		}
 	}
+
+	saved := do(t, first, http.MethodPost, "/v1/games/"+gameID+"/save", nil, viewer)
+	if saved.Code != http.StatusOK {
+		t.Fatalf("save game: %d %s", saved.Code, saved.Body.String())
+	}
+	savedList := do(t, second, http.MethodGet, "/v1/users/me/saved", nil, viewer)
+	if savedList.Code != http.StatusOK {
+		t.Fatalf("saved list through second instance: %d %s", savedList.Code, savedList.Body.String())
+	}
+	var savedResponse struct {
+		Games []model.Game `json:"games"`
+	}
+	decode(t, savedList, &savedResponse)
+	if len(savedResponse.Games) != 1 || savedResponse.Games[0].ID != gameID {
+		t.Fatalf("saved list from second instance = %+v, want game %s", savedResponse.Games, gameID)
+	}
+	unsaved := do(t, second, http.MethodDelete, "/v1/games/"+gameID+"/save", nil, viewer)
+	if unsaved.Code != http.StatusOK {
+		t.Fatalf("un-save through second instance: %d %s", unsaved.Code, unsaved.Body.String())
+	}
+	savedList = do(t, first, http.MethodGet, "/v1/users/me/saved", nil, viewer)
+	decode(t, savedList, &savedResponse)
+	if len(savedResponse.Games) != 0 {
+		t.Fatalf("saved list still contains games after cross-instance un-save: %+v", savedResponse.Games)
+	}
 }
