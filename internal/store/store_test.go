@@ -120,3 +120,75 @@ func TestPersistenceStatusRecoversAfterSuccessfulWrite(t *testing.T) {
 		t.Fatal("successful write should restore persistence health")
 	}
 }
+
+func TestBackupRestorePreservesGamesJobsGroupsAndArtifacts(t *testing.T) {
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state", "store.json")
+	backupPath := filepath.Join(root, "backups", "store.backup.json")
+	source := NewMemoryStore()
+	if err := source.EnablePersistence(statePath); err != nil {
+		t.Fatal(err)
+	}
+	source.CreateGame(&model.Game{ID: "g-backup", Title: "Bobo", OwnerID: "parent-1", Status: model.GameReady})
+	source.CreateJob(&model.Job{ID: "j-backup", GameID: "g-backup", Status: model.JobDone})
+	source.CreateGroup(&model.Group{ID: "grp-backup", Name: "Family", OwnerID: "parent-1"})
+	source.PutArtifact("g-backup", "assets/bear.png", []byte("image-bytes"), "image/png")
+	if err := source.BackupTo(backupPath); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+
+	restored := NewMemoryStore()
+	if err := restored.EnablePersistence(statePath + ".restored"); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.RestoreFrom(backupPath); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	game, ok := restored.GetGame("g-backup")
+	if !ok || game.Title != "Bobo" {
+		t.Fatalf("restored game = %+v, ok=%v", game, ok)
+	}
+	if job, ok := restored.GetJobByGame("g-backup"); !ok || job.ID != "j-backup" {
+		t.Fatalf("restored job = %+v, ok=%v", job, ok)
+	}
+	if _, ok := restored.GetGroup("grp-backup"); !ok {
+		t.Fatal("group missing after restore")
+	}
+	data, contentType, ok := restored.GetArtifact("g-backup", "assets/bear.png")
+	if !ok || string(data) != "image-bytes" || contentType != "image/png" {
+		t.Fatalf("restored artifact = %q %q, ok=%v", data, contentType, ok)
+	}
+	reloaded := NewMemoryStore()
+	if err := reloaded.EnablePersistence(statePath + ".restored"); err != nil {
+		t.Fatalf("reload restored state: %v", err)
+	}
+	if _, ok := reloaded.GetGame("g-backup"); !ok {
+		t.Fatal("restored state was not written to the configured snapshot")
+	}
+}
+
+func TestRestoreRejectsCorruptBackupWithoutMutatingStore(t *testing.T) {
+	root := t.TempDir()
+	backupPath := filepath.Join(root, "store.backup.json")
+	source := NewMemoryStore()
+	source.CreateGame(&model.Game{ID: "g-source", Title: "Source"})
+	if err := source.BackupTo(backupPath); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[len(data)-2] ^= 1
+	if err := os.WriteFile(backupPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	target := NewMemoryStore()
+	target.CreateGame(&model.Game{ID: "g-existing", Title: "Keep me"})
+	if err := target.RestoreFrom(backupPath); err == nil {
+		t.Fatal("expected checksum/format error for corrupted backup")
+	}
+	if game, ok := target.GetGame("g-existing"); !ok || game.Title != "Keep me" {
+		t.Fatalf("failed restore mutated target: %+v, ok=%v", game, ok)
+	}
+}
