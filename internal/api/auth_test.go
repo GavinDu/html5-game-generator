@@ -1,0 +1,67 @@
+package api
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestUserAuthFailsClosedWithoutConfiguration(t *testing.T) {
+	t.Setenv("DQ_AUTH_HMAC_SECRET", "")
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(t.TempDir(), "social.json"))
+	srv := newTestServer()
+	req := httptest.NewRequest(http.MethodPost, "/v1/users/me/preferences/topics", nil)
+	req.Header.Set("X-User-ID", "spoofed-user")
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unconfigured auth got %d, want 503: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUserAuthRejectsSpoofedIdentityAndAcceptsSignedBearer(t *testing.T) {
+	const secret = "test-only-secret-that-is-long-enough"
+	t.Setenv("DQ_AUTH_HMAC_SECRET", secret)
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(t.TempDir(), "social.json"))
+	srv := newTestServer()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/users/me/preferences/topics", nil)
+	req.Header.Set("X-User-ID", "spoofed-user")
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("spoofed identity got %d, want 401: %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/users/me/preferences/topics", nil)
+	req.Header.Set("Authorization", "Bearer "+authTokenForTest("verified-user", time.Now().Add(time.Hour), secret))
+	rec = httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code == http.StatusUnauthorized || rec.Code == http.StatusServiceUnavailable {
+		t.Fatalf("valid bearer rejected: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUserAuthRejectsExpiredAndTamperedTokens(t *testing.T) {
+	const secret = "test-only-secret-that-is-long-enough"
+	t.Setenv("DQ_AUTH_HMAC_SECRET", secret)
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	srv := newTestServer()
+	for _, token := range []string{
+		authTokenForTest("user-a", time.Now().Add(-time.Minute), secret),
+		authTokenForTest("user-a", time.Now().Add(time.Hour), secret) + "tampered",
+		"not-a-token",
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/users/me/preferences/topics", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		srv.Routes().ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("token %q got %d, want 401", token, rec.Code)
+		}
+	}
+}
