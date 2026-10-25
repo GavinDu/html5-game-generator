@@ -1,6 +1,7 @@
 package store
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -65,5 +66,57 @@ func TestMemoryStoreStaysVolatile(t *testing.T) {
 	other := NewMemoryStore()
 	if _, ok := other.GetGame("g1"); ok {
 		t.Fatal("separate memory stores must not share state")
+	}
+}
+func TestPersistenceStatusReportsCorruptSnapshot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store-state.json")
+	if err := os.WriteFile(path, []byte("{not-json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st := NewMemoryStore()
+	if err := st.EnablePersistence(path); err == nil {
+		t.Fatal("expected corrupt snapshot to fail loading")
+	}
+	enabled, healthy := st.PersistenceStatus()
+	if !enabled || healthy {
+		t.Fatalf("persistence status = enabled:%v healthy:%v, want enabled and unhealthy", enabled, healthy)
+	}
+	st.CreateGame(&model.Game{ID: "g1", Title: "must not overwrite snapshot"})
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "{not-json" {
+		t.Fatalf("failed load overwrote original snapshot: data=%q err=%v", data, err)
+	}
+}
+
+func TestPersistenceStatusRecoversAfterSuccessfulWrite(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "state", "store.json")
+	st := NewMemoryStore()
+	if err := st.EnablePersistence(path); err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Dir(path)
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(parent, []byte("block"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st.CreateGame(&model.Game{ID: "g1", Title: "write failure"})
+	if _, healthy := st.PersistenceStatus(); healthy {
+		t.Fatal("expected persistence write failure to mark status unhealthy")
+	}
+	if err := os.Remove(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	st.CreateGame(&model.Game{ID: "g1", Title: "write restored"})
+	if _, healthy := st.PersistenceStatus(); !healthy {
+		t.Fatal("successful write should restore persistence health")
 	}
 }

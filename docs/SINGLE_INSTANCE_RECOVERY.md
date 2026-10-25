@@ -32,7 +32,7 @@ The telemetry directory may contain `events.jsonl`, `runtime-errors.jsonl`, `mod
 
    If any state path is outside these directories, include it explicitly. Store a copy of the archive away from the running deployment; an archive on the same ephemeral disk is not disaster recovery.
 
-4. Restart the service and check `GET /healthz`. Record the backup timestamp and the deployed commit alongside the archive.
+4. Restart the service and check `GET /healthz` for process liveness and `GET /readyz` for configured persistence readiness. A 503/degraded readiness response means the snapshot load or a later write failed; do not treat a healthy liveness response alone as proof that state is durable. Record the backup timestamp and deployed commit alongside the archive.
 
 ## Restore drill / recovery
 
