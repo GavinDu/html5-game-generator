@@ -54,6 +54,9 @@ type Store interface {
 	SetMutedTopics(ctx context.Context, viewerID string, topics []string) error
 	ListMutedTopics(ctx context.Context, viewerID string) ([]string, error)
 	ResetPreferences(ctx context.Context, viewerID string) error
+	SetReaction(ctx context.Context, viewerID, gameID, reaction string) error
+	DeleteReaction(ctx context.Context, viewerID, gameID string) error
+	ListReactionSummary(ctx context.Context, viewerID string, gameIDs []string) (map[string]int, map[string]string, error)
 	CreateComment(ctx context.Context, comment Comment, idempotencyKey string) (Comment, bool, error)
 	ListComments(ctx context.Context, gameID string) ([]Comment, error)
 	DeleteComment(ctx context.Context, gameID, commentID, actorID string) (found bool, owned bool, err error)
@@ -148,6 +151,16 @@ CREATE TABLE IF NOT EXISTS social_muted_topics (
 );
 CREATE INDEX IF NOT EXISTS social_muted_topics_topic_idx
   ON social_muted_topics (topic, viewer_id);
+CREATE TABLE IF NOT EXISTS social_reactions (
+  viewer_id TEXT NOT NULL CHECK (length(viewer_id) BETWEEN 1 AND 128),
+  game_id TEXT NOT NULL CHECK (length(game_id) BETWEEN 1 AND 128),
+  reaction TEXT NOT NULL CHECK (reaction IN ('like', 'love', 'funny', 'wow')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (viewer_id, game_id)
+);
+CREATE INDEX IF NOT EXISTS social_reactions_game_idx
+  ON social_reactions (game_id, updated_at DESC);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -758,4 +771,97 @@ func (s *PostgresStore) ResetPreferences(ctx context.Context, viewerID string) e
 		return fmt.Errorf("commit preference reset: %w", err)
 	}
 	return nil
+}
+
+
+// SetReaction idempotently upserts one viewer's reaction for a game.
+func (s *PostgresStore) SetReaction(ctx context.Context, viewerID, gameID, reaction string) error {
+	viewerID, gameID, reaction = strings.TrimSpace(viewerID), strings.TrimSpace(gameID), strings.TrimSpace(reaction)
+	if viewerID == "" || gameID == "" || len(viewerID) > 128 || len(gameID) > 128 {
+		return errors.New("viewer and game IDs must be 1–128 characters")
+	}
+	switch reaction {
+	case "like", "love", "funny", "wow":
+	default:
+		return errors.New("reaction must be like, love, funny, or wow")
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO social_reactions (viewer_id, game_id, reaction)
+VALUES ($1, $2, $3)
+ON CONFLICT (viewer_id, game_id)
+DO UPDATE SET reaction = EXCLUDED.reaction, updated_at = now()`, viewerID, gameID, reaction)
+	if err != nil {
+		return fmt.Errorf("persist reaction: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) DeleteReaction(ctx context.Context, viewerID, gameID string) error {
+	viewerID, gameID = strings.TrimSpace(viewerID), strings.TrimSpace(gameID)
+	if viewerID == "" || gameID == "" || len(viewerID) > 128 || len(gameID) > 128 {
+		return errors.New("viewer and game IDs must be 1–128 characters")
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM social_reactions WHERE viewer_id = $1 AND game_id = $2`, viewerID, gameID); err != nil {
+		return fmt.Errorf("delete reaction: %w", err)
+	}
+	return nil
+}
+
+// ListReactionSummary returns counts and the requesting viewer's reaction for
+// the requested game IDs in one query, avoiding per-card database round trips.
+func (s *PostgresStore) ListReactionSummary(ctx context.Context, viewerID string, gameIDs []string) (map[string]int, map[string]string, error) {
+	viewerID = strings.TrimSpace(viewerID)
+	if len(viewerID) > 128 {
+		return nil, nil, errors.New("viewer ID must be at most 128 characters")
+	}
+	counts := map[string]int{}
+	viewerReactions := map[string]string{}
+	unique := make([]string, 0, len(gameIDs))
+	seen := map[string]bool{}
+	for _, raw := range gameIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" || len(id) > 128 {
+			return nil, nil, errors.New("game IDs must be 1–128 characters")
+		}
+		if !seen[id] {
+			seen[id] = true
+			unique = append(unique, id)
+		}
+	}
+	if len(unique) == 0 {
+		return counts, viewerReactions, nil
+	}
+	args := make([]any, 0, len(unique)+1)
+	args = append(args, viewerID)
+	placeholders := make([]string, 0, len(unique))
+	for i, id := range unique {
+		args = append(args, id)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
+	}
+	query := `
+SELECT game_id, COUNT(*), MAX(CASE WHEN viewer_id = $1 THEN reaction ELSE NULL END)
+FROM social_reactions
+WHERE game_id IN (` + strings.Join(placeholders, ",") + `)
+GROUP BY game_id`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("query reaction summary: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var gameID string
+		var count int
+		var reaction sql.NullString
+		if err := rows.Scan(&gameID, &count, &reaction); err != nil {
+			return nil, nil, fmt.Errorf("scan reaction summary: %w", err)
+		}
+		counts[gameID] = count
+		if reaction.Valid && reaction.String != "" {
+			viewerReactions[gameID] = reaction.String
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate reaction summary: %w", err)
+	}
+	return counts, viewerReactions, nil
 }
