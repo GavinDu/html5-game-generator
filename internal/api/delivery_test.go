@@ -251,10 +251,17 @@ func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
 		Games []model.Game `json:"games"`
 	}
 	decode(t, feed, &response)
+	foundUnblockedGame := false
 	for _, game := range response.Games {
 		if game.ID == gameID {
 			t.Fatalf("blocked creator's game %q remained in feed from second instance", gameID)
 		}
+		if game.ID == savedGameID {
+			foundUnblockedGame = true
+		}
+	}
+	if !foundUnblockedGame {
+		t.Fatalf("unblocked creator's game %q missing from feed; block filter test is inconclusive", savedGameID)
 	}
 
 	saved := do(t, first, http.MethodPost, "/v1/games/"+savedGameID+"/save", nil, viewer)
