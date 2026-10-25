@@ -732,6 +732,15 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		s.commentIdempotency[key] = commentIdempotencyRecord{UserID: viewer, GameID: id, Body: body, Comment: c}
 	}
 	if err := s.persistSocialStateLocked(); err != nil {
+		// Roll back the in-memory mutation as well as the failed disk write so
+		// a client retry cannot receive a false idempotent success.
+		items := s.comments[id]
+		if len(items) > 0 && items[len(items)-1].ID == c.ID {
+			s.comments[id] = items[:len(items)-1]
+		}
+		if key != "" {
+			delete(s.commentIdempotency, key)
+		}
 		s.socialMu.Unlock()
 		writeErr(w, http.StatusServiceUnavailable, "could not persist comment")
 		return
@@ -776,8 +785,11 @@ func (s *Server) handleDeleteComment(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusForbidden, "only the comment author can delete it")
 			return
 		}
+		previous := append([]socialComment(nil), items...)
 		s.comments[gameID] = append(items[:i], items[i+1:]...)
 		if err := s.persistSocialStateLocked(); err != nil {
+			// Keep memory consistent with disk when a delete cannot be persisted.
+			s.comments[gameID] = previous
 			writeErr(w, http.StatusServiceUnavailable, "could not persist comment deletion")
 			return
 		}
