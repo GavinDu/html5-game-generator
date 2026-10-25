@@ -7,6 +7,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
     public let state: PlayerState
     public let title: String
     public let progress: Double?
+    public let gameAspectRatio: CGFloat
     public let renderer: Renderer
     public let onPlay: () -> Void
     public let onPause: () -> Void
@@ -19,6 +20,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
         state: PlayerState,
         title: String,
         progress: Double? = nil,
+        gameAspectRatio: CGFloat = 16.0 / 9.0,
         @ViewBuilder renderer: () -> Renderer,
         onPlay: @escaping () -> Void,
         onPause: @escaping () -> Void,
@@ -30,6 +32,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
         self.state = state
         self.title = title
         self.progress = progress
+        self.gameAspectRatio = gameAspectRatio.isFinite ? min(max(gameAspectRatio, 0.25), 4.0) : (16.0 / 9.0)
         self.renderer = renderer()
         self.onPlay = onPlay
         self.onPause = onPause
@@ -48,6 +51,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel("Exit game")
+                .accessibilityIdentifier("player.exit")
 
                 Text(title)
                     .font(.headline)
@@ -62,6 +66,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
             ZStack {
                 Color.black
                 renderer
+                    .aspectRatio(gameAspectRatio, contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityHidden(isOverlayBlocking)
 
@@ -73,28 +78,35 @@ public struct PlayerExperienceView<Renderer: View>: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 12)
 
             HStack(spacing: 12) {
                 switch state {
                 case .ready:
-                    Button(action: onPlay) { Label("Play", systemImage: "play.fill") }
+                    Button(action: onPlay) { Label("Play", systemImage: "play.fill").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.play")
                 case .playing:
-                    Button(action: onPause) { Label("Pause", systemImage: "pause.fill") }
+                    Button(action: onPause) { Label("Pause", systemImage: "pause.fill").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.pause")
                 case .paused:
-                    Button(action: onResume) { Label("Resume", systemImage: "play.fill") }
+                    Button(action: onResume) { Label("Resume", systemImage: "play.fill").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.resume")
                 case .completed:
-                    Button(action: onRestart) { Label("Play again", systemImage: "arrow.clockwise") }
+                    Button(action: onRestart) { Label("Play again", systemImage: "arrow.clockwise").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("player.restart")
                 case .failed:
-                    Button(action: onRetry) { Label("Retry", systemImage: "arrow.clockwise") }
+                    Button(action: onRetry) { Label("Retry", systemImage: "arrow.clockwise").frame(minHeight: 44) }
                         .buttonStyle(.borderedProminent)
-                    Button(action: onExit) { Label("Exit", systemImage: "xmark") }
+                        .accessibilityIdentifier("player.retry")
+                    Button(action: onExit) { Label("Exit", systemImage: "xmark").frame(minHeight: 44) }
                         .buttonStyle(.bordered)
+                        .accessibilityIdentifier("player.exit.failure")
                 case .idle, .loading:
                     EmptyView()
                 }
@@ -105,6 +117,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
                     ProgressView(value: min(max(progress, 0), 1))
                         .frame(maxWidth: 120)
                         .accessibilityLabel("Game loading progress")
+                        .accessibilityIdentifier("player.loadingProgress")
                 }
             }
             .padding(.horizontal, 16)
