@@ -638,9 +638,13 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mutual := map[string]bool{}
+	blockedIDs := []string{}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
+		if err == nil {
+			blockedIDs, err = s.socialGraph.ListBlocked(ctx, viewer)
+		}
 		if err == nil && scope == "friends" {
 			var followerIDs []string
 			followerIDs, err = s.socialGraph.ListFollowers(ctx, viewer)
@@ -668,8 +672,14 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	blocked := map[string]bool{}
-	for id := range s.blocks[viewer] {
-		blocked[id] = true
+	if s.socialGraph != nil {
+		for _, id := range blockedIDs {
+			blocked[id] = true
+		}
+	} else {
+		for id := range s.blocks[viewer] {
+			blocked[id] = true
+		}
 	}
 	ignored := map[string]bool{}
 	for id := range s.notInterested[viewer] {

@@ -1,5 +1,5 @@
-// migrate-social-graph imports local follow edges into the configured shared
-// PostgreSQL social graph. It is resumable and never deletes destination rows.
+// migrate-social-graph imports local follow and block relations into the configured
+// shared PostgreSQL social graph. It is resumable and never deletes destination rows.
 package main
 
 import (
@@ -30,6 +30,7 @@ func main() {
 	}
 	var snapshot struct {
 		Follows map[string]map[string]struct{} `json:"follows"`
+		Blocks  map[string]map[string]bool     `json:"blocks"`
 	}
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		fatal("decode source snapshot: " + err.Error())
@@ -52,6 +53,19 @@ func main() {
 		fatal("import follow graph: " + err.Error())
 	}
 	fmt.Printf("source_edges=%d inserted_edges=%d already_present=%d\n", len(edges), inserted, len(edges)-inserted)
+	blocks := make([]socialgraph.BlockRelation, 0)
+	for viewer, targets := range snapshot.Blocks {
+		for blocked, enabled := range targets {
+			if enabled {
+				blocks = append(blocks, socialgraph.BlockRelation{ViewerID: viewer, BlockedID: blocked})
+			}
+		}
+	}
+	insertedBlocks, err := db.ImportBlocks(ctx, blocks)
+	if err != nil {
+		fatal("import block relations: " + err.Error())
+	}
+	fmt.Printf("source_blocks=%d inserted_blocks=%d already_present=%d\n", len(blocks), insertedBlocks, len(blocks)-insertedBlocks)
 }
 
 func fatal(message string) {

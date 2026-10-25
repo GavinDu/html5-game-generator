@@ -12,13 +12,17 @@ import (
 )
 
 var ErrSelfFollow = errors.New("a user cannot follow themselves")
+var ErrSelfBlock = errors.New("a user cannot block themselves")
 
-// Store defines the shared durable creator-follow graph used by all API replicas.
+// Store defines durable follow and block relations shared by all API replicas.
 type Store interface {
 	Follow(ctx context.Context, viewerID, creatorID string) error
 	Unfollow(ctx context.Context, viewerID, creatorID string) error
 	ListFollowing(ctx context.Context, viewerID string) ([]string, error)
 	ListFollowers(ctx context.Context, creatorID string) ([]string, error)
+	Block(ctx context.Context, viewerID, blockedID string) error
+	Unblock(ctx context.Context, viewerID, blockedID string) error
+	ListBlocked(ctx context.Context, viewerID string) ([]string, error)
 	Close() error
 }
 
@@ -60,6 +64,15 @@ CREATE TABLE IF NOT EXISTS social_follows (
 );
 CREATE INDEX IF NOT EXISTS social_follows_creator_idx
   ON social_follows (creator_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS social_blocks (
+  viewer_id TEXT NOT NULL CHECK (length(viewer_id) BETWEEN 1 AND 128),
+  blocked_id TEXT NOT NULL CHECK (length(blocked_id) BETWEEN 1 AND 128),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (viewer_id, blocked_id),
+  CHECK (viewer_id <> blocked_id)
+);
+CREATE INDEX IF NOT EXISTS social_blocks_blocked_idx
+  ON social_blocks (blocked_id, created_at DESC);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -154,6 +167,11 @@ type Edge struct {
 	CreatorID string
 }
 
+type BlockRelation struct {
+	ViewerID  string
+	BlockedID string
+}
+
 // ImportFollows idempotently imports a snapshot's follow edges in one
 // transaction. It never deletes destination rows and is safe to resume.
 func (s *PostgresStore) ImportFollows(ctx context.Context, edges []Edge) (int, error) {
@@ -198,6 +216,102 @@ ON CONFLICT (viewer_id, creator_id) DO NOTHING`)
 	return inserted, nil
 }
 
+func (s *PostgresStore) Block(ctx context.Context, viewerID, blockedID string) error {
+	viewerID, blockedID = strings.TrimSpace(viewerID), strings.TrimSpace(blockedID)
+	if viewerID == "" || blockedID == "" || len(viewerID) > 128 || len(blockedID) > 128 {
+		return errors.New("viewer and blocked IDs must be 1–128 characters")
+	}
+	if viewerID == blockedID {
+		return ErrSelfBlock
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO social_blocks (viewer_id, blocked_id)
+		VALUES ($1, $2)
+		ON CONFLICT (viewer_id, blocked_id) DO NOTHING`, viewerID, blockedID)
+	if err != nil {
+		return fmt.Errorf("persist block relation: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) Unblock(ctx context.Context, viewerID, blockedID string) error {
+	viewerID, blockedID = strings.TrimSpace(viewerID), strings.TrimSpace(blockedID)
+	if viewerID == "" || blockedID == "" || len(viewerID) > 128 || len(blockedID) > 128 {
+		return errors.New("viewer and blocked IDs must be 1–128 characters")
+	}
+	if viewerID == blockedID {
+		return ErrSelfBlock
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM social_blocks WHERE viewer_id = $1 AND blocked_id = $2`, viewerID, blockedID)
+	if err != nil {
+		return fmt.Errorf("delete block relation: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) ListBlocked(ctx context.Context, viewerID string) ([]string, error) {
+	viewerID = strings.TrimSpace(viewerID)
+	if viewerID == "" || len(viewerID) > 128 {
+		return nil, errors.New("viewer ID must be 1–128 characters")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT blocked_id FROM social_blocks WHERE viewer_id = $1 ORDER BY blocked_id`, viewerID)
+	if err != nil {
+		return nil, fmt.Errorf("query block relations: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan block relation: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate block relations: %w", err)
+	}
+	return ids, nil
+}
+
+// ImportBlocks idempotently imports a block snapshot in one transaction.
+// It never deletes destination rows and can safely resume after interruption.
+func (s *PostgresStore) ImportBlocks(ctx context.Context, relations []BlockRelation) (int, error) {
+	for _, relation := range relations {
+		viewer, blocked := strings.TrimSpace(relation.ViewerID), strings.TrimSpace(relation.BlockedID)
+		if viewer == "" || blocked == "" || len(viewer) > 128 || len(blocked) > 128 || viewer == blocked {
+			return 0, fmt.Errorf("invalid block relation in import")
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin block import: %w", err)
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO social_blocks (viewer_id, blocked_id)
+		VALUES ($1, $2)
+		ON CONFLICT (viewer_id, blocked_id) DO NOTHING`)
+	if err != nil {
+		return 0, fmt.Errorf("prepare block import: %w", err)
+	}
+	defer stmt.Close()
+	inserted := 0
+	for _, relation := range relations {
+		result, err := stmt.ExecContext(ctx, strings.TrimSpace(relation.ViewerID), strings.TrimSpace(relation.BlockedID))
+		if err != nil {
+			return 0, fmt.Errorf("import block relation: %w", err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("count imported block relation: %w", err)
+		}
+		inserted += int(n)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit block import: %w", err)
+	}
+	return inserted, nil
+}
 func (s *PostgresStore) Close() error {
 	return s.db.Close()
 }

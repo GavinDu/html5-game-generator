@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -201,6 +203,51 @@ func TestDeliveryRejectsInvalidPersistedGameIR(t *testing.T) {
 		rec := getAs(t, srv, path, "parent-1")
 		if rec.Code != http.StatusUnprocessableEntity {
 			t.Errorf("%s: got %d, want %d; body=%s", path, rec.Code, http.StatusUnprocessableEntity, rec.Body.String())
+		}
+	}
+}
+
+func TestPostgresBlockHidesCreatorAcrossAPIInstances(t *testing.T) {
+	t.Setenv("DQ_AUTH_HMAC_SECRET", "")
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
+	if os.Getenv("DQ_SOCIAL_DATABASE_URL") == "" {
+		t.Skip("DQ_SOCIAL_DATABASE_URL is not configured")
+	}
+	st := store.NewMemoryStore()
+	viewer := "integration-feed-viewer-" + pipeline.NewID()
+	creator := "integration-feed-creator-" + pipeline.NewID()
+	gameID := "integration-blocked-game-" + pipeline.NewID()
+	st.CreateGame(&model.Game{
+		ID: gameID, Title: "Blocked creator game", OwnerID: creator,
+		Status: model.GameReady, Visibility: model.VisibilityPublic,
+		ModerationStatus: "approved",
+	})
+	first := New(st, pipeline.NewRunner(st))
+	second := New(st, pipeline.NewRunner(st))
+	if first.socialGraph == nil || second.socialGraph == nil {
+		t.Fatal("expected both API instances to connect to the shared PostgreSQL graph")
+	}
+	t.Cleanup(func() {
+		_ = first.socialGraph.Unblock(context.Background(), viewer, creator)
+		_ = first.socialGraph.Close()
+		_ = second.socialGraph.Close()
+	})
+
+	blocked := do(t, first, http.MethodPost, "/v1/users/"+creator+"/block", nil, viewer)
+	if blocked.Code != http.StatusOK {
+		t.Fatalf("block creator: %d %s", blocked.Code, blocked.Body.String())
+	}
+	feed := do(t, second, http.MethodGet, "/v1/feed", nil, viewer)
+	if feed.Code != http.StatusOK {
+		t.Fatalf("feed through second instance: %d %s", feed.Code, feed.Body.String())
+	}
+	var response struct {
+		Games []model.Game `json:"games"`
+	}
+	decode(t, feed, &response)
+	for _, game := range response.Games {
+		if game.ID == gameID {
+			t.Fatalf("blocked creator's game %q remained in feed from second instance", gameID)
 		}
 	}
 }
