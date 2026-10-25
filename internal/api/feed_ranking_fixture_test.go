@@ -86,3 +86,60 @@ func TestFeedRankingFixtureAndNewestFirstRollback(t *testing.T) {
 		}
 	}
 }
+
+
+func TestFeedRankingIsRepeatableAndMeasuresCreatorDiversity(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	st := store.NewMemoryStore()
+	fixtures := []struct {
+		id, creator string
+		age         time.Duration
+	}{
+		{"a-newest", "creator-a", time.Hour},
+		{"a-middle", "creator-a", 2 * time.Hour},
+		{"a-old", "creator-a", 3 * time.Hour},
+		{"b-new", "creator-b", 90 * time.Minute},
+		{"c-new", "creator-c", 2 * time.Hour},
+		{"d-new", "creator-d", 150 * time.Minute},
+	}
+	for _, fixture := range fixtures {
+		st.CreateGame(feedFixtureGame(fixture.id, fixture.creator, now.Add(-fixture.age)))
+	}
+	srv := New(st, pipeline.NewRunner(st))
+	t.Setenv("DQ_FEED_RANKING_ENABLED", "false")
+
+	first := feedFixtureIDs(t, srv)
+	second := feedFixtureIDs(t, srv)
+	if len(first) != len(fixtures) {
+		t.Fatalf("feed returned %d games, want %d: %v", len(first), len(fixtures), first)
+	}
+	if len(second) != len(first) {
+		t.Fatalf("second feed returned %d games, want %d", len(second), len(first))
+	}
+	for i := range first {
+		if first[i] != second[i] {
+			t.Fatalf("feed order is not repeatable: first=%v second=%v", first, second)
+		}
+	}
+
+	seen := make(map[string]bool, len(first))
+	creatorByID := make(map[string]string, len(fixtures))
+	for _, fixture := range fixtures {
+		creatorByID[fixture.id] = fixture.creator
+	}
+	uniqueCreatorsTop3 := make(map[string]bool)
+	for i, id := range first {
+		if seen[id] {
+			t.Fatalf("duplicate game ID %q in feed: %v", id, first)
+		}
+		seen[id] = true
+		if i < 3 {
+			uniqueCreatorsTop3[creatorByID[id]] = true
+		}
+	}
+	// This fixture has four creators and a creator-a cluster. With the
+	// ranking feature disabled, the feed must still interleave creators.
+	if len(uniqueCreatorsTop3) < 3 {
+		t.Fatalf("top 3 creator diversity = %d, want at least 3; feed=%v", len(uniqueCreatorsTop3), first)
+	}
+}
