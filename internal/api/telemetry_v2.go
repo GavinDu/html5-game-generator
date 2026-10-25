@@ -92,6 +92,22 @@ var teleV2Kinds = map[string]bool{
 // POST /v1/telemetry/events — beacon target for telemetry v2. Accepts
 // one event, files it, indexes it, answers 202. Malformed or unknown
 // kinds are 400 (the runtime only logs those; nothing retries).
+func validTelemetryV2Event(ev teleEventV2) bool {
+	if ev.GameID == "" || len(ev.GameID) > 256 || len(ev.SessionID) > 256 ||
+		len(ev.RuntimeVersion) > 128 || len(ev.Quality) > 64 || len(ev.DeviceClass) > 128 ||
+		len(ev.Renderer) > 128 || len(ev.IRVersion) > 64 || len(ev.Milestone) > 128 {
+		return false
+	}
+	if ev.BootMs < 0 || ev.Frames < 0 || ev.LongestFrameMs < 0 ||
+		ev.Entities < 0 || ev.Particles < 0 || ev.Ms < 0 || ev.Score < 0 ||
+		ev.DurationMs < 0 || ev.Inputs < 0 || ev.DeadInputs < 0 || ev.Retries < 0 {
+		return false
+	}
+	if ev.DeadInputs > ev.Inputs || len(ev.Buckets) > 6 { return false }
+	for _, bucket := range ev.Buckets { if bucket < 0 { return false } }
+	return true
+}
+
 func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 	var ev teleEventV2
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
@@ -107,8 +123,12 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported telemetry schemaVersion", http.StatusBadRequest)
 		return
 	}
-	if !teleV2Kinds[ev.Kind] || ev.GameID == "" {
-		http.Error(w, "unknown kind or missing gameId", http.StatusBadRequest)
+	if !teleV2Kinds[ev.Kind] {
+		http.Error(w, "unknown telemetry event kind", http.StatusBadRequest)
+		return
+	}
+	if !validTelemetryV2Event(ev) {
+		http.Error(w, "invalid telemetry event fields", http.StatusBadRequest)
 		return
 	}
 	if ev.EventID != "" && (ev.SessionID == "" || len(ev.EventID) > 128) {
