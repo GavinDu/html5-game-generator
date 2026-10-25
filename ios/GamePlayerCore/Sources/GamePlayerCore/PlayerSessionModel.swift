@@ -72,6 +72,13 @@ public final class PlayerSessionModel: ObservableObject {
         if case .playing = state { emit(.resumed) }
     }
 
+    /// Resume automatically only if the app backgrounded the active game.
+    /// A deliberate user pause must never be overridden by scene activation.
+    public func resumeFromBackground() {
+        guard case .paused(_, _, .appBackgrounded) = state else { return }
+        resume()
+    }
+
     public func fail(_ failure: PlayerFailure) {
         lifecycle.fail(failure)
         state = lifecycle.state
