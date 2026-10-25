@@ -20,7 +20,7 @@
 // warning — never a fake execution.
 //
 // Contract summary (see docs/game-package-ir-v1.md):
-//   GET /v1/games/{id}/package -> { packageVersion: "2.0", gameId, ir, assets[] }
+//   GET /v1/games/{id}/package -> { packageFormatVersion: "2.0", minRuntimeVersion, gameId, ir, assets[] }
 //   Logical stage: 390 x 844, entity positions are centers, sizes px.
 //   Rapier works in meters internally (scene.pixelsPerMeter, default
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
