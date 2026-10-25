@@ -789,14 +789,32 @@ func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 		s.socialMu.RUnlock()
 	}
 	sort.Strings(ids)
+	blocked := map[string]bool{}
+	if s.socialGraph != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		blockedIDs, err := s.socialGraph.ListBlocked(ctx, viewer)
+		cancel()
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
+			return
+		}
+		for _, id := range blockedIDs {
+			blocked[id] = true
+		}
+	} else {
+		s.socialMu.RLock()
+		for id := range s.blocks[viewer] {
+			blocked[id] = true
+		}
+		s.socialMu.RUnlock()
+	}
 	games := make([]*model.Game, 0, len(ids))
 	for _, id := range ids {
-		if !s.socialGameAvailableFor(id, viewer) {
+		game, ok := s.store.GetGame(id)
+		if !ok || !socialGamePubliclyAvailable(game) || blocked[game.OwnerID] {
 			continue
 		}
-		if game, ok := s.store.GetGame(id); ok {
-			games = append(games, game)
-		}
+		games = append(games, game)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"games": games})
 }
@@ -1059,10 +1077,12 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) socialGameAvailableFor(id, viewer string) bool {
 	g, ok := s.store.GetGame(id)
-	if !ok || g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "pending" || g.ModerationStatus == "rejected" {
-		return false
-	}
-	return !s.isBlocked(viewer, g.OwnerID)
+	return ok && socialGamePubliclyAvailable(g) && !s.isBlocked(viewer, g.OwnerID)
+}
+
+func socialGamePubliclyAvailable(g *model.Game) bool {
+	return g != nil && g.Status == model.GameReady && g.Visibility == model.VisibilityPublic &&
+		!g.Quarantined && g.ModerationStatus != "pending" && g.ModerationStatus != "rejected"
 }
 func (s *Server) isBlocked(viewer, creator string) bool {
 	if viewer == "" || creator == "" {
