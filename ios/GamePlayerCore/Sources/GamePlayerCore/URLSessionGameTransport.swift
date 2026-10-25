@@ -81,6 +81,16 @@ public struct URLSessionGameTransport: GamePackageTransport, GameAssetTransport,
             request.setValue(value, forHTTPHeaderField: key)
         }
         let (data, response) = try await session.data(for: request)
+        guard let finalURL = response.url,
+              Self.isAllowedTransportURL(finalURL),
+              finalURL.scheme?.lowercased() == baseURL.scheme?.lowercased(),
+              finalURL.host?.lowercased() == baseURL.host?.lowercased(),
+              finalURL.port == baseURL.port else {
+            // URLSession follows redirects by default; validate the final origin
+            // before accepting bytes so an API redirect cannot exfiltrate auth
+            // headers or make the player load a foreign asset.
+            throw GameTransportError.rejectedURL
+        }
         guard let response = response as? HTTPURLResponse else { throw GameTransportError.invalidResponse }
         guard (200..<300).contains(response.statusCode) else { throw GameTransportError.httpStatus(response.statusCode) }
         guard data.count <= byteLimit else { throw GameTransportError.responseTooLarge(limit: byteLimit) }
