@@ -301,3 +301,56 @@ func TestPostgresStoreSharesCommentsAcrossInstances(t *testing.T) {
 		t.Fatalf("cross-instance delete result: comments=%+v err=%v", comments, err)
 	}
 }
+
+func TestPostgresStorePersistsModerationReportsAcrossInstances(t *testing.T) {
+	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("DQ_SOCIAL_DATABASE_URL is not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	first, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open first graph store: %v", err)
+	}
+	second, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		_ = first.Close()
+		t.Fatalf("open second graph store: %v", err)
+	}
+	suffix := time.Now().UTC().Format("20060102150405.000000000")
+	report := Report{
+		ID: "integration-report-" + suffix, GameID: "integration-game-" + suffix,
+		ReporterID: "integration-reporter-" + suffix, Reason: "unsafe asset",
+		CreatedAt: time.Now().UTC(), Status: "open",
+	}
+	t.Cleanup(func() {
+		_, _ = first.db.ExecContext(context.Background(), "DELETE FROM social_moderation_reports WHERE id = $1", report.ID)
+		_ = first.Close()
+		_ = second.Close()
+	})
+	if err := first.CreateReport(ctx, report); err != nil {
+		t.Fatalf("create report: %v", err)
+	}
+	got, found, err := second.GetReport(ctx, report.ID)
+	if err != nil || !found || got.ID != report.ID || got.Status != "open" {
+		t.Fatalf("read report across instances: found=%v report=%+v err=%v", found, got, err)
+	}
+	items, err := second.ListReports(ctx, "open", report.GameID, 10)
+	if err != nil || len(items) != 1 || items[0].ID != report.ID {
+		t.Fatalf("list report across instances: reports=%+v err=%v", items, err)
+	}
+	resolvedAt := time.Now().UTC()
+	resolved, changed, err := second.ResolveReport(ctx, report.ID, "moderator-1", "reviewed", resolvedAt)
+	if err != nil || !changed || resolved.Status != "resolved" || resolved.ResolvedBy != "moderator-1" {
+		t.Fatalf("resolve report: report=%+v changed=%v err=%v", resolved, changed, err)
+	}
+	repeated, changed, err := first.ResolveReport(ctx, report.ID, "moderator-2", "different reason", time.Now().UTC())
+	if err != nil || changed || repeated.ResolvedBy != "moderator-1" || repeated.ResolutionReason != "reviewed" {
+		t.Fatalf("repeat resolution changed first decision: report=%+v changed=%v err=%v", repeated, changed, err)
+	}
+	_, found, err = first.GetReport(ctx, report.ID)
+	if err != nil || !found {
+		t.Fatalf("report disappeared after resolution: found=%v err=%v", found, err)
+	}
+}
