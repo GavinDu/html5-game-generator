@@ -131,6 +131,12 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "Game IR has not been published")
 		return
 	}
+	// Revalidate persisted Game IR at the delivery boundary. Stored records
+	// may predate current hardening or be corrupted independently of publish.
+	if err := gameir.Validate(game.GameIR); err != nil {
+		writeErr(w, http.StatusUnprocessableEntity, "published Game IR failed validation")
+		return
+	}
 	pkg := GamePackage{
 		PackageVersion: PackageVersion,
 		GameID:         game.ID,
@@ -167,6 +173,10 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	if game.GameIR == nil {
 		writeErr(w, http.StatusConflict, "Game IR has not been published")
+		return
+	}
+	if err := gameir.Validate(game.GameIR); err != nil {
+		writeErr(w, http.StatusUnprocessableEntity, "published Game IR failed validation")
 		return
 	}
 	assetID := r.PathValue("asset")
