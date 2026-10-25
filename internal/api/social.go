@@ -565,6 +565,10 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 202, map[string]any{"post": g, "moderation_status": "pending"})
 }
 func (s *Server) handleGetPost(w http.ResponseWriter, r *http.Request) {
+	if s.socialGraphErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
+		return
+	}
 	g, ok := s.store.GetGame(r.PathValue("id"))
 	if !ok || g.Status != model.GameReady || g.Visibility != model.VisibilityPublic || g.Quarantined || g.ModerationStatus == "rejected" || g.ModerationStatus == "pending" {
 		writeErr(w, 404, "published post not found")
