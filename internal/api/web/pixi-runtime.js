@@ -236,7 +236,7 @@ const sfx = {
     };
     const job = () => {
       if (this.buffers.has(assetId)) { start(this.buffers.get(assetId)); return; }
-      fetch(url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab))
+      apiFetch(url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab))
         .then((buffer) => { this.buffers.set(assetId, buffer); start(buffer); })
         .catch(() => { new Audio(url).play().catch(() => {}); });
     };
@@ -356,11 +356,73 @@ const probeMode = params.get('probe') === '1';
 // fill cost for a 390pt-wide stage).
 const qualityMode = params.get('quality') === 'low' ? 'low' : 'high';
 
+// The web shell accepts a short-lived bearer token from a trusted identity
+// provider; it does not mint credentials. Keep it in tab-scoped session storage
+// and never attach it to telemetry beacons or cross-origin requests.
+const AUTH_TOKEN_KEY = 'dq.session.bearer';
+function readSessionToken() {
+  try { return sessionStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch { return ''; }
+}
+async function apiFetch(input, init = {}) {
+  const url = new URL(input, location.href);
+  const headers = new Headers(init.headers || {});
+  const token = readSessionToken();
+  if (token && url.origin === location.origin) headers.set('Authorization', 'Bearer ' + token);
+  return window.fetch(input, { ...init, headers });
+}
+function setAccountStatus(message) {
+  const el = $('account-status');
+  if (el) el.textContent = message;
+}
+function initializeAccountControls() {
+  const tokenInput = $('bearer-token');
+  if (!tokenInput) return;
+  $('save-token')?.addEventListener('click', async () => {
+    const token = tokenInput.value.trim();
+    if (!token) { setAccountStatus('Paste a bearer token from your trusted sign-in provider.'); return; }
+    try { sessionStorage.setItem(AUTH_TOKEN_KEY, token); }
+    catch { setAccountStatus('This browser does not allow session storage; sign-in cannot be retained in this tab.'); return; }
+    tokenInput.value = '';
+    setAccountStatus('Checking session…');
+    try {
+      const res = await apiFetch('/v1/users/me/preferences');
+      if (res.status === 401) {
+        sessionStorage.removeItem(AUTH_TOKEN_KEY);
+        setAccountStatus('The session token was rejected or expired. Sign in again with your provider.');
+        return;
+      }
+      if (!res.ok) {
+        setAccountStatus(res.status === 503
+          ? 'Backend authentication is not configured. Set DQ_AUTH_HMAC_SECRET and configure a trusted token issuer.'
+          : 'Session check failed (HTTP ' + res.status + ').');
+        return;
+      }
+      setAccountStatus('Signed in for this tab. Private social actions will use the verified account.');
+      await listGames();
+    } catch (err) { setAccountStatus('Unable to check session: ' + err.message); }
+  });
+  $('clear-token')?.addEventListener('click', () => {
+    try { sessionStorage.removeItem(AUTH_TOKEN_KEY); } catch { /* storage unavailable */ }
+    tokenInput.value = '';
+    setAccountStatus('Signed out of this tab.');
+    listGames().catch(() => {});
+  });
+  $('feed-scope')?.addEventListener('change', () => listGames().catch((err) => setAccountStatus('Feed failed: ' + err.message)));
+  $('refresh-feed')?.addEventListener('click', () => listGames().catch((err) => setAccountStatus('Feed failed: ' + err.message)));
+}
+
 async function listGames() {
   $('status').textContent = 'Pick a game:';
-  const res = await fetch('/v1/feed');
+  const scope = $('feed-scope')?.value || 'for_you';
+  const res = await apiFetch('/v1/feed?scope=' + encodeURIComponent(scope));
+  if (!res.ok) {
+    if (res.status === 401) setAccountStatus('This feed requires a valid session token. Sign in with your trusted provider.');
+    else if (res.status === 503) setAccountStatus('Backend authentication is not configured. Public browsing may be restricted by deployment settings.');
+    throw new Error('Feed request failed (HTTP ' + res.status + ')');
+  }
   const data = await res.json();
   const list = $('list');
+  list.replaceChildren();
   for (const g of data.games || []) {
     const card = document.createElement('div');
     card.className = 'game-card';
@@ -371,9 +433,26 @@ async function listGames() {
     sub.className = 'sub';
     sub.textContent = g.game_id;
     card.append(a, sub);
+    const creatorID = g.owner_id || g.creator_id || g.creatorId;
+    if (creatorID) {
+      const follow = document.createElement('button');
+      follow.type = 'button';
+      follow.textContent = scope === 'following' ? 'Following feed' : 'Follow creator';
+      follow.disabled = scope === 'following';
+      follow.addEventListener('click', async () => {
+        follow.disabled = true;
+        try {
+          const response = await apiFetch('/v1/users/' + encodeURIComponent(creatorID) + '/follow', { method: 'POST' });
+          if (!response.ok) throw new Error(response.status === 401 ? 'Sign in to follow creators.' : 'Follow failed (HTTP ' + response.status + ')');
+          follow.textContent = 'Following';
+          setAccountStatus('Creator followed. Refresh the Following feed to see followed creators.');
+        } catch (err) { follow.disabled = false; setAccountStatus(err.message); }
+      });
+      card.append(follow);
+    }
     list.append(card);
   }
-  log('PKG', `feed listed ${(data.games || []).length} games`);
+  log('PKG', `feed listed ${(data.games || []).length} games in ${scope}`);
 }
 
 // The live session, for in-place restart (Phase A): restarting must
@@ -430,7 +509,7 @@ async function run(id) {
   let replayTrace = null;
   if (replayRunId) {
     try {
-      const rr = await fetch(`/v1/runs/${encodeURIComponent(replayRunId)}`);
+      const rr = await apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`);
       if (rr.ok) {
         replayTrace = await rr.json();
         if (Number.isFinite(replayTrace.seed)) sessionSeed = replayTrace.seed >>> 0;
@@ -491,7 +570,7 @@ async function run(id) {
     play.frameSamples = [];
     play.longestFrameMs = 0;
   }
-  const res = await fetch(`/v1/games/${encodeURIComponent(id)}/package`);
+  const res = await apiFetch(`/v1/games/${encodeURIComponent(id)}/package`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
@@ -1404,7 +1483,7 @@ async function run(id) {
       const match = state.score === replayTrace.score && won === !!replayTrace.won;
       window.__dqReplay = { runId: replayRunId, match, expected: replayTrace.score, actual: state.score };
       try {
-        fetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
+        apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ match, actualScore: state.score }),
         }).catch(() => {});
@@ -1440,7 +1519,7 @@ async function run(id) {
       irHash: play.irHash || '',
       inputs: play.inputLog,
     };
-    fetch(`/v1/games/${encodeURIComponent(id)}/runs`, {
+    apiFetch(`/v1/games/${encodeURIComponent(id)}/runs`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then(async (res) => {
@@ -1814,7 +1893,7 @@ async function run(id) {
     if (replayTrace && !state.ended && !window.__dqReplay && play.simStep > replayLastTick + 1800) {
       window.__dqReplay = { runId: replayRunId, match: false, reason: 'timeout', expected: replayTrace.score, actual: state.score };
       try {
-        fetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
+        apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ match: false, actualScore: state.score }),
         }).catch(() => {});
@@ -2081,3 +2160,5 @@ if (!gameId) {
     if (probeMode) emitProbe();
   });
 }
+
+initializeAccountControls();

@@ -39,3 +39,13 @@ Track weekly:
 - Validate asset references at publication and loading boundaries.
 - Keep published package versions immutable and make removed/quarantined content unavailable through discovery.
 - Evaluate CDN/object storage only with measured package-size and traffic data; do not cache mutable URLs as if they were immutable versions.
+
+
+## Web authentication and social graph client contract
+
+- The web player accepts a short-lived bearer token minted by a trusted identity provider. The player does not issue tokens or collect passwords; do not paste provider credentials into this UI.
+- The token is stored in tab-scoped `sessionStorage`, cleared by Sign out, and attached only to same-origin API requests. Telemetry beacons do not carry the bearer token.
+- The API verifies HMAC-signed claims using `DQ_AUTH_HMAC_SECRET`; claims must use issuer `hephaestus`, a non-empty subject, and an unexpired `exp`. Provision this secret and a trusted issuer/token-minting integration before enabling authenticated production traffic. Never enable `DQ_ALLOW_INSECURE_USER_ID` in production.
+- CORS preflight explicitly allows `Authorization`. The browser feed selector uses the API's `scope` query parameter and creator follow controls call `POST /v1/users/{id}/follow`. The following/friends feeds use the PostgreSQL graph when `DQ_SOCIAL_DATABASE_URL` is configured.
+- PostgreSQL graph rollout remains a deployment task: provision the database, set `DQ_SOCIAL_DATABASE_URL`, run `go run ./cmd/migrate-social-graph` with a backed-up local snapshot, and verify follow/unfollow plus cross-instance visibility before routing traffic to multiple replicas.
+- The UI token field is a bearer-token integration surface, not a complete Sign in with Apple/OIDC flow. A provider callback, PKCE/state validation, key rotation, and deployment-specific issuer integration must be added before claiming a turnkey sign-in experience.
