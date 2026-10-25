@@ -20,7 +20,7 @@ func feedFixtureGame(id, creator string, createdAt time.Time) *model.Game {
 	}
 }
 
-func feedIDs(t *testing.T, srv *Server) []string {
+func feedFixtureIDs(t *testing.T, srv *Server) []string {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/v1/feed?scope=for_you&limit=20", nil)
 	rec := httptest.NewRecorder()
@@ -61,7 +61,7 @@ func TestFeedRankingFixtureAndNewestFirstRollback(t *testing.T) {
 	srv.socialMu.Unlock()
 
 	t.Setenv("DQ_FEED_RANKING_ENABLED", "true")
-	got := feedIDs(t, srv)
+	got := feedFixtureIDs(t, srv)
 	if len(got) != 3 {
 		t.Fatalf("feed IDs = %v, want 3 games", got)
 	}
@@ -75,7 +75,7 @@ func TestFeedRankingFixtureAndNewestFirstRollback(t *testing.T) {
 	// Rollback disables engagement scoring but keeps creator diversity:
 	// newest creator-a game first, then creator-b, then creator-a's older game.
 	t.Setenv("DQ_FEED_RANKING_ENABLED", "false")
-	got = feedIDs(t, srv)
+	got = feedFixtureIDs(t, srv)
 	want := []string{"newest-a", "new-b", "old-engaged-a"}
 	if len(got) != len(want) {
 		t.Fatalf("rollback feed IDs = %v, want %v", got, want)
