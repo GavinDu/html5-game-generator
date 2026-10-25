@@ -104,6 +104,7 @@ func New(st store.Store, r *pipeline.Runner) *Server {
 	// twice (once from the file, once from memory).
 	s.teleMu.Lock()
 	s.loadTeleIndexLocked()
+	s.loadTeleV2EventIDsLocked()
 	s.teleMu.Unlock()
 	s.runsMu.Lock()
 	s.loadRunsLocked()

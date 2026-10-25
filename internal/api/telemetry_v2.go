@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -83,6 +84,47 @@ type teleMile struct {
 	Ms     int
 }
 
+// loadTeleV2EventIDsLocked restores the bounded idempotency index from the
+// durable event log so client retries remain safe across process restarts.
+// Caller must hold s.teleMu.
+func (s *Server) loadTeleV2EventIDsLocked() {
+	if s.teleV2EventIDs == nil {
+		s.teleV2EventIDs = map[string]struct{}{}
+	}
+	path := filepath.Join(telemetryDir(), "events.jsonl")
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64*1024), 1<<20)
+	for scanner.Scan() {
+		var record struct {
+			Event teleEventV2 `json:"event"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+			continue
+		}
+		ev := record.Event
+		if ev.EventID == "" || ev.SessionID == "" || len(ev.EventID) > 128 {
+			continue
+		}
+		key := ev.SessionID + "\x00" + ev.EventID
+		if _, exists := s.teleV2EventIDs[key]; exists {
+			continue
+		}
+		s.teleV2EventIDs[key] = struct{}{}
+		s.teleV2EventOrder = append(s.teleV2EventOrder, key)
+		if len(s.teleV2EventOrder) > teleV2IndexCap {
+			oldest := s.teleV2EventOrder[0]
+			s.teleV2EventOrder = s.teleV2EventOrder[1:]
+			delete(s.teleV2EventIDs, oldest)
+		}
+	}
+}
+
 const teleV2IndexCap = 20000
 
 var teleV2Kinds = map[string]bool{
@@ -143,6 +185,7 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UTC()
 	s.teleMu.Lock()
+	s.loadTeleV2EventIDsLocked()
 	if ev.EventID != "" {
 		if s.teleV2EventIDs == nil {
 			s.teleV2EventIDs = map[string]struct{}{}
