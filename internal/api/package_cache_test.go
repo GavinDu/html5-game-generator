@@ -39,7 +39,7 @@ func TestPublicPackageETagAndCacheInvalidation(t *testing.T) {
 	if etag == "" {
 		t.Fatal("public package response missing ETag")
 	}
-	if got := first.Header().Get("Cache-Control"); got != "public, max-age=300, must-revalidate" {
+	if got := first.Header().Get("Cache-Control"); got != "public, max-age=0, must-revalidate" {
 		t.Fatalf("public Cache-Control = %q", got)
 	}
 
