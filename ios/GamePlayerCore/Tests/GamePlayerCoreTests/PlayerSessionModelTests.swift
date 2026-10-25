@@ -40,4 +40,21 @@ final class PlayerSessionModelTests: XCTestCase {
         XCTAssertEqual(session.gameTitle, "")
         XCTAssertNil(session.loadProgress)
     }
+
+    func testTelemetryContainsLifecycleCategoriesWithoutRawErrorText() {
+        var events: [PlayerTelemetryEvent] = []
+        let session = PlayerSessionModel { events.append($0) }
+        session.beginLoad(title: "No private data")
+        session.packageReady(gameID: "g-9", version: "v2")
+        session.start()
+        session.pauseForBackground()
+        session.fail(.network("secret endpoint and token"))
+
+        XCTAssertEqual(events.map(\.name), [.loadStarted, .packageReady, .playStarted, .paused, .loadFailed])
+        XCTAssertEqual(events[1].gameID, "g-9")
+        XCTAssertEqual(events[1].packageVersion, "v2")
+        XCTAssertEqual(events[3].failureCategory, "appBackgrounded")
+        XCTAssertEqual(events[4].failureCategory, "network")
+        XCTAssertFalse(events.contains { String(describing: $0).contains("secret endpoint") })
+    }
 }
