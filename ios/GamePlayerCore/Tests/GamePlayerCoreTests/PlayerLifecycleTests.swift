@@ -50,13 +50,14 @@ final class PlayerLifecycleTests: XCTestCase {
 
 final class PlayerContractTests: XCTestCase {
     private func package(format: String = "2.0", runtime: String = "2026.10.23.2",
-                         gameID: String = "game-123", ir: String = #"{"schemaVersion":"1.0"}"#,
+                         gameID: String = "game-123", irVersion: String = "1.0", ir: String = #"{"irVersion":"1.0"}"#,
                          irHash: String = String(repeating: "a", count: 64),
                          assets: String = "[]") -> Data {
         Data("""
         {
           "packageFormatVersion":"\(format)",
           "minRuntimeVersion":"\(runtime)",
+          "irVersion":"\(irVersion)",
           "gameId":"\(gameID)",
           "ir":\(ir),
           "assets":\(assets),
