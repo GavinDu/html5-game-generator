@@ -143,10 +143,9 @@ func packageRequestForID(t *testing.T, srv *Server, id, etag, user string) *http
 	return rec
 }
 
-
 func TestPackageStaleETagCannotBypassVisibilityOrModeration(t *testing.T) {
 	cases := []struct {
-		name string
+		name   string
 		mutate func(*model.Game)
 	}{
 		{name: "private", mutate: func(g *model.Game) { g.Visibility = model.VisibilityPrivate }},
