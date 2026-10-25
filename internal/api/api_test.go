@@ -76,6 +76,38 @@ func waitJob(t *testing.T, srv *Server, jobID string, want model.JobStatus) *mod
 }
 
 // Full pipeline: ingest -> create -> spec -> confirm -> art/codegen/validate/publish.
+func TestAssetDeliveryRejectsHashMismatch(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	data, err := os.ReadFile("../../examples/game-ir-v1/bobos-rainbow.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := gameir.DecodeAndValidate(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Assets) == 0 {
+		t.Fatal("fixture must include an asset")
+	}
+	asset := doc.Assets[0]
+	asset.SHA256 = strings.Repeat("0", 64)
+	doc.Assets[0] = asset
+	game := &model.Game{
+		ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc, OwnerID: "asset-owner",
+		Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved",
+	}
+	st.CreateGame(game)
+	st.PutArtifact(game.ID, asset.URI, []byte("not-the-declared-asset"), asset.MIMEType)
+
+	response := do(t, srv, http.MethodGet, "/v1/games/"+game.ID+"/assets/"+asset.ID, nil, "")
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("asset hash mismatch: got %d, want 422: %s", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("integrity failure cache policy = %q", got)
+	}
+}
 func TestFullPipeline(t *testing.T) {
 	srv := newTestServer()
 
