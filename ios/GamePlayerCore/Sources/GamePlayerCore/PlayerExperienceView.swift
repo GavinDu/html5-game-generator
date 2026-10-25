@@ -7,6 +7,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
     public let state: PlayerState
     public let title: String
     public let progress: Double?
+    public let gameAspectRatio: CGFloat
     public let renderer: Renderer
     public let onPlay: () -> Void
     public let onPause: () -> Void
@@ -19,6 +20,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
         state: PlayerState,
         title: String,
         progress: Double? = nil,
+        gameAspectRatio: CGFloat = 16.0 / 9.0,
         @ViewBuilder renderer: () -> Renderer,
         onPlay: @escaping () -> Void,
         onPause: @escaping () -> Void,
@@ -30,6 +32,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
         self.state = state
         self.title = title
         self.progress = progress
+        self.gameAspectRatio = gameAspectRatio.isFinite ? min(max(gameAspectRatio, 0.25), 4.0) : (16.0 / 9.0)
         self.renderer = renderer()
         self.onPlay = onPlay
         self.onPause = onPause
@@ -62,6 +65,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
             ZStack {
                 Color.black
                 renderer
+                    .aspectRatio(gameAspectRatio, contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityHidden(isOverlayBlocking)
 
@@ -73,6 +77,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .padding(.horizontal, 12)
 
