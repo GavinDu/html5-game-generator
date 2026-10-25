@@ -90,17 +90,23 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
         try await coordinator.launch(gameID: "game-123")
 
         let move = PlayerInputEvent(action: .moveLeft, phase: .began, source: .touch)
-        XCTAssertTrue(await coordinator.sendInput(move))
-        XCTAssertEqual(await runtime.receivedInputs, [move])
+        let deliveredMove = await coordinator.sendInput(move)
+        XCTAssertTrue(deliveredMove)
+        let firstInputs = await runtime.receivedInputs
+        XCTAssertEqual(firstInputs, [move])
 
         await coordinator.pause()
-        XCTAssertFalse(await coordinator.sendInput(move))
-        XCTAssertEqual(await runtime.receivedInputs, [move])
+        let deliveredWhilePaused = await coordinator.sendInput(move)
+        XCTAssertFalse(deliveredWhilePaused)
+        let pausedInputs = await runtime.receivedInputs
+        XCTAssertEqual(pausedInputs, [move])
 
         try await coordinator.resume()
         let release = PlayerInputEvent(action: .moveLeft, phase: .ended, source: .touch)
-        XCTAssertTrue(await coordinator.sendInput(release))
-        XCTAssertEqual(await runtime.receivedInputs, [move, release])
+        let deliveredRelease = await coordinator.sendInput(release)
+        XCTAssertTrue(deliveredRelease)
+        let allInputs = await runtime.receivedInputs
+        XCTAssertEqual(allInputs, [move, release])
     }
 
     func testSupersededLaunchCannotOverwriteNewerSessionState() async throws {
