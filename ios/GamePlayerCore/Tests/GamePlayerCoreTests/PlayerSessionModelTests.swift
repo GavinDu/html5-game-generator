@@ -35,6 +35,7 @@ final class PlayerSessionModelTests: XCTestCase {
         session.pauseByUser()
         session.resumeFromBackground()
         XCTAssertEqual(session.state, .paused(gameID: "g-3", packageVersion: "v1", reason: .user))
+        session.resume()
         session.pauseForBackground()
         session.resumeFromBackground()
         XCTAssertEqual(session.state, .playing(gameID: "g-3", packageVersion: "v1"))
