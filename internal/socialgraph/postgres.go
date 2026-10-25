@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 var ErrSelfFollow = errors.New("a user cannot follow themselves")
