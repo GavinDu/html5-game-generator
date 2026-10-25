@@ -21,11 +21,11 @@ type postgresBackupEnvelope struct {
 }
 
 type postgresBackupSnapshot struct {
-	Follows            []Edge                      `json:"follows"`
-	Blocks             []BlockRelation             `json:"blocks"`
-	Saves               []SaveRelation              `json:"saves"`
-	Comments            []Comment                   `json:"comments"`
-	CommentIdempotency  []CommentIdempotencyRelation `json:"commentIdempotency"`
+	Follows            []Edge                       `json:"follows"`
+	Blocks             []BlockRelation              `json:"blocks"`
+	Saves              []SaveRelation               `json:"saves"`
+	Comments           []Comment                    `json:"comments"`
+	CommentIdempotency []CommentIdempotencyRelation `json:"commentIdempotency"`
 }
 
 // BackupTo exports a consistent, checksummed snapshot of shared follow, block,
@@ -38,10 +38,10 @@ func (s *PostgresStore) BackupTo(ctx context.Context, path string) error {
 	}
 	defer tx.Rollback()
 	snapshot := postgresBackupSnapshot{
-		Follows: make([]Edge, 0),
-		Blocks:  make([]BlockRelation, 0),
-		Saves: make([]SaveRelation, 0),
-		Comments: make([]Comment, 0),
+		Follows:            make([]Edge, 0),
+		Blocks:             make([]BlockRelation, 0),
+		Saves:              make([]SaveRelation, 0),
+		Comments:           make([]Comment, 0),
 		CommentIdempotency: make([]CommentIdempotencyRelation, 0),
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT viewer_id, creator_id FROM social_follows ORDER BY viewer_id, creator_id`)
