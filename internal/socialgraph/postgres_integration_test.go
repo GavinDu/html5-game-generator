@@ -161,3 +161,71 @@ func TestPostgresStoreSharesSavedGamesAcrossInstances(t *testing.T) {
 		t.Fatalf("first instance still sees saved games=%v", ids)
 	}
 }
+
+func TestPostgresCommentsAreSharedAndIdempotentAcrossInstances(t *testing.T) {
+	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("DQ_SOCIAL_DATABASE_URL is not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	first, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open first graph store: %v", err)
+	}
+	second, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open second graph store: %v", err)
+	}
+	suffix := time.Now().UTC().Format("20060102150405.000000000")
+	viewer := "integration-comment-user-" + suffix
+	gameID := "integration-comment-game-" + suffix
+	key := "integration-comment-key-" + suffix
+	commentID := "integration-comment-" + suffix
+	t.Cleanup(func() {
+		_, _, _ = first.DeleteComment(context.Background(), gameID, commentID, viewer)
+		_ = first.Close()
+		_ = second.Close()
+	})
+
+	created, replay, err := first.CreateComment(ctx, Comment{
+		ID: commentID, GameID: gameID, UserID: viewer, Body: "hello shared graph",
+	}, key)
+	if err != nil || replay {
+		t.Fatalf("create comment: replay=%v err=%v", replay, err)
+	}
+	comments, err := second.ListComments(ctx, gameID)
+	if err != nil {
+		t.Fatalf("list comments through second instance: %v", err)
+	}
+	if len(comments) != 1 || comments[0].ID != created.ID || comments[0].Body != "hello shared graph" {
+		t.Fatalf("second instance saw comments=%+v, want created comment", comments)
+	}
+
+	replayed, wasReplay, err := second.CreateComment(ctx, Comment{
+		ID: "duplicate-" + suffix, GameID: gameID, UserID: viewer, Body: "hello shared graph",
+	}, key)
+	if err != nil || !wasReplay || replayed.ID != created.ID {
+		t.Fatalf("idempotent replay = %+v replay=%v err=%v", replayed, wasReplay, err)
+	}
+	_, _, err = second.CreateComment(ctx, Comment{
+		ID: "conflict-" + suffix, GameID: gameID, UserID: viewer, Body: "different body",
+	}, key)
+	if !errors.Is(err, ErrCommentIdempotencyConflict) {
+		t.Fatalf("conflicting idempotency key error = %v, want ErrCommentIdempotencyConflict", err)
+	}
+
+	found, owned, err := second.DeleteComment(ctx, gameID, created.ID, "different-user")
+	if err != nil || !found || owned {
+		t.Fatalf("non-author delete = found %v owned %v err %v", found, owned, err)
+	}
+	found, owned, err = second.DeleteComment(ctx, gameID, created.ID, viewer)
+	if err != nil || !found || !owned {
+		t.Fatalf("author delete = found %v owned %v err %v", found, owned, err)
+	}
+	comments, err = first.ListComments(ctx, gameID)
+	if err != nil || len(comments) != 0 {
+		t.Fatalf("first instance still sees comments after delete: comments=%+v err=%v", comments, err)
+	}
+}
+
