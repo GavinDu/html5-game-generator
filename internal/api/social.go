@@ -1011,10 +1011,40 @@ func (s *Server) handleListReports(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "invalid moderation token")
 		return
 	}
+	limit := 100
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 500 {
+			writeErr(w, http.StatusBadRequest, "limit must be between 1 and 500")
+			return
+		}
+		limit = n
+	}
+	status := strings.TrimSpace(r.URL.Query().Get("status"))
+	if status != "" && status != "open" && status != "resolved" {
+		writeErr(w, http.StatusBadRequest, "status must be open or resolved")
+		return
+	}
+	gameID := strings.TrimSpace(r.URL.Query().Get("game_id"))
 	s.socialMu.RLock()
-	reports := append([]socialReport(nil), s.reports...)
+	reports := make([]socialReport, 0, len(s.reports))
+	for _, report := range s.reports {
+		if status != "" && report.Status != status {
+			continue
+		}
+		if gameID != "" && report.GameID != gameID {
+			continue
+		}
+		reports = append(reports, report)
+	}
 	s.socialMu.RUnlock()
-	sort.Slice(reports, func(i, j int) bool { return reports[i].CreatedAt.After(reports[j].CreatedAt) })
+	sort.SliceStable(reports, func(i, j int) bool { return reports[i].CreatedAt.After(reports[j].CreatedAt) })
+	if len(reports) > limit {
+		reports = reports[:limit]
+	}
+	if reports == nil {
+		reports = []socialReport{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"reports": reports})
 }
 
