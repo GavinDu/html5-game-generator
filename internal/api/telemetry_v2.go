@@ -3,6 +3,7 @@ package api
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -160,6 +161,13 @@ func (s *Server) handleTelemetryEvent(w http.ResponseWriter, r *http.Request) {
 	var ev teleEventV2
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	if err := dec.Decode(&ev); err != nil {
+		http.Error(w, "bad event", http.StatusBadRequest)
+		return
+	}
+	// Accept exactly one JSON value. Decoder.Decode alone would silently accept
+	// a valid event followed by another JSON value or arbitrary trailing bytes.
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
 		http.Error(w, "bad event", http.StatusBadRequest)
 		return
 	}
