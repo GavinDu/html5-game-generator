@@ -161,7 +161,6 @@ func TestPostgresStoreSharesSavedGamesAcrossInstances(t *testing.T) {
 	}
 }
 
-
 func TestPostgresStorePersistsModerationReportsAcrossInstances(t *testing.T) {
 	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
 	if dsn == "" {
