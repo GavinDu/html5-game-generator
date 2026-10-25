@@ -62,6 +62,9 @@ func (s *Server) canDeliver(g *model.Game, viewer string) bool {
 	if g.ModerationStatus == "pending" || g.ModerationStatus == "rejected" {
 		return false
 	}
+	if s.isBlockedEitherDirection(viewer, g.OwnerID) {
+		return false
+	}
 	switch g.Visibility {
 	case model.VisibilityPublic:
 		return true
