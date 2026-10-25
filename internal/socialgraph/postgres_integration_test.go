@@ -240,8 +240,6 @@ func TestPostgresCommentsAreSharedAndIdempotentAcrossInstances(t *testing.T) {
 	}
 }
 
-
-
 func TestPostgresStoreSharesCommentsAcrossInstances(t *testing.T) {
 	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
 	if dsn == "" {
