@@ -176,7 +176,6 @@ func BenchmarkFeedRanking(b *testing.B) {
 	}
 }
 
-
 func TestFeedQualitySignalsAreSmoothedAndPenalizeSlowOrQuickExit(t *testing.T) {
 	events := []socialEvent{
 		{GameID: "good", Kind: "impression"},
