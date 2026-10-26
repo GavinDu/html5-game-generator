@@ -3,10 +3,10 @@ package api
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
