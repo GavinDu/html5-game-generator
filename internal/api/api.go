@@ -782,7 +782,14 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	// interactions as a reliable quality signal. Until at least 20 social
 	// events/reactions exist in the current index, use the newest-first
 	// baseline. This threshold is a guardrail, not a learned parameter.
-	signalCount := len(events)
+	signalCount := 0
+	for _, event := range events {
+		// Player diagnostics are useful observability but are not engagement
+		// evidence and must not activate the quality ranker by themselves.
+		if event.Kind != "player_ready" && event.Kind != "player_session_summary" {
+			signalCount++
+		}
+	}
 	for _, count := range reactionCounts {
 		signalCount += count
 	}
