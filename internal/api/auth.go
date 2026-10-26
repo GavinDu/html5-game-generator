@@ -110,7 +110,7 @@ func requiresUserAuth(r *http.Request) bool {
 		p := r.URL.Path
 		if p == "/v1/feed" || p == "/v1/creators" ||
 			strings.HasPrefix(p, "/v1/games/") ||
-			strings.HasPrefix(p, "/v1/users/") && p != "/v1/users/me/following" && p != "/v1/users/me/saved" && p != "/v1/users/me/preferences" ||
+			strings.HasPrefix(p, "/v1/users/") && p != "/v1/users/me/following" && p != "/v1/users/me/saved" && p != "/v1/users/me/preferences" && p != "/v1/users/me/profile" ||
 			strings.HasPrefix(p, "/v1/groups/") && strings.HasSuffix(p, "/games") ||
 			strings.HasPrefix(p, "/v1/runs/") ||
 			strings.HasPrefix(p, "/v1/jobs/") ||
