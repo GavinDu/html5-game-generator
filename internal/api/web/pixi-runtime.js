@@ -1352,6 +1352,7 @@ async function run(id) {
         case 'add_score': {
           state.score += Math.trunc(action.value ?? 1);
           play.score = state.score; // mirrored for the probe verdict (Phase C)
+          recordEvent('score_change', 'score ' + state.score);
           noteActivity();
           if (!play.firstRewardAt && state.score > 0) {
             play.firstRewardAt = Math.round(play.visibleMs);
@@ -1719,6 +1720,7 @@ async function run(id) {
       }
     } else if (isHazard) {
       log('PHYS', `hazard contact: ${other.defId}`);
+      recordEvent('collision', other.defId);
       emit('collision', playerEnt, other);
     }
   }
