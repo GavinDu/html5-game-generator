@@ -105,6 +105,19 @@ jobs:
             exit 0
           fi
           node tools/playtest/score-report.mjs /tmp/playtest-report.json - /tmp/scored-playtest-report.json --pack /tmp/evidence-packs --shots /tmp/playtest-shots
+      # Phase 2 producer: turn the playtest run into a test-feedback.json
+      # artifact for the AI coding feedback loop. Advisory only — it
+      # never fails this job (the script exits 0 even on a missing or
+      # unparsable report, emitting a skip case instead), and the
+      # playtest job's own verdict remains the gate.
+      - name: Build playtest test-feedback artifact
+        if: always()
+        run: |
+          python3 tools/test-feedback/report-to-feedback.py \
+            --kind playtest --report /tmp/playtest-report.json \
+            --out /tmp/test-feedback-playtest.json \
+            --run-id "playtest-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --commit "${{ github.sha }}" --browser "${{ matrix.browser }}" || true
       - name: Upload playtest artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -115,6 +128,7 @@ jobs:
             /tmp/playtest-report.json
             /tmp/playtest-shots/
             /tmp/evidence-packs/
+            /tmp/test-feedback-playtest.json
           if-no-files-found: ignore
 
   # Playability Kit (user-mimic gate): plays each shipped game like a
@@ -153,6 +167,15 @@ jobs:
             --base http://localhost:18099 \
             --games sample-rainbow-bear,sample-ribbon-sky,escape-from-injection \
             --budget 40 --out /tmp/kit-out
+      # Phase 2 producer for the kit, same advisory contract as above.
+      - name: Build kit test-feedback artifact
+        if: always()
+        run: |
+          python3 tools/test-feedback/report-to-feedback.py \
+            --kind kit --report /tmp/kit-out/report.json \
+            --out /tmp/test-feedback-kit.json \
+            --run-id "kit-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --commit "${{ github.sha }}" --browser chromium || true
       - name: Upload kit artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -161,6 +184,7 @@ jobs:
           path: |
             /tmp/dq-server.log
             /tmp/kit-out/
+            /tmp/test-feedback-kit.json
           if-no-files-found: ignore
 
   socialgraph-postgres:
