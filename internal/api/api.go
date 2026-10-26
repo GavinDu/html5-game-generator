@@ -57,7 +57,7 @@ type Server struct {
 	blocks             map[string]map[string]bool
 	notInterested      map[string]map[string]bool
 	mutedTopics        map[string]map[string]bool
-	profiles          map[string]creatorProfile
+	profiles           map[string]creatorProfile
 	commentIdempotency map[string]commentIdempotencyRecord
 	reports            []socialReport
 	events             []socialEvent
