@@ -55,6 +55,50 @@ func TestPostgresStoreSharesFollowEdgesAcrossInstances(t *testing.T) {
 	}
 }
 
+// Concurrent follows of the same edge must converge to exactly one
+// relationship: the social_follows primary key plus ON CONFLICT DO NOTHING
+// makes Follow idempotent even when two replicas race the same insert.
+func TestPostgresConcurrentFollowCreatesOneEdge(t *testing.T) {
+	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("DQ_SOCIAL_DATABASE_URL is not configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	graph, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open graph store: %v", err)
+	}
+	defer graph.Close()
+
+	viewer := "integration-concurrent-viewer-" + time.Now().UTC().Format("20060102150405.000000000")
+	creator := "integration-concurrent-creator-" + time.Now().UTC().Format("20060102150405.000000000")
+	t.Cleanup(func() {
+		_ = graph.Unfollow(context.Background(), viewer, creator)
+		_ = graph.Close()
+	})
+
+	const workers = 20
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			errs <- graph.Follow(ctx, viewer, creator)
+		}()
+	}
+	for i := 0; i < workers; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent follow: %v", err)
+		}
+	}
+	ids, err := graph.ListFollowing(ctx, viewer)
+	if err != nil {
+		t.Fatalf("list following after concurrent follows: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != creator {
+		t.Fatalf("following after concurrent follows=%v, want [%s]", ids, creator)
+	}
+}
+
 func TestPostgresStoreSharesBlockRelationsAcrossInstances(t *testing.T) {
 	dsn := os.Getenv("DQ_SOCIAL_DATABASE_URL")
 	if dsn == "" {
