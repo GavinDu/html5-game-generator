@@ -506,8 +506,8 @@ func (s *Server) handleGetMyProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSetMyProfile(w http.ResponseWriter, r *http.Request) {
-	userID := strings.TrimSpace(userID(r))
-	if userID == "" {
+	actorID := strings.TrimSpace(userID(r))
+	if actorID == "" {
 		writeErr(w, http.StatusUnauthorized, "authenticated user is required")
 		return
 	}
