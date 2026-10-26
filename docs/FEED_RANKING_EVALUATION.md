@@ -6,7 +6,7 @@ Evaluate the current explainable feed ranker against newest-first using identica
 
 Compare:
 - **Baseline:** newest-first, with existing stable tie-break behavior.
-- **Candidate:** engagement ranking behind the existing feature flag, including the freshness term, documented event weights, reaction counts, and creator-diversity round-robin.
+- **Candidate:** quality ranking behind the existing feature flag, including freshness, legacy event weights, reactions, smoothed preview tap rate, duration-normalized completion/replay quality, quick-exit and TTI penalties, low-impression exploration, and creator-diversity round-robin.
 
 Apply visibility, Following/Friends scope, block, not-interested, muted-topic, moderation, and quarantine filters before either ranking mode. Candidate eligibility must be identical.
 
@@ -22,6 +22,8 @@ Version-control fixtures with fixed timestamps and explicit event/reaction recor
 6. **Sparse creator pool:** fewer creators than the diversity window; output stays deterministic.
 7. **Filter interaction:** blocked, private, quarantined, or otherwise ineligible games never reappear after diversity interleaving.
 8. **Tie and duplicate timestamps:** stable tie-breaks are repeatable.
+9. **Preview quality:** strong tap rate and normalized completions compete against a slow game with quick exits.
+10. **Exploration:** low-impression candidates receive a reserved slot without duplicates or ineligible games.
 
 Each fixture states candidate IDs, creator IDs, timestamps, reactions, events, expected eligibility, and expected order or bounded acceptable outcomes. Use a fixed clock or inject evaluation time so wall-clock drift cannot change expected scores.
 
