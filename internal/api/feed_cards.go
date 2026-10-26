@@ -65,8 +65,12 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 	liked := map[string]bool{}
 	likes := map[string]int{}
 	eventStats := map[string]feedCardStats{}
+	profiles := map[string]creatorProfile{}
 
 	s.socialMu.RLock()
+	for id, profile := range s.profiles {
+		profiles[id] = profile
+	}
 	for gameID, users := range s.reactions {
 		likes[gameID] = len(users)
 		if reaction, ok := users[viewer]; ok && reaction != "" {
@@ -150,7 +154,7 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			Title:   game.Title,
 			Caption: game.Caption,
 			Topics:  append([]string(nil), game.Topics...),
-			Creator: feedCreator{ID: game.OwnerID},
+			Creator: feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},
 			// Preview generation is a separate pipeline. Explicitly mark a missing
 			// preview pending rather than inventing a URL or metrics.
 			Preview: feedPreview{Status: "pending"},

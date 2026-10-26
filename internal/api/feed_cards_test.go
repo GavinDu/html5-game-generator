@@ -26,6 +26,7 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	st.CreateGame(feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute)))
 
 	srv := New(st, pipeline.NewRunner(st))
+	srv.profiles["creator-1"] = creatorProfile{DisplayName: "Creator One", AvatarURL: "https://cdn.example.test/avatar.png", UpdatedAt: now}
 	srv.socialMu.Lock()
 	srv.reactions[game.ID] = map[string]string{"viewer-1": "like", "viewer-2": "like"}
 	srv.saves["viewer-1"] = map[string]bool{game.ID: true}
@@ -86,7 +87,7 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 		t.Fatalf("unexpected card metadata: %#v", card)
 	}
 	creator, ok := card["creator"].(map[string]any)
-	if !ok || creator["id"] != "creator-1" {
+	if !ok || creator["id"] != "creator-1" || creator["display_name"] != "Creator One" || creator["avatar_url"] != "https://cdn.example.test/avatar.png" {
 		t.Fatalf("creator payload = %#v", card["creator"])
 	}
 	preview, ok := card["preview"].(map[string]any)
