@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
@@ -96,6 +98,17 @@ type socialEventRequest struct {
 	FrameCount          int    `json:"frame_count"`
 }
 
+type creatorProfile struct {
+	DisplayName string    `json:"display_name"`
+	AvatarURL   string    `json:"avatar_url,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type creatorProfileRequest struct {
+	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url"`
+}
+
 type socialStateSnapshot struct {
 	MutedTopics        map[string]map[string]bool          `json:"muted_topics"`
 	CommentIdempotency map[string]commentIdempotencyRecord `json:"comment_idempotency"`
@@ -109,7 +122,8 @@ type socialStateSnapshot struct {
 	// Follows were the one social edge missing from the snapshot
 	// (architecture review 2026-10-23): every other relation survived
 	// a restart, follow graphs silently reset.
-	Follows map[string]map[string]struct{} `json:"follows"`
+	Follows  map[string]map[string]struct{} `json:"follows"`
+	Profiles map[string]creatorProfile          `json:"profiles,omitempty"`
 }
 
 func socialStatePath() string {
@@ -173,6 +187,9 @@ func (s *Server) loadSocialState() {
 			if state.Follows != nil {
 				s.follows = state.Follows
 			}
+			if state.Profiles != nil {
+				s.profiles = state.Profiles
+			}
 			s.socialMu.Unlock()
 		}
 	}
@@ -200,7 +217,7 @@ func (s *Server) loadSocialState() {
 }
 
 func (s *Server) persistSocialStateLocked() error {
-	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, MutedTopics: s.mutedTopics, CommentIdempotency: s.commentIdempotency, Reports: s.reports, Follows: s.follows}
+	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, MutedTopics: s.mutedTopics, CommentIdempotency: s.commentIdempotency, Reports: s.reports, Follows: s.follows, Profiles: s.profiles}
 	data, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -217,6 +234,8 @@ func (s *Server) persistSocialStateLocked() error {
 }
 
 func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/users/me/profile", s.handleGetMyProfile)
+	mux.HandleFunc("PUT /v1/users/me/profile", s.handleSetMyProfile)
 	mux.HandleFunc("GET /v1/users/me/following", s.handleListFollowing)
 	mux.HandleFunc("GET /v1/users/me/saved", s.handleSavedGames)
 	mux.HandleFunc("GET /v1/creators", s.handleDiscoverCreators)
@@ -471,6 +490,66 @@ func (s *Server) handleDiscoverCreators(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+func (s *Server) handleGetMyProfile(w http.ResponseWriter, r *http.Request) {
+	userID := strings.TrimSpace(userID(r))
+	if userID == "" {
+		writeErr(w, http.StatusUnauthorized, "authenticated user is required")
+		return
+	}
+	s.socialMu.RLock()
+	profile := s.profiles[userID]
+	s.socialMu.RUnlock()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_id": userID, "display_name": profile.DisplayName,
+		"avatar_url": profile.AvatarURL, "updated_at": profile.UpdatedAt,
+	})
+}
+
+func (s *Server) handleSetMyProfile(w http.ResponseWriter, r *http.Request) {
+	userID := strings.TrimSpace(userID(r))
+	if userID == "" {
+		writeErr(w, http.StatusUnauthorized, "authenticated user is required")
+		return
+	}
+	var req creatorProfileRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	name := strings.TrimSpace(req.DisplayName)
+	if name == "" || utf8.RuneCountInString(name) > 50 {
+		writeErr(w, http.StatusBadRequest, "display_name must contain 1 to 50 characters")
+		return
+	}
+	avatar := strings.TrimSpace(req.AvatarURL)
+	if len(avatar) > 2048 {
+		writeErr(w, http.StatusBadRequest, "avatar_url must be at most 2048 characters")
+		return
+	}
+	if avatar != "" {
+		parsed, err := url.ParseRequestURI(avatar)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+			writeErr(w, http.StatusBadRequest, "avatar_url must be an absolute HTTPS URL without credentials")
+			return
+		}
+	}
+	profile := creatorProfile{DisplayName: name, AvatarURL: avatar, UpdatedAt: time.Now().UTC()}
+	s.socialMu.Lock()
+	if s.profiles == nil {
+		s.profiles = map[string]creatorProfile{}
+	}
+	s.profiles[userID] = profile
+	err := s.persistSocialStateLocked()
+	s.socialMu.Unlock()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "could not save creator profile")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_id": userID, "display_name": profile.DisplayName,
+		"avatar_url": profile.AvatarURL, "updated_at": profile.UpdatedAt,
+	})
+}
+
 func (s *Server) handleCreatorProfile(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if s.socialGraphErr != nil {
@@ -488,6 +567,7 @@ func (s *Server) handleCreatorProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.socialMu.RLock()
+	profile := s.profiles[id]
 	followers, following := 0, len(s.follows[id])
 	for _, edges := range s.follows {
 		if _, ok := edges[id]; ok {
@@ -498,7 +578,7 @@ func (s *Server) handleCreatorProfile(w http.ResponseWriter, r *http.Request) {
 	_, isFollowing := s.follows[viewer][id]
 	_, followsBack := s.follows[id][viewer]
 	s.socialMu.RUnlock()
-	writeJSON(w, http.StatusOK, map[string]any{"creator_id": id, "posts": games, "post_count": len(games), "follower_count": followers, "following_count": following, "is_following": isFollowing, "is_friend": isFollowing && followsBack})
+	writeJSON(w, http.StatusOK, map[string]any{"creator_id": id, "display_name": profile.DisplayName, "avatar_url": profile.AvatarURL, "posts": games, "post_count": len(games), "follower_count": followers, "following_count": following, "is_following": isFollowing, "is_friend": isFollowing && followsBack})
 }
 func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 	var req publishPostRequest
