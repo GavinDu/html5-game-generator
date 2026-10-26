@@ -1326,7 +1326,7 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "unsupported social event schema_version")
 		return
 	}
-	allowed := map[string]bool{"impression": true, "play_start": true, "completion": true, "replay": true, "share": true, "save": true, "follow": true, "quick_exit": true}
+	allowed := map[string]bool{"impression": true, "preview_dwell": true, "play_start": true, "completion": true, "replay": true, "share": true, "save": true, "follow": true, "quick_exit": true}
 	if !allowed[req.Kind] {
 		writeErr(w, 400, "unsupported social event kind")
 		return

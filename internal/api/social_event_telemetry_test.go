@@ -95,3 +95,39 @@ func TestSocialEventLegacyClientDefaultsToSchemaV1(t *testing.T) {
 		t.Fatalf("legacy event should be stored as schema v1: %+v", srv.events)
 	}
 }
+
+func TestSocialPreviewDwellEventIsAcceptedAndIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
+	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
+	srv := newTestServer()
+	addPublicGame(srv, "game-1", "creator")
+
+	body := map[string]any{
+		"schema_version":       1,
+		"event_id":             "preview-dwell-1",
+		"game_id":              "game-1",
+		"kind":                 "preview_dwell",
+		"preview_dwell_ms":     700,
+		"duration_ms":          700,
+		"expected_duration_ms": 700,
+	}
+	resp := do(t, srv, http.MethodPost, "/v1/telemetry/social-event", body, "viewer")
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("accept preview dwell event: %d %s", resp.Code, resp.Body.String())
+	}
+	body["preview_dwell_ms"] = 1200
+	resp = do(t, srv, http.MethodPost, "/v1/telemetry/social-event", body, "viewer")
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("ack duplicate preview dwell event: %d %s", resp.Code, resp.Body.String())
+	}
+
+	srv.socialMu.Lock()
+	defer srv.socialMu.Unlock()
+	if len(srv.events) != 1 {
+		t.Fatalf("stored %d events, want exactly one", len(srv.events))
+	}
+	if srv.events[0].Kind != "preview_dwell" || srv.events[0].PreviewDwellMS != 700 {
+		t.Fatalf("unexpected stored preview dwell event: %+v", srv.events[0])
+	}
+}
