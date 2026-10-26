@@ -929,11 +929,11 @@ type feedQualitySignals struct {
 	Plays                  int
 	Completions            int
 	Replays                int
-	QuickExits              int
-	CompletionQuality       float64
+	QuickExits             int
+	CompletionQuality      float64
 	ReplayQuality           float64
-	AvgTimeToInteractiveMS  float64
-	TTISamples              int
+	AvgTimeToInteractiveMS float64
+	TTISamples             int
 }
 
 func feedQualitySignalsByGame(events []socialEvent) map[string]feedQualitySignals {
