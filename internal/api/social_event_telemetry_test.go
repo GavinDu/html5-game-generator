@@ -131,3 +131,35 @@ func TestSocialPreviewDwellEventIsAcceptedAndIdempotent(t *testing.T) {
 		t.Fatalf("unexpected stored preview dwell event: %+v", srv.events[0])
 	}
 }
+
+func TestPlayerDiagnosticsEventsAreAcceptedWithoutInflatingEngagementSignals(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
+	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
+	srv := newTestServer()
+	addPublicGame(srv, "game-1", "creator")
+
+	for _, kind := range []string{"player_ready", "player_session_summary"} {
+		body := map[string]any{
+			"schema_version": 1, "event_id": kind + "-1",
+			"game_id": "game-1", "kind": kind,
+			"time_to_interactive_ms": 850, "time_to_first_input_ms": 1300,
+			"frame_time_p95_ms": 22, "frame_time_avg_ms": 16, "frame_count": 240,
+		}
+		resp := do(t, srv, http.MethodPost, "/v1/telemetry/social-event", body, "viewer")
+		if resp.Code != http.StatusAccepted {
+			t.Fatalf("accept %s event: %d %s", kind, resp.Code, resp.Body.String())
+		}
+	}
+	srv.socialMu.RLock()
+	defer srv.socialMu.RUnlock()
+	if len(srv.events) != 2 {
+		t.Fatalf("stored %d player diagnostics, want 2", len(srv.events))
+	}
+	for _, event := range srv.events {
+		if event.TimeToInteractiveMS != 850 || event.TimeToFirstInputMS != 1300 ||
+			event.FrameTimeP95MS != 22 || event.FrameTimeAvgMS != 16 || event.FrameCount != 240 {
+			t.Fatalf("unexpected player diagnostics: %+v", event)
+		}
+	}
+}
