@@ -931,7 +931,7 @@ type feedQualitySignals struct {
 	Replays                int
 	QuickExits             int
 	CompletionQuality      float64
-	ReplayQuality           float64
+	ReplayQuality          float64
 	AvgTimeToInteractiveMS float64
 	TTISamples             int
 }
