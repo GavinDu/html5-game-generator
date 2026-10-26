@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"image"
@@ -151,7 +152,7 @@ func validPreviewBytes(asset string, data []byte) bool {
 		}
 		return format == "jpeg"
 	case "clip.mp4":
-		return len(data) >= 12 && string(data[4:8]) == "ftyp"
+		return len(data) >= 16 && string(data[4:8]) == "ftyp" && int(binary.BigEndian.Uint32(data[:4])) >= 16 && int(binary.BigEndian.Uint32(data[:4])) <= len(data)
 	default:
 		return false
 	}
