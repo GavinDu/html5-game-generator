@@ -30,6 +30,39 @@ func writeBackupEnvelope(t *testing.T, version int, snapshot string) string {
 	return path
 }
 
+func TestWritePostgresBackupAtomicallyIsPrivateAndReplacesWholeFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "social-graph.json")
+	if err := writePostgresBackupAtomically(path, []byte(`{"formatVersion":4}`)); err != nil {
+		t.Fatalf("write initial backup: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Fatalf("backup mode = %o, want 600", mode)
+	}
+	if err := writePostgresBackupAtomically(path, []byte(`{"formatVersion":5}`)); err != nil {
+		t.Fatalf("replace backup: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"formatVersion":5}` {
+		t.Fatalf("backup contents = %q, want complete replacement", data)
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("temporary backup remains: %v", err)
+	}
+}
+
+func TestWritePostgresBackupAtomicallyRequiresPath(t *testing.T) {
+	if err := writePostgresBackupAtomically("", []byte("x")); err == nil {
+		t.Fatal("empty backup path unexpectedly succeeded")
+	}
+}
+
 func TestReadPostgresBackupV2TreatsMissingNewCollectionsAsEmpty(t *testing.T) {
 	path := writeBackupEnvelope(t, 2, `{"follows":[],"blocks":[],"saves":[],"comments":[],"commentIdempotency":[]}`)
 	snapshot, err := readPostgresBackup(path)
