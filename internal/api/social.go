@@ -1183,18 +1183,12 @@ func (s *Server) savedGamesFiltered(r *http.Request, viewer string, ids []string
 	blocked := map[string]bool{}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-		blockedIDs, err := s.socialGraph.ListBlocked(ctx, viewer)
-		if err == nil {
-			var blockerIDs []string
-			blockerIDs, err = s.socialGraph.ListBlockers(ctx, viewer)
-			if err == nil {
-				blockedIDs = append(blockedIDs, blockerIDs...)
-			}
-		}
+		all, err := s.loadAllIDs(ctx, viewer)
 		cancel()
 		if err != nil {
 			return nil, err
 		}
+		blockedIDs := append(all.Blocked, all.Blockers...)
 		for _, id := range blockedIDs {
 			blocked[id] = true
 		}
@@ -1403,18 +1397,13 @@ func (s *Server) handleGetPreferences(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-		muted, err := s.socialGraph.ListMutedTopics(ctx, viewer)
-		if err == nil {
-			var ignored []string
-			ignored, err = s.socialGraph.ListNotInterested(ctx, viewer)
-			if err == nil {
-				cancel()
-				writeJSON(w, http.StatusOK, map[string]any{"muted_topics": muted, "not_interested_game_ids": ignored})
-				return
-			}
-		}
+		all, err := s.loadAllIDs(ctx, viewer)
 		cancel()
-		writeErr(w, http.StatusServiceUnavailable, "could not read shared preferences")
+		if err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not read shared preferences")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"muted_topics": all.MutedTopics, "not_interested_game_ids": all.NotInterested})
 		return
 	}
 	s.socialMu.RLock()
@@ -1611,27 +1600,17 @@ func (s *Server) isBlockedEitherDirection(viewer, creator string) bool {
 	}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		outgoing, err := s.socialGraph.ListBlocked(ctx, viewer)
-		if err == nil {
-			var incoming []string
-			incoming, err = s.socialGraph.ListBlockers(ctx, viewer)
-			if err == nil {
-				for _, id := range outgoing {
-					if id == creator {
-						cancel()
-						return true
-					}
-				}
-				for _, id := range incoming {
-					if id == creator {
-						cancel()
-						return true
-					}
-				}
+		all, err := s.loadAllIDs(ctx, viewer)
+		cancel()
+		if err != nil {
+			return true
+		}
+		for _, id := range append(all.Blocked, all.Blockers...) {
+			if id == creator {
+				return true
 			}
 		}
-		cancel()
-		return err != nil
+		return false
 	}
 	s.socialMu.RLock()
 	defer s.socialMu.RUnlock()
@@ -1648,19 +1627,12 @@ func (s *Server) blockedCreatorIDs(ctx context.Context, viewer string) (map[stri
 	}
 	if s.socialGraph != nil {
 		dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		outgoing, err := s.socialGraph.ListBlocked(dbCtx, viewer)
-		if err == nil {
-			var incoming []string
-			incoming, err = s.socialGraph.ListBlockers(dbCtx, viewer)
-			if err == nil {
-				outgoing = append(outgoing, incoming...)
-			}
-		}
+		all, err := s.loadAllIDs(dbCtx, viewer)
 		cancel()
 		if err != nil {
 			return nil, err
 		}
-		for _, id := range outgoing {
+		for _, id := range append(all.Blocked, all.Blockers...) {
 			blocked[id] = true
 		}
 		return blocked, nil
@@ -1693,12 +1665,12 @@ func (s *Server) isBlocked(viewer, creator string) bool {
 	}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		ids, err := s.socialGraph.ListBlocked(ctx, viewer)
+		all, err := s.loadAllIDs(ctx, viewer)
 		cancel()
 		if err != nil {
 			return true
 		}
-		for _, id := range ids {
+		for _, id := range all.Blocked {
 			if id == creator {
 				return true
 			}
