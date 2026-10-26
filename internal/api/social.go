@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -247,6 +248,12 @@ func (s *Server) registerSocialRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/telemetry/social-event", s.handleSocialEvent)
 }
 
+// followingPager is the store-level cursor pagination interface for
+// the following list. This is the template for the remaining id lists.
+type followingPager interface {
+	ListFollowingPage(ctx context.Context, viewerID string, p socialgraph.Page) (socialgraph.IDPage, error)
+}
+
 func (s *Server) handleListFollowing(w http.ResponseWriter, r *http.Request) {
 	viewer := strings.TrimSpace(userID(r))
 	if s.socialGraphErr != nil {
@@ -254,6 +261,29 @@ func (s *Server) handleListFollowing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.socialGraph != nil {
+		if pager, ok := s.socialGraph.(followingPager); ok {
+			limit := 0
+			if raw := r.URL.Query().Get("limit"); raw != "" {
+				n, err := strconv.Atoi(raw)
+				if err != nil || n < 1 || n > 50 {
+					writeErr(w, http.StatusBadRequest, "limit must be between 1 and 50")
+					return
+				}
+				limit = n
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+			page, err := pager.ListFollowingPage(ctx, viewer, socialgraph.Page{Limit: limit, Cursor: strings.TrimSpace(r.URL.Query().Get("cursor"))})
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			if page.IDs == nil {
+				page.IDs = []string{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"creator_ids": page.IDs, "next_cursor": page.NextCursor})
+			return
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		ids, err := s.socialGraph.ListFollowing(ctx, viewer)
 		cancel()
@@ -656,6 +686,39 @@ func (s *Server) handleDeleteReaction(w http.ResponseWriter, r *http.Request) {
 	s.socialMu.Unlock()
 	writeJSON(w, 200, map[string]any{"reaction": ""})
 }
+
+// commentPager is the store-level cursor pagination interface for
+// comments. A store that does not implement it falls back to the
+// full-list + in-memory paginator below, so legacy and mock stores keep
+// working.
+type commentPager interface {
+	ListCommentsPage(ctx context.Context, gameID string, p socialgraph.Page) (socialgraph.CommentPage, error)
+}
+
+// reportPager is the store-level cursor pagination interface for
+// moderation reports. The file fallback below keeps its truncated,
+// cursor-less list; only the PostgreSQL path pages.
+type reportPager interface {
+	ListReportsPage(ctx context.Context, status, gameID string, p socialgraph.Page) (socialgraph.ReportPage, error)
+}
+
+// isOpaqueCursor reports whether a cursor decodes as a versioned opaque
+// cursor. Anything else is a legacy raw id on the endpoints that had
+// one (comments, feed, discovery), and must keep legacy semantics.
+func isOpaqueCursor(cursor string) bool {
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return false
+	}
+	var payload struct {
+		Version int `json:"v"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return false
+	}
+	return payload.Version == 1
+}
+
 func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 	gameID := r.PathValue("id")
 	if !s.socialGameAvailableFor(gameID, userID(r)) {
@@ -666,6 +729,38 @@ func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 	if s.socialGraphErr != nil {
 		writeErr(w, http.StatusServiceUnavailable, "shared social storage is unavailable")
 		return
+	}
+	// Opaque cursors (and first pages) take the store path; legacy raw
+	// id cursors keep the in-memory path below, with its 400 on an
+	// unknown cursor, exactly as before.
+	if s.socialGraph != nil {
+		if pager, ok := s.socialGraph.(commentPager); ok {
+			cursor := r.URL.Query().Get("cursor")
+			if cursor == "" || isOpaqueCursor(cursor) {
+				limit := 0
+				if raw := r.URL.Query().Get("limit"); raw != "" {
+					n, err := strconv.Atoi(raw)
+					if err != nil || n < 1 || n > 50 {
+						writeErr(w, http.StatusBadRequest, "limit must be between 1 and 50")
+						return
+					}
+					limit = n
+				}
+				ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+				defer cancel()
+				page, err := pager.ListCommentsPage(ctx, gameID, socialgraph.Page{Limit: limit, Cursor: cursor})
+				if err != nil {
+					writeErr(w, http.StatusBadRequest, err.Error())
+					return
+				}
+				out := make([]socialComment, 0, len(page.Comments))
+				for _, c := range page.Comments {
+					out = append(out, socialComment{ID: c.ID, GameID: c.GameID, UserID: c.UserID, Body: c.Body, CreatedAt: c.CreatedAt})
+				}
+				writeJSON(w, 200, map[string]any{"comments": out, "next_cursor": page.NextCursor})
+				return
+			}
+		}
 	}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
@@ -924,11 +1019,44 @@ func (s *Server) handleUnsaveGame(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"saved": false, "game_id": id})
 }
 
+// savedGamesPager is the store-level cursor pagination interface for
+// saved games.
+type savedGamesPager interface {
+	ListSavedGamesPage(ctx context.Context, viewerID string, p socialgraph.Page) (socialgraph.IDPage, error)
+}
+
 func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 	viewer := userID(r)
 	if s.socialGraphErr != nil {
 		writeErr(w, http.StatusServiceUnavailable, "shared social graph is unavailable")
 		return
+	}
+	// Paging happens BEFORE the block/game-availability filter below,
+	// per the cursor contract: a page can legitimately return fewer
+	// than limit items with a next_cursor, and the handler must not
+	// top it up by fetching extra pages, or the cursor contract
+	// becomes handler-dependent.
+	if s.socialGraph != nil {
+		if pager, ok := s.socialGraph.(savedGamesPager); ok {
+			limit := 0
+			if raw := r.URL.Query().Get("limit"); raw != "" {
+				n, err := strconv.Atoi(raw)
+				if err != nil || n < 1 || n > 50 {
+					writeErr(w, http.StatusBadRequest, "limit must be between 1 and 50")
+					return
+				}
+				limit = n
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			page, err := pager.ListSavedGamesPage(ctx, viewer, socialgraph.Page{Limit: limit, Cursor: strings.TrimSpace(r.URL.Query().Get("cursor"))})
+			cancel()
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			s.writeSavedGamesPage(w, r, viewer, page.IDs, page.NextCursor)
+			return
+		}
 	}
 	var ids []string
 	if s.socialGraph != nil {
@@ -948,6 +1076,29 @@ func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 		}
 		s.socialMu.RUnlock()
 	}
+	games, err := s.savedGamesFiltered(r, viewer, ids)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"games": games})
+}
+
+// writeSavedGamesPage filters one store page of saved ids and returns
+// it with its next_cursor. See handleSavedGames for the paging-before-
+// filter rule.
+func (s *Server) writeSavedGamesPage(w http.ResponseWriter, r *http.Request, viewer string, ids []string, nextCursor string) {
+	games, err := s.savedGamesFiltered(r, viewer, ids)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"games": games, "next_cursor": nextCursor})
+}
+
+// savedGamesFiltered applies block and availability filtering to a
+// saved-game id list (a full list or a single store page).
+func (s *Server) savedGamesFiltered(r *http.Request, viewer string, ids []string) ([]*model.Game, error) {
 	sort.Strings(ids)
 	blocked := map[string]bool{}
 	if s.socialGraph != nil {
@@ -962,8 +1113,7 @@ func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 		if err != nil {
-			writeErr(w, http.StatusServiceUnavailable, "could not read block relations")
-			return
+			return nil, err
 		}
 		for _, id := range blockedIDs {
 			blocked[id] = true
@@ -988,7 +1138,7 @@ func (s *Server) handleSavedGames(w http.ResponseWriter, r *http.Request) {
 		}
 		games = append(games, game)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"games": games})
+	return games, nil
 }
 func (s *Server) handleReportGame(w http.ResponseWriter, r *http.Request) {
 	var req reportRequest
@@ -1658,6 +1808,26 @@ func (s *Server) handleListReports(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
+		// Store cursor path: reports had no legacy cursor, so any
+		// cursor here must be opaque; a non-opaque cursor errors
+		// from the store decode, which is the correct 400.
+		if pager, ok := shared.(reportPager); ok {
+			page, err := pager.ListReportsPage(ctx, status, gameID, socialgraph.Page{Limit: limit, Cursor: strings.TrimSpace(r.URL.Query().Get("cursor"))})
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			reports := make([]socialReport, 0, len(page.Reports))
+			for _, item := range page.Reports {
+				reports = append(reports, socialReport{
+					ID: item.ID, GameID: item.GameID, Reporter: item.ReporterID, Reason: item.Reason,
+					CreatedAt: item.CreatedAt, Status: item.Status, ResolvedAt: item.ResolvedAt,
+					ResolvedBy: item.ResolvedBy, ResolutionReason: item.ResolutionReason,
+				})
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"reports": reports, "next_cursor": page.NextCursor})
+			return
+		}
 		items, err := shared.ListReports(ctx, status, gameID, limit)
 		if err != nil {
 			writeErr(w, http.StatusServiceUnavailable, "could not read moderation reports")
