@@ -156,6 +156,18 @@ type BundleManifest struct {
 	SharedGroupIDs []string   `json:"shared_group_ids"`
 }
 
+// PreviewMetadata is ancillary, version-scoped media for a published game.
+// It can be populated after publishing without mutating the immutable Game IR.
+type PreviewMetadata struct {
+	Version       int     `json:"version"`
+	PosterURL     string  `json:"poster_url,omitempty"`
+	ClipURL       string  `json:"clip_url,omitempty"`
+	Aspect        float64 `json:"aspect,omitempty"`
+	DurationMS    int     `json:"duration_ms,omitempty"`
+	DominantColor string  `json:"dominant_color,omitempty"`
+	Status        string  `json:"status"`
+}
+
 type Game struct {
 	ID           string     `json:"game_id"`
 	ParentGameID string     `json:"parent_game_id,omitempty"`
@@ -180,6 +192,7 @@ type Game struct {
 	ModerationStatus string           `json:"moderation_status,omitempty"`
 	JobID            string           `json:"job_id"`
 	Manifest         *BundleManifest  `json:"manifest,omitempty"`
+	Preview          *PreviewMetadata `json:"preview,omitempty"`
 	GameIR           *gameir.Document `json:"game_ir,omitempty"`
 	CreatedAt        time.Time        `json:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at"`

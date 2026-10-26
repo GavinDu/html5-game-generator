@@ -157,6 +157,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/ingest", s.handleIngest)
 	mux.HandleFunc("POST /v1/games", s.handleCreateGame)
 	mux.HandleFunc("GET /v1/games/{id}", s.handleGetGame)
+	mux.HandleFunc("PUT /v1/games/{id}/previews/{version}/{asset}", s.handleUploadPreviewAsset)
+	mux.HandleFunc("GET /v1/games/{id}/previews/{version}/{asset}", s.handleGetPreviewAsset)
+	mux.HandleFunc("PUT /v1/games/{id}/preview", s.handleSetPreviewMetadata)
 	mux.HandleFunc("POST /v1/games/{id}/confirm", s.handleConfirm)
 	mux.HandleFunc("GET /v1/games/{id}/bundle", s.handleGetBundle)
 	mux.HandleFunc("GET /v1/games/{id}/bundle/game.js", s.handleGameJS)
@@ -802,7 +805,14 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	// interactions as a reliable quality signal. Until at least 20 social
 	// events/reactions exist in the current index, use the newest-first
 	// baseline. This threshold is a guardrail, not a learned parameter.
-	signalCount := len(events)
+	signalCount := 0
+	for _, event := range events {
+		// Player diagnostics are useful observability but are not engagement
+		// evidence and must not activate the quality ranker by themselves.
+		if event.Kind != "player_ready" && event.Kind != "player_session_summary" {
+			signalCount++
+		}
+	}
 	for _, count := range reactionCounts {
 		signalCount += count
 	}
