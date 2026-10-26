@@ -43,7 +43,7 @@ func TestVersionedPreviewAssetsPublishToFeedAndRemainVersionScoped(t *testing.T)
 	if poster.Code != http.StatusCreated {
 		t.Fatalf("poster upload status = %d: %s", poster.Code, poster.Body.String())
 	}
-	clipBytes := []byte{0, 0, 0, 12, 'f', 't', 'y', 'p', 0, 0, 0, 0}
+	clipBytes := []byte{0, 0, 0, 16, 'f', 't', 'y', 'p', 'i', 's', 'o', 'm', 0, 0, 0, 0}
 	clip := request(http.MethodPut, "/v1/games/preview-game/previews/2/clip.mp4", "video/mp4", clipBytes)
 	if clip.Code != http.StatusCreated {
 		t.Fatalf("clip upload status = %d: %s", clip.Code, clip.Body.String())
