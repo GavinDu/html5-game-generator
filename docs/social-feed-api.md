@@ -46,8 +46,8 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 - `GET /v1/moderation/reports` lists reports; `POST /v1/moderation/reports/{reportID}/resolve` resolves one.
 - `POST /v1/games/{id}/moderation` with `{"status":"approved|rejected|quarantined","reason":"..."}`.
 - Both moderation endpoints require `DQ_MODERATION_TOKEN` to be configured and the matching `X-Moderation-Token` header. If the secret is not configured, they return 503 rather than allowing an unprotected moderation action.
-- Reports are persisted in the local social-state snapshot; a dedicated triage dashboard and tamper-evident moderation audit trail remain future work.
-- The server does not yet automatically analyze game content. The publication gate is a workflow/control point, not a claim that automated content moderation exists.
+- Reports are persisted in the local social-state snapshot, while moderation mutations and configured preview scan outcomes are written to the append-only moderation audit sink.
+- Preview uploads can install a `PreviewScanner` provider. Passed assets are stored, rejected assets are refused before storage, and provider errors fail closed; each configured scan result is auditable as a `preview_scan` event. With no provider installed, the existing manual moderation workflow remains in effect, and enabling a provider is required before claiming automated media analysis.
 
 ## Events and ranking
 

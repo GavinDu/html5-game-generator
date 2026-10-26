@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -14,8 +15,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"doodlequest/internal/model"
+	"doodlequest/internal/pipeline"
 )
 
 const (
@@ -29,6 +32,25 @@ type previewMetadataRequest struct {
 	Aspect        float64 `json:"aspect"`
 	DurationMS    int     `json:"duration_ms"`
 	DominantColor string  `json:"dominant_color"`
+}
+
+// PreviewScanResult is the provider-neutral outcome of scanning one preview
+// asset. A rejected asset is never stored or served.
+type PreviewScanResult struct {
+	Status string
+	Reason string
+}
+
+// PreviewScanner is intentionally small so deployments can plug in a local
+// classifier, a vendor API, or a queue-backed moderation service later.
+type PreviewScanner interface {
+	ScanPreview(context.Context, string, int, string, []byte) (PreviewScanResult, error)
+}
+
+// SetPreviewScanner installs the preview safety provider. A nil scanner
+// explicitly preserves the current no-provider behavior.
+func (s *Server) SetPreviewScanner(scanner PreviewScanner) {
+	s.previewScanner = scanner
 }
 
 func publishedGameVersion(game *model.Game) int {
@@ -135,6 +157,32 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return
+	}
+	if s.previewScanner != nil {
+		scan, scanErr := s.previewScanner.ScanPreview(r.Context(), game.ID, version, asset, data)
+		auditStatus := scan.Status
+		if scanErr != nil {
+			auditStatus = "error"
+		}
+		if auditStatus == "" {
+			auditStatus = "pending"
+		}
+		if err := s.persistAudit(r.Context(), moderationAuditEvent{
+			ID: pipeline.NewID(), Action: "preview_scan", GameID: game.ID,
+			ActorID: "preview-scanner", Status: auditStatus,
+			Reason: scan.Reason, CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist preview scan audit")
+			return
+		}
+		if scanErr != nil {
+			writeErr(w, http.StatusServiceUnavailable, "preview safety scan unavailable")
+			return
+		}
+		if scan.Status != "passed" {
+			writeErr(w, http.StatusUnprocessableEntity, "preview asset requires moderation review")
+			return
+		}
 	}
 	s.store.PutArtifact(game.ID, key, data, contentType)
 	w.WriteHeader(http.StatusCreated)

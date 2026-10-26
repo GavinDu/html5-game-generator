@@ -48,6 +48,7 @@ type Server struct {
 	deliveryMu          sync.Mutex
 	deliveryMetrics     map[string]*deliveryMetricSnapshot
 	deliveryInvalidator DeliveryCacheInvalidator
+	previewScanner      PreviewScanner
 	socialMu            sync.RWMutex
 	socialGraph         socialgraph.Store
 	socialGraphErr      error
