@@ -123,7 +123,7 @@ type socialStateSnapshot struct {
 	// (architecture review 2026-10-23): every other relation survived
 	// a restart, follow graphs silently reset.
 	Follows  map[string]map[string]struct{} `json:"follows"`
-	Profiles map[string]creatorProfile      `json:"profiles,omitempty"`
+	Profiles map[string]creatorProfile `json:"profiles,omitempty"`
 }
 
 func socialStatePath() string {
