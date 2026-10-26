@@ -491,16 +491,16 @@ func (s *Server) handleDiscoverCreators(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleGetMyProfile(w http.ResponseWriter, r *http.Request) {
-	userID := strings.TrimSpace(userID(r))
-	if userID == "" {
+	actorID := strings.TrimSpace(userID(r))
+	if actorID == "" {
 		writeErr(w, http.StatusUnauthorized, "authenticated user is required")
 		return
 	}
 	s.socialMu.RLock()
-	profile := s.profiles[userID]
+	profile := s.profiles[actorID]
 	s.socialMu.RUnlock()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user_id": userID, "display_name": profile.DisplayName,
+		"user_id": actorID, "display_name": profile.DisplayName,
 		"avatar_url": profile.AvatarURL, "updated_at": profile.UpdatedAt,
 	})
 }
@@ -526,7 +526,7 @@ func (s *Server) handleSetMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if avatar != "" {
-		parsed, err := url.ParseRequestURI(avatar)
+		parsed, err := url.Parse(avatar)
 		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
 			writeErr(w, http.StatusBadRequest, "avatar_url must be an absolute HTTPS URL without credentials")
 			return
@@ -537,7 +537,7 @@ func (s *Server) handleSetMyProfile(w http.ResponseWriter, r *http.Request) {
 	if s.profiles == nil {
 		s.profiles = map[string]creatorProfile{}
 	}
-	s.profiles[userID] = profile
+	s.profiles[actorID] = profile
 	err := s.persistSocialStateLocked()
 	s.socialMu.Unlock()
 	if err != nil {
@@ -545,7 +545,7 @@ func (s *Server) handleSetMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user_id": userID, "display_name": profile.DisplayName,
+		"user_id": actorID, "display_name": profile.DisplayName,
 		"avatar_url": profile.AvatarURL, "updated_at": profile.UpdatedAt,
 	})
 }
