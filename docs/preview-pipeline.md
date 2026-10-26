@@ -1,7 +1,15 @@
-# Deterministic preview selection
 
-The browser runtime exposes a bounded `events` array in its playtest probe report. Events carry a millisecond timestamp from the visible run clock and a type such as `first_input`, `first_reward`, `score_change`, `collision`, `milestone`, `win`, or `lose`.
+## Headless render step
 
-`internal/preview.PickWindow` selects a six-second window without changing gameplay or replay verification. The first `first_input` event anchors the fallback. If a meaningful event exists after that interaction, the picker chooses the highest-priority event (`win`/`lose`, score change, first reward, collision, then milestone), breaks ties by earliest timestamp, and centers the window slightly before it. Short runs are clamped to their complete duration, and a run with no meaningful events falls back to the first six seconds after interaction.
+`tools/playtest/render-preview.mjs` replays a stored run in Chromium or WebKit, captures a fixed 12-fps sequence for six seconds, writes a muted H.264 MP4 (`yuv420p`, `+faststart`), and saves the midpoint frame as the poster. Example:
 
-The runtime records score changes and hazard collisions in addition to the existing win, lose, first-input, reward, and milestone events. The picker is pure and deterministic: identical event traces and run durations always produce the same `{start_ms, end_ms}` result. The renderer can use that result as the replay interval for issue #100; until that renderer is connected, preview generation continues to use the existing poster/clip workflow.
+```sh
+node tools/playtest/render-preview.mjs \
+  --base http://localhost:8080 \
+  --game GAME_ID \
+  --run RUN_ID \
+  --out /tmp/preview.mp4 \
+  --poster /tmp/poster.png
+```
+
+The renderer uses a fixed viewport of 420×900 CSS pixels and a fixed frame interval. If ffmpeg encoding fails after frame capture, the poster remains available and the command reports `clip_fallback: true`; this is intentionally non-blocking for poster-only preview publication. The command prints JSON containing frame count, duration, browser, output paths, and fallback state so the media-delivery decision can log render time and clip size around the invocation.
