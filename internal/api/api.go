@@ -614,6 +614,41 @@ func (s *Server) handleVisibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, game)
 }
 
+// loadAllIDs returns the viewer's full internal filter set. When the store
+// implements socialgraph.AllIDStore it uses the single call; otherwise it
+// builds the same set from the individual List* methods, with the same
+// fail-fast semantics: any failing set aborts the whole load, so a caller
+// never acts on a partially loaded filter set.
+func (s *Server) loadAllIDs(ctx context.Context, viewer string) (socialgraph.AllIDs, error) {
+	if store, ok := s.socialGraph.(socialgraph.AllIDStore); ok {
+		return store.ListAllIDs(ctx, viewer)
+	}
+	var all socialgraph.AllIDs
+	var err error
+	if all.Following, err = s.socialGraph.ListFollowing(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	if all.Followers, err = s.socialGraph.ListFollowers(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	if all.Blocked, err = s.socialGraph.ListBlocked(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	if all.Blockers, err = s.socialGraph.ListBlockers(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	if all.SavedGames, err = s.socialGraph.ListSavedGames(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	if all.NotInterested, err = s.socialGraph.ListNotInterested(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	if all.MutedTopics, err = s.socialGraph.ListMutedTopics(ctx, viewer); err != nil {
+		return socialgraph.AllIDs{}, err
+	}
+	return all, nil
+}
+
 // GET /v1/feed?scope=for_you|following|friends. This is a transparent in-memory
 // baseline; personalized ranking can evolve after event volume is meaningful.
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
@@ -652,36 +687,24 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	mutedTopicIDs := []string{}
 	if s.socialGraph != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-		followingIDs, err := s.socialGraph.ListFollowing(ctx, viewer)
-		if err == nil {
-			blockedIDs, err = s.socialGraph.ListBlocked(ctx, viewer)
-		}
-		if err == nil {
-			blockerIDs, err = s.socialGraph.ListBlockers(ctx, viewer)
-		}
-		if err == nil && scope == "friends" {
-			var followerIDs []string
-			followerIDs, err = s.socialGraph.ListFollowers(ctx, viewer)
-			if err == nil {
-				for _, id := range followerIDs {
-					followers[id] = true
-				}
-			}
-		}
-		if err == nil {
-			ignoredIDs, err = s.socialGraph.ListNotInterested(ctx, viewer)
-		}
-		if err == nil {
-			mutedTopicIDs, err = s.socialGraph.ListMutedTopics(ctx, viewer)
-		}
+		all, err := s.loadAllIDs(ctx, viewer)
 		cancel()
 		if err != nil {
 			s.socialMu.RUnlock()
 			writeErr(w, http.StatusServiceUnavailable, "could not read shared social graph")
 			return
 		}
-		for _, id := range followingIDs {
+		for _, id := range all.Following {
 			followed[id] = true
+		}
+		blockedIDs = all.Blocked
+		blockerIDs = all.Blockers
+		ignoredIDs = all.NotInterested
+		mutedTopicIDs = all.MutedTopics
+		if scope == "friends" {
+			for _, id := range all.Followers {
+				followers[id] = true
+			}
 		}
 	}
 	if scope == "friends" {
