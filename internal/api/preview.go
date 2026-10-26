@@ -3,6 +3,9 @@ package api
 import (
 	"bytes"
 	"encoding/hex"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"fmt"
 	"io"
 	"mime"
@@ -138,10 +141,15 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 
 func validPreviewBytes(asset string, data []byte) bool {
 	switch asset {
-	case "poster.png":
-		return len(data) >= 8 && bytes.Equal(data[:8], []byte{137, 80, 78, 71, 13, 10, 26, 10})
-	case "poster.jpg":
-		return len(data) >= 3 && data[0] == 0xff && data[1] == 0xd8 && data[2] == 0xff
+	case "poster.png", "poster.jpg":
+		config, format, err := image.DecodeConfig(bytes.NewReader(data))
+		if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 4096 || config.Height > 4096 {
+			return false
+		}
+		if asset == "poster.png" {
+			return format == "png"
+		}
+		return format == "jpeg"
 	case "clip.mp4":
 		return len(data) >= 12 && string(data[4:8]) == "ftyp"
 	default:
