@@ -76,14 +76,14 @@ func TestVersionedPreviewAssetsPublishToFeedAndRemainVersionScoped(t *testing.T)
 		t.Fatal(err)
 	}
 	var found *struct {
-		GameID string `json:"game_id"`
+		GameID  string `json:"game_id"`
 		Preview struct {
-			PosterURL string `json:"poster_url"`
-			ClipURL string `json:"clip_url"`
-			Aspect float64 `json:"aspect"`
-			DurationMS int `json:"duration_ms"`
-			DominantColor string `json:"dominant_color"`
-			Status string `json:"status"`
+			PosterURL     string  `json:"poster_url"`
+			ClipURL       string  `json:"clip_url"`
+			Aspect        float64 `json:"aspect"`
+			DurationMS    int     `json:"duration_ms"`
+			DominantColor string  `json:"dominant_color"`
+			Status        string  `json:"status"`
 		} `json:"preview"`
 	}
 	for i := range response.Cards {
