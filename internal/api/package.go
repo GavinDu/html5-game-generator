@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,6 +13,38 @@ import (
 	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
 )
+
+// DeliveryCacheInvalidator is the boundary between game visibility changes
+// and a shared CDN or reverse proxy. Public package and asset URLs are
+// immutable only while the game's eligibility is unchanged, so moderation or
+// visibility transitions must purge previously published cache entries.
+type DeliveryCacheInvalidator interface {
+	InvalidateGame(context.Context, string) error
+}
+
+type noopDeliveryCacheInvalidator struct{}
+
+func (noopDeliveryCacheInvalidator) InvalidateGame(context.Context, string) error { return nil }
+
+// SetDeliveryCacheInvalidator installs the deployment-specific purge adapter.
+// It is intended to be called during server setup, before Routes is served.
+func (s *Server) SetDeliveryCacheInvalidator(invalidator DeliveryCacheInvalidator) {
+	if invalidator == nil {
+		invalidator = noopDeliveryCacheInvalidator{}
+	}
+	s.deliveryInvalidator = invalidator
+}
+
+func (s *Server) invalidateDeliveryCache(ctx context.Context, gameID string) {
+	if s.deliveryInvalidator == nil {
+		s.deliveryInvalidator = noopDeliveryCacheInvalidator{}
+	}
+	if err := s.deliveryInvalidator.InvalidateGame(ctx, gameID); err != nil {
+		// The state mutation has already succeeded. Keep the API response
+		// deterministic, but make a failed purge visible to operators.
+		log.Printf("delivery cache invalidation failed for game %s: %v", gameID, err)
+	}
+}
 
 const PackageFormatVersion = "2.0"
 const PackageVersion = PackageFormatVersion // deprecated name for source compatibility

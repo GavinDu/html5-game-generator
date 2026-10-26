@@ -1530,6 +1530,7 @@ func (s *Server) handleModerateGame(w http.ResponseWriter, r *http.Request) {
 		g.QuarantineReason = ""
 	}
 	s.store.UpdateGame(g)
+	s.invalidateDeliveryCache(r.Context(), g.ID)
 	writeJSON(w, 200, map[string]any{"game_id": g.ID, "moderation_status": g.ModerationStatus})
 }
 func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {

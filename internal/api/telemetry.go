@@ -245,6 +245,7 @@ func (s *Server) observeTelemetry(ev teleEvent) {
 	game.QuarantineReason = reason
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
+	s.invalidateDeliveryCache(context.Background(), game.ID)
 }
 
 type incident struct {
@@ -358,6 +359,7 @@ func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
 	}
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
+	s.invalidateDeliveryCache(r.Context(), game.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"game_id": game.ID, "quarantined": true, "reason": game.QuarantineReason})
 }
 
@@ -381,6 +383,7 @@ func (s *Server) handleUnquarantine(w http.ResponseWriter, r *http.Request) {
 	}
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
+	s.invalidateDeliveryCache(r.Context(), game.ID)
 	s.teleMu.Lock()
 	kept := s.teleEvents[:0]
 	for _, e := range s.teleEvents {

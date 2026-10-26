@@ -43,24 +43,25 @@ var pixiVendorJS string
 var rapierVendorJS string
 
 type Server struct {
-	store              store.Store
-	runner             *pipeline.Runner
-	deliveryMu         sync.Mutex
-	deliveryMetrics    map[string]*deliveryMetricSnapshot
-	socialMu           sync.RWMutex
-	socialGraph        socialgraph.Store
-	socialGraphErr     error
-	follows            map[string]map[string]struct{}
-	reactions          map[string]map[string]string
-	comments           map[string][]socialComment
-	saves              map[string]map[string]bool
-	blocks             map[string]map[string]bool
-	notInterested      map[string]map[string]bool
-	mutedTopics        map[string]map[string]bool
-	profiles           map[string]creatorProfile
-	commentIdempotency map[string]commentIdempotencyRecord
-	reports            []socialReport
-	events             []socialEvent
+	store               store.Store
+	runner              *pipeline.Runner
+	deliveryMu          sync.Mutex
+	deliveryMetrics     map[string]*deliveryMetricSnapshot
+	deliveryInvalidator DeliveryCacheInvalidator
+	socialMu            sync.RWMutex
+	socialGraph         socialgraph.Store
+	socialGraphErr      error
+	follows             map[string]map[string]struct{}
+	reactions           map[string]map[string]string
+	comments            map[string][]socialComment
+	saves               map[string]map[string]bool
+	blocks              map[string]map[string]bool
+	notInterested       map[string]map[string]bool
+	mutedTopics         map[string]map[string]bool
+	profiles            map[string]creatorProfile
+	commentIdempotency  map[string]commentIdempotencyRecord
+	reports             []socialReport
+	events              []socialEvent
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -100,7 +101,7 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, profiles: map[string]creatorProfile{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}}
+	s := &Server{store: st, runner: r, deliveryInvalidator: noopDeliveryCacheInvalidator{}, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, profiles: map[string]creatorProfile{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}}
 	if dsn := strings.TrimSpace(os.Getenv("DQ_SOCIAL_DATABASE_URL")); dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		graph, err := socialgraph.OpenPostgres(ctx, dsn)
@@ -615,6 +616,7 @@ func (s *Server) handleVisibility(w http.ResponseWriter, r *http.Request) {
 	}
 	game.UpdatedAt = time.Now()
 	s.store.UpdateGame(game)
+	s.invalidateDeliveryCache(r.Context(), game.ID)
 	writeJSON(w, http.StatusOK, game)
 }
 
