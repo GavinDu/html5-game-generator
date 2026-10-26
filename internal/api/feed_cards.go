@@ -139,14 +139,22 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			continue
 		}
 		version := ""
-		if game.PublishedVersion > 0 {
-			version = strconv.Itoa(game.PublishedVersion)
+		if currentVersion := publishedGameVersion(game); currentVersion > 0 {
+			version = strconv.Itoa(currentVersion)
 		}
 		stats := eventStats[game.ID]
 		stats.Likes = likes[game.ID]
 		var statsPtr *feedCardStats
 		if stats.Likes > 0 || stats.PlayStarts > 0 || stats.Completions > 0 || stats.Replays > 0 || stats.Shares > 0 {
 			statsPtr = &stats
+		}
+		preview := feedPreview{Status: "pending"}
+		if game.Preview != nil && game.Preview.Version == publishedGameVersion(game) {
+			preview = feedPreview{
+				PosterURL: game.Preview.PosterURL, ClipURL: game.Preview.ClipURL,
+				Aspect: game.Preview.Aspect, DurationMS: game.Preview.DurationMS,
+				DominantColor: game.Preview.DominantColor, Status: game.Preview.Status,
+			}
 		}
 		cards = append(cards, feedCard{
 			GameID:  game.ID,
@@ -155,9 +163,7 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			Caption: game.Caption,
 			Topics:  append([]string(nil), game.Topics...),
 			Creator: feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},
-			// Preview generation is a separate pipeline. Explicitly mark a missing
-			// preview pending rather than inventing a URL or metrics.
-			Preview: feedPreview{Status: "pending"},
+			Preview: preview,
 			Stats:   statsPtr,
 			Viewer: feedCardViewer{
 				Liked:     liked[game.ID],
