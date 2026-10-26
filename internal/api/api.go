@@ -783,19 +783,24 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		signalCount += count
 	}
 	useEngagementRanking := engagementRankingEnabled() && signalCount >= 20
-	// Aggregate event weights once so ranking cost is O(events + games log games),
-	// rather than rescanning every event for every pairwise sort comparison.
+	// Aggregate ranking features once per request; the existing flag remains
+	// the immediate rollback to newest-first.
 	engagementScores := feedEngagementByGame(events)
+	qualitySignals := feedQualitySignalsByGame(events)
 	sort.SliceStable(out, func(i, j int) bool {
 		if !useEngagementRanking {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
-		si, sj := feedScore(out[i], reactionCounts, engagementScores), feedScore(out[j], reactionCounts, engagementScores)
+		si := feedQualityScore(out[i], reactionCounts, engagementScores, qualitySignals[out[i].ID])
+		sj := feedQualityScore(out[j], reactionCounts, engagementScores, qualitySignals[out[j].ID])
 		if si == sj {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
 		return si > sj
 	})
+	if useEngagementRanking {
+		out = reserveExplorationSlots(out, qualitySignals, 5)
+	}
 	out = diversifyFeed(out)
 	if out == nil {
 		out = []*model.Game{}
@@ -915,6 +920,134 @@ func feedEngagementByGame(events []socialEvent) map[string]float64 {
 		}
 	}
 	return byGame
+}
+
+// feedQualitySignals stores bounded, per-game rates rather than allowing a
+// single popular game or a burst of duplicate events to dominate by raw count.
+type feedQualitySignals struct {
+	Impressions            int
+	Plays                  int
+	Completions            int
+	Replays                int
+	QuickExits             int
+	CompletionQuality      float64
+	ReplayQuality          float64
+	AvgTimeToInteractiveMS float64
+	TTISamples             int
+}
+
+func feedQualitySignalsByGame(events []socialEvent) map[string]feedQualitySignals {
+	out := make(map[string]feedQualitySignals)
+	for _, event := range events {
+		if event.GameID == "" {
+			continue
+		}
+		s := out[event.GameID]
+		switch event.Kind {
+		case "impression":
+			s.Impressions++
+		case "play_start":
+			s.Plays++
+		case "completion":
+			s.Completions++
+			if event.ExpectedMS > 0 && event.DurationMS > 0 {
+				ratio := float64(event.DurationMS) / float64(event.ExpectedMS)
+				if ratio > 1 {
+					ratio = 1
+				}
+				s.CompletionQuality += ratio
+			}
+		case "replay":
+			s.Replays++
+			if event.ExpectedMS > 0 && event.DurationMS > 0 {
+				ratio := float64(event.DurationMS) / float64(event.ExpectedMS)
+				if ratio > 1 {
+					ratio = 1
+				}
+				s.ReplayQuality += ratio
+			}
+		case "quick_exit":
+			s.QuickExits++
+		}
+		if event.TimeToInteractiveMS > 0 {
+			s.AvgTimeToInteractiveMS += float64(event.TimeToInteractiveMS)
+			s.TTISamples++
+		}
+		out[event.GameID] = s
+	}
+	for id, s := range out {
+		if s.TTISamples > 0 {
+			s.AvgTimeToInteractiveMS /= float64(s.TTISamples)
+		}
+		out[id] = s
+	}
+	return out
+}
+
+func feedQualityScore(g *model.Game, reactions map[string]int, engagement map[string]float64, s feedQualitySignals) float64 {
+	score := feedScore(g, reactions, engagement)
+	// Rates are smoothed so a single early event does not create a perfect score.
+	tapRate := float64(s.Plays) / float64(s.Impressions+3)
+	completionRate := float64(s.Completions) / float64(s.Plays+3)
+	replayRate := float64(s.Replays) / float64(s.Completions+3)
+	quickExitRate := float64(s.QuickExits) / float64(s.Plays+3)
+	completionQuality := s.CompletionQuality / float64(s.Completions+1)
+	replayQuality := s.ReplayQuality / float64(s.Replays+1)
+	score += 0.20*tapRate + 0.18*completionRate*completionQuality + 0.10*replayRate*replayQuality
+	score -= 0.18 * quickExitRate
+	if s.TTISamples > 0 {
+		// No penalty below 1.5s; a bounded penalty ramps up to 0.15 at 6s.
+		penalty := (s.AvgTimeToInteractiveMS - 1500) / 30000
+		if penalty < 0 {
+			penalty = 0
+		}
+		if penalty > 0.15 {
+			penalty = 0.15
+		}
+		score -= penalty
+	}
+	return score
+}
+
+// reserveExplorationSlots promotes a recent low-impression candidate into
+// every fifth position, retaining the ranked order of both candidate pools.
+func reserveExplorationSlots(ranked []*model.Game, signals map[string]feedQualitySignals, interval int) []*model.Game {
+	if interval < 2 || len(ranked) < interval {
+		return ranked
+	}
+	explore := make([]*model.Game, 0)
+	exploit := make([]*model.Game, 0, len(ranked))
+	for _, game := range ranked {
+		s := signals[game.ID]
+		if s.Impressions < 3 {
+			explore = append(explore, game)
+		} else {
+			exploit = append(exploit, game)
+		}
+	}
+	if len(explore) == 0 || len(exploit) == 0 {
+		return ranked
+	}
+	out := make([]*model.Game, 0, len(ranked))
+	for len(explore) > 0 || len(exploit) > 0 {
+		for i := 1; i < interval && len(exploit) > 0; i++ {
+			out = append(out, exploit[0])
+			exploit = exploit[1:]
+		}
+		if len(explore) > 0 {
+			out = append(out, explore[0])
+			explore = explore[1:]
+		}
+		if len(exploit) == 0 && len(explore) > 0 {
+			out = append(out, explore...)
+			break
+		}
+		if len(explore) == 0 && len(exploit) > 0 {
+			out = append(out, exploit...)
+			break
+		}
+	}
+	return out
 }
 
 func feedScore(g *model.Game, reactions map[string]int, engagement map[string]float64) float64 {

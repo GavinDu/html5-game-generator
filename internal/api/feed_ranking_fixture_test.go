@@ -175,3 +175,57 @@ func BenchmarkFeedRanking(b *testing.B) {
 		})
 	}
 }
+
+func TestFeedQualitySignalsAreSmoothedAndPenalizeSlowOrQuickExit(t *testing.T) {
+	events := []socialEvent{
+		{GameID: "good", Kind: "impression"},
+		{GameID: "good", Kind: "impression"},
+		{GameID: "good", Kind: "play_start"},
+		{GameID: "good", Kind: "completion", DurationMS: 4000, ExpectedMS: 5000, TimeToInteractiveMS: 1000},
+		{GameID: "good", Kind: "replay", DurationMS: 3000, ExpectedMS: 5000},
+		{GameID: "slow", Kind: "impression"},
+		{GameID: "slow", Kind: "play_start"},
+		{GameID: "slow", Kind: "quick_exit", TimeToInteractiveMS: 6000},
+	}
+	signals := feedQualitySignalsByGame(events)
+	if signals["good"].Impressions != 2 || signals["good"].Plays != 1 || signals["good"].Completions != 1 {
+		t.Fatalf("good-game counters = %+v", signals["good"])
+	}
+	now := time.Now().UTC()
+	good := feedFixtureGame("good", "creator-good", now.Add(-time.Hour))
+	slow := feedFixtureGame("slow", "creator-slow", now.Add(-time.Hour))
+	scores := map[string]float64{}
+	goodScore := feedQualityScore(good, nil, scores, signals["good"])
+	slowScore := feedQualityScore(slow, nil, scores, signals["slow"])
+	if goodScore <= slowScore {
+		t.Fatalf("quality ranking score good=%f slow=%f; expected satisfying fast game to rank higher", goodScore, slowScore)
+	}
+}
+
+func TestFeedExplorationReservesOneOfFiveSlotsForLowImpressionGames(t *testing.T) {
+	games := make([]*model.Game, 10)
+	signals := map[string]feedQualitySignals{}
+	for i := range games {
+		id := "game-" + strconv.Itoa(i)
+		games[i] = feedFixtureGame(id, "creator-"+id, time.Now().Add(-time.Duration(i)*time.Minute))
+		if i < 5 {
+			signals[id] = feedQualitySignals{Impressions: 10}
+		} else {
+			signals[id] = feedQualitySignals{Impressions: 0}
+		}
+	}
+	got := reserveExplorationSlots(games, signals, 5)
+	if len(got) != len(games) {
+		t.Fatalf("exploration result length=%d want %d", len(got), len(games))
+	}
+	if got[4].ID != "game-5" {
+		t.Fatalf("fifth slot = %q, want first low-impression candidate game-5", got[4].ID)
+	}
+	seen := map[string]bool{}
+	for _, game := range got {
+		if seen[game.ID] {
+			t.Fatalf("duplicate game after exploration: %q", game.ID)
+		}
+		seen[game.ID] = true
+	}
+}
