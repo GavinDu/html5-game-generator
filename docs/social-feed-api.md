@@ -56,6 +56,38 @@ Social state uses a local JSON snapshot plus an append-only JSONL event file. Fo
 - Not-interested and block feedback remove matching content from that viewer's feed.
 - Avoid interpreting raw play duration as quality: normalize by expected game length/type when evaluating future ranking.
 
+## Follow relationships and persistence
+
+Follow edges are the one social relation whose shared persistence is no
+longer deferred, when PostgreSQL is configured (`DQ_SOCIAL_DATABASE_URL`):
+
+- Storage: `social_follows` rows, created by `Migrate` (`CREATE TABLE IF
+  NOT EXISTS`, no separate schema-version table yet). The primary key
+  `(viewer_id, creator_id)` enforces uniqueness, and `Follow` inserts with
+  `ON CONFLICT DO NOTHING`, so follow and unfollow are both idempotent
+  and concurrent follows of the same edge converge to exactly one row
+  (covered by `TestPostgresConcurrentFollowCreatesOneEdge` and
+  `TestPostgresStoreSharesFollowEdgesAcrossInstances`).
+- Survival and sharing: edges survive restarts and deployments and are
+  visible across API instances through the shared database. Without
+  PostgreSQL, the fallback is the local social-state snapshot file
+  (`TestFollowsSurviveRestart`); in-memory-only mode still loses edges
+  on restart and is not shared between replicas.
+- Migration and recovery: a file snapshot's follow edges import
+  idempotently via `ImportFollows`, and the socialgraph backup (format
+  v4) includes `social_follows`; a full restore needs the store backup
+  plus the socialgraph backup together (see the backup/restore drill).
+- Following and Friends feeds read the same stored relationships
+  (`ListFollowing` / `ListFollowers` through the shared graph), so a
+  feed cannot show a follow the store does not have, or miss one it
+  does, when PostgreSQL is configured.
+- Account deletion: there is no account-deletion or account-disable
+  operation yet, and users are opaque ID strings with no user table.
+  Until one lands, follow edges persist until explicitly unfollowed;
+  when deletion is implemented it must remove every edge where the
+  account is either viewer or creator. That removal is future work,
+  not a currently enforced behavior.
+
 ## Deferred security and persistence work
 
-Do not treat `X-User-ID` as authentication. Social relations and interactions are persisted in a local JSON snapshot (default `telemetry/social-state.json`, override with `DQ_SOCIAL_STATE_FILE`); social events append to `telemetry/social-events.jsonl` (override with `DQ_SOCIAL_EVENTS_FILE`). This is local single-instance file persistence, not shared durable storage. Full shared persistence, transactional guarantees, migrations, and concurrent multi-instance behavior remain deferred under issue #11 and must be addressed before multiple replicas or relying on this data for production.
+Do not treat `X-User-ID` as authentication. Social relations and interactions are persisted in a local JSON snapshot (default `telemetry/social-state.json`, override with `DQ_SOCIAL_STATE_FILE`); social events append to `telemetry/social-events.jsonl` (override with `DQ_SOCIAL_EVENTS_FILE`). This is local single-instance file persistence, not shared durable storage. For relations other than follow edges (see above), full shared persistence, transactional guarantees, migrations, and concurrent multi-instance behavior remain deferred under issue #11 and must be addressed before multiple replicas or relying on this data for production.
