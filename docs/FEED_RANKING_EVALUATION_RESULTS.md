@@ -129,3 +129,15 @@ it can change membership, and performance is fine. Rolling back would not
 fix the one failing gate, which affects newest-first identically. Do not
 tune weights from these 10 fixtures. The tie-break stabilization is the
 only follow-up, as its own small change, not bundled with this evaluation.
+
+## Addendum 2026-10-27: determinism gate now passes (via #168)
+
+The tie-timestamps determinism failure recorded above was fixed after this
+run by PR #168 (merged as c3946622): `ListGames` now sorts by a total order
+(CreatedAt desc, game ID asc), the feed sort carries the same ID tie-break,
+and feed scores are computed once per game from a single request timestamp
+(the per-comparison `time.Since` call was making identical games differ by
+microseconds, which defeated the tie-break). Re-running
+`TestFeedRankingEvaluation` on main c3946622 passes, including the
+tie-timestamps fixture. The original run's values above are preserved as
+measured; only the determinism gate verdict changes, from FAIL to PASS.
