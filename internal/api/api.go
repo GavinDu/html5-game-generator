@@ -831,16 +831,33 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	// the immediate rollback to newest-first.
 	engagementScores := feedEngagementByGame(events)
 	qualitySignals := feedQualitySignalsByGame(events)
+	// Scores are computed once per game from a single request timestamp.
+	// Scoring inside the comparator with time.Since made equal games differ
+	// by microseconds (the earlier-evaluated game always won), which both
+	// defeated the tie-break and made feed order depend on comparison order.
+	now := time.Now()
+	qualityScores := make(map[string]float64, len(out))
+	if useEngagementRanking {
+		for _, g := range out {
+			qualityScores[g.ID] = feedQualityScore(g, reactionCounts, engagementScores, qualitySignals[g.ID], now)
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if !useEngagementRanking {
+			if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+				return out[i].CreatedAt.After(out[j].CreatedAt)
+			}
+			return out[i].ID < out[j].ID
+		}
+		si := qualityScores[out[i].ID]
+		sj := qualityScores[out[j].ID]
+		if si != sj {
+			return si > sj
+		}
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
-		si := feedQualityScore(out[i], reactionCounts, engagementScores, qualitySignals[out[i].ID])
-		sj := feedQualityScore(out[j], reactionCounts, engagementScores, qualitySignals[out[j].ID])
-		if si == sj {
-			return out[i].CreatedAt.After(out[j].CreatedAt)
-		}
-		return si > sj
+		return out[i].ID < out[j].ID
 	})
 	if useEngagementRanking {
 		out = reserveExplorationSlots(out, qualitySignals, 5)
@@ -1028,8 +1045,8 @@ func feedQualitySignalsByGame(events []socialEvent) map[string]feedQualitySignal
 	return out
 }
 
-func feedQualityScore(g *model.Game, reactions map[string]int, engagement map[string]float64, s feedQualitySignals) float64 {
-	score := feedScore(g, reactions, engagement)
+func feedQualityScore(g *model.Game, reactions map[string]int, engagement map[string]float64, s feedQualitySignals, now time.Time) float64 {
+	score := feedScore(g, reactions, engagement, now)
 	// Rates are smoothed so a single early event does not create a perfect score.
 	tapRate := float64(s.Plays) / float64(s.Impressions+3)
 	completionRate := float64(s.Completions) / float64(s.Plays+3)
@@ -1094,8 +1111,8 @@ func reserveExplorationSlots(ranked []*model.Game, signals map[string]feedQualit
 	return out
 }
 
-func feedScore(g *model.Game, reactions map[string]int, engagement map[string]float64) float64 {
-	age := time.Since(g.CreatedAt).Hours()
+func feedScore(g *model.Game, reactions map[string]int, engagement map[string]float64, now time.Time) float64 {
+	age := now.Sub(g.CreatedAt).Hours()
 	if age < 0 {
 		age = 0
 	}
