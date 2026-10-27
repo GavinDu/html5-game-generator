@@ -196,6 +196,7 @@ const rand = (a, b) => a + rng() * (b - a);
 // using the original runtime-error endpoint.
 const dqSessionId = Math.floor(Math.random() * 0xffffffff).toString(16);
 let dqTelemetrySeq = 0;
+let dqNativeMetricSeq = 0;
 let dqEvents = [];
 function recordEvent(type, detail) {
   dqEvents.push({ t: Math.round(performance.now()), type, detail: detail || '' });
@@ -217,6 +218,19 @@ function sendTelemetryEvent(kind, fields) {
     });
     navigator.sendBeacon('/v1/telemetry/events', new Blob([payload], { type: 'application/json' }));
   } catch { /* telemetry must never break the game */ }
+}
+function sendNativeMetric(metric, fields = {}) {
+  try {
+    window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
+      schema: 1,
+      type: 'player_metric',
+      sessionId: dqSessionId,
+      gameId,
+      metric,
+      sequence: ++dqNativeMetricSeq,
+      ...fields,
+    });
+  } catch { /* native performance reporting is optional outside iOS */ }
 }
 
 // --- WebAudio SFX pool (Phase A) ---------------------------------------
@@ -650,6 +664,7 @@ async function run(id) {
       play.firstInputAt = Math.round(play.visibleMs);
       recordEvent('first_input', type);
       sendTelemetryEvent('milestone', { milestone: 'first_input', ms: play.firstInputAt });
+      sendNativeMetric('first_input', { ms: play.firstInputAt });
     }
   }
   function noteActivity() { play.lastActivityMs = play.visibleMs; }
@@ -661,11 +676,17 @@ async function run(id) {
       else if (ms <= 25) buckets[2]++; else if (ms <= 33) buckets[3]++;
       else if (ms <= 50) buckets[4]++; else buckets[5]++;
     }
+    const sorted = [...play.frameSamples].sort((a, b) => a - b);
+    const frameTimeP95Ms = Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]);
+    const frameTimeAvgMs = Math.round(play.frameSamples.reduce((sum, ms) => sum + ms, 0) / play.frameSamples.length);
     const counts = play.liveCounts();
     sendTelemetryEvent('perf_window', {
       frames: play.frameSamples.length, buckets,
       longestFrameMs: Math.round(play.longestFrameMs),
       entities: counts.entities, particles: counts.particles,
+    });
+    sendNativeMetric('perf_window', {
+      frameTimeP95Ms, frameTimeAvgMs, frameCount: play.frameSamples.length,
     });
     play.frameSamples = [];
     play.longestFrameMs = 0;
