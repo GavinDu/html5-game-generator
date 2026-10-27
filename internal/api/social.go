@@ -122,8 +122,9 @@ type socialStateSnapshot struct {
 	// Follows were the one social edge missing from the snapshot
 	// (architecture review 2026-10-23): every other relation survived
 	// a restart, follow graphs silently reset.
-	Follows  map[string]map[string]struct{} `json:"follows"`
-	Profiles map[string]creatorProfile      `json:"profiles,omitempty"`
+	Follows         map[string]map[string]struct{} `json:"follows"`
+	Profiles        map[string]creatorProfile      `json:"profiles,omitempty"`
+	DeletedSubjects map[string]bool                `json:"deleted_subjects,omitempty"`
 }
 
 func socialStatePath() string {
@@ -190,6 +191,9 @@ func (s *Server) loadSocialState() {
 			if state.Profiles != nil {
 				s.profiles = state.Profiles
 			}
+			if state.DeletedSubjects != nil {
+				s.deletedSubjects = state.DeletedSubjects
+			}
 			s.socialMu.Unlock()
 		}
 	}
@@ -217,7 +221,7 @@ func (s *Server) loadSocialState() {
 }
 
 func (s *Server) persistSocialStateLocked() error {
-	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, MutedTopics: s.mutedTopics, CommentIdempotency: s.commentIdempotency, Reports: s.reports, Follows: s.follows, Profiles: s.profiles}
+	state := socialStateSnapshot{Reactions: s.reactions, Comments: s.comments, Saves: s.saves, Blocks: s.blocks, NotInterested: s.notInterested, MutedTopics: s.mutedTopics, CommentIdempotency: s.commentIdempotency, Reports: s.reports, Follows: s.follows, Profiles: s.profiles, DeletedSubjects: s.deletedSubjects}
 	data, err := json.Marshal(state)
 	if err != nil {
 		return err

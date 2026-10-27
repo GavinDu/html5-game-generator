@@ -61,6 +61,10 @@ type Store interface {
 	CreateComment(ctx context.Context, comment Comment, idempotencyKey string) (Comment, bool, error)
 	ListComments(ctx context.Context, gameID string) ([]Comment, error)
 	DeleteComment(ctx context.Context, gameID, commentID, actorID string) (found bool, owned bool, err error)
+	// DeleteUser purges every social row for userID and tombstones the
+	// subject so its sessions stop working (Hephaestus #10).
+	DeleteUser(ctx context.Context, userID string) error
+	IsUserDeleted(ctx context.Context, userID string) (bool, error)
 	Close() error
 }
 
@@ -170,6 +174,10 @@ CREATE TABLE IF NOT EXISTS social_reactions (
 );
 CREATE INDEX IF NOT EXISTS social_reactions_game_idx
   ON social_reactions (game_id, updated_at DESC);
+CREATE TABLE IF NOT EXISTS deleted_subjects (
+  subject TEXT PRIMARY KEY CHECK (length(subject) BETWEEN 1 AND 128),
+  deleted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("migrate social graph schema: %w", err)
@@ -898,4 +906,50 @@ GROUP BY game_id`
 		return nil, nil, fmt.Errorf("iterate reaction summary: %w", err)
 	}
 	return counts, viewerReactions, nil
+}
+
+// DeleteUser purges every social row for userID (both directions of
+// follows/blocks) and tombstones the subject. Published games are not
+// touched: they are public content addressed by an opaque identifier.
+func (s *PostgresStore) DeleteUser(ctx context.Context, userID string) error {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || len(userID) > 128 {
+		return errors.New("user ID must be 1–128 characters")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin account deletion: %w", err)
+	}
+	defer tx.Rollback()
+	stmts := []string{
+		`DELETE FROM social_follows WHERE viewer_id = $1 OR creator_id = $1`,
+		`DELETE FROM social_blocks WHERE viewer_id = $1 OR blocked_id = $1`,
+		`DELETE FROM social_saves WHERE viewer_id = $1`,
+		`DELETE FROM social_comments WHERE user_id = $1`,
+		`DELETE FROM social_comment_idempotency WHERE user_id = $1`,
+		`DELETE FROM social_not_interested WHERE viewer_id = $1`,
+		`DELETE FROM social_muted_topics WHERE viewer_id = $1`,
+		`DELETE FROM social_reactions WHERE viewer_id = $1`,
+		`DELETE FROM social_moderation_reports WHERE reporter_id = $1`,
+		`INSERT INTO deleted_subjects (subject) VALUES ($1) ON CONFLICT (subject) DO NOTHING`,
+	}
+	for _, q := range stmts {
+		if _, err := tx.ExecContext(ctx, q, userID); err != nil {
+			return fmt.Errorf("purge social data: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit account deletion: %w", err)
+	}
+	return nil
+}
+
+// IsUserDeleted reports whether userID was tombstoned by DeleteUser.
+func (s *PostgresStore) IsUserDeleted(ctx context.Context, userID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM deleted_subjects WHERE subject = $1)`, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check deleted subject: %w", err)
+	}
+	return exists, nil
 }

@@ -61,8 +61,11 @@ type Server struct {
 	mutedTopics         map[string]map[string]bool
 	profiles            map[string]creatorProfile
 	commentIdempotency  map[string]commentIdempotencyRecord
-	reports             []socialReport
-	events              []socialEvent
+	// deletedSubjects tombstones account-deleted subjects: their bearer
+	// tokens stop working and they cannot sign in again (see apple_auth.go).
+	deletedSubjects map[string]bool
+	reports         []socialReport
+	events          []socialEvent
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -102,7 +105,7 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r, deliveryInvalidator: noopDeliveryCacheInvalidator{}, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, profiles: map[string]creatorProfile{}, commentIdempotency: map[string]commentIdempotencyRecord{}, teleV2EventIDs: map[string]struct{}{}}
+	s := &Server{store: st, runner: r, deliveryInvalidator: noopDeliveryCacheInvalidator{}, follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, profiles: map[string]creatorProfile{}, commentIdempotency: map[string]commentIdempotencyRecord{}, deletedSubjects: map[string]bool{}, teleV2EventIDs: map[string]struct{}{}}
 	if dsn := strings.TrimSpace(os.Getenv("DQ_SOCIAL_DATABASE_URL")); dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		graph, err := socialgraph.OpenPostgres(ctx, dsn)
@@ -141,6 +144,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
+	mux.HandleFunc("POST /v1/auth/apple", s.handleAppleSignIn)
+	mux.HandleFunc("DELETE /v1/users/me", s.handleDeleteAccount)
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
 	mux.HandleFunc("POST /v1/telemetry/events", s.handleTelemetryEvent)
 	mux.HandleFunc("GET /v1/telemetry/perf", s.handlePerfSummary)
@@ -185,7 +190,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/games/{id}/game-ir", s.handleGetGameIR)
 	mux.Handle("GET /v1/games/{id}/assets/{asset}", s.observeDelivery("asset", s.handleGetGameAsset))
 	mux.Handle("GET /v1/games/{id}/package", s.observeDelivery("package", s.handleGetPackage))
-	return cors(requireAuthenticatedUser(mux))
+	return cors(s.requireAuthenticatedUser(mux))
 }
 
 func cors(next http.Handler) http.Handler {
@@ -222,7 +227,9 @@ func requireModerationToken(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// userID is a stub for Sign in with Apple; the parent account owns creations.
+// userID returns the verified bearer <redacted> in production (Sign in with Apple
+// subjects are namespaced as apple:<sub>). Legacy identity headers are only
+// honored when explicitly enabled for local development.
 func userID(r *http.Request) string {
 	if subject, ok := r.Context().Value(authContextKey{}).(string); ok && subject != "" {
 		return subject
