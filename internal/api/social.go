@@ -122,9 +122,9 @@ type socialStateSnapshot struct {
 	// Follows were the one social edge missing from the snapshot
 	// (architecture review 2026-10-23): every other relation survived
 	// a restart, follow graphs silently reset.
-	Follows  map[string]map[string]struct{} `json:"follows"`
-	Profiles map[string]creatorProfile      `json:"profiles,omitempty"`
-	DeletedSubjects map[string]bool `json:"deleted_subjects,omitempty"`
+	Follows         map[string]map[string]struct{} `json:"follows"`
+	Profiles        map[string]creatorProfile      `json:"profiles,omitempty"`
+	DeletedSubjects map[string]bool                `json:"deleted_subjects,omitempty"`
 }
 
 func socialStatePath() string {
