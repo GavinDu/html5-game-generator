@@ -196,8 +196,8 @@ func TestFeedQualitySignalsAreSmoothedAndPenalizeSlowOrQuickExit(t *testing.T) {
 	good := feedFixtureGame("good", "creator-good", now.Add(-time.Hour))
 	slow := feedFixtureGame("slow", "creator-slow", now.Add(-time.Hour))
 	scores := map[string]float64{}
-	goodScore := feedQualityScore(good, nil, scores, signals["good"])
-	slowScore := feedQualityScore(slow, nil, scores, signals["slow"])
+	goodScore := feedQualityScore(good, nil, scores, signals["good"], now)
+	slowScore := feedQualityScore(slow, nil, scores, signals["slow"], now)
 	if goodScore <= slowScore {
 		t.Fatalf("quality ranking score good=%f slow=%f; expected satisfying fast game to rank higher", goodScore, slowScore)
 	}
