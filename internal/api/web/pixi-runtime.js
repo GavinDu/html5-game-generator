@@ -219,6 +219,47 @@ function sendTelemetryEvent(kind, fields) {
   } catch { /* telemetry must never break the game */ }
 }
 
+// --- Player diagnostic social events (Hephaestus #61) -------------------
+// The bridgeless iOS shell cannot observe time to interactive, first
+// input, or frame times, so the runtime reports them itself as social
+// events — the same endpoint iOS uses for preview_dwell, with the same
+// schema v1 fields and event-ID idempotency. player_ready fires at boot
+// (so sessions that never reach a run end still report time to
+// interactive); player_session_summary fires at run end with the full
+// frame summary. Sent with apiFetch, not a beacon: when the tab holds a
+// session token the event is attributed to that account, otherwise it
+// arrives anonymous, which the endpoint accepts. These diagnostic kinds
+// are excluded from feed-ranking signals server-side. Delivery is
+// fire-and-forget: telemetry must never break the game.
+function sendSocialDiagnostic(kind, suffix, fields) {
+  try {
+    const payload = JSON.stringify({
+      schema_version: 1,
+      event_id: `${dqSessionId}:run${restartCount}:${suffix}`,
+      game_id: gameId, kind, ...fields,
+    });
+    apiFetch('/v1/telemetry/social-event', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: payload,
+    }).catch(() => {});
+  } catch { /* telemetry must never break the game */ }
+}
+
+// Bucket-estimated p95 frame time for a run: the smallest bucket upper
+// edge whose cumulative share reaches 95%. Edges are the perf_window
+// bucket edges rounded to whole milliseconds. The open-ended >50ms
+// bucket reports the run's longest frame instead of an unbounded edge.
+function frameP95Ms(buckets, total, longestMs) {
+  if (!total) return 0;
+  const edges = [8, 17, 25, 33, 50];
+  let cumulative = 0;
+  for (let i = 0; i < 5; i++) {
+    cumulative += buckets[i] || 0;
+    if (cumulative * 20 >= total * 19) return edges[i];
+  }
+  return Math.round(longestMs);
+}
+
 // --- WebAudio SFX pool (Phase A) ---------------------------------------
 // Replaces per-play `new Audio(url)`: buffers are fetched + decoded
 // once and replayed from memory, and the context unlocks on the first
@@ -637,6 +678,11 @@ async function run(id) {
     lastPlayerX: -1, lastPlayerY: -1,
     frameSamples: [],           // deltaMS within the current perf window
     longestFrameMs: 0,
+    sessionBuckets: [0, 0, 0, 0, 0, 0], // all frames this run, same edges as perf_window
+    sessionFrameSumMs: 0,
+    sessionFrames: 0,
+    sessionLongestMs: 0,
+    bootMs: 0,                  // set at boot completion; time to interactive
     liveCounts: () => ({ entities: 0, particles: 0 }),
     shell: null,                // experience block when the game is IR 1.2
     shellStarted: false,
@@ -661,6 +707,15 @@ async function run(id) {
       else if (ms <= 25) buckets[2]++; else if (ms <= 33) buckets[3]++;
       else if (ms <= 50) buckets[4]++; else buckets[5]++;
     }
+    // Session totals for the run-end diagnostic summary: the same buckets
+    // and samples the perf_window above reports, accumulated so the summary
+    // covers the whole run, not just the last window.
+    let windowSumMs = 0;
+    for (const ms of play.frameSamples) windowSumMs += ms;
+    for (let i = 0; i < 6; i++) play.sessionBuckets[i] += buckets[i];
+    play.sessionFrameSumMs += windowSumMs;
+    play.sessionFrames += play.frameSamples.length;
+    if (play.longestFrameMs > play.sessionLongestMs) play.sessionLongestMs = play.longestFrameMs;
     const counts = play.liveCounts();
     sendTelemetryEvent('perf_window', {
       frames: play.frameSamples.length, buckets,
@@ -1573,6 +1628,20 @@ async function run(id) {
       inputs: play.inputLog.length, deadInputs: play.deadInputs,
       retries: restartCount, seed: play.seed,
     });
+    // Run-end diagnostic summary (Hephaestus #61): the timing fields the
+    // iOS shell cannot observe, from this run's own measurements. Values
+    // are clamped to the social-event caps so one pathological frame or
+    // an over-long session cannot drop the whole summary; a zero first
+    // input means no input was recorded before the run ended. The event
+    // ID is stable per run, so a retried delivery is deduplicated
+    // server-side instead of double-counted.
+    sendSocialDiagnostic('player_session_summary', 'summary', {
+      time_to_interactive_ms: Math.min(play.bootMs, 3600000),
+      time_to_first_input_ms: Math.min(Math.round(play.firstInputAt), 3600000),
+      frame_time_p95_ms: Math.min(frameP95Ms(play.sessionBuckets, play.sessionFrames, play.sessionLongestMs), 60000),
+      frame_time_avg_ms: Math.min(play.sessionFrames ? Math.round(play.sessionFrameSumMs / play.sessionFrames) : 0, 60000),
+      frame_count: play.sessionFrames,
+    });
     if (play.shell) {
       showShellResult(won);
     } else {
@@ -2180,11 +2249,17 @@ async function run(id) {
   };
   window.__dqPlay = play;
   play.startedAt = performance.now();
+  play.bootMs = Math.round(performance.now() - started);
   updateHUD();
   sendTelemetryEvent('session_start', {
     seed: play.seed, shell: !!play.shell,
-    bootMs: Math.round(performance.now() - started),
+    bootMs: play.bootMs,
     renderer: 'webgl', irVersion: ir.irVersion,
+  });
+  // Time to interactive is known at boot; report it now so sessions that
+  // never reach a run end still contribute it (Hephaestus #61).
+  sendSocialDiagnostic('player_ready', 'ready', {
+    time_to_interactive_ms: Math.min(play.bootMs, 3600000),
   });
 
   // --- Shell start gate (IR 1.2) ---------------------------------------
