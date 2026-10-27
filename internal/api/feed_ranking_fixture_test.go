@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -227,5 +228,23 @@ func TestFeedExplorationReservesOneOfFiveSlotsForLowImpressionGames(t *testing.T
 			t.Fatalf("duplicate game after exploration: %q", game.ID)
 		}
 		seen[game.ID] = true
+	}
+}
+
+// Same tie at the feed level: games sharing a timestamp must come back in
+// the same (ID-ascending) order on every request, not in map-iteration order.
+func TestFeedTieTimestampsAreDeterministic(t *testing.T) {
+	now := time.Now().UTC()
+	st := store.NewMemoryStore()
+	for _, id := range []string{"tie-m", "tie-a", "tie-z", "tie-c", "tie-q"} {
+		st.CreateGame(feedFixtureGame(id, "creator-"+id, now))
+	}
+	srv := New(st, pipeline.NewRunner(st))
+	want := "tie-a,tie-c,tie-m,tie-q,tie-z"
+	for i := 0; i < 20; i++ {
+		got := feedFixtureIDs(t, srv)
+		if len(got) != 5 || strings.Join(got, ",") != want {
+			t.Fatalf("run %d: feed order = %v, want %s", i, got, want)
+		}
 	}
 }
