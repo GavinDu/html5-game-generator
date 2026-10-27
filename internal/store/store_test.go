@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
@@ -220,5 +221,26 @@ func TestRestoreRejectsSnapshotWithAssetHashMismatch(t *testing.T) {
 	}
 	if got, ok := target.GetGame("g-existing"); !ok || got.Title != "Keep existing state" {
 		t.Fatalf("invalid backup mutated target state: game=%+v ok=%v", got, ok)
+	}
+}
+
+// Equal CreatedAt values used to leave ListGames order to Go map iteration
+// (random per run) because the sort had no tie-break. The order must now be
+// total: CreatedAt desc, then ID asc, identical on every call.
+func TestListGamesTieBreakIsDeterministic(t *testing.T) {
+	st := NewMemoryStore()
+	at := time.Now().UTC().Truncate(time.Second)
+	for _, id := range []string{"game-m", "game-a", "game-z", "game-c", "game-q", "game-b", "game-y", "game-d", "game-k", "game-e"} {
+		st.CreateGame(&model.Game{ID: id, CreatedAt: at})
+	}
+	want := "game-a,game-b,game-c,game-d,game-e,game-k,game-m,game-q,game-y,game-z"
+	for i := 0; i < 50; i++ {
+		got := make([]string, 0, 10)
+		for _, g := range st.ListGames() {
+			got = append(got, g.ID)
+		}
+		if strings.Join(got, ",") != want {
+			t.Fatalf("run %d: ListGames order = %v, want %s", i, got, want)
+		}
 	}
 }
