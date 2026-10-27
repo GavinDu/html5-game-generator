@@ -52,10 +52,10 @@ function warnOnce(key, cat, msg) {
 }
 
 // --- Observability (auto detect-and-fix flow) ---------------------------
-// The page reports its own failures: the iOS WebView is bridgeless, so no
-// native code can do it. Errors are buffered for the ?probe=1 verdict and
-// beaconed to the backend, which groups them by fingerprint so the same
-// failure across games reads as one incident.
+// The page reports its own failures. Errors are buffered for the ?probe=1
+// verdict and beaconed to the backend, which groups them by fingerprint so
+// the same failure across games reads as one incident. iOS receives only a
+// narrow post-verification run-result notification; it is not a control API.
 const RUNTIME_VERSION = '2026.10.23.2';
 
 function compareRuntimeVersions(current, minimum) {
@@ -1629,7 +1629,19 @@ async function run(id) {
     }).then(async (res) => {
       if (!res.ok) return;
       const data = await res.json().catch(() => null);
-      if (data && data.runId) { play.lastRunId = data.runId; window.__dqLastRunId = data.runId; }
+      if (data && data.runId) {
+        play.lastRunId = data.runId;
+        window.__dqLastRunId = data.runId;
+        try {
+          window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
+            schema: 1,
+            type: 'verified_run_available',
+            sessionId: dqSessionId,
+            gameId,
+            runId: data.runId,
+          });
+        } catch { /* native bridge is optional outside iOS */ }
+      }
       if (data && data.rank && play.shell) {
         const sub = $('shell-result-sub');
         if (sub && !sub.textContent.includes('Leaderboard')) {
