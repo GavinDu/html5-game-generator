@@ -63,9 +63,9 @@ type Server struct {
 	commentIdempotency  map[string]commentIdempotencyRecord
 	// deletedSubjects tombstones account-deleted subjects: their bearer
 	// tokens stop working and they cannot sign in again (see apple_auth.go).
-	deletedSubjects     map[string]bool
-	reports             []socialReport
-	events              []socialEvent
+	deletedSubjects map[string]bool
+	reports         []socialReport
+	events          []socialEvent
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
