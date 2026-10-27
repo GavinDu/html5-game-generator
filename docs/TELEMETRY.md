@@ -64,3 +64,19 @@ Schema v1 optionally accepts these non-negative, bounded measurements:
 - `frame_count`: frames represented by the summary.
 
 Dwell and startup/input times are capped at one hour; frame-time values are capped at 60 seconds. These bounds catch corrupt or mis-scaled measurements, not user behavior. Keep values aggregate and avoid adding device IDs, account identifiers beyond the authenticated server context, precise location, raw input, or full user-agent strings. The server stores the event once; downstream ranking should use only events that pass the established eligibility and visibility rules.
+
+The web runtime reports the timing fields itself (Hephaestus #61), because
+the bridgeless iOS shell cannot observe them: `player_ready` fires at boot
+with `time_to_interactive_ms` (boot time to a built, interactive game), and
+`player_session_summary` fires at run end with `time_to_interactive_ms`,
+`time_to_first_input_ms` (visible-play time to the first input; zero means
+none was recorded), and the frame summary (`frame_time_p95_ms` estimated
+from the run's frame-time histogram buckets, `frame_time_avg_ms`,
+`frame_count`). The runtime clamps values to the caps above so one
+pathological frame cannot drop a summary. Event IDs are
+`<session>:run<restart>:ready` / `<session>:run<restart>:summary`, so a
+retried delivery is deduplicated instead of double-counted. Both kinds are
+diagnostics: they are excluded from feed-ranking signals, and they arrive
+anonymous when the tab holds no session token. The runtime does not send a
+summary for runs that never end; time to interactive for those sessions is
+still covered by `player_ready` at boot.
