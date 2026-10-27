@@ -833,14 +833,20 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	qualitySignals := feedQualitySignalsByGame(events)
 	sort.SliceStable(out, func(i, j int) bool {
 		if !useEngagementRanking {
-			return out[i].CreatedAt.After(out[j].CreatedAt)
+			if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+				return out[i].CreatedAt.After(out[j].CreatedAt)
+			}
+			return out[i].ID < out[j].ID
 		}
 		si := feedQualityScore(out[i], reactionCounts, engagementScores, qualitySignals[out[i].ID])
 		sj := feedQualityScore(out[j], reactionCounts, engagementScores, qualitySignals[out[j].ID])
-		if si == sj {
+		if si != sj {
+			return si > sj
+		}
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
-		return si > sj
+		return out[i].ID < out[j].ID
 	})
 	if useEngagementRanking {
 		out = reserveExplorationSlots(out, qualitySignals, 5)
