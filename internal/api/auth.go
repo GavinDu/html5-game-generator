@@ -61,12 +61,15 @@ func verifyBearerUserID(r *http.Request) string {
 // Public discovery and content reads remain anonymous; user-specific API
 // operations require a verified, expiring bearer token. X-User-ID is never
 // accepted as an identity in this mode.
-func requireAuthenticatedUser(next http.Handler) http.Handler {
+// It is a Server method (not a free function) because the tombstone check
+// needs server state: a deleted account's outstanding tokens must stop
+// working, and a deleted subject must not be able to sign in again.
+func (s *Server) requireAuthenticatedUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requiresUserAuth(r) {
 			// Public reads may be anonymous, but a valid optional bearer token
 			// still supplies the verified owner identity for private-resource checks.
-			if subject := verifyBearerUserID(r); subject != "" {
+			if subject := verifyBearerUserID(r); subject != "" && !s.isSubjectDeleted(r.Context(), subject) {
 				ctx := context.WithValue(r.Context(), authContextKey{}, subject)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
@@ -83,7 +86,7 @@ func requireAuthenticatedUser(next http.Handler) http.Handler {
 			return
 		}
 		sub := verifyBearerUserID(r)
-		if sub == "" {
+		if sub == "" || s.isSubjectDeleted(r.Context(), sub) {
 			writeErr(w, http.StatusUnauthorized, "valid bearer authentication is required")
 			return
 		}
@@ -95,6 +98,9 @@ func requireAuthenticatedUser(next http.Handler) http.Handler {
 func requiresUserAuth(r *http.Request) bool {
 	if !strings.HasPrefix(r.URL.Path, "/v1/") {
 		return false
+	}
+	if r.URL.Path == "/v1/auth/apple" {
+		return false // issuance is how a client obtains a session
 	}
 	if strings.HasPrefix(r.URL.Path, "/v1/telemetry/") ||
 		r.URL.Path == "/v1/moderation/contact" ||
@@ -123,11 +129,7 @@ func requiresUserAuth(r *http.Request) bool {
 
 // authTokenForTest signs a short-lived bearer token with the same contract as
 // the verifier. It is deliberately not an HTTP endpoint; production token
-// issuance must be performed by a trusted identity provider.
+// issuance goes through POST /v1/auth/apple (Sign in with Apple).
 func authTokenForTest(subject string, expires time.Time, secret string) string {
-	payload, _ := json.Marshal(authClaims{Subject: subject, Expires: expires.Unix(), Issuer: "hephaestus"})
-	encoded := base64.RawURLEncoding.EncodeToString(payload)
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write([]byte(encoded))
-	return encoded + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return mintSessionToken(subject, expires, secret)
 }
