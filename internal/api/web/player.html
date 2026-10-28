@@ -247,17 +247,17 @@
 <body>
 <header>
   <div class="title" id="title">DoodleQuest</div>
-  <div class="score" id="score"></div>
+  <div class="score" id="score" aria-live="polite" aria-atomic="true"></div>
 </header>
 <div id="stage-wrap">
   <div id="stage"></div>
-  <div class="shell-card" id="shell-start">
+  <div class="shell-card" id="shell-start" role="dialog" aria-modal="true" aria-labelledby="shell-start-title" aria-describedby="shell-start-hint">
     <div class="shell-title" id="shell-start-title"></div>
     <div class="shell-obj" id="shell-start-obj"></div>
     <div class="shell-hint" id="shell-start-hint"></div>
     <button id="shell-start-btn" type="button">▶ Start</button>
   </div>
-  <div class="shell-card" id="shell-result">
+  <div class="shell-card" id="shell-result" role="dialog" aria-modal="true" aria-labelledby="shell-result-title" aria-describedby="shell-result-sub">
     <div class="shell-title" id="shell-result-title"></div>
     <div class="shell-stars" id="shell-result-stars"></div>
     <div class="shell-sub" id="shell-result-sub"></div>
