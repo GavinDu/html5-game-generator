@@ -71,6 +71,8 @@ func TestRunRejectsIncompleteReports(t *testing.T) {
 		{name: "missing browser", body: `{"base":"http://x","games":[{"gameId":"g1","verdict":"PASS"}]}`},
 		{name: "missing game id", body: `{"base":"http://x","browser":"chromium","games":[{"verdict":"PASS"}]}`},
 		{name: "invalid verdict", body: `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"UNKNOWN"}]}`},
+		{name: "missing checks", body: `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS"}]}`},
+		{name: "invalid check status", body: `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[{"checkId":"playtest.boot_clean","status":"maybe"}]}]}`},
 		{name: "duplicate game id", body: `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS"},{"gameId":"g1","verdict":"FAIL"}]}`},
 	}
 	for _, tc := range cases {
