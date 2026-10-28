@@ -27,3 +27,8 @@ node tools/playtest/compare-preview-hashes.mjs --first render-a.json --second re
 ```
 
 Exit code is `0` for identical ordered frame hashes, `1` for a visual/frame-count mismatch, and `2` for malformed input or a missing file. This is suitable as a CI gate when both renders use the same browser/runtime environment.
+
+
+## Repeat-render determinism check
+
+Run `node tools/playtest/verify-preview-determinism.mjs --base URL --game GAME_ID --run RECORDED_RUN_ID` against the same recorded run twice. The command fails closed if either render falls back to poster-only output, omits frame hashes, or any frame hash differs; temporary media is removed after the check.
