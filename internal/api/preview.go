@@ -27,11 +27,12 @@ const (
 )
 
 type previewMetadataRequest struct {
-	Version       int     `json:"version"`
-	Status        string  `json:"status"`
-	Aspect        float64 `json:"aspect"`
-	DurationMS    int     `json:"duration_ms"`
-	DominantColor string  `json:"dominant_color"`
+	Version         int     `json:"version"`
+	Status          string  `json:"status"`
+	Aspect          float64 `json:"aspect"`
+	DurationMS      int     `json:"duration_ms"`
+	DominantColor   string  `json:"dominant_color"`
+	ShowSourceImage bool    `json:"show_source_image"`
 }
 
 // PreviewScanResult is the provider-neutral outcome of scanning one preview
@@ -115,14 +116,14 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 	var limit int64
 	var allowedTypes []string
 	switch asset {
-	case "poster.png", "poster.jpg":
+	case "poster.png", "poster.jpg", "source.png", "source.jpg":
 		limit = maxPreviewPosterBytes
 		allowedTypes = []string{"image/png", "image/jpeg"}
 	case "clip.mp4":
 		limit = maxPreviewClipBytes
 		allowedTypes = []string{"video/mp4"}
 	default:
-		writeErr(w, http.StatusBadRequest, "asset must be poster.png, poster.jpg, or clip.mp4")
+		writeErr(w, http.StatusBadRequest, "asset must be poster.png, poster.jpg, source.png, source.jpg, or clip.mp4")
 		return
 	}
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -208,12 +209,12 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 
 func validPreviewBytes(asset string, data []byte) bool {
 	switch asset {
-	case "poster.png", "poster.jpg":
+	case "poster.png", "poster.jpg", "source.png", "source.jpg":
 		config, format, err := image.DecodeConfig(bytes.NewReader(data))
 		if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 4096 || config.Height > 4096 {
 			return false
 		}
-		if asset == "poster.png" {
+		if strings.HasSuffix(asset, ".png") {
 			return format == "png"
 		}
 		return format == "jpeg"
@@ -285,6 +286,62 @@ func (s *Server) handleSetPreviewMetadata(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusConflict, "ready previews require a poster and clip; failed previews require a poster fallback")
 		return
 	}
+	_, _, hasSourcePNG := s.store.GetArtifact(game.ID, previewArtifactKey(version, "source.png"))
+	_, _, hasSourceJPG := s.store.GetArtifact(game.ID, previewArtifactKey(version, "source.jpg"))
+	if req.ShowSourceImage {
+		sourceAsset := "source.png"
+		if !hasSourcePNG {
+			sourceAsset = "source.jpg"
+		}
+		if !hasSourcePNG && !hasSourceJPG {
+			writeErr(w, http.StatusConflict, "source image opt-in requires a source.png or source.jpg asset")
+			return
+		}
+		// Re-scan at opt-in time as well as upload time. This prevents an
+		// asset uploaded while scanning was optional from becoming public
+		// later merely because it already exists in the versioned store.
+		data, _, found := s.store.GetArtifact(game.ID, previewArtifactKey(version, sourceAsset))
+		if !found {
+			writeErr(w, http.StatusConflict, "source image asset is unavailable")
+			return
+		}
+		if s.previewScanner == nil {
+			if err := s.persistAudit(r.Context(), moderationAuditEvent{
+				ID: pipeline.NewID(), Action: "source_image_scan", GameID: game.ID,
+				ActorID: "preview-scanner", Status: "pending",
+				Reason: "source image opt-in requires a configured safety scanner", CreatedAt: time.Now().UTC(),
+			}); err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not persist source image scan audit")
+				return
+			}
+			writeErr(w, http.StatusServiceUnavailable, "source image safety scan required but unavailable")
+			return
+		}
+		scan, scanErr := s.previewScanner.ScanPreview(r.Context(), game.ID, version, sourceAsset, data)
+		auditStatus := scan.Status
+		if scanErr != nil {
+			auditStatus = "error"
+		}
+		if auditStatus == "" {
+			auditStatus = "pending"
+		}
+		if err := s.persistAudit(r.Context(), moderationAuditEvent{
+			ID: pipeline.NewID(), Action: "source_image_scan", GameID: game.ID,
+			ActorID: "preview-scanner", Status: auditStatus,
+			Reason: scan.Reason, CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist source image scan audit")
+			return
+		}
+		if scanErr != nil {
+			writeErr(w, http.StatusServiceUnavailable, "source image safety scan unavailable")
+			return
+		}
+		if scan.Status != "passed" {
+			writeErr(w, http.StatusUnprocessableEntity, "source image requires moderation review")
+			return
+		}
+	}
 	metadata := &model.PreviewMetadata{
 		Version: version, Status: req.Status, Aspect: req.Aspect,
 		DurationMS: req.DurationMS, DominantColor: strings.ToUpper(req.DominantColor),
@@ -294,6 +351,13 @@ func (s *Server) handleSetPreviewMetadata(w http.ResponseWriter, r *http.Request
 	}
 	if hasClip && req.Status == "ready" {
 		metadata.ClipURL = previewAssetURL(game.ID, version, "clip.mp4")
+	}
+	if req.ShowSourceImage && req.Status != "pending" {
+		sourceAsset := "source.png"
+		if !hasSourcePNG {
+			sourceAsset = "source.jpg"
+		}
+		metadata.SourceImageURL = previewAssetURL(game.ID, version, sourceAsset)
 	}
 	game.Preview = metadata
 	s.store.UpdateGame(game)
@@ -326,6 +390,13 @@ func (s *Server) handleGetPreviewAsset(w http.ResponseWriter, r *http.Request) {
 	case "clip.mp4":
 		expectedURL = game.Preview.ClipURL
 		contentType = "video/mp4"
+	case "source.png", "source.jpg":
+		expectedURL = game.Preview.SourceImageURL
+		if asset == "source.png" {
+			contentType = "image/png"
+		} else {
+			contentType = "image/jpeg"
+		}
 	default:
 		writeErr(w, http.StatusNotFound, "preview asset not found")
 		return

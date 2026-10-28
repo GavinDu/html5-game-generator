@@ -159,13 +159,14 @@ type BundleManifest struct {
 // PreviewMetadata is ancillary, version-scoped media for a published game.
 // It can be populated after publishing without mutating the immutable Game IR.
 type PreviewMetadata struct {
-	Version       int     `json:"version"`
-	PosterURL     string  `json:"poster_url,omitempty"`
-	ClipURL       string  `json:"clip_url,omitempty"`
-	Aspect        float64 `json:"aspect,omitempty"`
-	DurationMS    int     `json:"duration_ms,omitempty"`
-	DominantColor string  `json:"dominant_color,omitempty"`
-	Status        string  `json:"status"`
+	Version        int     `json:"version"`
+	PosterURL      string  `json:"poster_url,omitempty"`
+	ClipURL        string  `json:"clip_url,omitempty"`
+	SourceImageURL string  `json:"source_image_url,omitempty"`
+	Aspect         float64 `json:"aspect,omitempty"`
+	DurationMS     int     `json:"duration_ms,omitempty"`
+	DominantColor  string  `json:"dominant_color,omitempty"`
+	Status         string  `json:"status"`
 }
 
 type Game struct {
