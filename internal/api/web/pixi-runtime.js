@@ -376,6 +376,16 @@ class Emitter {
 const params = new URLSearchParams(location.search);
 const gameId = params.get('game');
 const probeMode = params.get('probe') === '1';
+const playPresentation = Boolean(gameId && params.get('presentation') === 'play');
+if (playPresentation) {
+  document.body.classList.add('dq-play');
+  document.body.dataset.presentation = 'play';
+  // The native host owns identity, feed navigation, and diagnostics. Remove
+  // browser-only chrome from the DOM rather than merely making it inert.
+  document.getElementById('account')?.remove();
+  document.querySelector('section[aria-labelledby="feed-title"]')?.remove();
+  document.querySelector('details')?.remove();
+}
 // Quality mode (performance control, driven by the host shell — the iOS
 // app appends ?quality=low on thermally constrained / low-power devices,
 // or when the family picks it): 'low' caps the render resolution at 1x,
@@ -2299,4 +2309,4 @@ if (!gameId) {
   });
 }
 
-initializeAccountControls();
+if (!playPresentation) initializeAccountControls();
