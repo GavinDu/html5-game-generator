@@ -106,6 +106,7 @@ func TestRunRejectsPASSWhenHardGatesAreMissingOrInconclusive(t *testing.T) {
 		{name: "failed boot gate with PASS verdict", checks: `{"checkId":"playtest.boot_clean","status":"fail"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
 		{name: "all gates skipped", checks: `{"checkId":"playtest.boot_clean","status":"skip"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"skip"}`},
 		{name: "duplicate gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "failed shell gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"},{"checkId":"shell.start_card","status":"fail"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
