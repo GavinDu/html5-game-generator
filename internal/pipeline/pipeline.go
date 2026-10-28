@@ -500,14 +500,14 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 		entities = append(entities, gameir.Entity{
 			ID: fmt.Sprintf("star-%d", i+1), Kind: "pickup", AssetID: "star",
 			Position: pos, Size: []float64{30, 30}, Components: []string{"collider", "collectible"},
-			Behavior:   &gameir.Behavior{Type: "fall", Speed: &speed},
+			Behavior: &gameir.Behavior{Type: "fall", Speed: &speed},
 		})
 	}
 	starTemplate := gameir.Entity{
 		ID: "star-pickup-template", Kind: "pickup", AssetID: "star",
 		Position: []float64{195, 120}, Size: []float64{30, 30},
 		Components: []string{"collider", "collectible"},
-		Behavior: &gameir.Behavior{Type: "fall", Speed: &speed},
+		Behavior:   &gameir.Behavior{Type: "fall", Speed: &speed},
 	}
 	collectActions := []gameir.Action{
 		{Type: "add_score", Value: 1},
@@ -560,7 +560,7 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 			Leaderboard: gameir.ExpLeaderboard{Metric: "score", Order: "desc"},
 			Feedback:    gameir.ExpFeedback{Juice: "standard"},
 		},
-		Metadata:     gameir.Metadata{Tags: []string{"generated", "collecting"}},
+		Metadata: gameir.Metadata{Tags: []string{"generated", "collecting"}},
 	}
 }
 
