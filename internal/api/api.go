@@ -254,6 +254,12 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
 }
 
+// writeErrorCode is used when clients need a stable machine-readable code
+// in addition to the human-readable message.
+func writeErrorCode(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]string{"error": code, "message": message})
+}
+
 const maxJSONBodyBytes = 2 << 20 // 2 MiB
 
 // maxPhotoBodyBytes caps the two photo-carrying endpoints. A phone
@@ -385,6 +391,15 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		parent, ok := s.store.GetGame(req.ParentGameID)
 		if !ok || parent.Status != model.GameReady || parent.Manifest == nil {
 			writeErr(w, http.StatusBadRequest, "parent_game_id must identify a ready inventory game")
+			return
+		}
+		// The current data-driven remix compiler is not ready yet. The legacy
+		// Bobo profile is the only supported parent; reject every other ready
+		// game before creating a child/job, rather than leaving a failed job
+		// in the user's library after the SPEC or codegen stage.
+		if parent.ID != "sample-rainbow-bear" {
+			writeErrorCode(w, http.StatusConflict, "remix_unsupported",
+				"remixing this game is not supported yet; choose Bobo's Rainbow or create a new game")
 			return
 		}
 		if len(elements) == 0 {
