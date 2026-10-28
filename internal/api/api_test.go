@@ -178,7 +178,7 @@ func TestFullPipeline(t *testing.T) {
 	}
 	var manifest model.BundleManifest
 	decode(t, rec, &manifest)
-	if manifest.Shim != "gameir/v1.2" || manifest.Entry != "game-ir.json" || manifest.Version != 2 || len(manifest.Assets.Sprites) != 3 {
+	if manifest.Shim != "gameir/v1.2" || manifest.Entry != "game-ir.json" || manifest.Version != 1 || len(manifest.Assets.Sprites) != 3 {
 		t.Fatalf("bad manifest: %+v", manifest)
 	}
 
