@@ -60,3 +60,33 @@ func TestRunWorkerErrorIsError(t *testing.T) {
 		t.Fatal("exit 2 must surface as an error")
 	}
 }
+
+func TestRunRejectsIncompleteReports(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{name: "empty games", body: `{"base":"http://x","browser":"chromium","games":[]}`},
+		{name: "missing base", body: `{"browser":"chromium","games":[{"gameId":"g1","verdict":"PASS"}]}`},
+		{name: "missing browser", body: `{"base":"http://x","games":[{"gameId":"g1","verdict":"PASS"}]}`},
+		{name: "missing game id", body: `{"base":"http://x","browser":"chromium","games":[{"verdict":"PASS"}]}`},
+		{name: "invalid verdict", body: `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"UNKNOWN"}]}`},
+		{name: "duplicate game id", body: `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS"},{"gameId":"g1","verdict":"FAIL"}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			worker := writeFakeWorker(t, tc.body, 0)
+			_, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
+			if err == nil {
+				t.Fatal("expected invalid report to be rejected")
+			}
+		})
+	}
+}
+
+func TestRunRejectsEmptyBaseURL(t *testing.T) {
+	_, err := Run(context.Background(), Config{WorkerCmd: []string{"unused"}}, nil)
+	if err == nil {
+		t.Fatal("expected empty BaseURL to be rejected")
+	}
+}
