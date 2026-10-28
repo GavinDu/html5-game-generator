@@ -99,6 +99,37 @@ func TestRestrictedPackageIsNeverSharedCached(t *testing.T) {
 	}
 }
 
+func TestPrivatePackageETagCannotBypassOwnerAuthorization(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	game := seedReadyGame(st, "private-etag-owner-check")
+	game.Visibility = model.VisibilityPrivate
+	st.UpdateGame(game)
+
+	owner := packageRequestForID(t, srv, game.ID, "", "parent-1")
+	if owner.Code != http.StatusOK {
+		t.Fatalf("owner package: got %d, want 200: %s", owner.Code, owner.Body.String())
+	}
+	etag := owner.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("owner package missing ETag")
+	}
+
+	// A cached validator must never make a private package observable to a
+	// different identity. Authorization is checked before conditional cache
+	// handling, so an outsider must not receive a 304 for the owner's ETag.
+	outsider := packageRequestForID(t, srv, game.ID, etag, "unrelated-user")
+	if outsider.Code == http.StatusNotModified {
+		t.Fatal("private package returned 304 to an unauthorized user")
+	}
+	if outsider.Code != http.StatusNotFound && outsider.Code != http.StatusForbidden {
+		t.Fatalf("unauthorized private package: got %d, want 404 or 403", outsider.Code)
+	}
+	if got := outsider.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("unauthorized response Cache-Control = %q, want private, no-store", got)
+	}
+}
+
 func TestPackageStopsServingContentWhenGameIsNoLongerReady(t *testing.T) {
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
