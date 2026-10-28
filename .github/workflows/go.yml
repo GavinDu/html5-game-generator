@@ -99,12 +99,12 @@ jobs:
         if: always()
         run: |
           if [ ! -s /tmp/playtest-report.json ]; then
-            echo "::warning::Playtest worker produced no report (it may have timed out); skipping score aggregation."
-            exit 0
+            echo "::error::Playtest worker produced no report; publish gate cannot establish playability."
+            exit 1
           fi
           if ! node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if (!Array.isArray(r.games)) process.exit(1)' /tmp/playtest-report.json 2>/dev/null; then
-            echo "::warning::Playtest output is not a complete JSON report; skipping score aggregation."
-            exit 0
+            echo "::error::Playtest output is not a complete JSON report; publish gate cannot establish playability."
+            exit 1
           fi
           node tools/playtest/score-report.mjs /tmp/playtest-report.json - /tmp/scored-playtest-report.json --pack /tmp/evidence-packs --shots /tmp/playtest-shots
       # Phase 2 producer: turn the playtest run into a test-feedback.json
