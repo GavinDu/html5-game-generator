@@ -422,6 +422,7 @@ class Emitter {
 const params = new URLSearchParams(location.search);
 const gameId = params.get('game');
 const probeMode = params.get('probe') === '1';
+const deterministicCapture = probeMode && params.get('capture') === '1';
 const playPresentation = Boolean(gameId && params.get('presentation') === 'play');
 if (playPresentation) {
   document.body.classList.add('dq-play');
@@ -809,6 +810,7 @@ async function run(id) {
     if (stageEl) stageEl.style.background = scene.backgroundColor;
   }
   activeSession = { app, abort };
+  if (deterministicCapture) app.ticker.stop();
   log('RT', 'pixi stage ready');
 
   // Pause when the page is hidden (Phase A): the ticker drives the
@@ -2046,6 +2048,8 @@ async function run(id) {
 
   const STEP_MS = 1000 / 60;
   let simAcc = 0;
+  let captureTargetStep = null;
+  let capturePaused = true;
   let perfWindowStart = 0;
   app.ticker.add((ticker) => {
     frameNo++;
@@ -2086,7 +2090,8 @@ async function run(id) {
     samplePointerForTrace();
     let steps = 0;
     try {
-      while (simAcc >= STEP_MS && steps < 3) {
+      while (simAcc >= STEP_MS && steps < 3 &&
+          (!deterministicCapture || captureTargetStep == null || play.simStep < captureTargetStep)) {
         applyReplayInputs(play.simStep);
         tickFrame(STEP_MS);
         play.simStep++;
@@ -2100,6 +2105,11 @@ async function run(id) {
         log('RT', 'TICK ERROR frame ' + frameNo + ': ' + (err.stack || err.message));
       }
       return;
+    }
+    if (deterministicCapture && captureTargetStep != null && play.simStep >= captureTargetStep) {
+      capturePaused = true;
+      captureTargetStep = null;
+      try { app.ticker.stop(); } catch { /* capture remains paused if already stopped */ }
     }
     if (steps === 3 && simAcc >= STEP_MS) simAcc = 0; // shed, don't spiral
     // Scripted-run score snapshot (determinism check): when the
@@ -2308,7 +2318,9 @@ async function run(id) {
     if (play.shellStarted) return;
     play.shellStarted = true;
     $('shell-start').classList.remove('on');
-    try { app.ticker.start(); } catch { /* ignore */ }
+    if (!deterministicCapture) {
+      try { app.ticker.start(); } catch { /* ignore */ }
+    }
     recordEvent('start', fromProbe ? 'probe-auto' : 'tap');
     emit('game_start', undefined, undefined);
     emit('scene_entered', undefined, undefined);
