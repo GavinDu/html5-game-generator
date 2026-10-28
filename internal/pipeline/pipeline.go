@@ -322,7 +322,7 @@ func (r *Runner) runRemaining(jobID string) {
 		m := &model.BundleManifest{
 			GameID:   game.ID,
 			Title:    doc.Title,
-			Version:  2,
+			Version:  1,
 			Shim:     "gameir/v1.2",
 			Entry:    "game-ir.json",
 			Controls: doc.Controls,
