@@ -92,6 +92,19 @@ func validateReport(report *Report) error {
 		if game.Verdict != "PASS" && game.Verdict != "FAIL" {
 			return fmt.Errorf("game %q has invalid verdict %q", id, game.Verdict)
 		}
+		if len(game.Checks) == 0 {
+			return fmt.Errorf("game %q has no measured checks", id)
+		}
+		for checkIndex, check := range game.Checks {
+			if strings.TrimSpace(check.CheckID) == "" {
+				return fmt.Errorf("game %q check %d has no checkId", id, checkIndex)
+			}
+			switch check.Status {
+			case validator.StatusPass, validator.StatusFail, validator.StatusSkip:
+			default:
+				return fmt.Errorf("game %q check %q has invalid status %q", id, check.CheckID, check.Status)
+			}
+		}
 	}
 	return nil
 }
