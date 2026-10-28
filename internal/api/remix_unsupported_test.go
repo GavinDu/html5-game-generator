@@ -38,7 +38,6 @@ func TestCreateRemixUnsupportedParentReturnsConflictBeforeQueueing(t *testing.T)
 	}
 }
 
-
 func TestCreateRemixWithValidatedInventoryGameIsAccepted(t *testing.T) {
 	srv := newTestServer()
 	if err := inventory.Load(srv.store, filepath.Join("..", "..", "inventory")); err != nil {
