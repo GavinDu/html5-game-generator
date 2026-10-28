@@ -31,7 +31,7 @@ test('preview renderer reports per-game media metrics', () => {
 test('preview capture advances the runtime to exact fixed simulation steps', () => {
   assert.match(source, /probe=1&capture=1&replay=/);
   assert.match(source, /advanceToStep\(step\)/);
-  assert.match(source, /snapshot\?\.simStep === step/);
+  assert.match(source, /snapshot\.simStep === step/);
   assert.doesNotMatch(source, /waitForTimeout\(frameInterval\)/);
   assert.match(runtime, /const deterministicCapture = probeMode && params\.get\('capture'\) === '1'/);
   assert.match(runtime, /advanceToStep: \(step\) =>/);
