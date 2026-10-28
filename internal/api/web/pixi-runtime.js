@@ -2364,6 +2364,7 @@ async function run(id) {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
         ended: state.ended, won: state.won, frames: totalFrames,
+        simStep: play.simStep, capturePaused,
         started: play.shellStarted,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
@@ -2373,6 +2374,19 @@ async function run(id) {
         })),
         world: { w: W, h: H },
       }),
+      advanceToStep: (step) => {
+        if (!deterministicCapture || !Number.isSafeInteger(step) || step < play.simStep) return false;
+        if (step === play.simStep) {
+          capturePaused = true;
+          captureTargetStep = null;
+          app.ticker.stop();
+          return true;
+        }
+        captureTargetStep = step;
+        capturePaused = false;
+        app.ticker.start();
+        return true;
+      },
     };
   }
 }
