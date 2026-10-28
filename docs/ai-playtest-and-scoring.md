@@ -90,7 +90,7 @@ Judges score from an **evidence pack** (`score-report.mjs --pack`): screenshots 
 ## Delivery policy
 
 - Hard gates: `playtest.boot_clean`, `playtest.render_nonblank`, and `simulation.no_softlock` must all pass.
-- A skipped/inconclusive hard gate means delivery is not yet verified.
+- A skipped/inconclusive hard gate means delivery is not yet verified. The worker contract enforces this for any `PASS` report: `playtest.boot_clean`, `playtest.render_nonblank`, and `simulation.no_softlock` must each be present with status `pass`; a missing or skipped gate is rejected as an invalid success report. A `FAIL` report may omit later gates when an earlier boot failure prevented them from running.
 - A failed hard gate blocks delivery regardless of the creative score.
 - Suggested quality policy once the AI rubric is integrated: complete score >= 70, no individual creative dimension below 40, and all hard gates pass.
 - Keep raw measurements, AI rationale, model/version, screenshot references, browser/version, game package hash, and repair attempt history in the report for reproducibility.

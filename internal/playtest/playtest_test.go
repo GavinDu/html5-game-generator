@@ -24,7 +24,9 @@ const cannedReport = `{"base":"http://x","browser":"chromium","games":[
     {"checkId":"playtest.boot_clean","status":"fail","evidence":"boom"},
     {"checkId":"simulation.win_reachable","status":"skip","evidence":"unproven"}]},
   {"gameId":"g2","verdict":"PASS","checks":[
-    {"checkId":"playtest.boot_clean","status":"pass","evidence":"ok"}]}
+    {"checkId":"playtest.boot_clean","status":"pass","evidence":"ok"},
+    {"checkId":"playtest.render_nonblank","status":"pass","evidence":"visible"},
+    {"checkId":"simulation.no_softlock","status":"pass","evidence":"state changed"}]}
 ]}`
 
 func TestRunParsesGateFailureReport(t *testing.T) {
@@ -90,5 +92,41 @@ func TestRunRejectsEmptyBaseURL(t *testing.T) {
 	_, err := Run(context.Background(), Config{WorkerCmd: []string{"unused"}}, nil)
 	if err == nil {
 		t.Fatal("expected empty BaseURL to be rejected")
+	}
+}
+
+func TestRunRejectsPASSWhenHardGatesAreMissingOrInconclusive(t *testing.T) {
+	cases := []struct {
+		name   string
+		checks string
+	}{
+		{name: "missing render gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "skipped render gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "failed boot gate with PASS verdict", checks: `{"checkId":"playtest.boot_clean","status":"fail"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "all gates skipped", checks: `{"checkId":"playtest.boot_clean","status":"skip"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"skip"}`},
+		{name: "duplicate gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "failed shell gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"},{"checkId":"shell.start_card","status":"fail"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[` + tc.checks + `]}]}`
+			worker := writeFakeWorker(t, body, 0)
+			_, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
+			if err == nil {
+				t.Fatal("PASS report with missing/inconclusive/failed hard gate must be rejected")
+			}
+		})
+	}
+}
+
+func TestRunAllowsFAILReportWhenBootFailurePreventsLaterGates(t *testing.T) {
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"FAIL","checks":[{"checkId":"playtest.boot_clean","status":"fail"}]}]}`
+	worker := writeFakeWorker(t, body, 1)
+	report, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
+	if err != nil {
+		t.Fatalf("incomplete FAIL report should remain actionable: %v", err)
+	}
+	if !report.Failed() {
+		t.Fatal("failed boot must remain a failed report")
 	}
 }
