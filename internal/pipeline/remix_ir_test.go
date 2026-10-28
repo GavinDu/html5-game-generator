@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"reflect"
 	"testing"
 
 	"doodlequest/internal/gameir"
@@ -42,11 +41,21 @@ func TestBuildGenericRemixIRPreservesParentGameplayLoopAndAssets(t *testing.T) {
 	if !containsRemixTag(remix.Metadata.Tags) {
 		t.Fatalf("remix tag missing: %v", remix.Metadata.Tags)
 	}
-	if !reflect.DeepEqual(remix.Assets, parentIR.Assets) ||
-		!reflect.DeepEqual(remix.Scenes, parentIR.Scenes) ||
-		!reflect.DeepEqual(remix.InputBindings, parentIR.InputBindings) ||
-		!reflect.DeepEqual(remix.Rules, parentIR.Rules) {
-		t.Fatal("generic remix changed the parent's assets, scenes, controls, or gameplay rules")
+	if len(remix.Assets) != 1 || remix.Assets[0].ID != "hero" || remix.Assets[0].URI != "assets/hero.png" || remix.Assets[0].SHA256 != "abc123" {
+		t.Fatalf("generic remix did not preserve parent asset identity and content reference: %+v", remix.Assets)
+	}
+	if len(remix.Scenes) != 1 || remix.Scenes[0].ID != "arena" || len(remix.Scenes[0].Entities) != 1 {
+		t.Fatalf("generic remix did not preserve parent scene/entity structure: %+v", remix.Scenes)
+	}
+	entity := remix.Scenes[0].Entities[0]
+	if entity.ID != "player" || entity.AssetID != "hero" || len(entity.Components) != 2 || entity.Components[0] != "movement" || entity.Components[1] != "collider" {
+		t.Fatalf("generic remix changed parent gameplay entity: %+v", entity)
+	}
+	if len(remix.InputBindings) != 1 || remix.InputBindings[0].Action != "move" || remix.InputBindings[0].Input != "drag" {
+		t.Fatalf("generic remix changed parent input bindings: %+v", remix.InputBindings)
+	}
+	if len(remix.Rules) != 1 || remix.Rules[0].ID != "collect-star" || len(remix.Rules[0].Actions) != 2 || remix.Rules[0].Actions[0].Type != "add_score" || remix.Rules[0].Actions[1].Type != "destroy_entity" {
+		t.Fatalf("generic remix changed parent gameplay rules: %+v", remix.Rules)
 	}
 	if parentIR.Game.ID != "parent-game" || parentIR.Metadata.ParentGameID != "" {
 		t.Fatal("building a remix mutated the parent Game IR")
