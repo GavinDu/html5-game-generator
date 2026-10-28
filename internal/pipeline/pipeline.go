@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"strconv"
 	"time"
 
 	"doodlequest/internal/gameir"
@@ -321,9 +322,9 @@ func (r *Runner) runRemaining(jobID string) {
 		m := &model.BundleManifest{
 			GameID:   game.ID,
 			Title:    doc.Title,
-			Version:  1,
-			Shim:     "gameshim/v1",
-			Entry:    "game.js",
+			Version:  2,
+			Shim:     "gameir/v1.2",
+			Entry:    "game-ir.json",
 			Controls: doc.Controls,
 		}
 		for i, el := range doc.Elements {
@@ -423,7 +424,39 @@ func staticChecks(gameJS string) error {
 	return nil
 }
 
+func targetScoreFromDesignDoc(doc *model.DesignDoc) int {
+	// The confirmed design document is authoritative. Extract the first
+	// positive integer from its win condition (for example, "Catch 10 stars").
+	// Keep targets bounded so malformed creator text cannot generate huge
+	// entities or a game that is practically impossible to finish.
+	if doc != nil {
+		for _, field := range []string{doc.WinCondition, doc.Plot, doc.Mechanics} {
+			for _, token := range strings.Fields(field) {
+				digits := strings.Builder{}
+				for _, r := range token {
+					if r >= '0' && r <= '9' {
+						digits.WriteRune(r)
+					}
+				}
+				if digits.Len() == 0 {
+					continue
+				}
+				if n, err := strconv.Atoi(digits.String()); err == nil && n >= 1 && n <= 100 {
+					return n
+				}
+			}
+		}
+	}
+	return 10
+}
+
 func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
+	if doc == nil {
+		doc = &model.DesignDoc{Title: "A Little Adventure", Plot: "Catch falling stars.", WinCondition: "Catch 10 stars"}
+	}
+	target := targetScoreFromDesignDoc(doc)
+	targetScore := float64(target)
+	speed := 180.0
 	assets := make([]gameir.Asset, 0, len(doc.Elements)+2)
 	entities := make([]gameir.Entity, 0, len(doc.Elements)+2)
 	for i, element := range doc.Elements {
@@ -436,64 +469,102 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 			MIMEType: "image/png", Source: "generated", AltText: element.Label,
 		})
 		kind := "decoration"
-		if i == 0 {
-			kind = "player"
-		}
 		components := []string{}
 		if i == 0 {
+			kind = "player"
 			components = []string{"movement", "collider", "score"}
 		}
 		entities = append(entities, gameir.Entity{
 			ID: id, Kind: kind, AssetID: id,
-			Position: []float64{float64(100 + i*80), 500},
-			Size:     []float64{64, 64}, Components: components,
+			Position: []float64{float64(100 + i*80), 690},
+			Size: []float64{64, 64}, Components: components,
 			Properties: map[string]any{"sourceLabel": element.Label, "sourceKind": element.Kind},
 		})
+	}
+	// A generated design should always have a controllable player, even if
+	// a caller confirms a design document with no extracted elements.
+	playerID := "el_1"
+	if len(doc.Elements) == 0 {
+		playerID = "player"
+		assets = append(assets, gameir.Asset{ID: playerID, Kind: "image", URI: "sprites/el_1.png", MIMEType: "image/png", Source: "generated", AltText: "player"})
+		entities = append(entities, gameir.Entity{ID: playerID, Kind: "player", AssetID: playerID, Position: []float64{195, 700}, Size: []float64{64, 64}, Components: []string{"movement", "collider", "score"}})
 	}
 	assets = append(assets,
 		gameir.Asset{ID: "star", Kind: "image", URI: "sprites/star.png", MIMEType: "image/png", Source: "generated", AltText: "collectible star"},
 		gameir.Asset{ID: "theme", Kind: "audio", URI: "audio/theme.wav", MIMEType: "audio/wav", Source: "generated", AltText: "background music"},
 	)
-	entities = append(entities, gameir.Entity{
-		ID: "star-pickup", Kind: "pickup", AssetID: "star",
-		Position: []float64{160, 240}, Size: []float64{28, 28},
+	// Two initial pickups make the first interaction immediate. A template
+	// plus timer continuously supplies more stars until the design target is
+	// reached; collecting one never makes the objective permanently unreachable.
+	for i, pos := range [][]float64{{120, 250}, {270, 180}} {
+		entities = append(entities, gameir.Entity{
+			ID: fmt.Sprintf("star-%d", i+1), Kind: "pickup", AssetID: "star",
+			Position: pos, Size: []float64{30, 30}, Components: []string{"collider", "collectible"},
+			Behavior: &gameir.Behavior{Type: "fall", Speed: &speed},
+		})
+	}
+	starTemplate := gameir.Entity{
+		ID: "star-pickup-template", Kind: "pickup", AssetID: "star",
+		Position: []float64{195, 120}, Size: []float64{30, 30},
 		Components: []string{"collider", "collectible"},
-	})
-	targetScore := 10.0
+		Behavior: &gameir.Behavior{Type: "fall", Speed: &speed},
+	}
+	collectActions := []gameir.Action{
+		{Type: "add_score", Value: 1},
+		{Type: "destroy_entity"},
+	}
+	rules := []gameir.Rule{
+		{ID: "start-theme", When: gameir.Condition{Event: "game_start"}, Actions: []gameir.Action{{Type: "play_sound", AssetID: "theme"}}},
+		{ID: "collect-star-1", When: gameir.Condition{Event: "collected", Source: playerID, Target: "star-1"}, Actions: collectActions},
+		{ID: "collect-star-2", When: gameir.Condition{Event: "collected", Source: playerID, Target: "star-2"}, Actions: collectActions},
+		{ID: "collect-spawned-star", When: gameir.Condition{Event: "collected", Source: playerID, Target: "star-pickup-template"}, Actions: collectActions},
+		{ID: "spawn-falling-stars", When: gameir.Condition{Event: "timer_elapsed", Value: floatPtr(0.7)}, Actions: []gameir.Action{{Type: "spawn_entity", Target: "star-pickup-template"}}},
+		{ID: "finish-game", When: gameir.Condition{Event: "score_reached", Source: playerID, Value: &targetScore}, Actions: []gameir.Action{{Type: "show_text", Value: "You did it!"}, {Type: "end_game", Value: true}}},
+	}
+	controlsHint := strings.TrimSpace(doc.Mechanics)
+	if len(controlsHint) > 80 {
+		controlsHint = controlsHint[:80]
+	}
+	objectiveLabel := strings.TrimSpace(doc.WinCondition)
+	if objectiveLabel == "" {
+		objectiveLabel = fmt.Sprintf("Catch %d stars", target)
+	}
+	if len(objectiveLabel) > 60 {
+		objectiveLabel = objectiveLabel[:60]
+	}
+	failureMode := "gentle"
+	if strings.Contains(strings.ToLower(doc.LoseCondition), "none") || strings.Contains(strings.ToLower(doc.LoseCondition), "endless") {
+		failureMode = "none"
+	}
 	return &gameir.Document{
-		IRVersion: gameir.Version,
+		IRVersion: gameir.Version12,
+		Capabilities: []string{"shell.v1", "audio"},
 		Game: gameir.Game{
 			ID: gameID, Title: doc.Title, Description: doc.Plot,
 			EntryScene: "main", Orientation: "portrait",
 			SessionTargetSeconds: 90, Audience: "family",
 		},
 		Assets: assets,
-		Scenes: []gameir.Scene{{ID: "main", Entities: entities}},
-		InputBindings: []gameir.InputBinding{
-			{Action: "move", Input: "drag"},
-			{Action: "move", Input: "tap"},
-		},
-		Rules: []gameir.Rule{
-			{
-				ID:   "collect-star",
-				When: gameir.Condition{Event: "collected", Source: "el_1", Target: "star-pickup"},
-				Actions: []gameir.Action{
-					{Type: "add_score", Target: "el_1", Value: 1},
-					{Type: "destroy_entity", Target: "star-pickup"},
-				},
-			},
-			{
-				ID:   "finish-game",
-				When: gameir.Condition{Event: "score_reached", Source: "el_1", Value: &targetScore},
-				Actions: []gameir.Action{
-					{Type: "show_text", Value: "You did it!"},
-					{Type: "end_game", Value: true},
-				},
-			},
+		Scenes: []gameir.Scene{{ID: "main", Entities: entities, Templates: []gameir.Entity{starTemplate}}},
+		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}, {Action: "move", Input: "tap"}},
+		Rules: rules,
+		Experience: &gameir.Experience{
+			Archetype: "catcher",
+			Controls: gameir.ExpControls{Scheme: "drag_x", Hint: controlsHint},
+			Objective: gameir.ExpObjective{Kind: "collect", Target: target, Label: objectiveLabel},
+			HUD: gameir.ExpHUD{Left: "objective_progress", Right: "score"},
+			Start: gameir.ExpStart{Mode: "tap_to_start"},
+			Failure: gameir.ExpFailure{Mode: failureMode},
+			Pacing: gameir.ExpPacing{TargetSessionSec: 90, FirstRewardWithinSec: 3, ExpectedCatchRate: 0.7, Ramp: []gameir.ExpRampStep{{At: 0, SpawnIntervalMs: 700, SpeedMul: 1}, {At: 0.65, SpawnIntervalMs: 550, SpeedMul: 1.15}}},
+			Result: gameir.ExpResult{Win: gameir.ExpResultSide{Title: "You did it!"}},
+			Leaderboard: gameir.ExpLeaderboard{Metric: "score", Order: "desc"},
+			Feedback: gameir.ExpFeedback{Juice: "standard"},
 		},
 		Metadata: gameir.Metadata{Tags: []string{"generated", "collecting"}},
 	}
 }
+
+func floatPtr(v float64) *float64 { return &v }
 
 // buildBoboRemixIR creates a playable variant from the original legacy Bobo's
 // Rainbow inventory entry. It reuses parent assets and expresses new behavior
