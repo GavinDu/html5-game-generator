@@ -26,3 +26,18 @@ test('player shell has accessible focus and reduced-motion fallbacks', () => {
   assert.match(html, /prefers-reduced-motion:\s*reduce/);
   assert.match(html, /outline:\s*3px solid/);
 });
+
+
+test('start and result overlays expose dialog names and descriptions', () => {
+  assert.match(html, /id="shell-start"[^>]*role="dialog"[^>]*aria-modal="true"/);
+  assert.match(html, /aria-labelledby="shell-start-title"/);
+  assert.match(html, /aria-describedby="shell-start-hint"/);
+  assert.match(html, /id="shell-result"[^>]*role="dialog"[^>]*aria-modal="true"/);
+  assert.match(html, /aria-labelledby="shell-result-title"/);
+  assert.match(html, /aria-describedby="shell-result-sub"/);
+});
+
+test('score changes are announced politely without making the whole page live', () => {
+  assert.match(html, /id="score" aria-live="polite" aria-atomic="true"/);
+  assert.doesNotMatch(html, /<body[^>]*aria-live=/);
+});
