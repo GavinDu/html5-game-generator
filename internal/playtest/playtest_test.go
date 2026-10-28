@@ -95,7 +95,6 @@ func TestRunRejectsEmptyBaseURL(t *testing.T) {
 	}
 }
 
-
 func TestRunRejectsPASSWhenHardGatesAreMissingOrInconclusive(t *testing.T) {
 	cases := []struct {
 		name   string
