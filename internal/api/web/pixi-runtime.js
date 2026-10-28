@@ -196,6 +196,7 @@ const rand = (a, b) => a + rng() * (b - a);
 // using the original runtime-error endpoint.
 const dqSessionId = Math.floor(Math.random() * 0xffffffff).toString(16);
 let dqTelemetrySeq = 0;
+let dqNativeMetricSeq = 0;
 let dqEvents = [];
 function recordEvent(type, detail) {
   dqEvents.push({ t: Math.round(performance.now()), type, detail: detail || '' });
@@ -218,6 +219,19 @@ function sendTelemetryEvent(kind, fields) {
     navigator.sendBeacon('/v1/telemetry/events', new Blob([payload], { type: 'application/json' }));
   } catch { /* telemetry must never break the game */ }
 }
+function sendNativeMetric(metric, fields = {}) {
+  try {
+    window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
+      schema: 1,
+      type: 'player_metric',
+      sessionId: dqSessionId,
+      gameId,
+      metric,
+      sequence: ++dqNativeMetricSeq,
+      ...fields,
+    });
+  } catch { /* native performance reporting is optional outside iOS */ }
+}
 
 // --- Player diagnostic social events (Hephaestus #61) -------------------
 // The bridgeless iOS shell cannot observe time to interactive, first
@@ -238,10 +252,15 @@ function sendSocialDiagnostic(kind, suffix, fields) {
       event_id: `${dqSessionId}:run${restartCount}:${suffix}`,
       game_id: gameId, kind, ...fields,
     });
+    // Drain the response body: a fire-and-forget fetch whose Response is
+    // never read is cancelled by the browser when collected, surfacing as
+    // a failed request (and breaking the playability kit's load gate) even
+    // though the event already landed server-side. Draining also frees the
+    // keep-alive connection for reuse.
     apiFetch('/v1/telemetry/social-event', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: payload,
-    }).catch(() => {});
+    }).then((res) => res.arrayBuffer().catch(() => {}), () => {}).catch(() => {});
   } catch { /* telemetry must never break the game */ }
 }
 
@@ -696,6 +715,7 @@ async function run(id) {
       play.firstInputAt = Math.round(play.visibleMs);
       recordEvent('first_input', type);
       sendTelemetryEvent('milestone', { milestone: 'first_input', ms: play.firstInputAt });
+      sendNativeMetric('first_input', { ms: play.firstInputAt });
     }
   }
   function noteActivity() { play.lastActivityMs = play.visibleMs; }
@@ -707,6 +727,9 @@ async function run(id) {
       else if (ms <= 25) buckets[2]++; else if (ms <= 33) buckets[3]++;
       else if (ms <= 50) buckets[4]++; else buckets[5]++;
     }
+    const sorted = [...play.frameSamples].sort((a, b) => a - b);
+    const frameTimeP95Ms = Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]);
+    const frameTimeAvgMs = Math.round(play.frameSamples.reduce((sum, ms) => sum + ms, 0) / play.frameSamples.length);
     // Session totals for the run-end diagnostic summary: the same buckets
     // and samples the perf_window above reports, accumulated so the summary
     // covers the whole run, not just the last window.
@@ -721,6 +744,9 @@ async function run(id) {
       frames: play.frameSamples.length, buckets,
       longestFrameMs: Math.round(play.longestFrameMs),
       entities: counts.entities, particles: counts.particles,
+    });
+    sendNativeMetric('perf_window', {
+      frameTimeP95Ms, frameTimeAvgMs, frameCount: play.frameSamples.length,
     });
     play.frameSamples = [];
     play.longestFrameMs = 0;
