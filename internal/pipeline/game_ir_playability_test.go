@@ -85,10 +85,10 @@ func TestTargetScoreFromDesignDocDefaultsAndBounds(t *testing.T) {
 
 func TestBuildGameIRNormalizesInvalidObjectiveTargetAndLabel(t *testing.T) {
 	doc := &model.DesignDoc{
-		Title: "Star Hunt",
-		Plot: "Catch 5 stars",
+		Title:        "Star Hunt",
+		Plot:         "Catch 5 stars",
 		WinCondition: "Collect 999 stars",
-		Elements: []model.Element{{ID: "el_1", Label: "dragon", Kind: "character"}},
+		Elements:     []model.Element{{ID: "el_1", Label: "dragon", Kind: "character"}},
 	}
 	ir := buildGameIR(doc, "invalid-target-game")
 	if ir.Experience.Objective.Target != 10 {
