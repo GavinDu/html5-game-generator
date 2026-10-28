@@ -617,8 +617,8 @@ func floatPtr(v float64) *float64 { return &v }
 // Rainbow inventory entry. It reuses parent assets and expresses new behavior
 // as Game IR data rather than downloaded executable code.
 // buildGenericRemixIR applies a metadata delta to a canonical parent IR.
- // Gameplay scenes, entities, assets, bindings, experience, and rules are
- // copied intact so a remix does not silently replace its parent's game loop.
+// Gameplay scenes, entities, assets, bindings, experience, and rules are
+// copied intact so a remix does not silently replace its parent's game loop.
 func buildGenericRemixIR(doc *model.DesignDoc, child, parent *model.Game) (*gameir.Document, error) {
 	if parent == nil || parent.GameIR == nil || parent.Manifest == nil {
 		return nil, fmt.Errorf("remix parent must have a published canonical Game IR")
