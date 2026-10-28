@@ -11,16 +11,16 @@ import (
 func TestBuildGenericRemixIRPreservesParentGameplayLoopAndAssets(t *testing.T) {
 	parentIR := &gameir.Document{
 		IRVersion: gameir.Version,
-		Game: gameir.Game{ID: "parent-game", Title: "Parent", EntryScene: "arena", Orientation: "landscape"},
-		Assets: []gameir.Asset{{ID: "hero", Kind: "image", URI: "assets/hero.png", MIMEType: "image/png", SHA256: "abc123"}},
+		Game:      gameir.Game{ID: "parent-game", Title: "Parent", EntryScene: "arena", Orientation: "landscape"},
+		Assets:    []gameir.Asset{{ID: "hero", Kind: "image", URI: "assets/hero.png", MIMEType: "image/png", SHA256: "abc123"}},
 		Scenes: []gameir.Scene{{
-			ID: "arena",
+			ID:       "arena",
 			Entities: []gameir.Entity{{ID: "player", Kind: "player", AssetID: "hero", Position: []float64{10, 20}, Size: []float64{30, 40}, Components: []string{"movement", "collider"}}},
 		}},
 		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}},
 		Rules: []gameir.Rule{{
-			ID: "collect-star",
-			When: gameir.Condition{Event: "collected", Source: "player", Target: "star"},
+			ID:      "collect-star",
+			When:    gameir.Condition{Event: "collected", Source: "player", Target: "star"},
 			Actions: []gameir.Action{{Type: "add_score", Target: "player", Value: 1}, {Type: "destroy_entity", Target: "star"}},
 		}},
 		Metadata: gameir.Metadata{Tags: []string{"platformer", "collecting"}},
