@@ -7,6 +7,7 @@ import { chromium, webkit } from 'playwright';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 function arg(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -47,6 +48,7 @@ let usedFallback = false;
 let posterReady = false;
 let framesCaptured = 0;
 let clipReady = false;
+const frameHashes = [];
 const renderStartedAt = Date.now();
 
 function runFFmpeg(args) {
@@ -84,7 +86,8 @@ try {
       }, targetStep, { timeout: 15000 });
     }
     const framePath = join(frameDir, `frame-${String(index).padStart(5, '0')}.png`);
-    await page.screenshot({ path: framePath });
+    const frame = await page.screenshot({ path: framePath });
+    frameHashes.push(createHash('sha256').update(frame).digest('hex'));
     framesCaptured += 1;
 
     // Persist a usable poster immediately. If a later screenshot or encode
@@ -119,6 +122,7 @@ try {
     run,
     duration_ms: durationMs,
     frames: framesCaptured,
+    frame_sha256: frameHashes,
     fps,
     browser: browserName,
     clip: clipReady ? out : null,
@@ -136,7 +140,7 @@ try {
     usedFallback = true;
     rmSync(out, { force: true });
     const result = {
-      game, run, duration_ms: durationMs, frames: framesCaptured, fps,
+      game, run, duration_ms: durationMs, frames: framesCaptured, frame_sha256: frameHashes, fps,
       browser: browserName, clip: null, clip_bytes: 0, poster,
       poster_bytes: statSync(poster).size,
       render_ms: Date.now() - renderStartedAt, clip_fallback: true,
