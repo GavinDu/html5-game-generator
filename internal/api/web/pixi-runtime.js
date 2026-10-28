@@ -422,6 +422,7 @@ class Emitter {
 const params = new URLSearchParams(location.search);
 const gameId = params.get('game');
 const probeMode = params.get('probe') === '1';
+const deterministicCapture = probeMode && params.get('capture') === '1';
 const playPresentation = Boolean(gameId && params.get('presentation') === 'play');
 if (playPresentation) {
   document.body.classList.add('dq-play');
@@ -809,6 +810,7 @@ async function run(id) {
     if (stageEl) stageEl.style.background = scene.backgroundColor;
   }
   activeSession = { app, abort };
+  if (deterministicCapture) app.ticker.stop();
   log('RT', 'pixi stage ready');
 
   // Pause when the page is hidden (Phase A): the ticker drives the
@@ -820,7 +822,7 @@ async function run(id) {
       recordEvent('pause', 'hidden');
       flushPerfWindow();
     } else {
-      if (play.shellStarted) { try { app.ticker.start(); } catch { /* ignore */ } }
+      if (play.shellStarted && !(deterministicCapture && capturePaused)) { try { app.ticker.start(); } catch { /* ignore */ } }
       recordEvent('resume', '');
     }
   }, { signal: abort.signal });
@@ -2046,6 +2048,8 @@ async function run(id) {
 
   const STEP_MS = 1000 / 60;
   let simAcc = 0;
+  let captureTargetStep = null;
+  let capturePaused = true;
   let perfWindowStart = 0;
   app.ticker.add((ticker) => {
     frameNo++;
@@ -2082,17 +2086,30 @@ async function run(id) {
     // before; 120Hz panels step every other frame; slow devices run
     // up to 3 catch-up steps, then shed time instead of spiraling.
     // This is what makes leaderboard replay verification possible.
-    simAcc += Math.min(ticker.deltaMS, 250);
+    if (!deterministicCapture) simAcc += Math.min(ticker.deltaMS, 250);
     samplePointerForTrace();
     let steps = 0;
     try {
-      while (simAcc >= STEP_MS && steps < 3) {
-        applyReplayInputs(play.simStep);
-        tickFrame(STEP_MS);
-        play.simStep++;
-        simAcc -= STEP_MS;
-        steps++;
-        if (state.ended) break;
+      if (deterministicCapture) {
+        // Capture mode is driven by integer simulation steps, not the
+        // ticker's wall-clock delta. Advance directly to the requested
+        // target in fixed 1/60s increments, including low-fps captures.
+        while (captureTargetStep != null && play.simStep < captureTargetStep && steps < 10000) {
+          applyReplayInputs(play.simStep);
+          tickFrame(STEP_MS);
+          play.simStep++;
+          steps++;
+          if (state.ended) break;
+        }
+      } else {
+        while (simAcc >= STEP_MS && steps < 3) {
+          applyReplayInputs(play.simStep);
+          tickFrame(STEP_MS);
+          play.simStep++;
+          simAcc -= STEP_MS;
+          steps++;
+          if (state.ended) break;
+        }
       }
     } catch (err) {
       if (!tickErrLogged) {
@@ -2100,6 +2117,11 @@ async function run(id) {
         log('RT', 'TICK ERROR frame ' + frameNo + ': ' + (err.stack || err.message));
       }
       return;
+    }
+    if (deterministicCapture && captureTargetStep != null && play.simStep >= captureTargetStep) {
+      capturePaused = true;
+      captureTargetStep = null;
+      try { app.ticker.stop(); } catch { /* capture remains paused if already stopped */ }
     }
     if (steps === 3 && simAcc >= STEP_MS) simAcc = 0; // shed, don't spiral
     // Scripted-run score snapshot (determinism check): when the
@@ -2308,7 +2330,9 @@ async function run(id) {
     if (play.shellStarted) return;
     play.shellStarted = true;
     $('shell-start').classList.remove('on');
-    try { app.ticker.start(); } catch { /* ignore */ }
+    if (!deterministicCapture) {
+      try { app.ticker.start(); } catch { /* ignore */ }
+    }
     recordEvent('start', fromProbe ? 'probe-auto' : 'tap');
     emit('game_start', undefined, undefined);
     emit('scene_entered', undefined, undefined);
@@ -2339,6 +2363,13 @@ async function run(id) {
     emit('scene_entered', undefined, undefined);
   }
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
+  // Capture mode stops Pixi before the first animation frame; render the
+  // initial state explicitly so frame zero is a real scene, not a blank canvas.
+  if (deterministicCapture) {
+    try { app.renderer.render(app.stage); } catch (err) {
+      log('RT', 'CAPTURE INITIAL RENDER ERROR ' + (err.message || err));
+    }
+  }
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
@@ -2352,6 +2383,7 @@ async function run(id) {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
         ended: state.ended, won: state.won, frames: totalFrames,
+        simStep: play.simStep, capturePaused,
         started: play.shellStarted,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
@@ -2361,6 +2393,19 @@ async function run(id) {
         })),
         world: { w: W, h: H },
       }),
+      advanceToStep: (step) => {
+        if (!deterministicCapture || !Number.isSafeInteger(step) || step < play.simStep) return false;
+        if (step === play.simStep) {
+          capturePaused = true;
+          captureTargetStep = null;
+          app.ticker.stop();
+          return true;
+        }
+        captureTargetStep = step;
+        capturePaused = false;
+        app.ticker.start();
+        return true;
+      },
     };
   }
 }

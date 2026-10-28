@@ -37,7 +37,6 @@ mkdirSync(frameDir, { recursive: true });
 mkdirSync(dirname(out), { recursive: true });
 mkdirSync(dirname(poster), { recursive: true });
 const frameCount = Math.max(1, Math.ceil(durationMs * fps / 1000));
-const frameInterval = 1000 / fps;
 let browser;
 let usedFallback = false;
 let posterReady = false;
@@ -59,12 +58,26 @@ try {
   const launch = browserName === 'webkit' ? webkit : chromium;
   browser = await launch.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
-  const url = `${base}/player?game=${encodeURIComponent(game)}&probe=1&replay=${encodeURIComponent(run)}`;
+  const url = `${base}/player?game=${encodeURIComponent(game)}&probe=1&capture=1&replay=${encodeURIComponent(run)}`;
   await page.goto(url, { waitUntil: 'load', timeout: 30000 });
-  await page.waitForFunction(() => window.__dqProbe?.booted === true, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__dqProbe?.booted === true && typeof window.__dqTest?.advanceToStep === 'function', null, { timeout: 30000 });
   if (startDelayMs) await page.waitForTimeout(startDelayMs);
 
+  // The probe's capture mode holds simulation at step zero until this worker
+  // requests a target. Each screenshot is taken only after the exact fixed
+  // simulation step is reached, so OS scheduling and browser wall-clock jitter
+  // cannot change which game state appears in a frame.
+  const stepsPerSecond = 60;
   for (let index = 0; index < frameCount; index += 1) {
+    const targetStep = Math.round(index * stepsPerSecond / fps);
+    if (index > 0) {
+      const accepted = await page.evaluate((step) => window.__dqTest.advanceToStep(step), targetStep);
+      if (!accepted) throw new Error(`deterministic capture rejected simulation step ${targetStep}`);
+      await page.waitForFunction((step) => {
+        const snapshot = window.__dqTest?.snapshot();
+        return snapshot?.capturePaused === true && snapshot.simStep === step;
+      }, targetStep, { timeout: 15000 });
+    }
     const framePath = join(frameDir, `frame-${String(index).padStart(5, '0')}.png`);
     await page.screenshot({ path: framePath });
     framesCaptured += 1;
@@ -78,7 +91,6 @@ try {
     if (index === Math.floor(frameCount / 2)) {
       writeFileSync(poster, await (await import('node:fs/promises')).readFile(framePath));
     }
-    if (index + 1 < frameCount) await page.waitForTimeout(frameInterval);
   }
 
   if (framesCaptured > 0) {
