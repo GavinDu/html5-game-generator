@@ -27,12 +27,12 @@ const (
 )
 
 type previewMetadataRequest struct {
-	Version       int     `json:"version"`
-	Status        string  `json:"status"`
-	Aspect        float64 `json:"aspect"`
-	DurationMS    int     `json:"duration_ms"`
-	DominantColor  string  `json:"dominant_color"`
-	ShowSourceImage bool   `json:"show_source_image"`
+	Version         int     `json:"version"`
+	Status          string  `json:"status"`
+	Aspect          float64 `json:"aspect"`
+	DurationMS      int     `json:"duration_ms"`
+	DominantColor   string  `json:"dominant_color"`
+	ShowSourceImage bool    `json:"show_source_image"`
 }
 
 // PreviewScanResult is the provider-neutral outcome of scanning one preview
