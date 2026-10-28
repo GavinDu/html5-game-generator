@@ -32,6 +32,11 @@ if (!['chromium', 'webkit'].includes(browserName)) {
   process.exit(2);
 }
 
+if (!Number.isFinite(durationMs) || !Number.isFinite(fps) || !Number.isFinite(startDelayMs)) {
+  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite numbers');
+  process.exit(2);
+}
+
 const frameDir = `${out}.frames`;
 mkdirSync(frameDir, { recursive: true });
 mkdirSync(dirname(out), { recursive: true });

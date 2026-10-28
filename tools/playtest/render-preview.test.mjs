@@ -39,3 +39,9 @@ test('preview capture advances the runtime to exact fixed simulation steps', () 
   assert.match(runtime, /play\.simStep < captureTargetStep/);
   assert.match(runtime, /if \(deterministicCapture\) \{\s*try \{ app\.renderer\.render\(app\.stage\);/);
 });
+
+
+test('preview renderer rejects non-finite numeric options instead of emitting an empty successful preview', () => {
+  assert.match(source, /!Number\.isFinite\(durationMs\) \|\| !Number\.isFinite\(fps\) \|\| !Number\.isFinite\(startDelayMs\)/);
+  assert.match(source, /duration-ms, fps, and start-delay-ms must be finite numbers/);
+});
