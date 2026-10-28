@@ -822,7 +822,7 @@ async function run(id) {
       recordEvent('pause', 'hidden');
       flushPerfWindow();
     } else {
-      if (play.shellStarted) { try { app.ticker.start(); } catch { /* ignore */ } }
+      if (play.shellStarted && !(deterministicCapture && capturePaused)) { try { app.ticker.start(); } catch { /* ignore */ } }
       recordEvent('resume', '');
     }
   }, { signal: abort.signal });
@@ -2091,7 +2091,7 @@ async function run(id) {
     let steps = 0;
     try {
       while (simAcc >= STEP_MS && steps < 3 &&
-          (!deterministicCapture || captureTargetStep == null || play.simStep < captureTargetStep)) {
+          (!deterministicCapture || (captureTargetStep != null && play.simStep < captureTargetStep))) {
         applyReplayInputs(play.simStep);
         tickFrame(STEP_MS);
         play.simStep++;
