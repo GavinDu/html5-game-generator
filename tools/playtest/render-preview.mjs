@@ -39,7 +39,14 @@ mkdirSync(dirname(poster), { recursive: true });
 const frameCount = Math.max(1, Math.ceil(durationMs * fps / 1000));
 const frameInterval = 1000 / fps;
 let browser;
+let page;
 let usedFallback = false;
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]);
+}
 
 function runFFmpeg(args) {
   return new Promise((resolve, reject) => {
@@ -54,7 +61,7 @@ function runFFmpeg(args) {
 try {
   const launch = browserName === 'webkit' ? webkit : chromium;
   browser = await launch.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
   const url = `${base}/player?game=${encodeURIComponent(game)}&probe=1&replay=${encodeURIComponent(run)}`;
   await page.goto(url, { waitUntil: 'load', timeout: 30000 });
   await page.waitForFunction(() => window.__dqProbe?.booted === true, null, { timeout: 30000 });
@@ -91,8 +98,36 @@ try {
   };
   console.log(JSON.stringify(result));
 } catch (error) {
-  console.error(`render-preview.mjs: ${error.stack || error}`);
-  process.exitCode = 1;
+  // A failed replay/render must not discard the preview entirely. If the
+  // browser is available, render a deterministic, clearly-labelled poster
+  // fallback and let the caller publish poster-only metadata.
+  let fallbackWritten = false;
+  try {
+    if (browser && !page) {
+      page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+    }
+    if (page) {
+      await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+        *{box-sizing:border-box}body{margin:0;width:420px;height:900px;display:grid;place-items:center;background:#101827;color:#fff;font:600 24px system-ui,sans-serif;text-align:center}
+        main{padding:36px;max-width:380px}small{display:block;margin-top:16px;color:#b9c5d6;font-size:14px;font-weight:400}
+      </style></head><body><main>${escapeHTML(game || 'Game preview')}<small>Preview clip unavailable</small></main></body></html>`);
+      await page.screenshot({ path: poster, fullPage: false });
+      fallbackWritten = true;
+    }
+  } catch (fallbackError) {
+    console.error(`render-preview.mjs: poster fallback failed: ${fallbackError.message}`);
+  }
+  if (fallbackWritten) {
+    usedFallback = true;
+    console.error(`render-preview.mjs: replay/render failed; using poster-only fallback: ${error.message}`);
+    console.log(JSON.stringify({
+      game, run, duration_ms: 0, frames: 0, fps, browser: browserName,
+      clip: null, poster, clip_fallback: true, render_error: String(error.message || error),
+    }));
+  } else {
+    console.error(`render-preview.mjs: ${error.stack || error}`);
+    process.exitCode = 1;
+  }
 } finally {
   await browser?.close();
   rmSync(frameDir, { recursive: true, force: true });
