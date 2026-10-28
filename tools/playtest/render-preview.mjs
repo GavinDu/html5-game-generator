@@ -37,7 +37,6 @@ mkdirSync(frameDir, { recursive: true });
 mkdirSync(dirname(out), { recursive: true });
 mkdirSync(dirname(poster), { recursive: true });
 const frameCount = Math.max(1, Math.ceil(durationMs * fps / 1000));
-const frameInterval = 1000 / fps;
 let browser;
 let usedFallback = false;
 let posterReady = false;
