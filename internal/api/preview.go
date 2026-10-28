@@ -31,7 +31,8 @@ type previewMetadataRequest struct {
 	Status        string  `json:"status"`
 	Aspect        float64 `json:"aspect"`
 	DurationMS    int     `json:"duration_ms"`
-	DominantColor string  `json:"dominant_color"`
+	DominantColor  string  `json:"dominant_color"`
+	ShowSourceImage bool   `json:"show_source_image"`
 }
 
 // PreviewScanResult is the provider-neutral outcome of scanning one preview
@@ -115,14 +116,14 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 	var limit int64
 	var allowedTypes []string
 	switch asset {
-	case "poster.png", "poster.jpg":
+	case "poster.png", "poster.jpg", "source.png", "source.jpg":
 		limit = maxPreviewPosterBytes
 		allowedTypes = []string{"image/png", "image/jpeg"}
 	case "clip.mp4":
 		limit = maxPreviewClipBytes
 		allowedTypes = []string{"video/mp4"}
 	default:
-		writeErr(w, http.StatusBadRequest, "asset must be poster.png, poster.jpg, or clip.mp4")
+		writeErr(w, http.StatusBadRequest, "asset must be poster.png, poster.jpg, source.png, source.jpg, or clip.mp4")
 		return
 	}
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -208,12 +209,12 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 
 func validPreviewBytes(asset string, data []byte) bool {
 	switch asset {
-	case "poster.png", "poster.jpg":
+	case "poster.png", "poster.jpg", "source.png", "source.jpg":
 		config, format, err := image.DecodeConfig(bytes.NewReader(data))
 		if err != nil || config.Width < 1 || config.Height < 1 || config.Width > 4096 || config.Height > 4096 {
 			return false
 		}
-		if asset == "poster.png" {
+		if strings.HasSuffix(asset, ".png") {
 			return format == "png"
 		}
 		return format == "jpeg"
@@ -285,6 +286,12 @@ func (s *Server) handleSetPreviewMetadata(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusConflict, "ready previews require a poster and clip; failed previews require a poster fallback")
 		return
 	}
+	_, _, hasSourcePNG := s.store.GetArtifact(game.ID, previewArtifactKey(version, "source.png"))
+	_, _, hasSourceJPG := s.store.GetArtifact(game.ID, previewArtifactKey(version, "source.jpg"))
+	if req.ShowSourceImage && !hasSourcePNG && !hasSourceJPG {
+		writeErr(w, http.StatusConflict, "source image opt-in requires a scanned source.png or source.jpg asset")
+		return
+	}
 	metadata := &model.PreviewMetadata{
 		Version: version, Status: req.Status, Aspect: req.Aspect,
 		DurationMS: req.DurationMS, DominantColor: strings.ToUpper(req.DominantColor),
@@ -294,6 +301,13 @@ func (s *Server) handleSetPreviewMetadata(w http.ResponseWriter, r *http.Request
 	}
 	if hasClip && req.Status == "ready" {
 		metadata.ClipURL = previewAssetURL(game.ID, version, "clip.mp4")
+	}
+	if req.ShowSourceImage && req.Status != "pending" {
+		sourceAsset := "source.png"
+		if !hasSourcePNG {
+			sourceAsset = "source.jpg"
+		}
+		metadata.SourceImageURL = previewAssetURL(game.ID, version, sourceAsset)
 	}
 	game.Preview = metadata
 	s.store.UpdateGame(game)
@@ -326,6 +340,13 @@ func (s *Server) handleGetPreviewAsset(w http.ResponseWriter, r *http.Request) {
 	case "clip.mp4":
 		expectedURL = game.Preview.ClipURL
 		contentType = "video/mp4"
+	case "source.png", "source.jpg":
+		expectedURL = game.Preview.SourceImageURL
+		if asset == "source.png" {
+			contentType = "image/png"
+		} else {
+			contentType = "image/jpeg"
+		}
 	default:
 		writeErr(w, http.StatusNotFound, "preview asset not found")
 		return
