@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/socialgraph"
@@ -395,14 +396,25 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "parent_game_id must identify a ready inventory game")
 			return
 		}
-		// The current data-driven remix compiler is not ready yet. The legacy
-		// Bobo profile is the only supported parent; reject every other ready
-		// game before creating a child/job, rather than leaving a failed job
-		// in the user's library after the SPEC or codegen stage.
+		// Bobo retains its legacy remix profile. Other parents are eligible
+		// only when they carry a validated canonical IR and all referenced
+		// asset bytes; reject unsupported packages before creating a child/job.
 		if parent.ID != "sample-rainbow-bear" {
-			writeErrorCode(w, http.StatusConflict, "remix_unsupported",
-				"remixing this game is not supported yet; choose Bobo's Rainbow or create a new game")
-			return
+			if parent.GameIR == nil || gameir.Validate(parent.GameIR) != nil {
+				writeErrorCode(w, http.StatusConflict, "remix_unsupported",
+					"remixing this game is not supported because its canonical Game IR is unavailable or invalid")
+				return
+			}
+			for _, asset := range parent.GameIR.Assets {
+				if asset.URI == "" {
+					continue
+				}
+				if _, _, exists := s.store.GetArtifact(parent.ID, asset.URI); !exists {
+					writeErrorCode(w, http.StatusConflict, "remix_unsupported",
+						"remixing this game is not supported because a required parent asset is unavailable")
+					return
+				}
+			}
 		}
 		if len(elements) == 0 {
 			elements = append([]model.Element(nil), parent.Elements...)

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -96,5 +97,56 @@ func TestBuildGameIRNormalizesInvalidObjectiveTargetAndLabel(t *testing.T) {
 	}
 	if ir.Experience.Objective.Label != "Catch 10 stars" {
 		t.Fatalf("objective label = %q, want normalized default", ir.Experience.Objective.Label)
+	}
+}
+
+func TestBuildGenericRemixIRPreservesParentGameplayAndAppliesMetadataDelta(t *testing.T) {
+	parentIR := &gameir.Document{
+		IRVersion: gameir.Version12,
+		Game: gameir.Game{
+			ID: "parent-game", Title: "Original Game", Description: "Original story",
+			EntryScene: "scene", Orientation: "portrait",
+		},
+		Assets: []gameir.Asset{{ID: "hero", Kind: "image", URI: "sprites/hero.png"}},
+		Scenes: []gameir.Scene{{
+			ID: "scene",
+			Entities: []gameir.Entity{{
+				ID: "hero-entity", Kind: "player", AssetID: "hero",
+				Position: []float64{20, 30}, Size: []float64{40, 50},
+				Components: []string{"movement", "collider"},
+			}},
+		}},
+		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}},
+		Rules:         []gameir.Rule{{ID: "preserve-win-loop"}},
+		Metadata:      gameir.Metadata{Tags: []string{"arcade"}},
+	}
+	parent := &model.Game{
+		ID: "parent-game", Title: "Original Game", GameIR: parentIR,
+		Manifest: &model.BundleManifest{Version: 3},
+	}
+	child := &model.Game{ID: "child-game", ParentGameID: parent.ID}
+	doc := &model.DesignDoc{Title: "My Remix", Plot: "A new story description"}
+
+	remix, err := buildGenericRemixIR(doc, child, parent)
+	if err != nil {
+		t.Fatalf("buildGenericRemixIR() error = %v", err)
+	}
+	if remix.Game.ID != child.ID || remix.Game.Title != doc.Title || remix.Game.Description != doc.Plot {
+		t.Fatalf("remix metadata not applied: %#v", remix.Game)
+	}
+	if !reflect.DeepEqual(remix.Assets, parentIR.Assets) ||
+		!reflect.DeepEqual(remix.Scenes, parentIR.Scenes) ||
+		!reflect.DeepEqual(remix.InputBindings, parentIR.InputBindings) ||
+		!reflect.DeepEqual(remix.Rules, parentIR.Rules) {
+		t.Fatal("generic remix changed parent gameplay data")
+	}
+	if remix.Metadata.ParentGameID != parent.ID || remix.Metadata.ParentVersion != 3 {
+		t.Fatalf("parent lineage not recorded: %#v", remix.Metadata)
+	}
+	if !reflect.DeepEqual(remix.Metadata.Tags, []string{"arcade", "remix"}) {
+		t.Fatalf("remix tags = %#v, want original tags plus remix", remix.Metadata.Tags)
+	}
+	if parentIR.Game.ID != "parent-game" || parentIR.Game.Title != "Original Game" {
+		t.Fatal("building a remix mutated the parent IR")
 	}
 }

@@ -177,13 +177,23 @@ func (r *Runner) runSpec(jobID string, elements []model.Element, intent string, 
 			if !found || parent.Manifest == nil {
 				return fmt.Errorf("remix parent %q is unavailable", game.ParentGameID)
 			}
-			job.DesignDoc.Title = "Bobo's Rainbow: Heart Rescue"
-			job.DesignDoc.Plot = "Help Bobo restore the rainbow by collecting three magic hearts so the kitten can cross safely."
-			job.DesignDoc.Mechanics = "Drag Bobo to collect three hearts. Each heart restores part of the rainbow; collecting all three wins."
-			job.DesignDoc.Controls = []string{"drag", "tap"}
-			job.DesignDoc.WinCondition = "Collect three magic hearts"
-			job.DesignDoc.LoseCondition = "No lose condition; play at your own pace."
-			job.DesignDoc.MusicMood = "calm"
+			if parent.ID == "sample-rainbow-bear" {
+				job.DesignDoc.Title = "Bobo's Rainbow: Heart Rescue"
+				job.DesignDoc.Plot = "Help Bobo restore the rainbow by collecting three magic hearts so the kitten can cross safely."
+				job.DesignDoc.Mechanics = "Drag Bobo to collect three hearts. Each heart restores part of the rainbow; collecting all three wins."
+				job.DesignDoc.Controls = []string{"drag", "tap"}
+				job.DesignDoc.WinCondition = "Collect three magic hearts"
+				job.DesignDoc.LoseCondition = "No lose condition; play at your own pace."
+				job.DesignDoc.MusicMood = "calm"
+			} else {
+				job.DesignDoc.Title = capTitle("Remix: "+parent.Title, 80)
+				if job.DesignDoc.Plot == "" && parent.GameIR != nil {
+					job.DesignDoc.Plot = parent.GameIR.Game.Description
+				}
+				if len(job.DesignDoc.Controls) == 0 && parent.Manifest != nil {
+					job.DesignDoc.Controls = append([]string(nil), parent.Manifest.Controls...)
+				}
+			}
 		}
 		return nil
 	})
@@ -233,23 +243,39 @@ func (r *Runner) runRemaining(jobID string) {
 			if !found || parent.Manifest == nil {
 				return fmt.Errorf("remix parent %q is unavailable", child.ParentGameID)
 			}
-			needed := map[string]bool{"bear": true, "kitten": true, "heart": true}
-			for i := 0; i < 6; i++ {
-				needed[fmt.Sprintf("band%d", i)] = true
-			}
-			for _, sprite := range parent.Manifest.Assets.Sprites {
-				if !needed[sprite.ID] {
-					continue
+			if parent.ID != "sample-rainbow-bear" {
+				if parent.GameIR == nil {
+					return fmt.Errorf("remix parent %q has no canonical Game IR to preserve", parent.ID)
 				}
-				data, contentType, exists := r.store.GetArtifact(parent.ID, sprite.Src)
-				if !exists {
-					return fmt.Errorf("remix parent asset %q (%s) is missing", sprite.ID, sprite.Src)
+				for _, asset := range parent.GameIR.Assets {
+					if asset.URI == "" {
+						continue
+					}
+					data, contentType, exists := r.store.GetArtifact(parent.ID, asset.URI)
+					if !exists {
+						return fmt.Errorf("remix parent asset %q (%s) is missing", asset.ID, asset.URI)
+					}
+					r.store.PutArtifact(job.GameID, asset.URI, data, contentType)
 				}
-				r.store.PutArtifact(job.GameID, sprite.Src, data, contentType)
-			}
-			if music := parent.Manifest.Assets.Music; music.Src != "" {
-				if data, contentType, exists := r.store.GetArtifact(parent.ID, music.Src); exists {
-					r.store.PutArtifact(job.GameID, music.Src, data, contentType)
+			} else {
+				needed := map[string]bool{"bear": true, "kitten": true, "heart": true}
+				for i := 0; i < 6; i++ {
+					needed[fmt.Sprintf("band%d", i)] = true
+				}
+				for _, sprite := range parent.Manifest.Assets.Sprites {
+					if !needed[sprite.ID] {
+						continue
+					}
+					data, contentType, exists := r.store.GetArtifact(parent.ID, sprite.Src)
+					if !exists {
+						return fmt.Errorf("remix parent asset %q (%s) is missing", sprite.ID, sprite.Src)
+					}
+					r.store.PutArtifact(job.GameID, sprite.Src, data, contentType)
+				}
+				if music := parent.Manifest.Assets.Music; music.Src != "" {
+					if data, contentType, exists := r.store.GetArtifact(parent.ID, music.Src); exists {
+						r.store.PutArtifact(job.GameID, music.Src, data, contentType)
+					}
 				}
 			}
 		}
@@ -280,7 +306,11 @@ func (r *Runner) runRemaining(jobID string) {
 				return fmt.Errorf("remix parent %q is unavailable", child.ParentGameID)
 			}
 			var err error
-			canonicalIR, err = buildBoboRemixIR(doc, child, parent)
+			if parent.ID == "sample-rainbow-bear" {
+				canonicalIR, err = buildBoboRemixIR(doc, child, parent)
+			} else {
+				canonicalIR, err = buildGenericRemixIR(doc, child, parent)
+			}
 			if err != nil {
 				return err
 			}
@@ -327,22 +357,33 @@ func (r *Runner) runRemaining(jobID string) {
 			Entry:    "game-ir.json",
 			Controls: doc.Controls,
 		}
-		for i, el := range doc.Elements {
-			if i >= 4 {
-				break
+		preserveParentAssets := false
+		if game.ParentGameID != "" {
+			if parent, found := r.store.GetGame(game.ParentGameID); found &&
+				parent.ID != "sample-rainbow-bear" && parent.Manifest != nil {
+				m.Assets = parent.Manifest.Assets
+				m.Controls = append([]string(nil), parent.Manifest.Controls...)
+				preserveParentAssets = true
 			}
-			spriteID := fmt.Sprintf("el_%d", i+1)
-			m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
-				ID:     spriteID,
-				Src:    "sprites/" + spriteID + ".png",
-				Source: "kid-drawing",
-				Label:  el.Label,
-			})
 		}
-		m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
-			ID: "star", Src: "sprites/star.png", Source: "procedural", Label: "star",
-		})
-		m.Assets.Music = model.MusicAsset{Src: "audio/theme.wav", Mood: doc.MusicMood, Source: "library"}
+		if !preserveParentAssets {
+			for i, el := range doc.Elements {
+				if i >= 4 {
+					break
+				}
+				spriteID := fmt.Sprintf("el_%d", i+1)
+				m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
+					ID:     spriteID,
+					Src:    "sprites/" + spriteID + ".png",
+					Source: "kid-drawing",
+					Label:  el.Label,
+				})
+			}
+			m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
+				ID: "star", Src: "sprites/star.png", Source: "procedural", Label: "star",
+			})
+			m.Assets.Music = model.MusicAsset{Src: "audio/theme.wav", Mood: doc.MusicMood, Source: "library"}
+		}
 		m.Visibility = game.Visibility
 		m.SharedGroupIDs = game.GroupIDs
 		game.Manifest = m
@@ -575,6 +616,43 @@ func floatPtr(v float64) *float64 { return &v }
 // buildBoboRemixIR creates a playable variant from the original legacy Bobo's
 // Rainbow inventory entry. It reuses parent assets and expresses new behavior
 // as Game IR data rather than downloaded executable code.
+// buildGenericRemixIR applies a metadata delta to a canonical parent IR.
+// Gameplay scenes, entities, assets, bindings, experience, and rules are
+// copied intact so a remix does not silently replace its parent's game loop.
+func buildGenericRemixIR(doc *model.DesignDoc, child, parent *model.Game) (*gameir.Document, error) {
+	if parent == nil || parent.GameIR == nil || parent.Manifest == nil {
+		return nil, fmt.Errorf("remix parent must have a published canonical Game IR")
+	}
+	encoded, err := json.Marshal(parent.GameIR)
+	if err != nil {
+		return nil, fmt.Errorf("encode remix parent Game IR: %w", err)
+	}
+	var remix gameir.Document
+	if err := json.Unmarshal(encoded, &remix); err != nil {
+		return nil, fmt.Errorf("copy remix parent Game IR: %w", err)
+	}
+	remix.Game.ID = child.ID
+	if doc != nil && strings.TrimSpace(doc.Title) != "" {
+		remix.Game.Title = strings.TrimSpace(doc.Title)
+	}
+	if doc != nil && strings.TrimSpace(doc.Plot) != "" {
+		remix.Game.Description = strings.TrimSpace(doc.Plot)
+	}
+	remix.Metadata.ParentGameID = parent.ID
+	remix.Metadata.ParentVersion = parent.Manifest.Version
+	foundRemixTag := false
+	for _, tag := range remix.Metadata.Tags {
+		if tag == "remix" {
+			foundRemixTag = true
+			break
+		}
+	}
+	if !foundRemixTag {
+		remix.Metadata.Tags = append(remix.Metadata.Tags, "remix")
+	}
+	return &remix, nil
+}
+
 func buildBoboRemixIR(doc *model.DesignDoc, child, parent *model.Game) (*gameir.Document, error) {
 	if parent.ID != "sample-rainbow-bear" || parent.Manifest == nil {
 		return nil, fmt.Errorf("no Game IR remix profile for parent %q", parent.ID)
