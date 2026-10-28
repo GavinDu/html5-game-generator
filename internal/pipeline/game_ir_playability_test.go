@@ -72,7 +72,7 @@ func TestTargetScoreFromDesignDocDefaultsAndBounds(t *testing.T) {
 	}{
 		{name: "default", doc: &model.DesignDoc{WinCondition: "Catch stars"}, want: 10},
 		{name: "confirmed objective", doc: &model.DesignDoc{WinCondition: "Collect 12 stars"}, want: 12},
-		{name: "bounded malformed target", doc: &model.DesignDoc{WinCondition: "Collect 999 stars", Plot: "Catch 5 stars"}, want: 5},
+		{name: "bounded malformed target", doc: &model.DesignDoc{WinCondition: "Collect 999 stars", Plot: "Catch 5 stars"}, want: 10},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -80,5 +80,21 @@ func TestTargetScoreFromDesignDocDefaultsAndBounds(t *testing.T) {
 				t.Fatalf("targetScoreFromDesignDoc() = %d, want %d", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBuildGameIRNormalizesInvalidObjectiveTargetAndLabel(t *testing.T) {
+	doc := &model.DesignDoc{
+		Title: "Star Hunt",
+		Plot: "Catch 5 stars",
+		WinCondition: "Collect 999 stars",
+		Elements: []model.Element{{ID: "el_1", Label: "dragon", Kind: "character"}},
+	}
+	ir := buildGameIR(doc, "invalid-target-game")
+	if ir.Experience.Objective.Target != 10 {
+		t.Fatalf("objective target = %d, want default 10", ir.Experience.Objective.Target)
+	}
+	if ir.Experience.Objective.Label != "Catch 10 stars" {
+		t.Fatalf("objective label = %q, want normalized default", ir.Experience.Objective.Label)
 	}
 }
