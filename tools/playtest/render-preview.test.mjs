@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const sourcePath = fileURLToPath(new URL('./render-preview.mjs', import.meta.url));
 const source = await readFile(sourcePath, 'utf8');
+const runtimePath = fileURLToPath(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url));
+const runtime = await readFile(runtimePath, 'utf8');
 
 test('preview renderer persists the first usable poster before capturing later frames', () => {
   assert.match(source, /if \(!posterReady\)/);
@@ -23,4 +25,16 @@ test('preview renderer reports per-game media metrics', () => {
   assert.match(source, /clip_bytes: clipBytes/);
   assert.match(source, /poster_bytes: posterBytes/);
   assert.match(source, /render_ms:/);
+});
+
+
+test('preview capture advances the runtime to exact fixed simulation steps', () => {
+  assert.match(source, /probe=1&capture=1&replay=/);
+  assert.match(source, /advanceToStep\(step\)/);
+  assert.match(source, /snapshot\.simStep === step/);
+  assert.doesNotMatch(source, /waitForTimeout\(frameInterval\)/);
+  assert.match(runtime, /const deterministicCapture = probeMode && params\.get\('capture'\) === '1'/);
+  assert.match(runtime, /advanceToStep: \(step\) =>/);
+  assert.match(runtime, /capturePaused/);
+  assert.match(runtime, /play\.simStep < captureTargetStep/);
 });
