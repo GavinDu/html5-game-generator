@@ -424,28 +424,34 @@ func staticChecks(gameJS string) error {
 	return nil
 }
 
-func targetScoreFromDesignDoc(doc *model.DesignDoc) int {
-	// The confirmed design document is authoritative. Extract the first
-	// positive integer from its win condition (for example, "Catch 10 stars").
-	// Keep targets bounded so malformed creator text cannot generate huge
-	// entities or a game that is practically impossible to finish.
-	if doc != nil {
-		for _, field := range []string{doc.WinCondition, doc.Plot, doc.Mechanics} {
-			for _, token := range strings.Fields(field) {
-				digits := strings.Builder{}
-				for _, r := range token {
-					if r >= '0' && r <= '9' {
-						digits.WriteRune(r)
-					}
-				}
-				if digits.Len() == 0 {
-					continue
-				}
-				if n, err := strconv.Atoi(digits.String()); err == nil && n >= 1 && n <= 100 {
-					return n
-				}
+func designTargetFromWinCondition(doc *model.DesignDoc) (int, bool) {
+	if doc == nil {
+		return 0, false
+	}
+	for _, token := range strings.Fields(doc.WinCondition) {
+		digits := strings.Builder{}
+		for _, r := range token {
+			if r >= '0' && r <= '9' {
+				digits.WriteRune(r)
 			}
 		}
+		if digits.Len() == 0 {
+			continue
+		}
+		n, err := strconv.Atoi(digits.String())
+		if err != nil || n < 1 || n > 100 {
+			return 0, false
+		}
+		return n, true
+	}
+	return 0, false
+}
+
+func targetScoreFromDesignDoc(doc *model.DesignDoc) int {
+	// The confirmed win condition is authoritative; unrelated numbers in
+	// plot/mechanics text must never silently change the objective.
+	if n, ok := designTargetFromWinCondition(doc); ok {
+		return n
 	}
 	return 10
 }
@@ -526,7 +532,7 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 		controlsHint = controlsHint[:80]
 	}
 	objectiveLabel := strings.TrimSpace(doc.WinCondition)
-	if objectiveLabel == "" {
+	if _, ok := designTargetFromWinCondition(doc); !ok || objectiveLabel == "" {
 		objectiveLabel = fmt.Sprintf("Catch %d stars", target)
 	}
 	if len(objectiveLabel) > 60 {
