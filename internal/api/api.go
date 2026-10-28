@@ -170,7 +170,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/games/{id}/confirm", s.handleConfirm)
 	mux.HandleFunc("GET /v1/games/{id}/bundle", s.handleGetBundle)
 	mux.HandleFunc("GET /v1/games/{id}/bundle/game.js", s.handleGameJS)
-mux.HandleFunc("GET /v1/games/{id}/bundle/game-ir.json", s.handleGameIRArtifact)
+	mux.HandleFunc("GET /v1/games/{id}/bundle/game-ir.json", s.handleGameIRArtifact)
 	mux.HandleFunc("GET /v1/games/{id}/bundle/sprites/{sprite}", s.handleSprite)
 	mux.HandleFunc("GET /v1/games/{id}/bundle/audio/theme.wav", s.handleMusic)
 	mux.HandleFunc("GET /v1/jobs/{id}", s.handleGetJob)
