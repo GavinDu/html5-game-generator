@@ -105,6 +105,25 @@ func validateReport(report *Report) error {
 				return fmt.Errorf("game %q check %q has invalid status %q", id, check.CheckID, check.Status)
 			}
 		}
+		// A PASS verdict is publishable only when every hard delivery gate
+		// was measured and passed. Missing or skipped gates are inconclusive,
+		// not evidence of success. FAIL reports may be incomplete because a
+		// boot failure can prevent later checks from running.
+		if game.Verdict == "PASS" {
+			gateStatuses := map[string]string{}
+			for _, check := range game.Checks {
+				switch check.CheckID {
+				case "playtest.boot_clean", "playtest.render_nonblank", "simulation.no_softlock":
+					gateStatuses[check.CheckID] = check.Status
+				}
+			}
+			for _, gate := range []string{"playtest.boot_clean", "playtest.render_nonblank", "simulation.no_softlock"} {
+				status, measured := gateStatuses[gate]
+				if !measured || status != validator.StatusPass {
+					return fmt.Errorf("game %q has PASS verdict but hard gate %q is missing or not passed", id, gate)
+				}
+			}
+		}
 	}
 	return nil
 }
