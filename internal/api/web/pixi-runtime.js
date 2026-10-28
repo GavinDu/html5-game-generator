@@ -2363,6 +2363,13 @@ async function run(id) {
     emit('scene_entered', undefined, undefined);
   }
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
+  // Capture mode stops Pixi before the first animation frame; render the
+  // initial state explicitly so frame zero is a real scene, not a blank canvas.
+  if (deterministicCapture) {
+    try { app.renderer.render(app.stage); } catch (err) {
+      log('RT', 'CAPTURE INITIAL RENDER ERROR ' + (err.message || err));
+    }
+  }
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
