@@ -95,10 +95,16 @@ func validateReport(report *Report) error {
 		if len(game.Checks) == 0 {
 			return fmt.Errorf("game %q has no measured checks", id)
 		}
+		seenChecks := make(map[string]struct{}, len(game.Checks))
 		for checkIndex, check := range game.Checks {
-			if strings.TrimSpace(check.CheckID) == "" {
+			checkID := strings.TrimSpace(check.CheckID)
+			if checkID == "" {
 				return fmt.Errorf("game %q check %d has no checkId", id, checkIndex)
 			}
+			if _, exists := seenChecks[checkID]; exists {
+				return fmt.Errorf("game %q has duplicate checkId %q", id, checkID)
+			}
+			seenChecks[checkID] = struct{}{}
 			switch check.Status {
 			case validator.StatusPass, validator.StatusFail, validator.StatusSkip:
 			default:
