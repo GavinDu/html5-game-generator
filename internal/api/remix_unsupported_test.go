@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"testing"
 
+	"doodlequest/internal/inventory"
 	"doodlequest/internal/model"
 )
 
@@ -33,5 +35,28 @@ func TestCreateRemixUnsupportedParentReturnsConflictBeforeQueueing(t *testing.T)
 	}
 	if body["message"] == "" {
 		t.Fatal("expected a user-readable explanation")
+	}
+}
+
+
+func TestCreateRemixWithValidatedInventoryGameIsAccepted(t *testing.T) {
+	srv := newTestServer()
+	if err := inventory.Load(srv.store, filepath.Join("..", "..", "inventory")); err != nil {
+		t.Fatalf("load shipped inventory: %v", err)
+	}
+	parent, ok := srv.store.GetGame("sample-ribbon-sky")
+	if !ok {
+		t.Fatal("sample-ribbon-sky inventory game missing")
+	}
+	if parent.GameIR == nil || parent.Manifest == nil {
+		t.Fatal("sample-ribbon-sky must have a canonical Game IR and manifest")
+	}
+
+	rec := do(t, srv, http.MethodPost, "/v1/games", map[string]any{
+		"parent_game_id": parent.ID,
+		"intent":         "Make the ribbon adventure a little brighter",
+	}, "remix-user")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("supported inventory remix status = %d, want 202: %s", rec.Code, rec.Body.String())
 	}
 }
