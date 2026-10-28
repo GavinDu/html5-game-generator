@@ -4,7 +4,7 @@
 //   node render-preview.mjs --base http://localhost:8080 --game GAME \
 //     --run RUN_ID --out /tmp/preview.mp4 --poster /tmp/poster.png
 import { chromium, webkit } from 'playwright';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 
@@ -40,6 +40,10 @@ const frameCount = Math.max(1, Math.ceil(durationMs * fps / 1000));
 const frameInterval = 1000 / fps;
 let browser;
 let usedFallback = false;
+let posterReady = false;
+let framesCaptured = 0;
+let clipReady = false;
+const renderStartedAt = Date.now();
 
 function runFFmpeg(args) {
   return new Promise((resolve, reject) => {
@@ -63,36 +67,70 @@ try {
   for (let index = 0; index < frameCount; index += 1) {
     const framePath = join(frameDir, `frame-${String(index).padStart(5, '0')}.png`);
     await page.screenshot({ path: framePath });
-    await page.waitForTimeout(frameInterval);
-  }
-  const peakFrame = join(frameDir, `frame-${String(Math.floor(frameCount / 2)).padStart(5, '0')}.png`);
-  writeFileSync(poster, await (await import('node:fs/promises')).readFile(peakFrame));
+    framesCaptured += 1;
 
-  try {
-    await runFFmpeg([
-      '-y', '-framerate', String(fps), '-i', join(frameDir, 'frame-%05d.png'),
-      '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out,
-    ]);
-  } catch (error) {
-    usedFallback = true;
-    console.error(`render-preview.mjs: clip encode failed; poster retained: ${error.message}`);
+    // Persist a usable poster immediately. If a later screenshot or encode
+    // fails, publishing can still use this first-frame fallback.
+    if (!posterReady) {
+      writeFileSync(poster, await (await import('node:fs/promises')).readFile(framePath));
+      posterReady = true;
+    }
+    if (index === Math.floor(frameCount / 2)) {
+      writeFileSync(poster, await (await import('node:fs/promises')).readFile(framePath));
+    }
+    if (index + 1 < frameCount) await page.waitForTimeout(frameInterval);
   }
 
+  if (framesCaptured > 0) {
+    try {
+      await runFFmpeg([
+        '-y', '-framerate', String(fps), '-i', join(frameDir, 'frame-%05d.png'),
+        '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out,
+      ]);
+      clipReady = true;
+    } catch (error) {
+      usedFallback = true;
+      rmSync(out, { force: true });
+      console.error(`render-preview.mjs: clip encode failed; poster retained: ${error.message}`);
+    }
+  }
+
+  const clipBytes = clipReady && existsSync(out) ? statSync(out).size : 0;
+  const posterBytes = posterReady && existsSync(poster) ? statSync(poster).size : 0;
   const result = {
     game,
     run,
     duration_ms: durationMs,
-    frames: frameCount,
+    frames: framesCaptured,
     fps,
     browser: browserName,
-    clip: out,
+    clip: clipReady ? out : null,
+    clip_bytes: clipBytes,
     poster,
-    clip_fallback: usedFallback,
+    poster_bytes: posterBytes,
+    render_ms: Date.now() - renderStartedAt,
+    clip_fallback: usedFallback || !clipReady,
   };
   console.log(JSON.stringify(result));
 } catch (error) {
-  console.error(`render-preview.mjs: ${error.stack || error}`);
-  process.exitCode = 1;
+  // Once the browser has booted and captured a frame, a later render error
+  // should degrade to a poster-only preview rather than discard usable media.
+  if (posterReady && existsSync(poster)) {
+    usedFallback = true;
+    rmSync(out, { force: true });
+    const result = {
+      game, run, duration_ms: durationMs, frames: framesCaptured, fps,
+      browser: browserName, clip: null, clip_bytes: 0, poster,
+      poster_bytes: statSync(poster).size,
+      render_ms: Date.now() - renderStartedAt, clip_fallback: true,
+      fallback_reason: String(error.message || error),
+    };
+    console.error(`render-preview.mjs: render failed after poster capture; keeping poster: ${error.message}`);
+    console.log(JSON.stringify(result));
+  } else {
+    console.error(`render-preview.mjs: ${error.stack || error}`);
+    process.exitCode = 1;
+  }
 } finally {
   await browser?.close();
   rmSync(frameDir, { recursive: true, force: true });
