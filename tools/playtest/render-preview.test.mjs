@@ -37,4 +37,5 @@ test('preview capture advances the runtime to exact fixed simulation steps', () 
   assert.match(runtime, /advanceToStep: \(step\) =>/);
   assert.match(runtime, /capturePaused/);
   assert.match(runtime, /play\.simStep < captureTargetStep/);
+  assert.match(runtime, /if \(deterministicCapture\) \{\s*try \{ app\.renderer\.render\(app\.stage\);/);
 });
