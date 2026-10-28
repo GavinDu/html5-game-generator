@@ -50,7 +50,7 @@ type PreviewScanner interface {
 // SetPreviewScanRequired makes missing scanner configuration fail closed.
 // Deployments can also enable this with DQ_PREVIEW_SCAN_REQUIRED=true.
 func (s *Server) SetPreviewScanRequired(required bool) {
-    s.previewScanRequired = required
+	s.previewScanRequired = required
 }
 
 // SetPreviewScanner installs the preview safety provider. A nil scanner
