@@ -74,7 +74,9 @@ jobs:
         run: npm test
       - name: Test playtest and Pixi runtime safeguards
         working-directory: tools/playtest
-        run: npm test
+        run: |
+          npm test
+          node --check render-preview.mjs
       - name: Install browser dependencies
         run: npx --prefix tools/playtest playwright install --with-deps ${{ matrix.browser }}
       - name: Build and start the server
