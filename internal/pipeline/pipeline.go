@@ -357,22 +357,33 @@ func (r *Runner) runRemaining(jobID string) {
 			Entry:    "game-ir.json",
 			Controls: doc.Controls,
 		}
-		for i, el := range doc.Elements {
-			if i >= 4 {
-				break
+		preserveParentAssets := false
+		if game.ParentGameID != "" {
+			if parent, found := r.store.GetGame(game.ParentGameID); found &&
+				parent.ID != "sample-rainbow-bear" && parent.Manifest != nil {
+				m.Assets = parent.Manifest.Assets
+				m.Controls = append([]string(nil), parent.Manifest.Controls...)
+				preserveParentAssets = true
 			}
-			spriteID := fmt.Sprintf("el_%d", i+1)
-			m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
-				ID:     spriteID,
-				Src:    "sprites/" + spriteID + ".png",
-				Source: "kid-drawing",
-				Label:  el.Label,
-			})
 		}
-		m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
-			ID: "star", Src: "sprites/star.png", Source: "procedural", Label: "star",
-		})
-		m.Assets.Music = model.MusicAsset{Src: "audio/theme.wav", Mood: doc.MusicMood, Source: "library"}
+		if !preserveParentAssets {
+			for i, el := range doc.Elements {
+				if i >= 4 {
+					break
+				}
+				spriteID := fmt.Sprintf("el_%d", i+1)
+				m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
+					ID:     spriteID,
+					Src:    "sprites/" + spriteID + ".png",
+					Source: "kid-drawing",
+					Label:  el.Label,
+				})
+			}
+			m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
+				ID: "star", Src: "sprites/star.png", Source: "procedural", Label: "star",
+			})
+			m.Assets.Music = model.MusicAsset{Src: "audio/theme.wav", Mood: doc.MusicMood, Source: "library"}
+		}
 		m.Visibility = game.Visibility
 		m.SharedGroupIDs = game.GroupIDs
 		game.Manifest = m
