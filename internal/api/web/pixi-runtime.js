@@ -2086,18 +2086,30 @@ async function run(id) {
     // before; 120Hz panels step every other frame; slow devices run
     // up to 3 catch-up steps, then shed time instead of spiraling.
     // This is what makes leaderboard replay verification possible.
-    simAcc += Math.min(ticker.deltaMS, 250);
+    if (!deterministicCapture) simAcc += Math.min(ticker.deltaMS, 250);
     samplePointerForTrace();
     let steps = 0;
     try {
-      while (simAcc >= STEP_MS && steps < 3 &&
-          (!deterministicCapture || (captureTargetStep != null && play.simStep < captureTargetStep))) {
-        applyReplayInputs(play.simStep);
-        tickFrame(STEP_MS);
-        play.simStep++;
-        simAcc -= STEP_MS;
-        steps++;
-        if (state.ended) break;
+      if (deterministicCapture) {
+        // Capture mode is driven by integer simulation steps, not the
+        // ticker's wall-clock delta. Advance directly to the requested
+        // target in fixed 1/60s increments, including low-fps captures.
+        while (captureTargetStep != null && play.simStep < captureTargetStep && steps < 10000) {
+          applyReplayInputs(play.simStep);
+          tickFrame(STEP_MS);
+          play.simStep++;
+          steps++;
+          if (state.ended) break;
+        }
+      } else {
+        while (simAcc >= STEP_MS && steps < 3) {
+          applyReplayInputs(play.simStep);
+          tickFrame(STEP_MS);
+          play.simStep++;
+          simAcc -= STEP_MS;
+          steps++;
+          if (state.ended) break;
+        }
       }
     } catch (err) {
       if (!tickErrLogged) {
