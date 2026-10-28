@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Render the same recorded run twice and fail unless every captured frame is
 // byte-identical. This is an opt-in end-to-end check for issue #100.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { compareFrameHashes } from './frame-hash-comparison.mjs';
