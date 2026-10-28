@@ -121,6 +121,10 @@ func validateReport(report *Report) error {
 				switch check.CheckID {
 				case "playtest.boot_clean", "playtest.render_nonblank", "simulation.no_softlock":
 					gateStatuses[check.CheckID] = check.Status
+				case "shell.start_card", "shell.restart_in_place":
+					if check.Status == validator.StatusFail {
+						return fmt.Errorf("game %q has PASS verdict but exit-gate %q failed", id, check.CheckID)
+					}
 				}
 			}
 			for _, gate := range []string{"playtest.boot_clean", "playtest.render_nonblank", "simulation.no_softlock"} {
