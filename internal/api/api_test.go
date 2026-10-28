@@ -178,13 +178,14 @@ func TestFullPipeline(t *testing.T) {
 	}
 	var manifest model.BundleManifest
 	decode(t, rec, &manifest)
-	if manifest.Shim != "gameshim/v1" || len(manifest.Assets.Sprites) != 3 {
+	if manifest.Shim != "gameir/v1.2" || manifest.Entry != "game-ir.json" || manifest.Version != 1 || len(manifest.Assets.Sprites) != 3 {
 		t.Fatalf("bad manifest: %+v", manifest)
 	}
 
 	bundleBase := "/v1/games/" + created.Game.ID + "/bundle"
 	for _, p := range []string{
-		bundleBase + "/game.js",
+		bundleBase + "/" + manifest.Entry,
+		bundleBase + "/game.js", // transitional HTML5 oracle
 		bundleBase + "/" + manifest.Assets.Music.Src,
 	} {
 		rec = do(t, srv, "GET", p, nil, "parent-1")
@@ -192,7 +193,7 @@ func TestFullPipeline(t *testing.T) {
 			t.Fatalf("artifact %s: %d, len %d", p, rec.Code, rec.Body.Len())
 		}
 		if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
-			t.Fatalf("legacy artifact %s cache policy = %q", p, got)
+			t.Fatalf("artifact %s cache policy = %q", p, got)
 		}
 	}
 	// Every sprite URL exactly as the manifest declares it must be fetchable.
