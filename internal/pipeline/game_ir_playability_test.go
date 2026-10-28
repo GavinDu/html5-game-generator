@@ -100,7 +100,6 @@ func TestBuildGameIRNormalizesInvalidObjectiveTargetAndLabel(t *testing.T) {
 	}
 }
 
-
 func TestBuildGenericRemixIRPreservesParentGameplayAndAppliesMetadataDelta(t *testing.T) {
 	parentIR := &gameir.Document{
 		IRVersion: gameir.Version12,
@@ -118,8 +117,8 @@ func TestBuildGenericRemixIRPreservesParentGameplayAndAppliesMetadataDelta(t *te
 			}},
 		}},
 		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}},
-		Rules: []gameir.Rule{{ID: "preserve-win-loop"}},
-		Metadata: gameir.Metadata{Tags: []string{"arcade"}},
+		Rules:         []gameir.Rule{{ID: "preserve-win-loop"}},
+		Metadata:      gameir.Metadata{Tags: []string{"arcade"}},
 	}
 	parent := &model.Game{
 		ID: "parent-game", Title: "Original Game", GameIR: parentIR,
