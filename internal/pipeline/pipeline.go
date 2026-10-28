@@ -477,7 +477,7 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 		entities = append(entities, gameir.Entity{
 			ID: id, Kind: kind, AssetID: id,
 			Position: []float64{float64(100 + i*80), 690},
-			Size: []float64{64, 64}, Components: components,
+			Size:     []float64{64, 64}, Components: components,
 			Properties: map[string]any{"sourceLabel": element.Label, "sourceKind": element.Kind},
 		})
 	}
@@ -500,7 +500,7 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 		entities = append(entities, gameir.Entity{
 			ID: fmt.Sprintf("star-%d", i+1), Kind: "pickup", AssetID: "star",
 			Position: pos, Size: []float64{30, 30}, Components: []string{"collider", "collectible"},
-			Behavior: &gameir.Behavior{Type: "fall", Speed: &speed},
+			Behavior:   &gameir.Behavior{Type: "fall", Speed: &speed},
 		})
 	}
 	starTemplate := gameir.Entity{
@@ -537,30 +537,30 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 		failureMode = "none"
 	}
 	return &gameir.Document{
-		IRVersion: gameir.Version12,
+		IRVersion:    gameir.Version12,
 		Capabilities: []string{"shell.v1", "audio"},
 		Game: gameir.Game{
 			ID: gameID, Title: doc.Title, Description: doc.Plot,
 			EntryScene: "main", Orientation: "portrait",
 			SessionTargetSeconds: 90, Audience: "family",
 		},
-		Assets: assets,
-		Scenes: []gameir.Scene{{ID: "main", Entities: entities, Templates: []gameir.Entity{starTemplate}}},
+		Assets:        assets,
+		Scenes:        []gameir.Scene{{ID: "main", Entities: entities, Templates: []gameir.Entity{starTemplate}}},
 		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}, {Action: "move", Input: "tap"}},
-		Rules: rules,
+		Rules:         rules,
 		Experience: &gameir.Experience{
-			Archetype: "catcher",
-			Controls: gameir.ExpControls{Scheme: "drag_x", Hint: controlsHint},
-			Objective: gameir.ExpObjective{Kind: "collect", Target: target, Label: objectiveLabel},
-			HUD: gameir.ExpHUD{Left: "objective_progress", Right: "score"},
-			Start: gameir.ExpStart{Mode: "tap_to_start"},
-			Failure: gameir.ExpFailure{Mode: failureMode},
-			Pacing: gameir.ExpPacing{TargetSessionSec: 90, FirstRewardWithinSec: 3, ExpectedCatchRate: 0.7, Ramp: []gameir.ExpRampStep{{At: 0, SpawnIntervalMs: 700, SpeedMul: 1}, {At: 0.65, SpawnIntervalMs: 550, SpeedMul: 1.15}}},
-			Result: gameir.ExpResult{Win: gameir.ExpResultSide{Title: "You did it!"}},
+			Archetype:   "catcher",
+			Controls:    gameir.ExpControls{Scheme: "drag_x", Hint: controlsHint},
+			Objective:   gameir.ExpObjective{Kind: "collect", Target: target, Label: objectiveLabel},
+			HUD:         gameir.ExpHUD{Left: "objective_progress", Right: "score"},
+			Start:       gameir.ExpStart{Mode: "tap_to_start"},
+			Failure:     gameir.ExpFailure{Mode: failureMode},
+			Pacing:      gameir.ExpPacing{TargetSessionSec: 90, FirstRewardWithinSec: 3, ExpectedCatchRate: 0.7, Ramp: []gameir.ExpRampStep{{At: 0, SpawnIntervalMs: 700, SpeedMul: 1}, {At: 0.65, SpawnIntervalMs: 550, SpeedMul: 1.15}}},
+			Result:      gameir.ExpResult{Win: gameir.ExpResultSide{Title: "You did it!"}},
 			Leaderboard: gameir.ExpLeaderboard{Metric: "score", Order: "desc"},
-			Feedback: gameir.ExpFeedback{Juice: "standard"},
+			Feedback:    gameir.ExpFeedback{Juice: "standard"},
 		},
-		Metadata: gameir.Metadata{Tags: []string{"generated", "collecting"}},
+		Metadata:     gameir.Metadata{Tags: []string{"generated", "collecting"}},
 	}
 }
 
