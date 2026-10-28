@@ -61,7 +61,6 @@ func TestRunWorkerErrorIsError(t *testing.T) {
 	}
 }
 
-
 func TestRunRejectsIncompleteReports(t *testing.T) {
 	cases := []struct {
 		name string
