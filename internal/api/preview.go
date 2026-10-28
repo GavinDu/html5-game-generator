@@ -47,6 +47,12 @@ type PreviewScanner interface {
 	ScanPreview(context.Context, string, int, string, []byte) (PreviewScanResult, error)
 }
 
+// SetPreviewScanRequired makes missing scanner configuration fail closed.
+// Deployments can also enable this with DQ_PREVIEW_SCAN_REQUIRED=true.
+func (s *Server) SetPreviewScanRequired(required bool) {
+	s.previewScanRequired = required
+}
+
 // SetPreviewScanner installs the preview safety provider. A nil scanner
 // explicitly preserves the current no-provider behavior.
 func (s *Server) SetPreviewScanner(scanner PreviewScanner) {
@@ -156,6 +162,18 @@ func (s *Server) handleUploadPreviewAsset(w http.ResponseWriter, r *http.Request
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if s.previewScanner == nil && s.previewScanRequired {
+		if err := s.persistAudit(r.Context(), moderationAuditEvent{
+			ID: pipeline.NewID(), Action: "preview_scan", GameID: game.ID,
+			ActorID: "preview-scanner", Status: "pending",
+			Reason: "required preview safety scanner is not configured", CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist preview scan audit")
+			return
+		}
+		writeErr(w, http.StatusServiceUnavailable, "preview safety scan required but unavailable")
 		return
 	}
 	if s.previewScanner != nil {
