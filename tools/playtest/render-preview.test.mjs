@@ -45,3 +45,11 @@ test('preview renderer rejects non-finite numeric options instead of emitting an
   assert.match(source, /!Number\.isFinite\(durationMs\) \|\| !Number\.isFinite\(fps\) \|\| !Number\.isFinite\(startDelayMs\)/);
   assert.match(source, /duration-ms, fps, and start-delay-ms must be finite numbers/);
 });
+
+
+test('preview renderer records a SHA-256 digest for each captured frame', () => {
+  assert.match(source, /import \{ createHash \} from 'node:crypto'/);
+  assert.match(source, /frameHashes\.push\(createHash\('sha256'\)\.update\(frame\)\.digest\('hex'\)\)/);
+  assert.match(source, /frame_sha256: frameHashes/);
+  assert.match(source, /frame_sha256: frameHashes, fps/);
+});
