@@ -121,7 +121,6 @@ func TestRequiredPreviewScannerMissingFailsClosedAndAuditsPending(t *testing.T) 
 	}
 }
 
-
 func TestSourceImageRequiresExplicitOptInAndPassingRescan(t *testing.T) {
 	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
 	t.Setenv("DQ_MODERATION_AUDIT_FILE", filepath.Join(t.TempDir(), "audit.jsonl"))
