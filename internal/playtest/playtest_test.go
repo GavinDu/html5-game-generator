@@ -97,35 +97,35 @@ func TestRunRejectsEmptyBaseURL(t *testing.T) {
 
 
 func TestRunRejectsPASSWhenHardGatesAreMissingOrInconclusive(t *testing.T) {
-    cases := []struct {
-        name string
-        checks string
-    }{
-        {name: "missing render gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
-        {name: "skipped render gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"pass"}`},
-        {name: "failed boot gate with PASS verdict", checks: `{"checkId":"playtest.boot_clean","status":"fail"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
-        {name: "all gates skipped", checks: `{"checkId":"playtest.boot_clean","status":"skip"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"skip"}`},
-    }
-    for _, tc := range cases {
-        t.Run(tc.name, func(t *testing.T) {
-            body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[` + tc.checks + `]}]}`
-            worker := writeFakeWorker(t, body, 0)
-            _, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
-            if err == nil {
-                t.Fatal("PASS report with missing/inconclusive/failed hard gate must be rejected")
-            }
-        })
-    }
+	cases := []struct {
+		name   string
+		checks string
+	}{
+		{name: "missing render gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "skipped render gate", checks: `{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "failed boot gate with PASS verdict", checks: `{"checkId":"playtest.boot_clean","status":"fail"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}`},
+		{name: "all gates skipped", checks: `{"checkId":"playtest.boot_clean","status":"skip"},{"checkId":"playtest.render_nonblank","status":"skip"},{"checkId":"simulation.no_softlock","status":"skip"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[` + tc.checks + `]}]}`
+			worker := writeFakeWorker(t, body, 0)
+			_, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
+			if err == nil {
+				t.Fatal("PASS report with missing/inconclusive/failed hard gate must be rejected")
+			}
+		})
+	}
 }
 
 func TestRunAllowsFAILReportWhenBootFailurePreventsLaterGates(t *testing.T) {
-    body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"FAIL","checks":[{"checkId":"playtest.boot_clean","status":"fail"}]}]}`
-    worker := writeFakeWorker(t, body, 1)
-    report, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
-    if err != nil {
-        t.Fatalf("incomplete FAIL report should remain actionable: %v", err)
-    }
-    if !report.Failed() {
-        t.Fatal("failed boot must remain a failed report")
-    }
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"FAIL","checks":[{"checkId":"playtest.boot_clean","status":"fail"}]}]}`
+	worker := writeFakeWorker(t, body, 1)
+	report, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
+	if err != nil {
+		t.Fatalf("incomplete FAIL report should remain actionable: %v", err)
+	}
+	if !report.Failed() {
+		t.Fatal("failed boot must remain a failed report")
+	}
 }
