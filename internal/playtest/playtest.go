@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"doodlequest/internal/validator"
@@ -66,16 +67,48 @@ func (r *Report) OutcomeFor(gameID string) (validator.PlaytestOutcome, bool) {
 	return validator.PlaytestOutcome{}, false
 }
 
+// validateReport rejects syntactically valid but incomplete worker output.
+// An empty or ambiguous report must never be interpreted as a successful gate.
+func validateReport(report *Report) error {
+	if strings.TrimSpace(report.Base) == "" {
+		return fmt.Errorf("missing base URL")
+	}
+	if strings.TrimSpace(report.Browser) == "" {
+		return fmt.Errorf("missing browser")
+	}
+	if len(report.Games) == 0 {
+		return fmt.Errorf("report contains no games")
+	}
+	seen := make(map[string]struct{}, len(report.Games))
+	for i, game := range report.Games {
+		id := strings.TrimSpace(game.GameID)
+		if id == "" {
+			return fmt.Errorf("game %d has no gameId", i)
+		}
+		if _, exists := seen[id]; exists {
+			return fmt.Errorf("duplicate gameId %q", id)
+		}
+		seen[id] = struct{}{}
+		if game.Verdict != "PASS" && game.Verdict != "FAIL" {
+			return fmt.Errorf("game %q has invalid verdict %q", id, game.Verdict)
+		}
+	}
+	return nil
+}
+
 // Run executes the worker and parses its JSON report. The worker exits 1
 // when a game fails the gate — that is still a successful run with a real
 // report. Exit code 2 (worker failure) or unparseable output is an error.
 func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
-	if cfg.BaseURL == "" {
+	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return nil, fmt.Errorf("playtest: BaseURL is required")
 	}
 	cmd := cfg.WorkerCmd
 	if len(cmd) == 0 {
 		cmd = []string{"node", "tools/playtest/probe.mjs"}
+	}
+	if strings.TrimSpace(cmd[0]) == "" {
+		return nil, fmt.Errorf("playtest: worker command is empty")
 	}
 	args := append([]string{}, cmd[1:]...)
 	args = append(args, "--base", cfg.BaseURL)
@@ -114,6 +147,9 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	var report Report
 	if jerr := json.Unmarshal(stdout.Bytes(), &report); jerr != nil {
 		return nil, fmt.Errorf("playtest: worker output is not a report: %v", jerr)
+	}
+	if err := validateReport(&report); err != nil {
+		return nil, fmt.Errorf("playtest: invalid worker report: %w", err)
 	}
 	return &report, nil
 }
