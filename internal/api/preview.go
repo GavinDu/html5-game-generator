@@ -288,9 +288,59 @@ func (s *Server) handleSetPreviewMetadata(w http.ResponseWriter, r *http.Request
 	}
 	_, _, hasSourcePNG := s.store.GetArtifact(game.ID, previewArtifactKey(version, "source.png"))
 	_, _, hasSourceJPG := s.store.GetArtifact(game.ID, previewArtifactKey(version, "source.jpg"))
-	if req.ShowSourceImage && !hasSourcePNG && !hasSourceJPG {
-		writeErr(w, http.StatusConflict, "source image opt-in requires a scanned source.png or source.jpg asset")
-		return
+	if req.ShowSourceImage {
+		sourceAsset := "source.png"
+		if !hasSourcePNG {
+			sourceAsset = "source.jpg"
+		}
+		if !hasSourcePNG && !hasSourceJPG {
+			writeErr(w, http.StatusConflict, "source image opt-in requires a source.png or source.jpg asset")
+			return
+		}
+		// Re-scan at opt-in time as well as upload time. This prevents an
+		// asset uploaded while scanning was optional from becoming public
+		// later merely because it already exists in the versioned store.
+		data, _, found := s.store.GetArtifact(game.ID, previewArtifactKey(version, sourceAsset))
+		if !found {
+			writeErr(w, http.StatusConflict, "source image asset is unavailable")
+			return
+		}
+		if s.previewScanner == nil {
+			if err := s.persistAudit(r.Context(), moderationAuditEvent{
+				ID: pipeline.NewID(), Action: "source_image_scan", GameID: game.ID,
+				ActorID: "preview-scanner", Status: "pending",
+				Reason: "source image opt-in requires a configured safety scanner", CreatedAt: time.Now().UTC(),
+			}); err != nil {
+				writeErr(w, http.StatusServiceUnavailable, "could not persist source image scan audit")
+				return
+			}
+			writeErr(w, http.StatusServiceUnavailable, "source image safety scan required but unavailable")
+			return
+		}
+		scan, scanErr := s.previewScanner.ScanPreview(r.Context(), game.ID, version, sourceAsset, data)
+		auditStatus := scan.Status
+		if scanErr != nil {
+			auditStatus = "error"
+		}
+		if auditStatus == "" {
+			auditStatus = "pending"
+		}
+		if err := s.persistAudit(r.Context(), moderationAuditEvent{
+			ID: pipeline.NewID(), Action: "source_image_scan", GameID: game.ID,
+			ActorID: "preview-scanner", Status: auditStatus,
+			Reason: scan.Reason, CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			writeErr(w, http.StatusServiceUnavailable, "could not persist source image scan audit")
+			return
+		}
+		if scanErr != nil {
+			writeErr(w, http.StatusServiceUnavailable, "source image safety scan unavailable")
+			return
+		}
+		if scan.Status != "passed" {
+			writeErr(w, http.StatusUnprocessableEntity, "source image requires moderation review")
+			return
+		}
 	}
 	metadata := &model.PreviewMetadata{
 		Version: version, Status: req.Status, Aspect: req.Aspect,
