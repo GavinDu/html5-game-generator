@@ -145,6 +145,28 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return nil, fmt.Errorf("playtest: BaseURL is required")
 	}
+	// The worker accepts a comma-separated game list. Normalize identifiers
+	// before building that argument so whitespace cannot cause false missing
+	// results, and reject ambiguous identifiers before starting a subprocess.
+	if len(gameIDs) > 0 {
+		normalized := make([]string, 0, len(gameIDs))
+		seen := make(map[string]struct{}, len(gameIDs))
+		for i, rawID := range gameIDs {
+			id := strings.TrimSpace(rawID)
+			if id == "" {
+				return nil, fmt.Errorf("playtest: requested game %d has an empty ID", i)
+			}
+			if strings.Contains(id, ",") {
+				return nil, fmt.Errorf("playtest: requested game ID %q contains reserved separator \",\"", id)
+			}
+			if _, exists := seen[id]; exists {
+				return nil, fmt.Errorf("playtest: duplicate requested game ID %q", id)
+			}
+			seen[id] = struct{}{}
+			normalized = append(normalized, id)
+		}
+		gameIDs = normalized
+	}
 	cmd := cfg.WorkerCmd
 	if len(cmd) == 0 {
 		cmd = []string{"node", "tools/playtest/probe.mjs"}
