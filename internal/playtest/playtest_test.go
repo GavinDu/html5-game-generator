@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -85,6 +86,18 @@ func TestRunRejectsIncompleteReports(t *testing.T) {
 				t.Fatal("expected invalid report to be rejected")
 			}
 		})
+	}
+}
+
+func TestRunRejectsReportMissingRequestedGame(t *testing.T) {
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	_, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{"g1", "g2"})
+	if err == nil {
+		t.Fatal("missing requested game must fail the playtest batch")
+	}
+	if !strings.Contains(err.Error(), `missing requested game "g2"`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
