@@ -193,5 +193,19 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	if err := validateReport(&report); err != nil {
 		return nil, fmt.Errorf("playtest: invalid worker report: %w", err)
 	}
+	// A report is not a publish gate for the requested batch unless every
+	// requested game has an explicit result. Otherwise a worker that silently
+	// drops a game could make an incomplete batch look successful.
+	if len(gameIDs) > 0 {
+		reported := make(map[string]struct{}, len(report.Games))
+		for _, game := range report.Games {
+			reported[game.GameID] = struct{}{}
+		}
+		for _, gameID := range gameIDs {
+			if _, ok := reported[gameID]; !ok {
+				return nil, fmt.Errorf("playtest: report is missing requested game %q", gameID)
+			}
+		}
+	}
 	return &report, nil
 }
