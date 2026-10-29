@@ -101,6 +101,17 @@ func TestRunRejectsReportMissingRequestedGame(t *testing.T) {
 	}
 }
 
+func TestRunNormalizesRequestedGameIDs(t *testing.T) {
+	worker := writeFakeWorker(t, cannedReport, 1)
+	report, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{" g1 ", "g2"})
+	if err != nil {
+		t.Fatalf("Run() with surrounding whitespace should normalize IDs: %v", err)
+	}
+	if len(report.Games) != 2 {
+		t.Fatalf("report games = %d, want 2", len(report.Games))
+	}
+}
+
 func TestRunRejectsAmbiguousRequestedGameIDsBeforeStartingWorker(t *testing.T) {
 	cases := []struct {
 		name string
