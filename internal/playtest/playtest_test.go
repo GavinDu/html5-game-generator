@@ -101,6 +101,38 @@ func TestRunRejectsReportMissingRequestedGame(t *testing.T) {
 	}
 }
 
+func TestRunNormalizesRequestedGameIDs(t *testing.T) {
+	worker := writeFakeWorker(t, cannedReport, 1)
+	report, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{" g1 ", "g2"})
+	if err != nil {
+		t.Fatalf("Run() with surrounding whitespace should normalize IDs: %v", err)
+	}
+	if len(report.Games) != 2 {
+		t.Fatalf("report games = %d, want 2", len(report.Games))
+	}
+}
+
+func TestRunRejectsAmbiguousRequestedGameIDsBeforeStartingWorker(t *testing.T) {
+	cases := []struct {
+		name string
+		ids  []string
+		want string
+	}{
+		{name: "empty", ids: []string{"g1", "  "}, want: "empty ID"},
+		{name: "duplicate after trimming", ids: []string{"g1", " g1 "}, want: "duplicate requested game ID"},
+		{name: "comma separator", ids: []string{"g1,g2"}, want: "reserved separator"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// The command does not exist; validation must fail before it is launched.
+			_, err := Run(context.Background(), Config{WorkerCmd: []string{filepath.Join(t.TempDir(), "missing")}, BaseURL: "http://x"}, tc.ids)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Run() error = %v, want containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestRunRejectsEmptyBaseURL(t *testing.T) {
 	_, err := Run(context.Background(), Config{WorkerCmd: []string{"unused"}}, nil)
 	if err == nil {
