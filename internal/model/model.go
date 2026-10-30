@@ -172,11 +172,11 @@ type PreviewMetadata struct {
 
 type Game struct {
 	ID           string     `json:"game_id"`
-	ParentGameID       string                `json:"parent_game_id,omitempty"`
+	ParentGameID string     `json:"parent_game_id,omitempty"`
 	Title        string     `json:"title"`
 	OwnerID      string     `json:"owner_id"`
-	Elements           []Element             `json:"elements"`
-	Intent             string                `json:"intent"`
+	Elements     []Element  `json:"elements"`
+	Intent       string     `json:"intent"`
 	Visibility   Visibility `json:"visibility"`
 	GroupIDs     []string   `json:"group_ids"`
 	Status       GameStatus `json:"status"`
@@ -222,9 +222,9 @@ type ScoreEntry struct {
 type CreateGameRequest struct {
 	PlayableExpression *expression.Document `json:"playable_expression,omitempty"`
 	IngestID           string               `json:"ingest_id"`
-	ParentGameID string    `json:"parent_game_id,omitempty"`
-	Elements     []Element `json:"elements"`
-	Intent       string    `json:"intent"`
+	ParentGameID       string               `json:"parent_game_id,omitempty"`
+	Elements           []Element            `json:"elements"`
+	Intent             string               `json:"intent"`
 	Keywords           []string             `json:"keywords"`
 }
 
