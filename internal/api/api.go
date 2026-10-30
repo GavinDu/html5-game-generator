@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"doodlequest/internal/gameir"
+	"doodlequest/internal/gameir"\n\t"doodlequest/internal/expression"
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/socialgraph"
@@ -390,6 +390,17 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	elements, intent := req.Elements, req.Intent
+	if req.PlayableExpression != nil {
+		if err := req.PlayableExpression.Validate(); err != nil {
+			writeErrorCode(w, http.StatusBadRequest, "invalid_playable_expression", err.Error())
+			return
+		}
+		if req.PlayableExpression.Creator.OwnerID != userID(r) {
+			writeErrorCode(w, http.StatusForbidden, "expression_owner_mismatch", "playable expression owner must match the authenticated creator")
+			return
+		}
+	}
+
 	if req.ParentGameID != "" {
 		parent, ok := s.store.GetGame(req.ParentGameID)
 		if !ok || parent.Status != model.GameReady || parent.Manifest == nil {
@@ -447,7 +458,7 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		Title:        "Untitled Game",
 		OwnerID:      userID(r),
 		Elements:     elements,
-		Intent:       intent,
+		Intent:       intent,\n\t\tPlayableExpression: req.PlayableExpression,
 		Visibility:   model.VisibilityPrivate,
 		Status:       model.GameGenerating,
 		CreatedAt:    now,
