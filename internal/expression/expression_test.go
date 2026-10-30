@@ -57,19 +57,18 @@ func TestRemixRequiresParentAndModeIsAllowlisted(t *testing.T) {
 	}
 }
 
- 
 func TestValidateAgainstGameIRRequiresPreservedAnchorsAndMatchingVersion(t *testing.T) {
 	doc := &Document{
-		SchemaVersion: SchemaVersion,
-		Status:        StatusReady,
-		Source:        Source{Type: "text", Reference: "source-1"},
-		Creator:       Creator{OwnerID: "creator-1", Consent: true, Visibility: VisibilityPrivate},
-		Mode:          ModeMakePlayable,
-		Intent:        "A garden adventure",
-		Anchors:       []Anchor{{ID: "a1", Kind: "place", Value: "moon garden", Preserve: true}},
+		SchemaVersion:        SchemaVersion,
+		Status:               StatusReady,
+		Source:               Source{Type: "text", Reference: "source-1"},
+		Creator:              Creator{OwnerID: "creator-1", Consent: true, Visibility: VisibilityPrivate},
+		Mode:                 ModeMakePlayable,
+		Intent:               "A garden adventure",
+		Anchors:              []Anchor{{ID: "a1", Kind: "place", Value: "moon garden", Preserve: true}},
 		ChosenInterpretation: "Explore a moon garden",
-		Interpretation: Interpretation{Preserved: []Claim{{ID: "p1", Text: "moon garden", Confidence: .9}}},
-		Generation: Generation{GameIRVersion: "1.2", PackageVersion: "2.0"},
+		Interpretation:       Interpretation{Preserved: []Claim{{ID: "p1", Text: "moon garden", Confidence: .9}}},
+		Generation:           Generation{GameIRVersion: "1.2", PackageVersion: "2.0"},
 	}
 	ir := &gameir.Document{IRVersion: "1.2", Game: gameir.Game{ID: "g1", Title: "Moon Garden", Description: "A moon garden adventure"}}
 	if err := ValidateAgainstGameIR(doc, ir); err != nil {
