@@ -477,7 +477,14 @@ func (s *Server) handleGetGame(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, game)
+	response := *game
+	// Source references and evidence can identify private creator media.
+	// Only the owner receives the full expression record; public viewers
+	// receive the game without source provenance until a safe projection exists.
+	if response.OwnerID != userID(r) {
+		response.PlayableExpression = nil
+	}
+	writeJSON(w, http.StatusOK, &response)
 }
 
 // POST /v1/games/{id}/confirm — approve (optionally edited) design doc,
