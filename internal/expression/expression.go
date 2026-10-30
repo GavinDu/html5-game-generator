@@ -221,7 +221,6 @@ func (d *Document) Validate() error {
 	return nil
 }
 
- 
 // ValidateAgainstGameIR checks that every creator-designated preserved anchor
 // survives compilation into the canonical declarative runtime document.
 // It deliberately does not require invented or uncertain interpretation
