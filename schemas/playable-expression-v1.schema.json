@@ -1,0 +1,22 @@
+{
+ "$schema":"https://json-schema.org/draft/2020-12/schema",
+ "$id":"https://gavidu.github.io/html5-game-generator/schemas/playable-expression-v1.schema.json",
+ "title":"Playable Expression","type":"object","additionalProperties":false,
+ "required":["schemaVersion","status","source","creator","mode","generation"],
+ "properties":{
+  "schemaVersion":{"const":"1.0"},"status":{"enum":["draft","ready"]},
+  "source":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"enum":["text","image","drawing","audio","video"]},"reference":{"type":"string","maxLength":2048},"sha256":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"}},"anyOf":[{"required":["reference"]},{"required":["sha256"]}]},
+  "creator":{"type":"object","additionalProperties":false,"required":["ownerId","consent","visibility"],"properties":{"ownerId":{"type":"string","minLength":1,"maxLength":256},"consent":{"const":true},"visibility":{"enum":["private","groups","public"]}}},
+  "mode":{"enum":["make_playable","what_if","remix"]},"intent":{"type":"string","maxLength":2000},
+  "anchors":{"type":"array","maxItems":128,"items":{"type":"object","additionalProperties":false,"required":["id","kind","value","preserve"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["character","object","place","word","event","feeling"]},"value":{"type":"string","minLength":1,"maxLength":500},"preserve":{"type":"boolean"}}}},
+  "motifs":{"type":"array","maxItems":64,"items":{"type":"string","maxLength":200}},"optionalDetails":{"type":"array","maxItems":64,"items":{"type":"string","maxLength":500}},
+  "evidence":{"type":"array","maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["id","kind"],"properties":{"id":{"type":"string","minLength":1},"kind":{"enum":["text_span","image_region","video_timestamp","audio_timestamp"]},"sourceReference":{"type":"string","maxLength":2048},"start":{"type":"number","minimum":0},"end":{"type":"number","minimum":0},"quote":{"type":"string","maxLength":1000}}}},
+  "interactiveVerbs":{"type":"array","maxItems":64,"items":{"type":"string","maxLength":80}},"candidateMechanics":{"type":"array","maxItems":64,"items":{"type":"string","maxLength":200}},
+  "chosenInterpretation":{"type":"string","maxLength":2000},
+  "interpretation":{"type":"object","additionalProperties":false,"properties":{"preserved":{"$ref":"#/$defs/claims"},"invented":{"$ref":"#/$defs/claims"},"uncertain":{"$ref":"#/$defs/claims"}}},
+  "generation":{"type":"object","additionalProperties":false,"required":["seed"],"properties":{"seed":{"type":"integer"},"gameIrVersion":{"type":"string"},"packageVersion":{"type":"string"},"modelVersion":{"type":"string"},"promptVersion":{"type":"string"}}},
+  "lineage":{"type":"object","additionalProperties":false,"properties":{"parentGameId":{"type":"string"},"parentVersion":{"type":"integer","minimum":0},"parentExpressionId":{"type":"string"}}}
+ },
+ "$defs":{"claims":{"type":"array","maxItems":128,"items":{"type":"object","additionalProperties":false,"required":["id","text","confidence"],"properties":{"id":{"type":"string","minLength":1},"text":{"type":"string","minLength":1,"maxLength":1000},"confidence":{"type":"number","minimum":0,"maximum":1},"evidenceIds":{"type":"array","uniqueItems":true,"items":{"type":"string"}}}}}},
+ "allOf":[{"if":{"properties":{"status":{"const":"ready"}},"required":["status"]},"then":{"required":["intent","anchors","chosenInterpretation"],"properties":{"anchors":{"minItems":1}}}},{"if":{"properties":{"mode":{"const":"remix"}},"required":["mode"]},"then":{"required":["lineage"],"properties":{"lineage":{"required":["parentGameId"]}}}}]
+}

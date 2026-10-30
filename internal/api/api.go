@@ -390,6 +390,17 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	elements, intent := req.Elements, req.Intent
+	if req.PlayableExpression != nil {
+		if err := req.PlayableExpression.Validate(); err != nil {
+			writeErrorCode(w, http.StatusBadRequest, "invalid_playable_expression", err.Error())
+			return
+		}
+		if req.PlayableExpression.Creator.OwnerID != userID(r) {
+			writeErrorCode(w, http.StatusForbidden, "expression_owner_mismatch", "playable expression owner must match the authenticated creator")
+			return
+		}
+	}
+
 	if req.ParentGameID != "" {
 		parent, ok := s.store.GetGame(req.ParentGameID)
 		if !ok || parent.Status != model.GameReady || parent.Manifest == nil {
@@ -442,16 +453,17 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	game := &model.Game{
-		ID:           pipeline.NewID(),
-		ParentGameID: req.ParentGameID,
-		Title:        "Untitled Game",
-		OwnerID:      userID(r),
-		Elements:     elements,
-		Intent:       intent,
-		Visibility:   model.VisibilityPrivate,
-		Status:       model.GameGenerating,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                 pipeline.NewID(),
+		ParentGameID:       req.ParentGameID,
+		Title:              "Untitled Game",
+		OwnerID:            userID(r),
+		Elements:           elements,
+		Intent:             intent,
+		PlayableExpression: req.PlayableExpression,
+		Visibility:         model.VisibilityPrivate,
+		Status:             model.GameGenerating,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	s.store.CreateGame(game)
 	job := s.runner.CreateAndStart(game, elements, intent, req.Keywords)
@@ -465,7 +477,14 @@ func (s *Server) handleGetGame(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, game)
+	response := *game
+	// Source references and evidence can identify private creator media.
+	// Only the owner receives the full expression record; public viewers
+	// receive the game without source provenance until a safe projection exists.
+	if response.OwnerID != userID(r) {
+		response.PlayableExpression = nil
+	}
+	writeJSON(w, http.StatusOK, &response)
 }
 
 // POST /v1/games/{id}/confirm — approve (optionally edited) design doc,
