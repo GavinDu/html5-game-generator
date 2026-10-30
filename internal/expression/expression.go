@@ -4,8 +4,11 @@ package expression
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"doodlequest/internal/gameir"
 )
 
 const SchemaVersion = "1.0"
@@ -214,6 +217,40 @@ func (d *Document) Validate() error {
 	}
 	if d.Mode == ModeRemix && strings.TrimSpace(d.Lineage.ParentGameID) == "" {
 		return fmt.Errorf("remix mode requires parentGameId")
+	}
+	return nil
+}
+
+// ValidateAgainstGameIR checks that every creator-designated preserved anchor
+// survives compilation into the canonical declarative runtime document.
+// It deliberately does not require invented or uncertain interpretation
+// claims to appear in the game.
+func ValidateAgainstGameIR(d *Document, ir *gameir.Document) error {
+	if err := d.Validate(); err != nil {
+		return err
+	}
+	if d.Status != StatusReady {
+		return fmt.Errorf("draft playable expression cannot be published")
+	}
+	if ir == nil {
+		return fmt.Errorf("canonical Game IR is required")
+	}
+	if d.Generation.GameIRVersion != ir.IRVersion {
+		return fmt.Errorf("expression targets Game IR %q but generated IR is %q", d.Generation.GameIRVersion, ir.IRVersion)
+	}
+	encoded, err := json.Marshal(ir)
+	if err != nil {
+		return fmt.Errorf("encode canonical Game IR for anchor validation: %w", err)
+	}
+	irText := strings.ToLower(string(encoded))
+	for _, anchor := range d.Anchors {
+		if !anchor.Preserve {
+			continue
+		}
+		value := strings.ToLower(strings.TrimSpace(anchor.Value))
+		if value == "" || !strings.Contains(irText, value) {
+			return fmt.Errorf("preserved anchor %q (%s) is missing from generated Game IR", anchor.ID, anchor.Value)
+		}
 	}
 	return nil
 }

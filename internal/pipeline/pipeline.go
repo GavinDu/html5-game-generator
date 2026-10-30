@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"doodlequest/internal/expression"
 	"doodlequest/internal/gameir"
 	"doodlequest/internal/media"
 	"doodlequest/internal/model"
@@ -332,6 +333,11 @@ func (r *Runner) runRemaining(jobID string) {
 	r.runStage(job, model.StageValidate, func() error {
 		if err := gameir.Validate(canonicalIR); err != nil {
 			return fmt.Errorf("invalid generated Game IR: %w", err)
+		}
+		if game, ok := r.store.GetGame(job.GameID); ok && game.PlayableExpression != nil {
+			if err := expression.ValidateAgainstGameIR(game.PlayableExpression, canonicalIR); err != nil {
+				return fmt.Errorf("playable expression does not match generated Game IR: %w", err)
+			}
 		}
 		if err := staticChecks(gameJS); err != nil {
 			return fmt.Errorf("temporary HTML5 reference failed static checks: %w", err)
