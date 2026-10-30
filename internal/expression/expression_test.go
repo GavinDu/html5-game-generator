@@ -5,10 +5,10 @@ import "testing"
 func draft() *Document {
 	return &Document{
 		SchemaVersion: SchemaVersion,
-		Status: StatusDraft,
-		Source: Source{Type: "image", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		Status:  StatusDraft,
+		Source:  Source{Type: "image", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 		Creator: Creator{OwnerID: "creator-1", Consent: true, Visibility: VisibilityPrivate},
-		Mode: ModeWhatIf,
+		Mode:    ModeWhatIf,
 	}
 }
 
