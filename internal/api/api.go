@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"doodlequest/internal/gameir"\n\t"doodlequest/internal/expression"
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/socialgraph"
@@ -458,7 +458,8 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		Title:        "Untitled Game",
 		OwnerID:      userID(r),
 		Elements:     elements,
-		Intent:       intent,\n\t\tPlayableExpression: req.PlayableExpression,
+		Intent:       intent,
+		PlayableExpression: req.PlayableExpression,
 		Visibility:   model.VisibilityPrivate,
 		Status:       model.GameGenerating,
 		CreatedAt:    now,
