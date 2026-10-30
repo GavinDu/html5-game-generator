@@ -453,17 +453,17 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	game := &model.Game{
-		ID:           pipeline.NewID(),
-		ParentGameID: req.ParentGameID,
-		Title:        "Untitled Game",
-		OwnerID:      userID(r),
-		Elements:     elements,
-		Intent:       intent,
+		ID:                 pipeline.NewID(),
+		ParentGameID:       req.ParentGameID,
+		Title:              "Untitled Game",
+		OwnerID:            userID(r),
+		Elements:           elements,
+		Intent:             intent,
 		PlayableExpression: req.PlayableExpression,
-		Visibility:   model.VisibilityPrivate,
-		Status:       model.GameGenerating,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Visibility:         model.VisibilityPrivate,
+		Status:             model.GameGenerating,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	s.store.CreateGame(game)
 	job := s.runner.CreateAndStart(game, elements, intent, req.Keywords)
