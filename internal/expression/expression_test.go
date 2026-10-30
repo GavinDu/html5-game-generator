@@ -1,8 +1,8 @@
 package expression
 
 import (
-	"testing"
 	"math"
+	"testing"
 
 	"doodlequest/internal/gameir"
 )
@@ -85,7 +85,6 @@ func TestValidateAgainstGameIRRequiresPreservedAnchorsAndMatchingVersion(t *test
 		t.Fatal("mismatched Game IR version must block publication")
 	}
 }
-
 
 func TestValidateRejectsNonFiniteConfidence(t *testing.T) {
 	doc := draft()
