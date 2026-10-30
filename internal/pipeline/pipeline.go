@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"doodlequest/internal/gameir"\n\t"doodlequest/internal/expression"
+	"doodlequest/internal/expression"
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/media"
 	"doodlequest/internal/model"
 	"doodlequest/internal/shim"
