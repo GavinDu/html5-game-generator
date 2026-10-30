@@ -5,7 +5,7 @@ package model
 import (
 	"time"
 
-	"doodlequest/internal/gameir"
+	"doodlequest/internal/gameir"\n\t"doodlequest/internal/expression"
 )
 
 // Visibility controls who can see/play a game. The author owns it.
@@ -194,7 +194,7 @@ type Game struct {
 	JobID            string           `json:"job_id"`
 	Manifest         *BundleManifest  `json:"manifest,omitempty"`
 	Preview          *PreviewMetadata `json:"preview,omitempty"`
-	GameIR           *gameir.Document `json:"game_ir,omitempty"`
+	GameIR           *gameir.Document `json:"game_ir,omitempty"`\n\tPlayableExpression *expression.Document `json:"playable_expression,omitempty"`
 	CreatedAt        time.Time        `json:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at"`
 }
@@ -217,7 +217,7 @@ type ScoreEntry struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type CreateGameRequest struct {
+type CreateGameRequest struct {\n\tPlayableExpression *expression.Document `json:"playable_expression,omitempty"`
 	IngestID     string    `json:"ingest_id"`
 	ParentGameID string    `json:"parent_game_id,omitempty"`
 	Elements     []Element `json:"elements"`
