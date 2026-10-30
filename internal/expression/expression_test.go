@@ -70,7 +70,7 @@ func TestValidateAgainstGameIRRequiresPreservedAnchorsAndMatchingVersion(t *test
 		Interpretation:       Interpretation{Preserved: []Claim{{ID: "p1", Text: "moon garden", Confidence: .9}}},
 		Generation:           Generation{GameIRVersion: "1.2", PackageVersion: "2.0"},
 	}
-	ir := &gameir.Document{IRVersion: "1.2", Game: gameir.Game{ID: "g1", Title: "Moon Garden", Description: "A moon garden adventure"}}
+	ir := &gameir.Document{IRVersion: "1.2", Game: gameir.Game{ID: "g1", Title: "Garden Adventure", Description: "A moon garden adventure"}}
 	if err := ValidateAgainstGameIR(doc, ir); err != nil {
 		t.Fatalf("expected preserved anchor to validate: %v", err)
 	}
