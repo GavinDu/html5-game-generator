@@ -3,9 +3,12 @@
 package expression
 
 import (
-	"encoding/hex"\n\t"encoding/json"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"strings"\n\n\t"doodlequest/internal/gameir"
+	"strings"
+
+	"doodlequest/internal/gameir"
 )
 
 const SchemaVersion = "1.0"
