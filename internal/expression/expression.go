@@ -89,22 +89,22 @@ type Lineage struct {
 }
 
 type Document struct {
-	SchemaVersion       string         `json:"schemaVersion"`
-	Status              Status         `json:"status"`
-	Source              Source         `json:"source"`
-	Creator             Creator        `json:"creator"`
-	Mode                Mode           `json:"mode"`
-	Intent              string         `json:"intent,omitempty"`
-	Anchors             []Anchor       `json:"anchors,omitempty"`
-	Motifs              []string       `json:"motifs,omitempty"`
-	OptionalDetails     []string       `json:"optionalDetails,omitempty"`
-	Evidence            []Evidence     `json:"evidence,omitempty"`
-	InteractiveVerbs    []string       `json:"interactiveVerbs,omitempty"`
-	CandidateMechanics  []string       `json:"candidateMechanics,omitempty"`
-	ChosenInterpretation string        `json:"chosenInterpretation,omitempty"`
-	Interpretation      Interpretation `json:"interpretation,omitempty"`
-	Generation          Generation     `json:"generation"`
-	Lineage             Lineage         `json:"lineage,omitempty"`
+	SchemaVersion        string         `json:"schemaVersion"`
+	Status               Status         `json:"status"`
+	Source               Source         `json:"source"`
+	Creator              Creator        `json:"creator"`
+	Mode                 Mode           `json:"mode"`
+	Intent               string         `json:"intent,omitempty"`
+	Anchors              []Anchor       `json:"anchors,omitempty"`
+	Motifs               []string       `json:"motifs,omitempty"`
+	OptionalDetails      []string       `json:"optionalDetails,omitempty"`
+	Evidence             []Evidence     `json:"evidence,omitempty"`
+	InteractiveVerbs     []string       `json:"interactiveVerbs,omitempty"`
+	CandidateMechanics   []string       `json:"candidateMechanics,omitempty"`
+	ChosenInterpretation string         `json:"chosenInterpretation,omitempty"`
+	Interpretation       Interpretation `json:"interpretation,omitempty"`
+	Generation           Generation     `json:"generation"`
+	Lineage              Lineage        `json:"lineage,omitempty"`
 }
 
 func (d *Document) Validate() error {
