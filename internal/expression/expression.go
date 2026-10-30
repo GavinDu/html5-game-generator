@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	"doodlequest/internal/gameir"
@@ -180,6 +181,7 @@ func (d *Document) Validate() error {
 		}
 	}
 
+	claimIDs := make(map[string]struct{})
 	claimGroups := map[string][]Claim{
 		"preserved": d.Interpretation.Preserved,
 		"invented":  d.Interpretation.Invented,
@@ -187,8 +189,12 @@ func (d *Document) Validate() error {
 	}
 	for label, claims := range claimGroups {
 		for _, claim := range claims {
+			if _, exists := claimIDs[claim.ID]; exists {
+				return fmt.Errorf("duplicate interpretation claim id %q", claim.ID)
+			}
+			claimIDs[claim.ID] = struct{}{}
 			if strings.TrimSpace(claim.ID) == "" || strings.TrimSpace(claim.Text) == "" ||
-				claim.Confidence < 0 || claim.Confidence > 1 {
+				!finiteConfidence(claim.Confidence) || claim.Confidence < 0 || claim.Confidence > 1 {
 				return fmt.Errorf("invalid %s claim %q", label, claim.ID)
 			}
 			for _, evidenceID := range claim.EvidenceIDs {
@@ -219,6 +225,11 @@ func (d *Document) Validate() error {
 		return fmt.Errorf("remix mode requires parentGameId")
 	}
 	return nil
+}
+
+// finiteConfidence rejects NaN and infinities, which ordinary range comparisons do not catch.
+func finiteConfidence(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 // ValidateAgainstGameIR checks that every creator-designated preserved anchor

@@ -1,6 +1,7 @@
 package expression
 
 import (
+	"math"
 	"testing"
 
 	"doodlequest/internal/gameir"
@@ -82,5 +83,26 @@ func TestValidateAgainstGameIRRequiresPreservedAnchorsAndMatchingVersion(t *test
 	ir.IRVersion = "1.1"
 	if err := ValidateAgainstGameIR(doc, ir); err == nil {
 		t.Fatal("mismatched Game IR version must block publication")
+	}
+}
+
+func TestValidateRejectsNonFiniteConfidence(t *testing.T) {
+	doc := draft()
+	for _, confidence := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		doc.Interpretation.Preserved = []Claim{{ID: "claim", Text: "a claim", Confidence: confidence}}
+		if err := doc.Validate(); err == nil {
+			t.Fatalf("confidence %v must be rejected", confidence)
+		}
+	}
+}
+
+func TestValidateRejectsDuplicateClaimIDsAcrossCategories(t *testing.T) {
+	doc := draft()
+	doc.Interpretation = Interpretation{
+		Preserved: []Claim{{ID: "same", Text: "preserved", Confidence: .9}},
+		Invented:  []Claim{{ID: "same", Text: "invented", Confidence: .7}},
+	}
+	if err := doc.Validate(); err == nil {
+		t.Fatal("claim IDs must be unique across interpretation categories")
 	}
 }
