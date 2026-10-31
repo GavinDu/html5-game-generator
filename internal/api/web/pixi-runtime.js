@@ -768,13 +768,31 @@ async function run(id) {
     throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
   }
   const pkg = await res.json();
-  log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), format v${pkg.packageFormatVersion}, min runtime ${pkg.minRuntimeVersion}, IR v${pkg.ir?.irVersion}, ${pkg.assets?.length ?? 0} assets`);
+  if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) {
+    throw new Error('invalid game package: expected an object envelope');
+  }
+  if (pkg.gameId !== id) {
+    throw new Error(`invalid game package: requested game ${id}, received ${String(pkg.gameId)}`);
+  }
+  if (!pkg.ir || typeof pkg.ir !== 'object' || Array.isArray(pkg.ir)) {
+    throw new Error('invalid game package: canonical Game IR is missing');
+  }
+  if (!Array.isArray(pkg.assets)) {
+    throw new Error('invalid game package: assets must be an array');
+  }
+  const ir = pkg.ir;
+  log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), format v${pkg.packageFormatVersion}, min runtime ${pkg.minRuntimeVersion}, IR v${ir.irVersion}, ${pkg.assets.length} assets`);
   if (pkg.packageFormatVersion !== '2.0') throw new Error('unsupported packageFormatVersion ' + pkg.packageFormatVersion);
   const compatibility = compareRuntimeVersions(RUNTIME_VERSION, pkg.minRuntimeVersion);
   if (compatibility === null) throw new Error('invalid minRuntimeVersion ' + pkg.minRuntimeVersion);
   if (compatibility < 0) throw new Error('game requires runtime ' + pkg.minRuntimeVersion + ', current runtime is ' + RUNTIME_VERSION);
-  const ir = pkg.ir;
   if (!['1.0', '1.1', '1.2'].includes(ir.irVersion)) throw new Error('unsupported irVersion ' + ir.irVersion);
+  if (pkg.irVersion !== ir.irVersion) {
+    throw new Error(`invalid game package: envelope IR version ${String(pkg.irVersion)} does not match payload ${ir.irVersion}`);
+  }
+  if (!ir.game || typeof ir.game !== 'object' || !Array.isArray(ir.scenes) || !Array.isArray(ir.assets)) {
+    throw new Error('invalid game package: Game IR is missing game, scenes, or assets');
+  }
   play.irHash = pkg.irHash || ''; // leaderboard board key (Phase C)
 
   const sceneKey = 'dq.scene.' + id;
@@ -867,7 +885,25 @@ async function run(id) {
   const fxLayer = new PIXI.Container();      // particles (screen space)
   app.stage.addChild(bgLayer, worldLayer, fxLayer);
 
-  const assetURL = new Map((pkg.assets || []).map((a) => [a.id, a.url || a.uri]));
+  const assetURL = new Map();
+  for (const asset of pkg.assets) {
+    if (!asset || typeof asset.id !== 'string' || !asset.id.trim()) {
+      throw new Error('invalid game package: asset is missing an ID');
+    }
+    if (assetURL.has(asset.id)) {
+      throw new Error(`invalid game package: duplicate asset ID '${asset.id}'`);
+    }
+    const uri = asset.url || asset.uri;
+    if (typeof uri !== 'string' || !uri.trim()) {
+      throw new Error(`invalid game package: asset '${asset.id}' has no delivery URL`);
+    }
+    assetURL.set(asset.id, uri);
+  }
+  for (const asset of ir.assets) {
+    if (!assetURL.has(asset.id)) {
+      throw new Error(`invalid game package: IR asset '${asset.id}' has no delivery entry`);
+    }
+  }
   const textures = new Map();
   // Package asset URLs are extension-less (/v1/games/<id>/assets/<assetId>), and
   // PIXI.Assets.load() resolves null for a URL it cannot match to a loader by
