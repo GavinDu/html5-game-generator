@@ -68,6 +68,7 @@ type Server struct {
 	deletedSubjects map[string]bool
 	reports         []socialReport
 	events          []socialEvent
+	socialEventIDs  map[socialEventKey]struct{}
 
 	// Phase 2 telemetry index: every runtime-error report this process has
 	// accepted (plus the JSONL backlog, loaded lazily), used for incident
@@ -107,7 +108,7 @@ type Server struct {
 }
 
 func New(st store.Store, r *pipeline.Runner) *Server {
-	s := &Server{store: st, runner: r, deliveryInvalidator: noopDeliveryCacheInvalidator{}, previewScanRequired: strings.EqualFold(strings.TrimSpace(os.Getenv("DQ_PREVIEW_SCAN_REQUIRED")), "true"), follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, profiles: map[string]creatorProfile{}, commentIdempotency: map[string]commentIdempotencyRecord{}, deletedSubjects: map[string]bool{}, teleV2EventIDs: map[string]struct{}{}}
+	s := &Server{store: st, runner: r, deliveryInvalidator: noopDeliveryCacheInvalidator{}, previewScanRequired: strings.EqualFold(strings.TrimSpace(os.Getenv("DQ_PREVIEW_SCAN_REQUIRED")), "true"), follows: map[string]map[string]struct{}{}, reactions: map[string]map[string]string{}, comments: map[string][]socialComment{}, saves: map[string]map[string]bool{}, blocks: map[string]map[string]bool{}, notInterested: map[string]map[string]bool{}, mutedTopics: map[string]map[string]bool{}, profiles: map[string]creatorProfile{}, commentIdempotency: map[string]commentIdempotencyRecord{}, deletedSubjects: map[string]bool{}, socialEventIDs: map[socialEventKey]struct{}{}, teleV2EventIDs: map[string]struct{}{}}
 	if dsn := strings.TrimSpace(os.Getenv("DQ_SOCIAL_DATABASE_URL")); dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		graph, err := socialgraph.OpenPostgres(ctx, dsn)
