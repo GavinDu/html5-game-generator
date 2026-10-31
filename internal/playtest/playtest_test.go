@@ -1,12 +1,12 @@
 package playtest
 
 import (
-	"time"
 	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A fake worker script stands in for probe.mjs: it prints a canned report
