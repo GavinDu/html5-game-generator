@@ -70,3 +70,52 @@ func containsRemixTag(tags []string) bool {
 	}
 	return false
 }
+
+func TestBuildRemixIRUsesCanonicalBoboParentWithoutReplacingGameplay(t *testing.T) {
+	parentIR := &gameir.Document{
+		IRVersion: gameir.Version,
+		Game:      gameir.Game{ID: "sample-rainbow-bear", Title: "Bobo", EntryScene: "rainbow-meadow", Orientation: "portrait"},
+		Assets:    []gameir.Asset{{ID: "bear", Kind: "image", URI: "sprites/bear.png", MIMEType: "image/png"}},
+		Scenes: []gameir.Scene{{
+			ID: "rainbow-meadow",
+			Entities: []gameir.Entity{
+				{ID: "player", Kind: "player", AssetID: "bear", Position: []float64{195, 650}, Size: []float64{100, 120}, Components: []string{"movement", "collider", "score"}},
+				{ID: "kitten", Kind: "decoration", Position: []float64{320, 650}, Size: []float64{70, 84}},
+			},
+		}},
+		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}},
+		Rules: []gameir.Rule{{
+			ID:      "original-heart-loop",
+			When:    gameir.Condition{Event: "collected", Source: "player", Target: "heart"},
+			Actions: []gameir.Action{{Type: "add_score", Target: "player", Value: 1}},
+		}},
+		Metadata: gameir.Metadata{Tags: []string{"family", "collecting"}},
+	}
+	parent := &model.Game{
+		ID:       "sample-rainbow-bear",
+		Manifest: &model.BundleManifest{Version: 4},
+		GameIR:   parentIR,
+	}
+	child := &model.Game{ID: "bobo-remix"}
+	doc := &model.DesignDoc{Title: "Bobo's new adventure", Plot: "The same game with a new story"}
+
+	remix, err := buildRemixIR(doc, child, parent)
+	if err != nil {
+		t.Fatalf("buildRemixIR() error = %v", err)
+	}
+	if remix.Game.EntryScene != "rainbow-meadow" || len(remix.Scenes) != 1 {
+		t.Fatalf("Bobo remix replaced the parent's scene contract: %+v", remix)
+	}
+	if len(remix.Scenes[0].Entities) != 2 || remix.Scenes[0].Entities[0].ID != "player" {
+		t.Fatalf("Bobo remix replaced the parent's entity loop: %+v", remix.Scenes[0].Entities)
+	}
+	if len(remix.Rules) != 1 || remix.Rules[0].ID != "original-heart-loop" {
+		t.Fatalf("Bobo remix replaced parent gameplay rules: %+v", remix.Rules)
+	}
+	if remix.Metadata.ParentGameID != parent.ID || remix.Metadata.ParentVersion != parent.Manifest.Version {
+		t.Fatalf("Bobo remix lineage missing: %+v", remix.Metadata)
+	}
+	if parentIR.Game.ID != "sample-rainbow-bear" || parentIR.Metadata.ParentGameID != "" {
+		t.Fatal("Bobo remix mutated its canonical parent")
+	}
+}

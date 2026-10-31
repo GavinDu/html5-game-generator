@@ -244,10 +244,10 @@ func (r *Runner) runRemaining(jobID string) {
 			if !found || parent.Manifest == nil {
 				return fmt.Errorf("remix parent %q is unavailable", child.ParentGameID)
 			}
-			if parent.ID != "sample-rainbow-bear" {
-				if parent.GameIR == nil {
-					return fmt.Errorf("remix parent %q has no canonical Game IR to preserve", parent.ID)
-				}
+			if parent.GameIR != nil {
+				// Canonical IR is authoritative for every remix profile, including
+				// Bobo. Copy every declared asset so the child package cannot
+				// retain references to files that were not copied.
 				for _, asset := range parent.GameIR.Assets {
 					if asset.URI == "" {
 						continue
@@ -258,7 +258,9 @@ func (r *Runner) runRemaining(jobID string) {
 					}
 					r.store.PutArtifact(job.GameID, asset.URI, data, contentType)
 				}
-			} else {
+			} else if parent.ID == "sample-rainbow-bear" {
+				// Compatibility for legacy Bobo inventory records without a
+				// canonical IR; the canonical path above is preferred.
 				needed := map[string]bool{"bear": true, "kitten": true, "heart": true}
 				for i := 0; i < 6; i++ {
 					needed[fmt.Sprintf("band%d", i)] = true
@@ -278,6 +280,8 @@ func (r *Runner) runRemaining(jobID string) {
 						r.store.PutArtifact(job.GameID, music.Src, data, contentType)
 					}
 				}
+			} else {
+				return fmt.Errorf("remix parent %q has no canonical Game IR to preserve", parent.ID)
 			}
 		}
 		for i, el := range doc.Elements {
@@ -307,11 +311,7 @@ func (r *Runner) runRemaining(jobID string) {
 				return fmt.Errorf("remix parent %q is unavailable", child.ParentGameID)
 			}
 			var err error
-			if parent.ID == "sample-rainbow-bear" {
-				canonicalIR, err = buildBoboRemixIR(doc, child, parent)
-			} else {
-				canonicalIR, err = buildGenericRemixIR(doc, child, parent)
-			}
+			canonicalIR, err = buildRemixIR(doc, child, parent)
 			if err != nil {
 				return err
 			}
@@ -366,7 +366,7 @@ func (r *Runner) runRemaining(jobID string) {
 		preserveParentAssets := false
 		if game.ParentGameID != "" {
 			if parent, found := r.store.GetGame(game.ParentGameID); found &&
-				parent.ID != "sample-rainbow-bear" && parent.Manifest != nil {
+				parent.Manifest != nil && (parent.ID != "sample-rainbow-bear" || parent.GameIR != nil) {
 				m.Assets = parent.Manifest.Assets
 				m.Controls = append([]string(nil), parent.Manifest.Controls...)
 				preserveParentAssets = true
@@ -625,6 +625,22 @@ func floatPtr(v float64) *float64 { return &v }
 // buildGenericRemixIR applies a metadata delta to a canonical parent IR.
 // Gameplay scenes, entities, assets, bindings, experience, and rules are
 // copied intact so a remix does not silently replace its parent's game loop.
+// buildRemixIR prefers the parent's canonical gameplay contract for every
+// profile, including the original Bobo seed. The legacy Bobo compiler is
+// retained only for older seeded records that predate persisted Game IR.
+func buildRemixIR(doc *model.DesignDoc, child, parent *model.Game) (*gameir.Document, error) {
+	if parent == nil {
+		return nil, fmt.Errorf("remix parent is required")
+	}
+	if parent.GameIR != nil {
+		return buildGenericRemixIR(doc, child, parent)
+	}
+	if parent.ID == "sample-rainbow-bear" {
+		return buildBoboRemixIR(doc, child, parent)
+	}
+	return buildGenericRemixIR(doc, child, parent)
+}
+
 func buildGenericRemixIR(doc *model.DesignDoc, child, parent *model.Game) (*gameir.Document, error) {
 	if parent == nil || parent.GameIR == nil || parent.Manifest == nil {
 		return nil, fmt.Errorf("remix parent must have a published canonical Game IR")
