@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A fake worker script stands in for probe.mjs: it prints a canned report
@@ -130,6 +131,25 @@ func TestRunRejectsAmbiguousRequestedGameIDsBeforeStartingWorker(t *testing.T) {
 				t.Fatalf("Run() error = %v, want containing %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestRunWorkerTimeoutIsReportedAsFailure(t *testing.T) {
+	worker := filepath.Join(t.TempDir(), "slow-worker.sh")
+	if err := os.WriteFile(worker, []byte("#!/bin/sh\nsleep 2\necho should-not-run\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Run(context.Background(), Config{
+		WorkerCmd: []string{worker},
+		BaseURL:   "http://x",
+		Timeout:   20 * time.Millisecond,
+	}, []string{"g1"})
+	if err == nil {
+		t.Fatal("worker timeout must fail closed instead of returning a playtest report")
+	}
+	if !strings.Contains(err.Error(), "worker failed") {
+		t.Fatalf("timeout error = %v, want worker failure context", err)
 	}
 }
 
