@@ -27,3 +27,11 @@ test('failed required image assets fail the launch instead of silently dropping 
 test('temporary object URLs are revoked after image decoding', () => {
   assert.match(source, /finally \{\s*URL\.revokeObjectURL\(objectURL\);\s*\}/);
 });
+
+test('package envelope identity, IR version, and asset delivery entries are validated before launch', () => {
+  assert.match(source, /pkg\.gameId !== id/);
+  assert.match(source, /pkg\.irVersion !== ir\.irVersion/);
+  assert.match(source, /Array\.isArray\(pkg\.assets\)/);
+  assert.match(source, /duplicate asset ID/);
+  assert.match(source, /IR asset '\$\{asset\.id\}' has no delivery entry/);
+});
