@@ -90,6 +90,36 @@ func TestRunRejectsIncompleteReports(t *testing.T) {
 	}
 }
 
+func TestRunRejectsReportForDifferentBrowser(t *testing.T) {
+	worker := writeFakeWorker(t, cannedReport, 1)
+	_, err := Run(context.Background(), Config{
+		WorkerCmd: []string{worker},
+		BaseURL:   "http://x",
+		Browser:   "webkit",
+	}, []string{"g1", "g2"})
+	if err == nil || !strings.Contains(err.Error(), `reported browser "chromium", want "webkit"`) {
+		t.Fatalf("Run() error = %v, want browser mismatch", err)
+	}
+}
+
+func TestRunRejectsUnrequestedGamesInBatchReport(t *testing.T) {
+	body := `{"base":"http://x","browser":"chromium","games":[
+		{"gameId":"g1","verdict":"PASS","checks":[
+			{"checkId":"playtest.boot_clean","status":"pass"},
+			{"checkId":"playtest.render_nonblank","status":"pass"},
+			{"checkId":"simulation.no_softlock","status":"pass"}]},
+		{"gameId":"g2","verdict":"PASS","checks":[
+			{"checkId":"playtest.boot_clean","status":"pass"},
+			{"checkId":"playtest.render_nonblank","status":"pass"},
+			{"checkId":"simulation.no_softlock","status":"pass"}]}
+	]}`
+	worker := writeFakeWorker(t, body, 0)
+	_, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{"g1"})
+	if err == nil || !strings.Contains(err.Error(), `unrequested game "g2"`) {
+		t.Fatalf("Run() error = %v, want unrequested game rejection", err)
+	}
+}
+
 func TestRunRejectsReportMissingRequestedGame(t *testing.T) {
 	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[{"checkId":"playtest.boot_clean","status":"pass"},{"checkId":"playtest.render_nonblank","status":"pass"},{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
 	worker := writeFakeWorker(t, body, 0)
