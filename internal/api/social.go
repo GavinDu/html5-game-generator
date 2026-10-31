@@ -221,6 +221,9 @@ func (s *Server) loadSocialState() {
 		if len(s.events) > 20000 {
 			s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
 		}
+		if s.socialEventIDs == nil {
+			s.socialEventIDs = make(map[socialEventKey]struct{})
+		}
 		for _, event := range s.events {
 			if event.EventID != "" {
 				s.socialEventIDs[socialEventKey{UserID: event.UserID, EventID: event.EventID}] = struct{}{}
@@ -233,6 +236,9 @@ func (s *Server) loadSocialState() {
 // appendSocialEventLocked maintains the bounded event window and its
 // O(1) idempotency index. The caller must hold socialMu.
 func (s *Server) appendSocialEventLocked(event socialEvent) {
+	if s.socialEventIDs == nil {
+		s.socialEventIDs = make(map[socialEventKey]struct{})
+	}
 	s.events = append(s.events, event)
 	if event.EventID != "" {
 		s.socialEventIDs[socialEventKey{UserID: event.UserID, EventID: event.EventID}] = struct{}{}
