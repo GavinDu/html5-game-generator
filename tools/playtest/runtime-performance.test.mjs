@@ -12,7 +12,7 @@ test('runtime image loading is bounded and concurrent', () => {
 });
 
 test('a stalled image request has a finite timeout', () => {
-  assert.match(source, /image load timed out after 15s/);
+  assert.match(source, /image decode timed out after 15s/);
   assert.match(source, /clearTimeout\(timeout\)/);
 });
 
