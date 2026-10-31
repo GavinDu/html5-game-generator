@@ -74,8 +74,8 @@ func containsRemixTag(tags []string) bool {
 func TestBuildRemixIRUsesCanonicalBoboParentWithoutReplacingGameplay(t *testing.T) {
 	parentIR := &gameir.Document{
 		IRVersion: gameir.Version,
-		Game: gameir.Game{ID: "sample-rainbow-bear", Title: "Bobo", EntryScene: "rainbow-meadow", Orientation: "portrait"},
-		Assets: []gameir.Asset{{ID: "bear", Kind: "image", URI: "sprites/bear.png", MIMEType: "image/png"}},
+		Game:      gameir.Game{ID: "sample-rainbow-bear", Title: "Bobo", EntryScene: "rainbow-meadow", Orientation: "portrait"},
+		Assets:    []gameir.Asset{{ID: "bear", Kind: "image", URI: "sprites/bear.png", MIMEType: "image/png"}},
 		Scenes: []gameir.Scene{{
 			ID: "rainbow-meadow",
 			Entities: []gameir.Entity{
@@ -85,16 +85,16 @@ func TestBuildRemixIRUsesCanonicalBoboParentWithoutReplacingGameplay(t *testing.
 		}},
 		InputBindings: []gameir.InputBinding{{Action: "move", Input: "drag"}},
 		Rules: []gameir.Rule{{
-			ID: "original-heart-loop",
-			When: gameir.Condition{Event: "collected", Source: "player", Target: "heart"},
+			ID:      "original-heart-loop",
+			When:    gameir.Condition{Event: "collected", Source: "player", Target: "heart"},
 			Actions: []gameir.Action{{Type: "add_score", Target: "player", Value: 1}},
 		}},
 		Metadata: gameir.Metadata{Tags: []string{"family", "collecting"}},
 	}
 	parent := &model.Game{
-		ID: "sample-rainbow-bear",
+		ID:       "sample-rainbow-bear",
 		Manifest: &model.BundleManifest{Version: 4},
-		GameIR: parentIR,
+		GameIR:   parentIR,
 	}
 	child := &model.Game{ID: "bobo-remix"}
 	doc := &model.DesignDoc{Title: "Bobo's new adventure", Plot: "The same game with a new story"}
@@ -119,4 +119,3 @@ func TestBuildRemixIRUsesCanonicalBoboParentWithoutReplacingGameplay(t *testing.
 		t.Fatal("Bobo remix mutated its canonical parent")
 	}
 }
-
