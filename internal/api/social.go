@@ -221,16 +221,18 @@ func (s *Server) loadSocialState() {
 		if len(s.events) > 20000 {
 			s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
 		}
-		if s.socialEventIDs == nil {
-			s.socialEventIDs = make(map[socialEventKey]struct{})
-		}
-		for _, event := range s.events {
-			if event.EventID != "" {
-				s.socialEventIDs[socialEventKey{UserID: event.UserID, EventID: event.EventID}] = struct{}{}
-			}
-		}
 		s.socialMu.Unlock()
 	}
+	s.socialMu.Lock()
+	if s.socialEventIDs == nil {
+		s.socialEventIDs = make(map[socialEventKey]struct{})
+	}
+	for _, event := range s.events {
+		if event.EventID != "" {
+			s.socialEventIDs[socialEventKey{UserID: event.UserID, EventID: event.EventID}] = struct{}{}
+		}
+	}
+	s.socialMu.Unlock()
 }
 
 // appendSocialEventLocked maintains the bounded event window and its
@@ -1970,10 +1972,7 @@ func (s *Server) recordSocialPlay(viewer, gameID string) {
 func (s *Server) recordSocialCompletion(viewer, gameID string, durationMS int) {
 	s.socialMu.Lock()
 	ev := socialEvent{UserID: viewer, GameID: gameID, Kind: "completion", DurationMS: durationMS, CreatedAt: time.Now().UTC()}
-	s.events = append(s.events, ev)
-	if len(s.events) > 20000 {
-		s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
-	}
+	s.appendSocialEventLocked(ev)
 	persistSocialEvent(ev)
 	s.socialMu.Unlock()
 }
