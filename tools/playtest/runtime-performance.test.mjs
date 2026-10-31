@@ -11,8 +11,10 @@ test('runtime image loading is bounded and concurrent', () => {
   assert.doesNotMatch(source, /for \(const a of pkg\.assets \|\| \[\]\) \{\s*if \(a\.kind !== 'image'\) continue;\s*try \{\s*textures\.set\(a\.id, await loadTexture/);
 });
 
-test('a stalled image request has a finite timeout', () => {
-  assert.match(source, /image load timed out after 15s/);
+test('a stalled image request and image decode have finite timeouts', () => {
+  assert.match(source, /image request timed out after 15s/);
+  assert.match(source, /image decode timed out after 15s/);
+  assert.match(source, /clearTimeout\(requestTimeout\)/);
   assert.match(source, /clearTimeout\(timeout\)/);
 });
 
