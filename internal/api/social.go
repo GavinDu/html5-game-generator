@@ -46,6 +46,11 @@ type socialReport struct {
 	ResolvedBy       string     `json:"resolved_by,omitempty"`
 	ResolutionReason string     `json:"resolution_reason,omitempty"`
 }
+type socialEventKey struct {
+	UserID  string
+	EventID string
+}
+
 type socialEvent struct {
 	SchemaVersion       int       `json:"schema_version,omitempty"`
 	EventID             string    `json:"event_id,omitempty"`
@@ -217,6 +222,37 @@ func (s *Server) loadSocialState() {
 			s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
 		}
 		s.socialMu.Unlock()
+	}
+	s.socialMu.Lock()
+	if s.socialEventIDs == nil {
+		s.socialEventIDs = make(map[socialEventKey]struct{})
+	}
+	for _, event := range s.events {
+		if event.EventID != "" {
+			s.socialEventIDs[socialEventKey{UserID: event.UserID, EventID: event.EventID}] = struct{}{}
+		}
+	}
+	s.socialMu.Unlock()
+}
+
+// appendSocialEventLocked maintains the bounded event window and its
+// O(1) idempotency index. The caller must hold socialMu.
+func (s *Server) appendSocialEventLocked(event socialEvent) {
+	if s.socialEventIDs == nil {
+		s.socialEventIDs = make(map[socialEventKey]struct{})
+	}
+	s.events = append(s.events, event)
+	if event.EventID != "" {
+		s.socialEventIDs[socialEventKey{UserID: event.UserID, EventID: event.EventID}] = struct{}{}
+	}
+	if len(s.events) > 20000 {
+		drop := len(s.events) - 20000
+		for _, old := range s.events[:drop] {
+			if old.EventID != "" {
+				delete(s.socialEventIDs, socialEventKey{UserID: old.UserID, EventID: old.EventID})
+			}
+		}
+		s.events = append([]socialEvent(nil), s.events[drop:]...)
 	}
 }
 
@@ -1574,19 +1610,14 @@ func (s *Server) handleSocialEvent(w http.ResponseWriter, r *http.Request) {
 	// bounded to the in-memory event window; legacy clients without IDs
 	// retain the original at-least-once behavior.
 	if req.EventID != "" {
-		for _, prior := range s.events {
-			if prior.UserID == viewer && prior.EventID == req.EventID {
-				s.socialMu.Unlock()
-				w.WriteHeader(http.StatusAccepted)
-				return
-			}
+		if _, exists := s.socialEventIDs[socialEventKey{UserID: viewer, EventID: req.EventID}]; exists {
+			s.socialMu.Unlock()
+			w.WriteHeader(http.StatusAccepted)
+			return
 		}
 	}
 	ev := socialEvent{SchemaVersion: req.SchemaVersion, EventID: req.EventID, UserID: viewer, GameID: req.GameID, Kind: req.Kind, DurationMS: req.DurationMS, ExpectedMS: req.ExpectedMS, PreviewDwellMS: req.PreviewDwellMS, TimeToInteractiveMS: req.TimeToInteractiveMS, TimeToFirstInputMS: req.TimeToFirstInputMS, FrameTimeP95MS: req.FrameTimeP95MS, FrameTimeAvgMS: req.FrameTimeAvgMS, FrameCount: req.FrameCount, CreatedAt: time.Now().UTC()}
-	s.events = append(s.events, ev)
-	if len(s.events) > 20000 {
-		s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
-	}
+	s.appendSocialEventLocked(ev)
 	persistSocialEvent(ev)
 	s.socialMu.Unlock()
 	w.WriteHeader(http.StatusAccepted)
@@ -1933,10 +1964,7 @@ func (s *Server) recordSocialPlay(viewer, gameID string) {
 		}
 	}
 	ev := socialEvent{UserID: viewer, GameID: gameID, Kind: kind, CreatedAt: time.Now().UTC()}
-	s.events = append(s.events, ev)
-	if len(s.events) > 20000 {
-		s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
-	}
+	s.appendSocialEventLocked(ev)
 	persistSocialEvent(ev)
 	s.socialMu.Unlock()
 }
@@ -1944,10 +1972,7 @@ func (s *Server) recordSocialPlay(viewer, gameID string) {
 func (s *Server) recordSocialCompletion(viewer, gameID string, durationMS int) {
 	s.socialMu.Lock()
 	ev := socialEvent{UserID: viewer, GameID: gameID, Kind: "completion", DurationMS: durationMS, CreatedAt: time.Now().UTC()}
-	s.events = append(s.events, ev)
-	if len(s.events) > 20000 {
-		s.events = append([]socialEvent(nil), s.events[len(s.events)-20000:]...)
-	}
+	s.appendSocialEventLocked(ev)
 	persistSocialEvent(ev)
 	s.socialMu.Unlock()
 }
