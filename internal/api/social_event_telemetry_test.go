@@ -50,6 +50,37 @@ func TestSocialEventPerformanceFieldsAreVersionedAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestSocialEventIdempotencySurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
+	t.Setenv("DQ_SOCIAL_EVENTS_FILE", filepath.Join(dir, "social-events.jsonl"))
+
+	body := map[string]any{
+		"schema_version": 1,
+		"event_id":       "restart-safe-event",
+		"game_id":        "game-1",
+		"kind":           "impression",
+	}
+	first := newTestServer()
+	addPublicGame(first, "game-1", "creator")
+	if resp := do(t, first, http.MethodPost, "/v1/telemetry/social-event", body, "viewer"); resp.Code != http.StatusAccepted {
+		t.Fatalf("first event: %d %s", resp.Code, resp.Body.String())
+	}
+
+	// A fresh Server reloads the append-only event log. Retrying the same
+	// user/event ID must be acknowledged without adding a second row.
+	second := newTestServer()
+	addPublicGame(second, "game-1", "creator")
+	if resp := do(t, second, http.MethodPost, "/v1/telemetry/social-event", body, "viewer"); resp.Code != http.StatusAccepted {
+		t.Fatalf("replayed event: %d %s", resp.Code, resp.Body.String())
+	}
+	second.socialMu.Lock()
+	defer second.socialMu.Unlock()
+	if len(second.events) != 1 {
+		t.Fatalf("recovered %d events after retry, want exactly one", len(second.events))
+	}
+}
+
 func TestSocialEventPerformanceFieldsRejectInvalidMeasurementsAndSchema(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("DQ_SOCIAL_STATE_FILE", filepath.Join(dir, "social-state.json"))
