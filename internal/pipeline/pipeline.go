@@ -366,7 +366,7 @@ func (r *Runner) runRemaining(jobID string) {
 		preserveParentAssets := false
 		if game.ParentGameID != "" {
 			if parent, found := r.store.GetGame(game.ParentGameID); found &&
-				parent.ID != "sample-rainbow-bear" && parent.Manifest != nil {
+				parent.Manifest != nil && (parent.ID != "sample-rainbow-bear" || parent.GameIR != nil) {
 				m.Assets = parent.Manifest.Assets
 				m.Controls = append([]string(nil), parent.Manifest.Controls...)
 				preserveParentAssets = true
