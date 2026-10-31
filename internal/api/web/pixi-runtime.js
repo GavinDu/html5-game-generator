@@ -919,7 +919,19 @@ async function run(id) {
     // Image.src cannot carry the Bearer header kept in tab-scoped session
     // storage. Fetch through apiFetch first so private/group asset delivery
     // receives the same verified identity as the package request.
-    const response = await apiFetch(assetURL.href);
+    const requestController = new AbortController();
+    const requestTimeout = setTimeout(() => requestController.abort(), 15000);
+    let response;
+    try {
+      response = await apiFetch(assetURL.href, { signal: requestController.signal });
+    } catch (error) {
+      if (requestController.signal.aborted) {
+        throw new Error(`image request timed out after 15s: ${assetURL.pathname}`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(requestTimeout);
+    }
     if (!response.ok) {
       throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
     }
