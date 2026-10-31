@@ -876,26 +876,42 @@ async function run(id) {
   // browser sniffs the real format from the bytes.
   async function loadTexture(url) {
     if (!url) throw new Error('image asset has no URL');
+    const assetURL = new URL(url, location.href);
+    if (assetURL.origin !== location.origin) {
+      throw new Error('image asset URL must be same-origin so private authorization is preserved');
+    }
+    // Image.src cannot carry the Bearer header kept in tab-scoped session
+    // storage. Fetch through apiFetch first so private/group asset delivery
+    // receives the same verified identity as the package request.
+    const response = await apiFetch(assetURL.href);
+    if (!response.ok) {
+      throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
+    }
+    const objectURL = URL.createObjectURL(await response.blob());
     const img = new Image();
-    await new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (callback, value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        img.onload = null;
-        img.onerror = null;
-        callback(value);
-      };
-      const timeout = setTimeout(
-        () => finish(reject, new Error(`image load timed out after 15s: ${url}`)),
-        15000
-      );
-      img.onload = () => finish(resolve);
-      img.onerror = () => finish(reject, new Error(`image load failed: ${url}`));
-      img.src = url;
-    });
-    return PIXI.Texture.from(img);
+    try {
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (callback, value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          img.onload = null;
+          img.onerror = null;
+          callback(value);
+        };
+        const timeout = setTimeout(
+          () => finish(reject, new Error(`image decode timed out after 15s: ${assetURL.pathname}`)),
+          15000
+        );
+        img.onload = () => finish(resolve);
+        img.onerror = () => finish(reject, new Error(`image decode failed: ${assetURL.pathname}`));
+        img.src = objectURL;
+      });
+      return PIXI.Texture.from(img);
+    } finally {
+      URL.revokeObjectURL(objectURL);
+    }
   }
 
   // Independent images load concurrently with a bounded worker pool. This
@@ -912,7 +928,7 @@ async function run(id) {
       try {
         textures.set(asset.id, await loadTexture(assetURL.get(asset.id)));
       } catch (e) {
-        log('PKG', `WARN asset '${asset.id}' failed to load: ${e.message}`);
+        throw new Error(`required image asset '${asset.id}' failed validation or loading: ${e.message}`);
       }
     }
   }));
