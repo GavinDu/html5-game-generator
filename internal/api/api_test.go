@@ -600,8 +600,20 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 	if err := gameir.Validate(child.GameIR); err != nil {
 		t.Fatalf("remix Game IR failed semantic validation: %v", err)
 	}
-	if len(child.GameIR.Assets) < 9 || len(child.GameIR.Scenes) != 1 || len(child.GameIR.Rules) != 4 {
-		t.Fatalf("unexpected remix shape: assets=%d scenes=%d rules=%d", len(child.GameIR.Assets), len(child.GameIR.Scenes), len(child.GameIR.Rules))
+	if parent.GameIR == nil {
+		t.Fatal("Bobo inventory parent has no canonical Game IR")
+	}
+	if len(child.GameIR.Assets) != len(parent.GameIR.Assets) ||
+		len(child.GameIR.Scenes) != len(parent.GameIR.Scenes) ||
+		len(child.GameIR.Rules) != len(parent.GameIR.Rules) {
+		t.Fatalf("remix did not preserve canonical parent structure: child assets/scenes/rules=%d/%d/%d parent=%d/%d/%d",
+			len(child.GameIR.Assets), len(child.GameIR.Scenes), len(child.GameIR.Rules),
+			len(parent.GameIR.Assets), len(parent.GameIR.Scenes), len(parent.GameIR.Rules))
+	}
+	for i, parentRule := range parent.GameIR.Rules {
+		if child.GameIR.Rules[i].ID != parentRule.ID {
+			t.Fatalf("remix changed parent rule %d: got %q want %q", i, child.GameIR.Rules[i].ID, parentRule.ID)
+		}
 	}
 
 	// The native iOS player consumes this exact package envelope and fetches
