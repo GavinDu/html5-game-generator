@@ -317,6 +317,19 @@ func TestGroupsAndSharing(t *testing.T) {
 	}
 }
 
+// seedPackageAssets stores every asset declared by a Game IR fixture. The
+// package endpoint intentionally fails closed when any published asset is
+// missing, so tests must model a complete published package.
+func seedPackageAssets(st store.Store, gameID string, doc *gameir.Document, primaryAsset []byte) {
+	for _, asset := range doc.Assets {
+		data := []byte("fixture-asset:" + asset.ID)
+		if asset.ID == "bobo" && primaryAsset != nil {
+			data = primaryAsset
+		}
+		st.PutArtifact(gameID, asset.URI, data, asset.MIMEType)
+	}
+}
+
 // The package endpoint exposes the canonical Game IR envelope and asset URLs.
 func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	st := store.NewMemoryStore()
@@ -331,7 +344,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
 		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
-	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+	seedPackageAssets(st, doc.Game.ID, doc, []byte("immutable-asset"))
 
 	packagePath := "/v1/games/" + doc.Game.ID + "/package"
 	first := do(t, srv, http.MethodGet, packagePath, nil, "")
@@ -478,7 +491,7 @@ func TestGetPackage(t *testing.T) {
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
 		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic})
-	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("fake-png"), "image/png")
+	seedPackageAssets(st, doc.Game.ID, doc, []byte("fake-png"))
 	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft", OwnerID: "pkg-owner"})
 
 	rec := do(t, srv, "GET", "/v1/games/"+doc.Game.ID+"/package", nil, "")
