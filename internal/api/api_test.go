@@ -326,7 +326,11 @@ func seedPackageAssets(st store.Store, gameID string, doc *gameir.Document, prim
 		if asset.ID == "bobo" && primaryAsset != nil {
 			data = primaryAsset
 		}
-		st.PutArtifact(gameID, asset.URI, data, asset.MIMEType)
+		contentType := asset.MIMEType
+		if contentType == "" && strings.HasSuffix(asset.URI, ".png") {
+			contentType = "image/png"
+		}
+		st.PutArtifact(gameID, asset.URI, data, contentType)
 	}
 }
 
@@ -413,7 +417,7 @@ func TestPackageErrorsAreNeverCacheable(t *testing.T) {
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
 		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
-	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+	seedPackageAssets(st, doc.Game.ID, doc, []byte("immutable-asset"))
 
 	missingAsset := do(t, srv, http.MethodGet, "/v1/games/"+doc.Game.ID+"/assets/not-in-ir", nil, "")
 	if missingAsset.Code != http.StatusNotFound {
