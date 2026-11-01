@@ -1,7 +1,10 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"net/http"
 	"testing"
 
@@ -42,5 +45,28 @@ func TestPackageEnvelopeAdvertisesRuntimeCompatibilityContract(t *testing.T) {
 	}
 	if pkg.Assets == nil {
 		t.Error("assets must be an array, not null, even when the package has no assets")
+	}
+	for _, asset := range pkg.Assets {
+		if len(asset.SHA256) != 64 {
+			t.Errorf("asset %q has no SHA-256 digest in the package envelope: %q", asset.ID, asset.SHA256)
+		}
+	}
+}
+
+func TestPackageAssetSHA256ComputesLegacyDigestAndRejectsMismatch(t *testing.T) {
+	data := []byte("verified sprite bytes")
+	sum := sha256.Sum256(data)
+	want := hex.EncodeToString(sum[:])
+
+	got, err := packageAssetSHA256("", data)
+	if err != nil || got != want {
+		t.Fatalf("computed digest = %q, %v; want %q", got, err, want)
+	}
+	got, err = packageAssetSHA256(strings.ToUpper(want), data)
+	if err != nil || got != want {
+		t.Fatalf("matching declared digest = %q, %v; want %q", got, err, want)
+	}
+	if _, err := packageAssetSHA256(strings.Repeat("0", 64), data); err == nil {
+		t.Fatal("mismatched declared digest must fail closed")
 	}
 }
