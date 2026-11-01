@@ -35,3 +35,10 @@ test('package envelope identity, IR version, and asset delivery entries are vali
   assert.match(source, /duplicate asset ID/);
   assert.match(source, /IR asset '\$\{asset\.id\}' has no delivery entry/);
 });
+
+test('declared image SHA-256 hashes are verified before decode', () => {
+  assert.match(source, /asset\.sha256/);
+  assert.match(source, /crypto\.subtle\.digest\('SHA-256'/);
+  assert.match(source, /image asset integrity check failed/);
+  assert.match(source, /invalid SHA-256 declaration/);
+});
