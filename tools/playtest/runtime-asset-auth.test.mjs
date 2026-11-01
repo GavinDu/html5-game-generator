@@ -8,7 +8,7 @@ const source = await readFile(runtimePath, 'utf8');
 
 test('private image assets are fetched through the authenticated same-origin API client', () => {
   assert.match(source, /assetURL\.origin !== location\.origin/);
-  assert.match(source, /apiFetch\(assetURL\.href\)/);
+  assert.match(source, /apiFetch\(assetURL\.href,\s*\{\s*signal:\s*requestController\.signal\s*\}\)/);
   assert.match(source, /image asset URL must be same-origin/);
 });
 
