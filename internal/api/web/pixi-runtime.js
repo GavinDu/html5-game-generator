@@ -897,7 +897,7 @@ async function run(id) {
     if (typeof uri !== 'string' || !uri.trim()) {
       throw new Error(`invalid game package: asset '${asset.id}' has no delivery URL`);
     }
-    assetURL.set(asset.id, uri);
+    assetURL.set(asset.id, { url: uri, sha256: asset.sha256 || '' });
   }
   for (const asset of ir.assets) {
     if (!assetURL.has(asset.id)) {
@@ -910,9 +910,9 @@ async function run(id) {
   // extension — the null then kills Sprite construction ("reading 'texture'").
   // Load the image element directly and build the texture from it instead; the
   // browser sniffs the real format from the bytes.
-  async function loadTexture(url) {
-    if (!url) throw new Error('image asset has no URL');
-    const assetURL = new URL(url, location.href);
+  async function loadTexture(asset) {
+    if (!asset?.url) throw new Error('image asset has no URL');
+    const assetURL = new URL(asset.url, location.href);
     if (assetURL.origin !== location.origin) {
       throw new Error('image asset URL must be same-origin so private authorization is preserved');
     }
@@ -935,7 +935,22 @@ async function run(id) {
     if (!response.ok) {
       throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
     }
-    const objectURL = URL.createObjectURL(await response.blob());
+    const imageBlob = await response.blob();
+    if (asset.sha256) {
+      if (!/^[a-f0-9]{64}$/i.test(asset.sha256)) {
+        throw new Error(`image asset has an invalid SHA-256 declaration: ${assetURL.pathname}`);
+      }
+      if (!globalThis.crypto?.subtle) {
+        throw new Error('SHA-256 verification is unavailable in this browser');
+      }
+      const bytes = await imageBlob.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      const actualHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      if (actualHash.toLowerCase() !== asset.sha256.toLowerCase()) {
+        throw new Error(`image asset integrity check failed: ${assetURL.pathname}`);
+      }
+    }
+    const objectURL = URL.createObjectURL(imageBlob);
     const img = new Image();
     try {
       await new Promise((resolve, reject) => {
@@ -983,7 +998,7 @@ async function run(id) {
   log('PKG', `textures loaded: ${textures.size}/${imageAssets.length} images`);
   const audio = new Map();
   for (const a of pkg.assets || []) {
-    if (a.kind === 'audio') audio.set(a.id, assetURL.get(a.id));
+    if (a.kind === 'audio') audio.set(a.id, assetURL.get(a.id)?.url);
   }
 
   if (scene.backgroundAssetId && textures.has(scene.backgroundAssetId)) {
