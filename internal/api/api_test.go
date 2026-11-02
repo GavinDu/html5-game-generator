@@ -456,7 +456,7 @@ func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
 		Visibility: model.VisibilityPublic, ModerationStatus: "approved",
 	}
 	st.CreateGame(game)
-	st.PutArtifact(doc.Game.ID, "assets/bear.png", []byte("immutable-asset"), "image/png")
+	seedPackageAssets(st, doc.Game.ID, doc, []byte("immutable-asset"))
 
 	path := "/v1/games/" + doc.Game.ID + "/package"
 	first := do(t, srv, http.MethodGet, path, nil, "")
