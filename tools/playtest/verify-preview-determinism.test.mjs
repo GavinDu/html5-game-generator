@@ -9,7 +9,8 @@ test('determinism verifier renders the same recorded run twice with the same opt
   assert.match(source, /render\('first'\)/);
   assert.match(source, /render\('second'\)/);
   assert.match(source, /'--run', run/);
-  assert.match(source, /'--duration-ms', durationMs, '--fps', fps/);\n  assert.match(source, /'--width', width, '--height', height/);
+  assert.match(source, /'--duration-ms', durationMs, '--fps', fps/);
+  assert.match(source, /'--width', width, '--height', height/);
 });
 
 test('determinism verifier rejects fallback clips and incomplete frame reports', () => {
