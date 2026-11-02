@@ -53,3 +53,4 @@ test('preview renderer records a SHA-256 digest for each captured frame', () => 
   assert.match(source, /frame_sha256: frameHashes/);
   assert.match(source, /frame_sha256: frameHashes, fps/);
 });
+\n\ntest('preview renderer supports bounded native portrait, landscape, and tablet viewports', () => {\n  assert.match(source, /const width = Number\\(arg\\('width', '420'\\)\\)/);\n  assert.match(source, /const height = Number\\(arg\\('height', '900'\\)\\)/);\n  assert.match(source, /viewport: \\{ width, height \\}/);\n  assert.match(source, /orientation: width === height \\? 'square' : width > height \\? 'landscape' : 'portrait'/);\n  assert.match(source, /width < 240 \\|\\| height < 240 \\|\\| width > 4096 \\|\\| height > 4096/);\n});\n
