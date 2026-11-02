@@ -23,6 +23,10 @@ const browserName = arg('browser', 'chromium');
 const durationMs = Math.max(1, Number(arg('duration-ms', '6000')));
 const fps = Math.max(1, Math.min(30, Number(arg('fps', '12'))));
 const startDelayMs = Math.max(0, Number(arg('start-delay-ms', '0')));
+// Match the game's native aspect ratio (portrait, landscape, or tablet) instead
+// of silently cropping every preview into a phone-portrait viewport.
+const width = Number(arg('width', '420'));
+const height = Number(arg('height', '900'));
 
 if (!base || !game || !run || !out || !poster) {
   console.error('usage: render-preview.mjs --base URL --game ID --run RUN_ID --out CLIP --poster PNG');
@@ -64,7 +68,7 @@ function runFFmpeg(args) {
 try {
   const launch = browserName === 'webkit' ? webkit : chromium;
   browser = await launch.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   const url = `${base}/player?game=${encodeURIComponent(game)}&probe=1&capture=1&replay=${encodeURIComponent(run)}`;
   await page.goto(url, { waitUntil: 'load', timeout: 30000 });
   await page.waitForFunction(() => window.__dqProbe?.booted === true && typeof window.__dqTest?.advanceToStep === 'function', null, { timeout: 30000 });
@@ -141,7 +145,7 @@ try {
     rmSync(out, { force: true });
     const result = {
       game, run, duration_ms: durationMs, frames: framesCaptured, frame_sha256: frameHashes, fps,
-      browser: browserName, clip: null, clip_bytes: 0, poster,
+      width, height, aspect: Number((width / height).toFixed(6)),\n      orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',\n      browser: browserName, clip: null, clip_bytes: 0, poster,
       poster_bytes: statSync(poster).size,
       render_ms: Date.now() - renderStartedAt, clip_fallback: true,
       fallback_reason: String(error.message || error),
