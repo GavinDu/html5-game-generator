@@ -225,3 +225,18 @@ func TestRunAllowsFAILReportWhenBootFailurePreventsLaterGates(t *testing.T) {
 		t.Fatal("failed boot must remain a failed report")
 	}
 }
+
+
+func TestRunRejectsPASSWhenAnyMeasuredCheckFailed(t *testing.T) {
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"},
+		{"checkId":"simulation.win_reachable","status":"fail","evidence":"win condition unreachable"}
+	]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	_, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, nil)
+	if err == nil || !strings.Contains(err.Error(), `check "simulation.win_reachable" failed`) {
+		t.Fatalf("Run() error = %v, want PASS/failed-check inconsistency", err)
+	}
+}
