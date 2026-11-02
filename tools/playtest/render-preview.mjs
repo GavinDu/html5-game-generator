@@ -128,6 +128,10 @@ try {
     frames: framesCaptured,
     frame_sha256: frameHashes,
     fps,
+    width,
+    height,
+    aspect: Number((width / height).toFixed(6)),
+    orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',
     browser: browserName,
     clip: clipReady ? out : null,
     clip_bytes: clipBytes,
@@ -145,7 +149,8 @@ try {
     rmSync(out, { force: true });
     const result = {
       game, run, duration_ms: durationMs, frames: framesCaptured, frame_sha256: frameHashes, fps,
-      width, height, aspect: Number((width / height).toFixed(6)),\n      orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',\n      browser: browserName, clip: null, clip_bytes: 0, poster,
+      width, height, aspect: Number((width / height).toFixed(6)),
+      orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',\n      browser: browserName, clip: null, clip_bytes: 0, poster,
       poster_bytes: statSync(poster).size,
       render_ms: Date.now() - renderStartedAt, clip_fallback: true,
       fallback_reason: String(error.message || error),
