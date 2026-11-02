@@ -226,7 +226,6 @@ func TestRunAllowsFAILReportWhenBootFailurePreventsLaterGates(t *testing.T) {
 	}
 }
 
-
 func TestRunRejectsPASSWhenAnyMeasuredCheckFailed(t *testing.T) {
 	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[
 		{"checkId":"playtest.boot_clean","status":"pass"},
