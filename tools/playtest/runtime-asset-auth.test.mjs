@@ -15,7 +15,8 @@ test('private image assets are fetched through the authenticated same-origin API
 test('image responses are checked before decoding and texture creation', () => {
   assert.match(source, /if \(!response\.ok\)/);
   assert.match(source, /image asset request failed \(HTTP/);
-  assert.match(source, /await response\\.blob\\(\\)/);\n  assert.match(source, /URL\\.createObjectURL\\(imageBlob\\)/);
+  assert.match(source, /await response\.blob\(\)/);
+  assert.match(source, /URL\.createObjectURL\(imageBlob\)/);
   assert.match(source, /return PIXI\.Texture\.from\(img\)/);
 });
 
