@@ -10,6 +10,7 @@ test('determinism verifier renders the same recorded run twice with the same opt
   assert.match(source, /render\('second'\)/);
   assert.match(source, /'--run', run/);
   assert.match(source, /'--duration-ms', durationMs, '--fps', fps/);
+  assert.match(source, /'--width', width, '--height', height/);
 });
 
 test('determinism verifier rejects fallback clips and incomplete frame reports', () => {
@@ -26,4 +27,11 @@ test('determinism verifier exits unsuccessfully when any frame hash differs', ()
 test('determinism verifier cleans temporary render artifacts on both success and failure', () => {
   assert.match(source, /finally \{/);
   assert.match(source, /rmSync\(temp, \{ recursive: true, force: true \}\)/);
+});
+
+ 
+test('determinism verifier reports the viewport and native orientation used for both renders', () => {
+  assert.match(source, /const width = arg\('width', '420'\)/);
+  assert.match(source, /const height = arg\('height', '900'\)/);
+  assert.match(source, /aspect: first.aspect, orientation: first.orientation/);
 });

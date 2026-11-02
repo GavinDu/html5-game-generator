@@ -19,6 +19,8 @@ const run = arg('run');
 const browser = arg('browser', 'chromium');
 const durationMs = arg('duration-ms', '6000');
 const fps = arg('fps', '12');
+const width = arg('width', '420');
+const height = arg('height', '900');
 if (!base || !game || !run) {
   console.error('usage: node verify-preview-determinism.mjs --base URL --game ID --run RUN_ID [--browser chromium|webkit]');
   process.exit(2);
@@ -36,6 +38,7 @@ function render(label) {
   const result = spawnSync(process.execPath, [
     renderer, '--base', base, '--game', game, '--run', run, '--out', out,
     '--poster', poster, '--browser', browser, '--duration-ms', durationMs, '--fps', fps,
+    '--width', width, '--height', height,
   ], { encoding: 'utf8', timeout: 180000, maxBuffer: 8 * 1024 * 1024 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${label} render failed (exit ${result.status}): ${result.stderr.trim()}`);
@@ -52,7 +55,8 @@ try {
   const second = render('second');
   const comparison = compareFrameHashes(first.frame_sha256, second.frame_sha256);
   const result = {
-    game, run, browser, deterministic: comparison.match,
+    game, run, browser, width: Number(width), height: Number(height),
+    aspect: first.aspect, orientation: first.orientation, deterministic: comparison.match,
     frame_count: comparison.frame_count,
     first_mismatch_index: comparison.first_mismatch_index,
     first_clip_bytes: first.clip_bytes,

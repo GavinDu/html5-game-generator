@@ -23,6 +23,10 @@ const browserName = arg('browser', 'chromium');
 const durationMs = Math.max(1, Number(arg('duration-ms', '6000')));
 const fps = Math.max(1, Math.min(30, Number(arg('fps', '12'))));
 const startDelayMs = Math.max(0, Number(arg('start-delay-ms', '0')));
+// Match the game's native aspect ratio (portrait, landscape, or tablet) instead
+// of silently cropping every preview into a phone-portrait viewport.
+const width = Number(arg('width', '420'));
+const height = Number(arg('height', '900'));
 
 if (!base || !game || !run || !out || !poster) {
   console.error('usage: render-preview.mjs --base URL --game ID --run RUN_ID --out CLIP --poster PNG');
@@ -33,8 +37,10 @@ if (!['chromium', 'webkit'].includes(browserName)) {
   process.exit(2);
 }
 
-if (!Number.isFinite(durationMs) || !Number.isFinite(fps) || !Number.isFinite(startDelayMs)) {
-  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite numbers');
+if (!Number.isFinite(durationMs) || !Number.isFinite(fps) || !Number.isFinite(startDelayMs) ||
+    !Number.isInteger(width) || !Number.isInteger(height) ||
+    width < 240 || height < 240 || width > 4096 || height > 4096) {
+  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite; width and height must be integers from 240 to 4096');
   process.exit(2);
 }
 
@@ -64,7 +70,7 @@ function runFFmpeg(args) {
 try {
   const launch = browserName === 'webkit' ? webkit : chromium;
   browser = await launch.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
   const url = `${base}/player?game=${encodeURIComponent(game)}&probe=1&capture=1&replay=${encodeURIComponent(run)}`;
   await page.goto(url, { waitUntil: 'load', timeout: 30000 });
   await page.waitForFunction(() => window.__dqProbe?.booted === true && typeof window.__dqTest?.advanceToStep === 'function', null, { timeout: 30000 });
@@ -124,6 +130,10 @@ try {
     frames: framesCaptured,
     frame_sha256: frameHashes,
     fps,
+    width,
+    height,
+    aspect: Number((width / height).toFixed(6)),
+    orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',
     browser: browserName,
     clip: clipReady ? out : null,
     clip_bytes: clipBytes,
@@ -141,6 +151,8 @@ try {
     rmSync(out, { force: true });
     const result = {
       game, run, duration_ms: durationMs, frames: framesCaptured, frame_sha256: frameHashes, fps,
+      width, height, aspect: Number((width / height).toFixed(6)),
+      orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',
       browser: browserName, clip: null, clip_bytes: 0, poster,
       poster_bytes: statSync(poster).size,
       render_ms: Date.now() - renderStartedAt, clip_fallback: true,

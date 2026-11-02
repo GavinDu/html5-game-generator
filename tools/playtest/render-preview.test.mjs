@@ -43,7 +43,7 @@ test('preview capture advances the runtime to exact fixed simulation steps', () 
 
 test('preview renderer rejects non-finite numeric options instead of emitting an empty successful preview', () => {
   assert.match(source, /!Number\.isFinite\(durationMs\) \|\| !Number\.isFinite\(fps\) \|\| !Number\.isFinite\(startDelayMs\)/);
-  assert.match(source, /duration-ms, fps, and start-delay-ms must be finite numbers/);
+  assert.match(source, /width and height must be integers from 240 to 4096/);
 });
 
 
@@ -52,4 +52,13 @@ test('preview renderer records a SHA-256 digest for each captured frame', () => 
   assert.match(source, /frameHashes\.push\(createHash\('sha256'\)\.update\(frame\)\.digest\('hex'\)\)/);
   assert.match(source, /frame_sha256: frameHashes/);
   assert.match(source, /frame_sha256: frameHashes, fps/);
+});
+
+ 
+test('preview renderer supports bounded native portrait, landscape, and tablet viewports', () => {
+  assert.match(source, /const width = Number\(arg\('width', '420'\)\)/);
+  assert.match(source, /const height = Number\(arg\('height', '900'\)\)/);
+  assert.match(source, /viewport: \{ width, height \}/);
+  assert.match(source, /orientation: width === height \? 'square' : width > height \? 'landscape' : 'portrait'/);
+  assert.match(source, /width < 240 \|\| height < 240 \|\| width > 4096 \|\| height > 4096/);
 });
