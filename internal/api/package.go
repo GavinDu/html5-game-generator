@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -160,6 +161,19 @@ func setPackageCacheHeaders(w http.ResponseWriter, r *http.Request, game *model.
 	return r.Header.Get("If-None-Match") == etag || r.Header.Get("If-None-Match") == "*"
 }
 
+// packageAssetSHA256 returns the digest of the exact bytes that will be
+// delivered. Legacy IRs may omit a digest; the package envelope still gets
+// a computed digest so clients can verify the download. A declared digest is
+// authoritative and a mismatch fails closed.
+func packageAssetSHA256(declared string, data []byte) (string, error) {
+	sum := sha256.Sum256(data)
+	actual := hex.EncodeToString(sum[:])
+	if declared != "" && !strings.EqualFold(declared, actual) {
+		return "", fmt.Errorf("asset SHA-256 mismatch")
+	}
+	return actual, nil
+}
+
 func strongETag(data []byte) string {
 	sum := sha256.Sum256(data)
 	return "\"" + hex.EncodeToString(sum[:]) + "\""
@@ -192,10 +206,22 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		IRHash:               irHashOf(game.GameIR),
 	}
 	for _, asset := range game.GameIR.Assets {
+		data, _, found := s.store.GetArtifact(game.ID, asset.URI)
+		if !found {
+			w.Header().Set("Cache-Control", "private, no-store")
+			writeErr(w, http.StatusUnprocessableEntity, "published package asset is missing")
+			return
+		}
+		assetHash, hashErr := packageAssetSHA256(asset.SHA256, data)
+		if hashErr != nil {
+			w.Header().Set("Cache-Control", "private, no-store")
+			writeErr(w, http.StatusUnprocessableEntity, "published package asset failed integrity validation")
+			return
+		}
 		pkg.Assets = append(pkg.Assets, GamePackageAsset{
 			ID: asset.ID, Kind: asset.Kind, URI: asset.URI,
 			URL:      "/v1/games/" + game.ID + "/assets/" + url.PathEscape(asset.ID),
-			MIMEType: asset.MIMEType, SHA256: asset.SHA256,
+			MIMEType: asset.MIMEType, SHA256: assetHash,
 			Source: asset.Source, AltText: asset.AltText,
 		})
 	}
