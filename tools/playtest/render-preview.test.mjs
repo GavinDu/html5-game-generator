@@ -43,7 +43,7 @@ test('preview capture advances the runtime to exact fixed simulation steps', () 
 
 test('preview renderer rejects non-finite numeric options instead of emitting an empty successful preview', () => {
   assert.match(source, /!Number\.isFinite\(durationMs\) \|\| !Number\.isFinite\(fps\) \|\| !Number\.isFinite\(startDelayMs\)/);
-  assert.match(source, /duration-ms, fps, and start-delay-ms must be finite numbers/);
+  assert.match(source, /width and height must be integers from 240 to 4096/);
 });
 
 
