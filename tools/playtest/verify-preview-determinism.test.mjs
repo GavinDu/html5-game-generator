@@ -27,4 +27,10 @@ test('determinism verifier cleans temporary render artifacts on both success and
   assert.match(source, /finally \{/);
   assert.match(source, /rmSync\(temp, \{ recursive: true, force: true \}\)/);
 });
-\n\ntest('determinism verifier reports the viewport and native orientation used for both renders', () => {\n  assert.match(source, /const width = arg\\('width', '420'\\)/);\n  assert.match(source, /const height = arg\\('height', '900'\\)/);\n  assert.match(source, /aspect: first.aspect, orientation: first.orientation/);\n});\n
+
+ 
+test('determinism verifier reports the viewport and native orientation used for both renders', () => {
+  assert.match(source, /const width = arg\('width', '420'\)/);
+  assert.match(source, /const height = arg\('height', '900'\)/);
+  assert.match(source, /aspect: first.aspect, orientation: first.orientation/);
+});
