@@ -37,8 +37,10 @@ if (!['chromium', 'webkit'].includes(browserName)) {
   process.exit(2);
 }
 
-if (!Number.isFinite(durationMs) || !Number.isFinite(fps) || !Number.isFinite(startDelayMs)) {
-  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite numbers');
+if (!Number.isFinite(durationMs) || !Number.isFinite(fps) || !Number.isFinite(startDelayMs) ||
+    !Number.isInteger(width) || !Number.isInteger(height) ||
+    width < 240 || height < 240 || width > 4096 || height > 4096) {
+  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite; width and height must be integers from 240 to 4096');
   process.exit(2);
 }
 
@@ -150,7 +152,8 @@ try {
     const result = {
       game, run, duration_ms: durationMs, frames: framesCaptured, frame_sha256: frameHashes, fps,
       width, height, aspect: Number((width / height).toFixed(6)),
-      orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',\n      browser: browserName, clip: null, clip_bytes: 0, poster,
+      orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',
+      browser: browserName, clip: null, clip_bytes: 0, poster,
       poster_bytes: statSync(poster).size,
       render_ms: Date.now() - renderStartedAt, clip_fallback: true,
       fallback_reason: String(error.message || error),
