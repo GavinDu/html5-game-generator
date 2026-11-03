@@ -24,31 +24,31 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	game.Topics = []string{"space", "cozy"}
 	game.PublishedVersion = 7
 	game.PlayableExpression = &expression.Document{
-		SchemaVersion: expression.SchemaVersion,
-		Status: expression.StatusReady,
-		Source: expression.Source{Type: "image", Reference: "private://source-image", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-		Creator: expression.Creator{OwnerID: "creator-1", Consent: true, Visibility: expression.VisibilityPublic},
-		Mode: expression.ModeWhatIf,
-		Intent: "A quiet garden in the moonlight",
+		SchemaVersion:        expression.SchemaVersion,
+		Status:               expression.StatusReady,
+		Source:               expression.Source{Type: "image", Reference: "private://source-image", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		Creator:              expression.Creator{OwnerID: "creator-1", Consent: true, Visibility: expression.VisibilityPublic},
+		Mode:                 expression.ModeWhatIf,
+		Intent:               "A quiet garden in the moonlight",
 		ChosenInterpretation: "Moon garden",
 		Interpretation: expression.Interpretation{
 			Preserved: []expression.Claim{{ID: "p1", Text: "garden", Confidence: 0.95, EvidenceIDs: []string{"e1"}}},
-			Invented: []expression.Claim{{ID: "i1", Text: "moon flowers", Confidence: 0.7}},
+			Invented:  []expression.Claim{{ID: "i1", Text: "moon flowers", Confidence: 0.7}},
 		},
-		Evidence: []expression.Evidence{{ID: "e1", Kind: "image_region", SourceReference: "private://region/1", Start: 0, End: 1}},
+		Evidence:   []expression.Evidence{{ID: "e1", Kind: "image_region", SourceReference: "private://region/1", Start: 0, End: 1}},
 		Generation: expression.Generation{Seed: 42, GameIRVersion: "1.2", PackageVersion: "7"},
 	}
 	st.CreateGame(game)
 	privateGame := feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute))
 	privateGame.PlayableExpression = &expression.Document{
-		SchemaVersion: expression.SchemaVersion,
-		Status: expression.StatusReady,
-		Source: expression.Source{Type: "image", Reference: "private://do-not-share"},
-		Creator: expression.Creator{OwnerID: "creator-2", Consent: true, Visibility: expression.VisibilityPrivate},
-		Mode: expression.ModeMakePlayable,
-		Intent: "A private drawing",
+		SchemaVersion:        expression.SchemaVersion,
+		Status:               expression.StatusReady,
+		Source:               expression.Source{Type: "image", Reference: "private://do-not-share"},
+		Creator:              expression.Creator{OwnerID: "creator-2", Consent: true, Visibility: expression.VisibilityPrivate},
+		Mode:                 expression.ModeMakePlayable,
+		Intent:               "A private drawing",
 		ChosenInterpretation: "Private interpretation",
-		Generation: expression.Generation{Seed: 7, GameIRVersion: "1.2", PackageVersion: "1"},
+		Generation:           expression.Generation{Seed: 7, GameIRVersion: "1.2", PackageVersion: "1"},
 	}
 	st.CreateGame(privateGame)
 
@@ -124,7 +124,9 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 		t.Fatal("public expression projection must not expose private evidence metadata")
 	}
 	var legacyGame map[string]any
-	if err := json.Unmarshal(response.Games[0], &legacyGame); err != nil { t.Fatal(err) }
+	if err := json.Unmarshal(response.Games[0], &legacyGame); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := legacyGame["playable_expression"]; ok {
 		t.Fatal("legacy public game payload must not expose owner-only expression provenance")
 	}
