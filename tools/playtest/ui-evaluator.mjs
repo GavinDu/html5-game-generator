@@ -65,6 +65,20 @@ try {
           stage: stageRect ? { x: stageRect.x, y: stageRect.y, width: stageRect.width, height: stageRect.height } : null,
           wrap: wrapRect ? { x: wrapRect.x, y: wrapRect.y, width: wrapRect.width, height: wrapRect.height } : null,
           body: { scrollWidth: document.body.scrollWidth, scrollHeight: document.body.scrollHeight },
+          overflowElements: [...document.querySelectorAll('body *')].map(element => {
+            const box = element.getBoundingClientRect();
+            return {
+              element: element.id ? '#' + element.id : element.tagName.toLowerCase(),
+              className: typeof element.className === 'string' ? element.className : '',
+              left: Math.round(box.left),
+              right: Math.round(box.right),
+              width: Math.round(box.width),
+              scrollWidth: element.scrollWidth,
+              clientWidth: element.clientWidth
+            };
+          }).filter(item => item.right > viewportWidth + 1 || item.left < -1 || item.scrollWidth > item.clientWidth + 1)
+            .sort((a, b) => Math.max(b.right - viewportWidth, b.scrollWidth - b.clientWidth) - Math.max(a.right - viewportWidth, a.scrollWidth - a.clientWidth))
+            .slice(0, 12),
           visible,
           bodyMode: document.body.dataset.presentation || 'feed',
           canvasAspect: rect ? rect.width / rect.height : 0,
