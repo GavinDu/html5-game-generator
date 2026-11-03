@@ -196,10 +196,23 @@
   body.dq-play #end {
     display: none !important;
   }
+  html:has(body.dq-play) {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
   body.dq-play {
     display: block;
-    width: 100vw;
-    max-width: 100vw;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  body.dq-play > :not(header):not(#stage-wrap):not(#status) {
+    display: none !important;
+  }
+  body.dq-play header {
+    box-sizing: border-box;
+    max-width: 100%;
   }
   body.dq-play #stage-wrap {
     /* Use a fixed viewport overlay rather than a flex item: narrow phone
