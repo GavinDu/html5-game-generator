@@ -200,13 +200,13 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			}
 		}
 		cards = append(cards, feedCard{
-			GameID:  game.ID,
+				GameID:             game.ID,
 			PlayableExpression: publicFeedExpression(game.PlayableExpression),
-			Version: version,
-			Title:   game.Title,
-			Caption: game.Caption,
-			Topics:  append([]string(nil), game.Topics...),
-			Creator: feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},
+			Version:            version,
+			Title:              game.Title,
+			Caption:            game.Caption,
+			Topics:             append([]string(nil), game.Topics...),
+			Creator:            feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},
 			// Preview metadata comes only from a matching published
 			// version's stored preview; otherwise the card stays
 			// pending rather than inventing a URL or metrics.
