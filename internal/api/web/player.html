@@ -186,6 +186,21 @@
     border: 0;
     pointer-events: none;
   }
+  /* The native game route must not retain the browser-feed controls
+     in document flow. Their wide account form caused horizontal overflow
+     even though the game canvas itself fit correctly. */
+  body.dq-play #account,
+  body.dq-play #list,
+  body.dq-play .feed-heading,
+  body.dq-play details,
+  body.dq-play #end {
+    display: none !important;
+  }
+  body.dq-play {
+    display: block;
+    width: 100vw;
+    max-width: 100vw;
+  }
   body.dq-play #stage-wrap {
     /* Use a fixed viewport overlay rather than a flex item: narrow phone
        widths and landscape rotation must never shrink the stage wrapper to
