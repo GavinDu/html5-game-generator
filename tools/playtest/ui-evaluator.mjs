@@ -58,7 +58,7 @@ try {
         const visible = !!rect && rect.width > 0 && rect.height > 0 &&
           rect.left >= -1 && rect.top >= -1 &&
           rect.right <= viewportWidth + 1 && rect.bottom <= viewportHeight + 1;
-        const shellButtons = [...document.querySelectorAll('.shell-card button')];
+        const shellButtons = [...document.querySelectorAll('.shell-card.on button')];
         return {
           viewport: { width: viewportWidth, height: viewportHeight },
           canvas: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
