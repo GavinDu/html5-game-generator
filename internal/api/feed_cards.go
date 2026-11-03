@@ -46,7 +46,6 @@ type feedCardPackage struct {
 	MinRuntimeVersion string `json:"min_runtime_version"`
 }
 
-
 type feedExpressionClaim struct {
 	Text       string  `json:"text"`
 	Confidence float64 `json:"confidence"`
@@ -60,8 +59,8 @@ type feedPlayableExpression struct {
 	Preserved            []feedExpressionClaim `json:"preserved,omitempty"`
 	Invented             []feedExpressionClaim `json:"invented,omitempty"`
 	Uncertain            []feedExpressionClaim `json:"uncertain,omitempty"`
-	ParentGameID          string                `json:"parent_game_id,omitempty"`
-	ParentVersion         int                   `json:"parent_version,omitempty"`
+	ParentGameID         string                `json:"parent_game_id,omitempty"`
+	ParentVersion        int                   `json:"parent_version,omitempty"`
 }
 
 // publicFeedExpression is an explicit, redacted projection. Source references,
