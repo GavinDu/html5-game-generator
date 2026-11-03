@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"doodlequest/internal/expression"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
 )
@@ -22,6 +23,21 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	game.Caption = "Grow a tiny universe"
 	game.Topics = []string{"space", "cozy"}
 	game.PublishedVersion = 7
+	game.PlayableExpression = &expression.Document{
+		SchemaVersion: expression.SchemaVersion,
+		Status: expression.StatusReady,
+		Source: expression.Source{Type: "image", Reference: "private://source-image", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		Creator: expression.Creator{OwnerID: "creator-1", Consent: true, Visibility: expression.VisibilityPublic},
+		Mode: expression.ModeWhatIf,
+		Intent: "A quiet garden in the moonlight",
+		ChosenInterpretation: "Moon garden",
+		Interpretation: expression.Interpretation{
+			Preserved: []expression.Claim{{ID: "p1", Text: "garden", Confidence: 0.95, EvidenceIDs: []string{"e1"}}},
+			Invented: []expression.Claim{{ID: "i1", Text: "moon flowers", Confidence: 0.7}},
+		},
+		Evidence: []expression.Evidence{{ID: "e1", Kind: "image_region", SourceReference: "private://region/1", Start: 0, End: 1}},
+		Generation: expression.Generation{Seed: 42, GameIRVersion: "1.2", PackageVersion: "7"},
+	}
 	st.CreateGame(game)
 	st.CreateGame(feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute)))
 
@@ -82,6 +98,24 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	}
 	if _, ok := card["game_ir"]; ok {
 		t.Fatal("slim card must not include game_ir")
+	}
+	expressionCard, ok := card["playable_expression"].(map[string]any)
+	if !ok {
+		t.Fatalf("public expression projection missing: %#v", card["playable_expression"])
+	}
+	if expressionCard["intent"] != "A quiet garden in the moonlight" || expressionCard["chosen_interpretation"] != "Moon garden" {
+		t.Fatalf("unexpected expression summary: %#v", expressionCard)
+	}
+	if _, ok := expressionCard["source_reference"]; ok {
+		t.Fatal("public expression projection must not expose source references")
+	}
+	if _, ok := expressionCard["evidence"]; ok {
+		t.Fatal("public expression projection must not expose private evidence metadata")
+	}
+	var legacyGame map[string]any
+	if err := json.Unmarshal(response.Games[0], &legacyGame); err != nil { t.Fatal(err) }
+	if _, ok := legacyGame["playable_expression"]; ok {
+		t.Fatal("legacy public game payload must not expose owner-only expression provenance")
 	}
 	if card["version"] != "7" || card["title"] != "Orbit Garden" || card["caption"] != "Grow a tiny universe" {
 		t.Fatalf("unexpected card metadata: %#v", card)
