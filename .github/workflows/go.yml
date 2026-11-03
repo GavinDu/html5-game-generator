@@ -86,6 +86,20 @@ jobs:
           for i in $(seq 1 30); do
             curl -sf http://localhost:18099/healthz && break || sleep 1
           done
+      - name: Evaluate responsive player UI on iPhone and iPad viewports
+        run: |
+          node tools/playtest/ui-evaluator.mjs \\
+            --base http://localhost:18099 \\
+            --game sample-rainbow-bear \\
+            --browser ${{ matrix.browser }} \\
+            --shots /tmp/ui-evaluator-${{ matrix.browser }}
+      - name: Upload responsive UI evaluation screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-ui-evaluator-${{ matrix.browser }}
+          path: /tmp/ui-evaluator-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Playtest all feed games (${{ matrix.browser }})
         run: |
           set -o pipefail
