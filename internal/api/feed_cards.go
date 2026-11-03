@@ -200,7 +200,7 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			}
 		}
 		cards = append(cards, feedCard{
-				GameID:             game.ID,
+			GameID:             game.ID,
 			PlayableExpression: publicFeedExpression(game.PlayableExpression),
 			Version:            version,
 			Title:              game.Title,
