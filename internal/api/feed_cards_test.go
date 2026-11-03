@@ -39,7 +39,18 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 		Generation: expression.Generation{Seed: 42, GameIRVersion: "1.2", PackageVersion: "7"},
 	}
 	st.CreateGame(game)
-	st.CreateGame(feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute)))
+	privateGame := feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute))
+	privateGame.PlayableExpression = &expression.Document{
+		SchemaVersion: expression.SchemaVersion,
+		Status: expression.StatusReady,
+		Source: expression.Source{Type: "image", Reference: "private://do-not-share"},
+		Creator: expression.Creator{OwnerID: "creator-2", Consent: true, Visibility: expression.VisibilityPrivate},
+		Mode: expression.ModeMakePlayable,
+		Intent: "A private drawing",
+		ChosenInterpretation: "Private interpretation",
+		Generation: expression.Generation{Seed: 7, GameIRVersion: "1.2", PackageVersion: "1"},
+	}
+	st.CreateGame(privateGame)
 
 	srv := New(st, pipeline.NewRunner(st))
 	srv.profiles["creator-1"] = creatorProfile{DisplayName: "Creator One", AvatarURL: "https://cdn.example.test/avatar.png", UpdatedAt: now}
@@ -156,5 +167,8 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	}
 	if _, ok := second["stats"]; ok {
 		t.Fatalf("must omit empty/unobserved stats rather than invent values: %#v", second["stats"])
+	}
+	if _, ok := second["playable_expression"]; ok {
+		t.Fatal("private source expression must not be included in public feed cards")
 	}
 }
