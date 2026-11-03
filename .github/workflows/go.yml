@@ -89,9 +89,9 @@ jobs:
       - name: Evaluate responsive player UI on iPhone and iPad viewports
         run: |
           node tools/playtest/ui-evaluator.mjs \
-            --base http://localhost:18099 \\
-            --game sample-rainbow-bear \\
-            --browser ${{ matrix.browser }} \\
+            --base http://localhost:18099 \
+            --game sample-rainbow-bear \
+            --browser ${{ matrix.browser }} \
             --shots /tmp/ui-evaluator-${{ matrix.browser }}
       - name: Upload responsive UI evaluation screenshots
         if: always()
