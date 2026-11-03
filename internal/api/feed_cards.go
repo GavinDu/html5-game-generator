@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"doodlequest/internal/model"
 	"doodlequest/internal/expression"
+	"doodlequest/internal/model"
 )
 
 const FeedCardSchemaVersion = 1
@@ -57,9 +57,9 @@ type feedPlayableExpression struct {
 	SourceVisibility     string                `json:"source_visibility"`
 	Intent               string                `json:"intent,omitempty"`
 	ChosenInterpretation string                `json:"chosen_interpretation,omitempty"`
-	Preserved             []feedExpressionClaim `json:"preserved,omitempty"`
-	Invented              []feedExpressionClaim `json:"invented,omitempty"`
-	Uncertain             []feedExpressionClaim `json:"uncertain,omitempty"`
+	Preserved            []feedExpressionClaim `json:"preserved,omitempty"`
+	Invented             []feedExpressionClaim `json:"invented,omitempty"`
+	Uncertain            []feedExpressionClaim `json:"uncertain,omitempty"`
 	ParentGameID          string                `json:"parent_game_id,omitempty"`
 	ParentVersion         int                   `json:"parent_version,omitempty"`
 }
@@ -78,26 +78,29 @@ func publicFeedExpression(doc *expression.Document) *feedPlayableExpression {
 		return out
 	}
 	return &feedPlayableExpression{
-		SourceType: doc.Source.Type, SourceVisibility: string(doc.Creator.Visibility),
-		Intent: doc.Intent, ChosenInterpretation: doc.ChosenInterpretation,
-		Preserved: project(doc.Interpretation.Preserved),
-		Invented: project(doc.Interpretation.Invented),
-		Uncertain: project(doc.Interpretation.Uncertain),
-		ParentGameID: doc.Lineage.ParentGameID, ParentVersion: doc.Lineage.ParentVersion,
+		SourceType:           doc.Source.Type,
+		SourceVisibility:     string(doc.Creator.Visibility),
+		Intent:               doc.Intent,
+		ChosenInterpretation: doc.ChosenInterpretation,
+		Preserved:            project(doc.Interpretation.Preserved),
+		Invented:             project(doc.Interpretation.Invented),
+		Uncertain:            project(doc.Interpretation.Uncertain),
+		ParentGameID:         doc.Lineage.ParentGameID,
+		ParentVersion:        doc.Lineage.ParentVersion,
 	}
 }
 
 type feedCard struct {
-	GameID  string          `json:"game_id"`
-	Version string          `json:"version,omitempty"`
-	Title   string          `json:"title"`
-	Caption string          `json:"caption,omitempty"`
-	Topics  []string        `json:"topics,omitempty"`
-	Creator feedCreator     `json:"creator"`
-	Preview feedPreview     `json:"preview"`
-	Stats   *feedCardStats  `json:"stats,omitempty"`
-	Viewer  feedCardViewer  `json:"viewer"`
-	Package feedCardPackage `json:"package"`
+	GameID             string                  `json:"game_id"`
+	Version            string                  `json:"version,omitempty"`
+	Title              string                  `json:"title"`
+	Caption            string                  `json:"caption,omitempty"`
+	Topics             []string                `json:"topics,omitempty"`
+	Creator            feedCreator             `json:"creator"`
+	Preview            feedPreview             `json:"preview"`
+	Stats              *feedCardStats          `json:"stats,omitempty"`
+	Viewer             feedCardViewer          `json:"viewer"`
+	Package            feedCardPackage         `json:"package"`
 	PlayableExpression *feedPlayableExpression `json:"playable_expression,omitempty"`
 }
 
