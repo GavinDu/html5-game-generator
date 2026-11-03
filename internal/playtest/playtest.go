@@ -118,6 +118,12 @@ func validateReport(report *Report) error {
 		if game.Verdict == "PASS" {
 			gateStatuses := map[string]string{}
 			for _, check := range game.Checks {
+				// A worker verdict is only an aggregate convenience. Never let
+				// PASS mask a failed measured check, including checks added after
+				// the original hard-gate set was defined.
+				if check.Status == validator.StatusFail {
+					return fmt.Errorf("game %q has PASS verdict but check %q failed", id, check.CheckID)
+				}
 				switch check.CheckID {
 				case "playtest.boot_clean", "playtest.render_nonblank", "simulation.no_softlock":
 					gateStatuses[check.CheckID] = check.Status
