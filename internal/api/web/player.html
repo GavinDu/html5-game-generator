@@ -187,7 +187,14 @@
     pointer-events: none;
   }
   body.dq-play #stage-wrap {
+    /* Use a fixed viewport overlay rather than a flex item: narrow phone
+       widths and landscape rotation must never shrink the stage wrapper to
+       zero or move the logical portrait canvas outside the viewport. */
+    position: fixed;
+    inset: 0;
     width: 100vw;
+    height: 100dvh;
+    flex: none;
     max-width: none;
     height: 100dvh;
     padding: 0;
