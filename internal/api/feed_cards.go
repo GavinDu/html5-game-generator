@@ -65,8 +65,8 @@ type feedPlayableExpression struct {
 
 // publicFeedExpression is an explicit, redacted projection. Source references,
 // hashes, evidence coordinates, and owner identifiers never leave the backend.
-func publicFeedExpression(doc *expression.Document) *feedPlayableExpression {
-	if doc == nil || !doc.Creator.Consent || doc.Creator.Visibility != expression.VisibilityPublic || doc.Status != expression.StatusReady {
+func publicFeedExpression(doc *expression.Document, gameOwnerID string) *feedPlayableExpression {
+	if doc == nil || gameOwnerID == "" || doc.Creator.OwnerID != gameOwnerID || !doc.Creator.Consent || doc.Creator.Visibility != expression.VisibilityPublic || doc.Status != expression.StatusReady {
 		return nil
 	}
 	project := func(claims []expression.Claim) []feedExpressionClaim {
@@ -203,7 +203,7 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 		}
 		cards = append(cards, feedCard{
 			GameID:             game.ID,
-			PlayableExpression: publicFeedExpression(game.PlayableExpression),
+			PlayableExpression: publicFeedExpression(game.PlayableExpression, game.OwnerID),
 			Version:            version,
 			Title:              game.Title,
 			Caption:            game.Caption,
