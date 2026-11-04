@@ -186,8 +186,43 @@
     border: 0;
     pointer-events: none;
   }
+  /* The native game route must not retain the browser-feed controls
+     in document flow. Their wide account form caused horizontal overflow
+     even though the game canvas itself fit correctly. */
+  body.dq-play #account,
+  body.dq-play #list,
+  body.dq-play .feed-heading,
+  body.dq-play details,
+  body.dq-play #end {
+    display: none !important;
+  }
+  html:has(body.dq-play) {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  body.dq-play {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  body.dq-play > :not(header):not(#stage-wrap):not(#status) {
+    display: none !important;
+  }
+  body.dq-play header {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
   body.dq-play #stage-wrap {
+    /* Use a fixed viewport overlay rather than a flex item: narrow phone
+       widths and landscape rotation must never shrink the stage wrapper to
+       zero or move the logical portrait canvas outside the viewport. */
+    position: fixed;
+    inset: 0;
     width: 100vw;
+    height: 100dvh;
+    flex: none;
     max-width: none;
     height: 100dvh;
     padding: 0;
@@ -208,8 +243,11 @@
     justify-content: center;
   }
   body.dq-play #stage canvas {
-    width: 100%;
-    height: 100%;
+    /* Pixi assigns inline pixel dimensions for its logical renderer size;
+       the native play surface must override those CSS dimensions while
+       preserving the renderer's backing-store resolution. */
+    width: 100% !important;
+    height: 100% !important;
     max-height: none;
     border: 0;
     border-radius: 0;
