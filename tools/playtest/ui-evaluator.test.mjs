@@ -23,3 +23,10 @@ test('UI evaluator records screenshots and checks shell touch target sizing', ()
   assert.match(source, /shell-controls-touch-sized/);
   assert.match(source, /button\.width >= 44 && button\.height >= 44/);
 });
+
+
+test('UI evaluator fails when no shell controls are measured instead of passing an empty set', () => {
+  assert.match(source, /shell-controls-present/);
+  assert.match(source, /metrics\\.shellButtons\\.length > 0/);
+  assert.match(source, /metrics\\.shellButtons\\.length > 0 && metrics\\.shellButtons\\.every/);
+});
