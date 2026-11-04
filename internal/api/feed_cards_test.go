@@ -53,14 +53,14 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	st.CreateGame(privateGame)
 	mismatchedOwnerGame := feedFixtureGame("card-game-3", "creator-3", now.Add(-2*time.Minute))
 	mismatchedOwnerGame.PlayableExpression = &expression.Document{
-		SchemaVersion: expression.SchemaVersion,
-		Status: expression.StatusReady,
-		Source: expression.Source{Type: "drawing", Reference: "private://mismatched-owner"},
-		Creator: expression.Creator{OwnerID: "someone-else", Consent: true, Visibility: expression.VisibilityPublic},
-		Mode: expression.ModeMakePlayable,
-		Intent: "A mismatched expression",
+		SchemaVersion:        expression.SchemaVersion,
+		Status:               expression.StatusReady,
+		Source:               expression.Source{Type: "drawing", Reference: "private://mismatched-owner"},
+		Creator:              expression.Creator{OwnerID: "someone-else", Consent: true, Visibility: expression.VisibilityPublic},
+		Mode:                 expression.ModeMakePlayable,
+		Intent:               "A mismatched expression",
 		ChosenInterpretation: "Do not expose",
-		Generation: expression.Generation{Seed: 9, GameIRVersion: "1.2", PackageVersion: "1"},
+		Generation:           expression.Generation{Seed: 9, GameIRVersion: "1.2", PackageVersion: "1"},
 	}
 	st.CreateGame(mismatchedOwnerGame)
 
