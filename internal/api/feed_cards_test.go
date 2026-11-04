@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"doodlequest/internal/expression"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
 )
@@ -22,8 +23,46 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	game.Caption = "Grow a tiny universe"
 	game.Topics = []string{"space", "cozy"}
 	game.PublishedVersion = 7
+	game.PlayableExpression = &expression.Document{
+		SchemaVersion:        expression.SchemaVersion,
+		Status:               expression.StatusReady,
+		Source:               expression.Source{Type: "image", Reference: "private://source-image", SHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		Creator:              expression.Creator{OwnerID: "creator-1", Consent: true, Visibility: expression.VisibilityPublic},
+		Mode:                 expression.ModeWhatIf,
+		Intent:               "A quiet garden in the moonlight",
+		ChosenInterpretation: "Moon garden",
+		Interpretation: expression.Interpretation{
+			Preserved: []expression.Claim{{ID: "p1", Text: "garden", Confidence: 0.95, EvidenceIDs: []string{"e1"}}},
+			Invented:  []expression.Claim{{ID: "i1", Text: "moon flowers", Confidence: 0.7}},
+		},
+		Evidence:   []expression.Evidence{{ID: "e1", Kind: "image_region", SourceReference: "private://region/1", Start: 0, End: 1}},
+		Generation: expression.Generation{Seed: 42, GameIRVersion: "1.2", PackageVersion: "7"},
+	}
 	st.CreateGame(game)
-	st.CreateGame(feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute)))
+	privateGame := feedFixtureGame("card-game-2", "creator-2", now.Add(-time.Minute))
+	privateGame.PlayableExpression = &expression.Document{
+		SchemaVersion:        expression.SchemaVersion,
+		Status:               expression.StatusReady,
+		Source:               expression.Source{Type: "image", Reference: "private://do-not-share"},
+		Creator:              expression.Creator{OwnerID: "creator-2", Consent: true, Visibility: expression.VisibilityPrivate},
+		Mode:                 expression.ModeMakePlayable,
+		Intent:               "A private drawing",
+		ChosenInterpretation: "Private interpretation",
+		Generation:           expression.Generation{Seed: 7, GameIRVersion: "1.2", PackageVersion: "1"},
+	}
+	st.CreateGame(privateGame)
+	mismatchedOwnerGame := feedFixtureGame("card-game-3", "creator-3", now.Add(-2*time.Minute))
+	mismatchedOwnerGame.PlayableExpression = &expression.Document{
+		SchemaVersion:        expression.SchemaVersion,
+		Status:               expression.StatusReady,
+		Source:               expression.Source{Type: "drawing", Reference: "private://mismatched-owner"},
+		Creator:              expression.Creator{OwnerID: "someone-else", Consent: true, Visibility: expression.VisibilityPublic},
+		Mode:                 expression.ModeMakePlayable,
+		Intent:               "A mismatched expression",
+		ChosenInterpretation: "Do not expose",
+		Generation:           expression.Generation{Seed: 9, GameIRVersion: "1.2", PackageVersion: "1"},
+	}
+	st.CreateGame(mismatchedOwnerGame)
 
 	srv := New(st, pipeline.NewRunner(st))
 	srv.profiles["creator-1"] = creatorProfile{DisplayName: "Creator One", AvatarURL: "https://cdn.example.test/avatar.png", UpdatedAt: now}
@@ -58,8 +97,8 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	if response.CardSchemaVersion != FeedCardSchemaVersion {
 		t.Fatalf("card schema version = %d, want %d", response.CardSchemaVersion, FeedCardSchemaVersion)
 	}
-	if len(response.Games) != 2 || len(response.Cards) != 2 {
-		t.Fatalf("legacy games/cards lengths = %d/%d, want 2/2", len(response.Games), len(response.Cards))
+	if len(response.Games) != 3 || len(response.Cards) != 3 {
+		t.Fatalf("legacy games/cards lengths = %d/%d, want 3/3", len(response.Games), len(response.Cards))
 	}
 
 	var legacy map[string]any
@@ -82,6 +121,26 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	}
 	if _, ok := card["game_ir"]; ok {
 		t.Fatal("slim card must not include game_ir")
+	}
+	expressionCard, ok := card["playable_expression"].(map[string]any)
+	if !ok {
+		t.Fatalf("public expression projection missing: %#v", card["playable_expression"])
+	}
+	if expressionCard["intent"] != "A quiet garden in the moonlight" || expressionCard["chosen_interpretation"] != "Moon garden" {
+		t.Fatalf("unexpected expression summary: %#v", expressionCard)
+	}
+	if _, ok := expressionCard["source_reference"]; ok {
+		t.Fatal("public expression projection must not expose source references")
+	}
+	if _, ok := expressionCard["evidence"]; ok {
+		t.Fatal("public expression projection must not expose private evidence metadata")
+	}
+	var legacyGame map[string]any
+	if err := json.Unmarshal(response.Games[0], &legacyGame); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := legacyGame["playable_expression"]; ok {
+		t.Fatal("legacy public game payload must not expose owner-only expression provenance")
 	}
 	if card["version"] != "7" || card["title"] != "Orbit Garden" || card["caption"] != "Grow a tiny universe" {
 		t.Fatalf("unexpected card metadata: %#v", card)
@@ -122,5 +181,21 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	}
 	if _, ok := second["stats"]; ok {
 		t.Fatalf("must omit empty/unobserved stats rather than invent values: %#v", second["stats"])
+	}
+	if _, ok := second["playable_expression"]; ok {
+		t.Fatal("private source expression must not be included in public feed cards")
+	}
+	var mismatched map[string]any
+	for _, candidate := range response.Cards {
+		if candidate["game_id"] == "card-game-3" {
+			mismatched = candidate
+			break
+		}
+	}
+	if mismatched == nil {
+		t.Fatal("missing mismatched-owner fixture card")
+	}
+	if _, ok := mismatched["playable_expression"]; ok {
+		t.Fatal("expression consent must match the public game's owner")
 	}
 }

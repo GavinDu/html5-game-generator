@@ -929,8 +929,20 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "could not build viewer feed state")
 		return
 	}
+	// Legacy game objects remain available for compatibility, but their
+	// embedded expression is owner-only. Public clients receive only the
+	// explicit redacted projection on the additive card contract.
+	legacyGames := make([]*model.Game, 0, len(page))
+	for _, game := range page {
+		if game == nil {
+			continue
+		}
+		publicGame := *game
+		publicGame.PlayableExpression = nil
+		legacyGames = append(legacyGames, &publicGame)
+	}
 	writeJSON(w, 200, map[string]any{
-		"games": page, "scope": scope, "next_cursor": next,
+		"games": legacyGames, "scope": scope, "next_cursor": next,
 		"card_schema_version": FeedCardSchemaVersion, "cards": cards,
 	})
 }

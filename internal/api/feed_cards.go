@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"doodlequest/internal/expression"
 	"doodlequest/internal/model"
 )
 
@@ -45,17 +46,61 @@ type feedCardPackage struct {
 	MinRuntimeVersion string `json:"min_runtime_version"`
 }
 
+type feedExpressionClaim struct {
+	Text       string  `json:"text"`
+	Confidence float64 `json:"confidence"`
+}
+
+type feedPlayableExpression struct {
+	SourceType           string                `json:"source_type"`
+	SourceVisibility     string                `json:"source_visibility"`
+	Intent               string                `json:"intent,omitempty"`
+	ChosenInterpretation string                `json:"chosen_interpretation,omitempty"`
+	Preserved            []feedExpressionClaim `json:"preserved,omitempty"`
+	Invented             []feedExpressionClaim `json:"invented,omitempty"`
+	Uncertain            []feedExpressionClaim `json:"uncertain,omitempty"`
+	ParentGameID         string                `json:"parent_game_id,omitempty"`
+	ParentVersion        int                   `json:"parent_version,omitempty"`
+}
+
+// publicFeedExpression is an explicit, redacted projection. Source references,
+// hashes, evidence coordinates, and owner identifiers never leave the backend.
+func publicFeedExpression(doc *expression.Document, gameOwnerID string) *feedPlayableExpression {
+	if doc == nil || gameOwnerID == "" || doc.Creator.OwnerID != gameOwnerID || !doc.Creator.Consent || doc.Creator.Visibility != expression.VisibilityPublic || doc.Status != expression.StatusReady {
+		return nil
+	}
+	project := func(claims []expression.Claim) []feedExpressionClaim {
+		out := make([]feedExpressionClaim, 0, len(claims))
+		for _, claim := range claims {
+			out = append(out, feedExpressionClaim{Text: claim.Text, Confidence: claim.Confidence})
+		}
+		return out
+	}
+	return &feedPlayableExpression{
+		SourceType:           doc.Source.Type,
+		SourceVisibility:     string(doc.Creator.Visibility),
+		Intent:               doc.Intent,
+		ChosenInterpretation: doc.ChosenInterpretation,
+		Preserved:            project(doc.Interpretation.Preserved),
+		Invented:             project(doc.Interpretation.Invented),
+		Uncertain:            project(doc.Interpretation.Uncertain),
+		ParentGameID:         doc.Lineage.ParentGameID,
+		ParentVersion:        doc.Lineage.ParentVersion,
+	}
+}
+
 type feedCard struct {
-	GameID  string          `json:"game_id"`
-	Version string          `json:"version,omitempty"`
-	Title   string          `json:"title"`
-	Caption string          `json:"caption,omitempty"`
-	Topics  []string        `json:"topics,omitempty"`
-	Creator feedCreator     `json:"creator"`
-	Preview feedPreview     `json:"preview"`
-	Stats   *feedCardStats  `json:"stats,omitempty"`
-	Viewer  feedCardViewer  `json:"viewer"`
-	Package feedCardPackage `json:"package"`
+	GameID             string                  `json:"game_id"`
+	Version            string                  `json:"version,omitempty"`
+	Title              string                  `json:"title"`
+	Caption            string                  `json:"caption,omitempty"`
+	Topics             []string                `json:"topics,omitempty"`
+	Creator            feedCreator             `json:"creator"`
+	Preview            feedPreview             `json:"preview"`
+	Stats              *feedCardStats          `json:"stats,omitempty"`
+	Viewer             feedCardViewer          `json:"viewer"`
+	Package            feedCardPackage         `json:"package"`
+	PlayableExpression *feedPlayableExpression `json:"playable_expression,omitempty"`
 }
 
 // buildFeedCards creates the additive, versioned lightweight card view without
@@ -157,12 +202,13 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			}
 		}
 		cards = append(cards, feedCard{
-			GameID:  game.ID,
-			Version: version,
-			Title:   game.Title,
-			Caption: game.Caption,
-			Topics:  append([]string(nil), game.Topics...),
-			Creator: feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},
+			GameID:             game.ID,
+			PlayableExpression: publicFeedExpression(game.PlayableExpression, game.OwnerID),
+			Version:            version,
+			Title:              game.Title,
+			Caption:            game.Caption,
+			Topics:             append([]string(nil), game.Topics...),
+			Creator:            feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},
 			// Preview metadata comes only from a matching published
 			// version's stored preview; otherwise the card stays
 			// pending rather than inventing a URL or metrics.
