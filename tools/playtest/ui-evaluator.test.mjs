@@ -30,3 +30,12 @@ test('UI evaluator fails when no shell controls are measured instead of passing 
   assert.match(source, /metrics\.shellButtons\\.length > 0/);
   assert.match(source, /metrics\.shellButtons\\.length > 0 && metrics\.shellButtons\\.every/);
 });
+
+
+test('UI evaluator emits a weighted per-viewport score and overall grade', () => {
+  assert.match(source, /const weights =/);
+  assert.match(source, /const score = checks\.reduce/);
+  assert.match(source, /score: averageScore/);
+  assert.match(source, /grade: averageScore >= 90/);
+  assert.match(source, /results\.length === viewports\.length/);
+});
