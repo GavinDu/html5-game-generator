@@ -97,7 +97,8 @@ try {
         { id: 'no-vertical-overflow', pass: metrics.body.scrollHeight <= viewport.height + 1, actual: metrics.body.scrollHeight },
         { id: 'canvas-rendered', pass: !!metrics.logicalCanvas && metrics.logicalCanvas.width > 0 && metrics.logicalCanvas.height > 0, actual: metrics.logicalCanvas },
         { id: 'no-page-errors', pass: errors.length === 0 && metrics.probe?.errors === 0, actual: errors },
-        { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
+        { id: 'shell-controls-present', pass: metrics.shellButtons.length > 0, actual: metrics.shellButtons.length },
+        { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.length > 0 && metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
       ];
       await page.screenshot({ path: `${shots}/${viewport.name}.png`, fullPage: true });
       const failed = checks.filter(check => !check.pass);
