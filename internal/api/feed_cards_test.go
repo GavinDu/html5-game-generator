@@ -97,8 +97,8 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	if response.CardSchemaVersion != FeedCardSchemaVersion {
 		t.Fatalf("card schema version = %d, want %d", response.CardSchemaVersion, FeedCardSchemaVersion)
 	}
-	if len(response.Games) != 2 || len(response.Cards) != 2 {
-		t.Fatalf("legacy games/cards lengths = %d/%d, want 2/2", len(response.Games), len(response.Cards))
+	if len(response.Games) != 3 || len(response.Cards) != 3 {
+		t.Fatalf("legacy games/cards lengths = %d/%d, want 3/3", len(response.Games), len(response.Cards))
 	}
 
 	var legacy map[string]any
