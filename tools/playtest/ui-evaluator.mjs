@@ -97,12 +97,24 @@ try {
         { id: 'no-vertical-overflow', pass: metrics.body.scrollHeight <= viewport.height + 1, actual: metrics.body.scrollHeight },
         { id: 'canvas-rendered', pass: !!metrics.logicalCanvas && metrics.logicalCanvas.width > 0 && metrics.logicalCanvas.height > 0, actual: metrics.logicalCanvas },
         { id: 'no-page-errors', pass: errors.length === 0 && metrics.probe?.errors === 0, actual: errors },
-        { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
+        { id: 'shell-controls-present', pass: metrics.shellButtons.length > 0, actual: metrics.shellButtons.length },
+        { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.length > 0 && metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
       ];
       await page.screenshot({ path: `${shots}/${viewport.name}.png`, fullPage: true });
       const failed = checks.filter(check => !check.pass);
-      results.push({ viewport: viewport.name, passed: failed.length === 0, metrics, checks });
-      console.log(JSON.stringify({ viewport: viewport.name, passed: failed.length === 0, failed }));
+      const weights = {
+        'player-presentation-active': 10,
+        'canvas-visible': 20,
+        'no-horizontal-overflow': 15,
+        'no-vertical-overflow': 15,
+        'canvas-rendered': 20,
+        'no-page-errors': 10,
+        'shell-controls-present': 5,
+        'shell-controls-touch-sized': 5,
+      };
+      const score = checks.reduce((total, check) => total + (check.pass ? (weights[check.id] || 0) : 0), 0);
+      results.push({ viewport: viewport.name, passed: failed.length === 0, score, metrics, checks });
+      console.log(JSON.stringify({ viewport: viewport.name, passed: failed.length === 0, score, failed }));
     } catch (error) {
       results.push({ viewport: viewport.name, passed: false, error: String(error.message || error), pageErrors: errors });
       console.error(`ui-evaluator: ${viewport.name}: ${error.stack || error}`);
@@ -113,6 +125,16 @@ try {
 } finally {
   await browser.close();
 }
-const report = { game, browser: browserName, viewports: results, passed: results.every(result => result.passed) };
+const averageScore = results.length
+  ? Math.round(results.reduce((total, result) => total + (result.score || 0), 0) / results.length)
+  : 0;
+const report = {
+  game,
+  browser: browserName,
+  viewports: results,
+  score: averageScore,
+  grade: averageScore >= 90 ? 'excellent' : averageScore >= 80 ? 'acceptable' : 'needs-improvement',
+  passed: results.length === viewports.length && results.every(result => result.passed),
+};
 console.log(JSON.stringify(report));
 if (!report.passed) process.exitCode = 1;

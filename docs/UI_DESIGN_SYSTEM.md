@@ -67,6 +67,19 @@ These are semantic roles, not permission to hard-code the same hex values into e
 - [ ] Play and exit remain discoverable in every supported player state.
 - [ ] Screenshot or browser-test failures block merge when they indicate clipped or inaccessible controls.
 
+## UI evaluation and release gate
+
+The responsive player evaluator runs against four device profiles: iPhone portrait (390×844), iPhone landscape (844×390), iPad portrait (820×1180), and iPad landscape (1180×820). It records a screenshot and a machine-readable check result for each profile.
+
+The evaluator reports a weighted 0–100 score per viewport and an average score:
+- 90–100: excellent
+- 80–89: acceptable
+- Below 80: needs improvement
+
+The score is diagnostic, not a substitute for hard gates. A run passes only when every viewport completed and all hard checks pass: the player presentation is active, the game canvas is visible and rendered, there is no horizontal or vertical overflow, no uncaught page/probe errors occur, and visible shell controls exist and meet 44×44 CSS-pixel minimums. Missing measurements fail closed rather than passing an empty collection.
+
+The native Hephaestus feed evaluator runs on iPhone and iPad simulators. It checks Play/Save/Like/Comments touch targets, retains before/after screenshots, and verifies that an upward swipe settles on a different game page when the feed contains at least two cards. iPad coverage is a required CI job, not an optional best-effort check.
+
 ## Current implementation map
 
 - Web player safe-area, responsive canvas, focus, reduced-motion, and touch styles: `internal/api/web/player.html`.
