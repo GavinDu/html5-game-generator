@@ -51,6 +51,18 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 		Generation:           expression.Generation{Seed: 7, GameIRVersion: "1.2", PackageVersion: "1"},
 	}
 	st.CreateGame(privateGame)
+	mismatchedOwnerGame := feedFixtureGame("card-game-3", "creator-3", now.Add(-2*time.Minute))
+	mismatchedOwnerGame.PlayableExpression = &expression.Document{
+		SchemaVersion: expression.SchemaVersion,
+		Status: expression.StatusReady,
+		Source: expression.Source{Type: "drawing", Reference: "private://mismatched-owner"},
+		Creator: expression.Creator{OwnerID: "someone-else", Consent: true, Visibility: expression.VisibilityPublic},
+		Mode: expression.ModeMakePlayable,
+		Intent: "A mismatched expression",
+		ChosenInterpretation: "Do not expose",
+		Generation: expression.Generation{Seed: 9, GameIRVersion: "1.2", PackageVersion: "1"},
+	}
+	st.CreateGame(mismatchedOwnerGame)
 
 	srv := New(st, pipeline.NewRunner(st))
 	srv.profiles["creator-1"] = creatorProfile{DisplayName: "Creator One", AvatarURL: "https://cdn.example.test/avatar.png", UpdatedAt: now}
@@ -172,5 +184,18 @@ func TestFeedIncludesVersionedSlimCardsAndViewerState(t *testing.T) {
 	}
 	if _, ok := second["playable_expression"]; ok {
 		t.Fatal("private source expression must not be included in public feed cards")
+	}
+	var mismatched map[string]any
+	for _, candidate := range response.Cards {
+		if candidate["game_id"] == "card-game-3" {
+			mismatched = candidate
+			break
+		}
+	}
+	if mismatched == nil {
+		t.Fatal("missing mismatched-owner fixture card")
+	}
+	if _, ok := mismatched["playable_expression"]; ok {
+		t.Fatal("expression consent must match the public game's owner")
 	}
 }
