@@ -267,15 +267,40 @@ async function playGame(browser, gameId) {
           y: fallback.top + fallback.height * 0.86,
         } : null);
         if (target) {
-          // Exercise the real touch path, then hold a pointer for enough
-          // simulation frames that the runtime can apply the catch-lane move.
-          // A zero-duration touchscreen tap can dispatch down/up between
-          // ticker frames and be counted without moving the player.
+          // Exercise touch first. Verify the runtime actually recorded it;
+          // headless Chromium can report a successful touchscreen tap while
+          // dropping the event before it reaches Pixi's canvas listener.
+          const beforeInputs = (await readProbe(page))?.inputs ?? 0;
           await page.touchscreen.tap(target.x, target.y).catch(() => {});
-          await page.mouse.move(target.x, target.y).catch(() => {});
-          await page.mouse.down().catch(() => {});
-          await sleep(120);
-          await page.mouse.up().catch(() => {});
+          await sleep(100);
+          let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
+          if (afterInputs <= beforeInputs) {
+            // Dispatch on the actual Pixi canvas (not a page-level synthetic
+            // click), and hold across several fixed simulation frames.
+            await page.evaluate(({ x, y }) => {
+              const canvas = document.querySelector('#stage canvas');
+              if (!canvas) return;
+              const base = {
+                pointerId: 1, pointerType: 'touch', isPrimary: true,
+                button: 0, buttons: 1, clientX: x, clientY: y,
+                bubbles: true, cancelable: true,
+              };
+              canvas.dispatchEvent(new PointerEvent('pointerdown', base));
+            }, target).catch(() => {});
+            await sleep(220);
+            await page.evaluate(() => {
+              const canvas = document.querySelector('#stage canvas');
+              if (!canvas) return;
+              canvas.dispatchEvent(new PointerEvent('pointerup', {
+                pointerId: 1, pointerType: 'touch', isPrimary: true,
+                button: 0, buttons: 0, bubbles: true, cancelable: true,
+              }));
+            }).catch(() => {});
+            afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
+          }
+          if (afterInputs <= beforeInputs) {
+            console.warn('[playtest] tap control produced no recorded input', { gameId, target, beforeInputs, afterInputs });
+          }
         }
       } else if (points) {
         await page.mouse.move(points.from.x, points.from.y).catch(() => {});
