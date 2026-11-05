@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "1.0",
+  "thresholds": {
+    "minimumOverallScore": 80,
+    "minimumMetricScore": 70,
+    "requireCompleteCoverage": true
+  },
+  "hardGates": [
+    "playtest.boot_clean",
+    "playtest.render_nonblank",
+    "simulation.no_softlock"
+  ],
+  "weights": {
+    "playability": 20,
+    "reliability": 12,
+    "input_responsiveness": 8,
+    "performance": 8,
+    "visual_design": 8,
+    "character_design": 7,
+    "animation": 7,
+    "plot": 7,
+    "strategy": 8,
+    "level_design": 5,
+    "audio_feedback": 4,
+    "originality": 4,
+    "accessibility": 2
+  },
+  "path": "inventory/p3ngui/quality-rules.json",
+  "profile": "gentle-collect-and-restore-family-arcade",
+  "gameId": "penguin-heartlight-rescue",
+  "title": "Penguin's Heartlight Rescue",
+  "gameplayContract": {
+    "coreLoop": [
+      "tap to guide the penguin horizontally",
+      "catch floating hearts and occasional golden hearts",
+      "each pair of catches visibly restores one aurora color band",
+      "change penguin scarf appearance at four and eight hearts",
+      "catch twelve hearts to restore the complete aurora",
+      "missed hearts disappear without penalty and new hearts continue to spawn",
+      "finish with a clear success state and celebratory audio"
+    ],
+    "fairness": [
+      "the penguin catch area is generous and remains within the playfield",
+      "heart spawn and fall speed allow a reasonable reaction window",
+      "misses never consume lives or prevent eventual completion",
+      "all six aurora milestones are reachable in a normal play session"
+    ],
+    "audience": "children ages 4-8; family-friendly",
+    "generated": {
+      "archetype": "catcher",
+      "controlsScheme": "tap_x",
+      "objective": {
+        "kind": "collect",
+        "target": 12,
+        "label": "Catch 12 hearts"
+      },
+      "failure": {
+        "mode": "gentle",
+        "health": null,
+        "invulnerableMs": null
+      },
+      "targetSessionSec": 55,
+      "firstRewardWithinSec": 8,
+      "milestones": 6,
+      "scenes": 1
+    }
+  },
+  "reviewFocus": [
+    "Check that the three scarf variants remain recognizably the same penguin as the source drawings.",
+    "Check that the player and heart sprites remain distinct on a snowy background.",
+    "Verify that every pair of catches reveals a new aurora band and updates the progress counter.",
+    "Verify that missing hearts never causes a softlock and that new hearts continue spawning.",
+    "Check tap responsiveness, forgiving collision radius, HUD overlap and readable result messaging on phone and tablet."
+  ]
+}
