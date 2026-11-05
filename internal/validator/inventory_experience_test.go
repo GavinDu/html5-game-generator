@@ -15,7 +15,6 @@ func TestInventoryGamesExperience(t *testing.T) {
 		"13ui1k": {},
 		"u46ex5": {"experience.balance": StatusSkip},
 		"2uowg9": {"experience.balance": StatusSkip},
-		"p3ngui": {"experience.balance": StatusSkip},
 	}
 	for dir, exceptions := range games {
 		doc, err := readGameIR(filepath.Join("..", "..", "inventory", dir))
