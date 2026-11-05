@@ -35,13 +35,13 @@ func TestInventoryGamesExperience(t *testing.T) {
 		var quality struct {
 			GameplayContract struct {
 				Generated struct {
-					Archetype             string `json:"archetype"`
-					ControlsScheme        string `json:"controlsScheme"`
-					TargetSessionSec      int    `json:"targetSessionSec"`
-					FirstRewardWithinSec  int    `json:"firstRewardWithinSec"`
-					Milestones            int    `json:"milestones"`
-					Scenes                int    `json:"scenes"`
-					Objective        struct {
+					Archetype            string `json:"archetype"`
+					ControlsScheme       string `json:"controlsScheme"`
+					TargetSessionSec     int    `json:"targetSessionSec"`
+					FirstRewardWithinSec int    `json:"firstRewardWithinSec"`
+					Milestones           int    `json:"milestones"`
+					Scenes               int    `json:"scenes"`
+					Objective            struct {
 						Kind   string `json:"kind"`
 						Target int    `json:"target"`
 						Label  string `json:"label"`
@@ -84,7 +84,6 @@ func TestInventoryGamesExperience(t *testing.T) {
 		}
 	}
 }
-
 
 // All three supplied penguin drawings must be used as progression skins:
 // rainbow at start, holiday at four hearts, and classic blue at eight.
