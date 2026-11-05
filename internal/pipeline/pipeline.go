@@ -184,13 +184,19 @@ func applyRemixDesignDoc(doc *model.DesignDoc, parent *model.Game) {
 		doc.Mechanics = fmt.Sprintf("Preserve the parent's %s gameplay loop and adapt only its presentation and story.", exp.Archetype)
 		doc.Controls = []string{exp.Controls.Scheme}
 		doc.WinCondition = exp.Objective.Label
-		if exp.Failure.Mode == "gentle" || exp.Failure.Mode == "none" {
+		switch exp.Failure.Mode {
+		case "gentle", "none":
 			doc.LoseCondition = "No failure penalty; preserve the parent's gentle play rules."
-		} else if exp.Failure.Health > 0 {
-			doc.LoseCondition = fmt.Sprintf("The run ends when the player exhausts %d health.", exp.Failure.Health)
+		case "health":
+			if exp.Failure.Health > 0 {
+				doc.LoseCondition = fmt.Sprintf("The run ends when the player exhausts %d health.", exp.Failure.Health)
+			}
+		case "sudden-death":
+			doc.LoseCondition = "A single failed collision ends the run."
 		}
-	}
-	if len(doc.Controls) == 0 && parent.Manifest != nil {
+	} else if parent.Manifest != nil {
+		// The canonical input bindings remain authoritative even when the
+		// parent predates the additive experience block.
 		doc.Controls = append([]string(nil), parent.Manifest.Controls...)
 	}
 }
