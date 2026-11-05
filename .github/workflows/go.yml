@@ -181,7 +181,7 @@ jobs:
         run: |
           node tools/playability-kit/playability.mjs \
             --base http://localhost:18099 \
-            --games sample-rainbow-bear,sample-ribbon-sky,escape-from-injection \
+            --games sample-rainbow-bear,sample-ribbon-sky,escape-from-injection,penguin-heartlight-rescue \
             --budget 40 --out /tmp/kit-out
       # Phase 2 producer for the kit, same advisory contract as above.
       - name: Build kit test-feedback artifact
