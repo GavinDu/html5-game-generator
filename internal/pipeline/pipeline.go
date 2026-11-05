@@ -165,7 +165,6 @@ func (r *Runner) CreateAndStart(game *model.Game, elements []model.Element, inte
 	return job
 }
 
-
 // applyRemixDesignDoc derives the confirmation summary from the canonical
 // parent package for every remix profile. The IR remains authoritative for
 // mechanics, controls, objective, and failure behavior; a child must never
