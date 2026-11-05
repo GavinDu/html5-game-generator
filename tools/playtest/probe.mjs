@@ -89,7 +89,7 @@ async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
     checks.push({ checkId, status, evidence, actual });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
+  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, hasTouch: true });
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
   const navStart = Date.now();
@@ -261,7 +261,12 @@ async function playGame(browser, gameId) {
           x: fallback.left + fallback.width * (0.08 + ((ki % 10) * 0.093)),
           y: fallback.top + fallback.height * 0.86,
         } : null);
-        if (target) await page.mouse.click(target.x, target.y).catch(() => {});
+        if (target) {
+          // Exercise the same touch path used by iPhone/iPad users. A desktop
+          // mouse click can miss legacy Shim tap handlers that are registered
+          // against touch/pointer input on the canvas.
+          await page.touchscreen.tap(target.x, target.y).catch(() => {});
+        }
       } else if (points) {
         await page.mouse.move(points.from.x, points.from.y).catch(() => {});
         await page.mouse.down().catch(() => {});
