@@ -59,7 +59,7 @@ formula (Subway Surfers / Stickman Hook school: score chase, streaks,
 power-ups, escalating speed, instant retry):
 - **Combo multiplier**: consecutive catches without a miss build COMBO x2–x5;
   each heart scores 10 × combo. A miss resets the combo.
-- **Stakes**: 3 missed hearts end the round (❤❤❤ display) — the gentle
+- **Stakes**: 3 missed hearts end the session (❤❤❤ display) — the gentle
   "one more try" loop.
 - **Golden heart power-up** (procedural sprite, 12% spawn): +50, never
   penalized if missed.
@@ -75,10 +75,25 @@ Bobo now has 6 explicit levels (one per 2 hearts caught, announced with
 so the game gets noticeably quicker and quicker as you level up.
 
 ## v4 revision (2026-10-02) — endless meta-levels + leaderboard
-Winning a round no longer ends the game: the next LV starts immediately at
-1.25x speed (multiplied on top of the in-round ramp), score accumulates
+Winning a session no longer ends the game: the next LV starts immediately at
+1.25x speed (multiplied on top of the in-session ramp), score accumulates
 across LVs, and the HUD shows the current LV. Losing (3 misses) ends the
 run; the player submits {score, level} to the new leaderboard
 (POST /v1/games/{id}/scores, ranked by level then score) and the endcard
 shows "Reached Level X" plus the top-10 board with everyone's LV. Play
 Again starts a fresh run at LV 1.
+
+
+## v5 stability pass (2026-11-05)
+
+The endless meta-level loop now has explicit ceilings so late-game speed does not grow without bound: the meta multiplier caps at 3.2x, heart fall speed caps at 480 px/s, and the spawn interval never drops below 0.45 seconds. The intended escalating challenge remains, but the game keeps a reaction window after long sessions.
+
+## v6 correction (2026-11-05) — restore the original no-fail promise
+
+The v2/v4 competitive experiments (miss penalties, lives, endless session, and
+loss-based leaderboards) contradicted the source story and the original
+questionnaire. They are superseded. Bobo now plays one bounded family session:
+missed hearts simply disappear, every two regular catches restore one band,
+and twelve regular catches complete the rainbow and win. Golden hearts remain
+optional bonus rewards and never replace a regular restoration heart.
+

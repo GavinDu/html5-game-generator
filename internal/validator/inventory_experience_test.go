@@ -5,16 +5,14 @@ import (
 	"testing"
 )
 
-// The shipped sample games are the standard's calibration set: they
-// must pass the experience checks. (Historical note: Escape once
-// declared milestones with no milestone art and pinned a warning
-// here; Phase E gave it hallway scenery visuals and the exception
-// was retired — all three games now pass every experience check.)
+// The shipped sample games are the standard's calibration set. Every
+// applicable experience check must pass; the balance model intentionally
+// skips non-collect objectives because their economics need game-aware probes.
 func TestInventoryGamesExperience(t *testing.T) {
-	games := map[string]map[string]string{ // dir -> checkID -> want status (default pass)
+	games := map[string]map[string]string{ // dir -> checkID -> expected non-default status
 		"13ui1k": {},
-		"u46ex5": {},
-		"2uowg9": {},
+		"u46ex5": {"experience.balance": StatusSkip},
+		"2uowg9": {"experience.balance": StatusSkip},
 	}
 	for dir, exceptions := range games {
 		doc, err := readGameIR(filepath.Join("..", "..", "inventory", dir))

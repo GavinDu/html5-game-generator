@@ -12,6 +12,10 @@ inventory/
     quality-rules.json     # game quality score and hard-gate policy
     plot.md                 # source interpretation and filled questionnaire
     assets/                 # generated penguin scarf variants (.b64)
+  2uowg9/                  # Escape from the Injection
+    manifest.json          # game metadata + controls and art references
+    game.js                # GameShim v1 lane-dodging chase
+    quality-rules.json     # game-specific fairness and stability contract
   13ui1k/                  # Bobo's Rainbow
     manifest.json          # game metadata + asset list (required)
     game.js                # GameShim v1 game code (required)
@@ -22,7 +26,9 @@ inventory/
     make_standalone.py     # standalone single-file builder (dev)
     verify.js              # headless playtest (dev, optional)
   u46ex5/                  # 飘带补天 Ribbon Mends the Sky
-    ...
+    manifest.json          # game metadata + visual assets
+    game.js                # GameShim v1 action/collect/repair loop
+    quality-rules.json     # game-specific gameplay contract
 ```
 
 At server start `internal/inventory` loads every `<6-char-id>/` folder:

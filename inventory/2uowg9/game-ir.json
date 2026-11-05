@@ -111,33 +111,13 @@
     "entryScene": "chase",
     "id": "escape-from-injection",
     "orientation": "portrait",
-    "sessionTargetSeconds": 40,
+    "sessionTargetSeconds": 600,
     "title": "Escape from the Injection"
   },
   "inputBindings": [
     {
       "action": "move",
       "input": "tap"
-    },
-    {
-      "action": "move_left",
-      "input": "keyboard",
-      "key": "ArrowLeft"
-    },
-    {
-      "action": "move_right",
-      "input": "keyboard",
-      "key": "ArrowRight"
-    },
-    {
-      "action": "move_up",
-      "input": "keyboard",
-      "key": "ArrowUp"
-    },
-    {
-      "action": "move_down",
-      "input": "keyboard",
-      "key": "ArrowDown"
     }
   ],
   "irVersion": "1.2",
@@ -847,34 +827,34 @@
   "experience": {
     "archetype": "dodger",
     "controls": {
-      "scheme": "drag_x",
-      "hint": "Drag to dodge — grab the stars!"
+      "scheme": "tap",
+      "hint": "Tap left or right to change lanes"
     },
     "objective": {
-      "kind": "collect",
-      "target": 15,
-      "label": "Collect 15 stars to escape"
+      "kind": "survive",
+      "target": 0,
+      "label": "Stay ahead of the chaser"
     },
     "hud": {
       "left": "objective_progress",
       "right": "health"
     },
     "start": {
-      "mode": "tap_to_start"
+      "mode": "auto"
     },
     "failure": {
       "mode": "health",
-      "health": 3,
-      "invulnerableMs": 1000
+      "health": 1,
+      "invulnerableMs": 750
     },
     "pacing": {
-      "targetSessionSec": 40,
-      "firstRewardWithinSec": 10,
+      "targetSessionSec": 600,
+      "firstRewardWithinSec": 8,
       "expectedCatchRate": 0.2,
       "ramp": [
         {
           "at": 0,
-          "speedMul": 1.0
+          "speedMul": 1
         },
         {
           "at": 0.5,

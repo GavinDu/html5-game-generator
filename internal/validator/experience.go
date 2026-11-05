@@ -288,6 +288,14 @@ func expFailureCheck(doc *gameir.Document) Check {
 		}
 		return mk(id, StatusPass, "gentle failure model, consistently rule-free", "declared "+mode, "no end_game rules — a no-fail game by declaration, not by accident", "game-ir.json", "")
 	}
+	// Miss-based health (for example, a catcher losing a life when a
+	// collectible falls away) is a discrete event, not repeated contact
+	// damage. It does not need a collision invulnerability window.
+	if mode == "health" && exp.Failure.MissCost != "" {
+		return mk(id, StatusPass, "miss-based health declares its miss cost", exp.Failure.MissCost,
+			"misses are discrete events rather than repeated contact damage; no collision invulnerability is required",
+			"game-ir.json", "")
+	}
 	if mode == "health" && exp.Failure.InvulnerableMs < 250 {
 		return mk(id, StatusFail, "health mode declares an invulnerability window >= 250ms", fmt.Sprintf("invulnerableMs=%d", exp.Failure.InvulnerableMs),
 			"without an invulnerability window, chained contact damage drains all health in consecutive frames — the unfair-damage failure the standard exists to prevent",

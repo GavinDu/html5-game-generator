@@ -59,6 +59,21 @@ try {
           rect.left >= -1 && rect.top >= -1 &&
           rect.right <= viewportWidth + 1 && rect.bottom <= viewportHeight + 1;
         const shellButtons = [...document.querySelectorAll('.shell-card.on button')];
+        const shellControlScheme = window.__dqProbe?.shell?.controlsScheme || '';
+        const declaredTouchControls = ['tap', 'tap_target', 'drag_x', 'drag_free'].includes(shellControlScheme);
+        // A full-canvas surface is touch-capable only when the game declares
+        // a supported touch scheme in its canonical Game IR.
+        const canvasIsTouchSurface = !!rect &&
+          declaredTouchControls &&
+          rect.width >= 44 && rect.height >= 44;
+        const measuredShellControls = shellButtons.length
+          ? shellButtons.map(button => {
+              const box = button.getBoundingClientRect();
+              return { label: button.textContent.trim(), width: box.width, height: box.height };
+            })
+          : canvasIsTouchSurface
+            ? [{ label: 'full-canvas ' + shellControlScheme, width: rect.width, height: rect.height }]
+            : [];
         return {
           viewport: { width: viewportWidth, height: viewportHeight },
           canvas: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
@@ -83,10 +98,8 @@ try {
           bodyMode: document.body.dataset.presentation || 'feed',
           canvasAspect: rect ? rect.width / rect.height : 0,
           logicalCanvas: canvas ? { width: canvas.width, height: canvas.height } : null,
-          shellButtons: shellButtons.map(button => {
-            const box = button.getBoundingClientRect();
-            return { label: button.textContent.trim(), width: box.width, height: box.height };
-          }),
+          shellControlScheme,
+          shellButtons: measuredShellControls,
           probe: window.__dqProbe ? { booted: window.__dqProbe.booted, errors: window.__dqProbe.errors?.length || 0 } : null,
         };
       });

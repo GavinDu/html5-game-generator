@@ -26,40 +26,43 @@
     "accessibility": 2
   },
   "path": "inventory/u46ex5/quality-rules.json",
-  "profile": "action-collect-and-repair",
+  "profile": "tap-to-fly-sky-repair-endless-adventure",
   "gameId": "sample-ribbon-sky",
   "title": "Ribbon Mends the Sky",
   "gameplayContract": {
     "coreLoop": [
-      "tap to move cloud-riding hero toward a target",
-      "enter sky-holes to stitch them closed",
-      "tap/bonk wind demons",
-      "collect rainbow shards",
-      "track stitched holes, score, and lives",
-      "gather 10 sky shards to mend the sky; lose after lives are exhausted; restart from the result card"
+      "tap anywhere to guide the cloud-riding hero toward the target",
+      "fly into six drifting sky-holes to stitch the sky closed and complete a meta-level",
+      "tap a wind demon to bonk it with the staff for bonus points",
+      "collect rainbow shards for score and a bonus every third shard",
+      "demon collisions cost one of three lives and grant 1.5 seconds of invulnerability",
+      "mending six holes begins the next meta-level with faster spawn and demon pacing",
+      "losing all three lives ends the run and presents a replay result"
     ],
     "fairness": [
-      "hero movement must visibly track tap targets and not jitter",
-      "holes must be reachable and closure must be visually distinct",
-      "demon hits must communicate damage and invulnerability",
-      "spawn density and increasing speed must preserve viable choices"
+      "hero movement visibly approaches tap targets and remains clamped within the playfield",
+      "all six holes remain reachable and closure has distinct visual and audio feedback",
+      "demon collision damage is communicated and invulnerability prevents rapid repeated hits",
+      "demon speed and spawn frequency are capped so later meta-levels remain playable",
+      "shards are optional rewards and are never required to complete the objective",
+      "HUD and touch interactions stay clear of the bottom safe area on phones and tablets"
     ],
     "audience": "family; Chinese-language fantasy adventure",
     "generated": {
       "archetype": "catcher",
-      "controlsScheme": "drag_x",
+      "controlsScheme": "tap",
       "objective": {
-        "kind": "collect",
-        "target": 10,
-        "label": "收集 10 块天空碎片"
+        "kind": "reach",
+        "target": 6,
+        "label": "Stitch 6 sky-holes"
       },
       "failure": {
         "mode": "health",
         "health": 3,
-        "invulnerableMs": 1000
+        "invulnerableMs": 1500
       },
-      "targetSessionSec": 25,
-      "firstRewardWithinSec": 10,
+      "targetSessionSec": 55,
+      "firstRewardWithinSec": 12,
       "milestones": 4,
       "scenes": 1
     }

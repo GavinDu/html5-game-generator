@@ -26,40 +26,43 @@
     "accessibility": 2
   },
   "path": "inventory/2uowg9/quality-rules.json",
-  "profile": "lane-dodging-endless-chase",
+  "profile": "three-lane-gap-management-endless-chase",
   "gameId": "escape-from-injection",
   "title": "Escape from the Injection",
   "gameplayContract": {
     "coreLoop": [
-      "tap left/right screen regions or swipe to change lanes",
-      "avoid falling syringes",
-      "collect courage stars",
-      "maintain readable distance from the chaser",
-      "increase route/difficulty over time",
-      "show clear caught/game-over and replay states"
+      "tap the left or right half of the screen to move one lane across three lanes",
+      "avoid falling syringes; each collision reduces the chaser gap by 45 points",
+      "collect courage stars for 25 points and restore 12 points of chaser distance",
+      "clean running gradually rebuilds the gap up to 250 points",
+      "every 40 seconds advance to a new route and increase obstacle speed up to the configured cap",
+      "when the gap reaches 55 points the chaser catches the blob and the run ends after the short catch animation",
+      "restart from the result card and try to beat the previous escape distance"
     ],
     "fairness": [
-      "lane changes must be deterministic and responsive",
-      "obstacles must leave at least one viable lane",
-      "difficulty escalation must preserve a reaction window",
-      "game-over text must not obscure the replay action"
+      "lane changes are deterministic and respond to one tap without requiring a precision drag",
+      "syringe patterns preserve a viable lane and never intentionally create a simultaneous three-lane wall",
+      "the chaser gap is the single health resource and its changes are visible and understandable",
+      "courage stars are optional risk/reward and must not be required to survive",
+      "speed progression is capped and must preserve a readable reaction window",
+      "the caught sequence is brief, non-graphic and the result state is clear"
     ],
     "audience": "family; humorous cartoon chase",
     "generated": {
       "archetype": "dodger",
-      "controlsScheme": "drag_x",
+      "controlsScheme": "tap",
       "objective": {
-        "kind": "collect",
-        "target": 15,
-        "label": "Collect 15 stars to escape"
+        "kind": "survive",
+        "target": 0,
+        "label": "Stay ahead of the chaser"
       },
       "failure": {
         "mode": "health",
-        "health": 3,
-        "invulnerableMs": 1000
+        "health": 1,
+        "invulnerableMs": 0
       },
-      "targetSessionSec": 40,
-      "firstRewardWithinSec": 10,
+      "targetSessionSec": 600,
+      "firstRewardWithinSec": 8,
       "milestones": 3,
       "scenes": 1
     }

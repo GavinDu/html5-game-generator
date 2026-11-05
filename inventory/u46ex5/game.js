@@ -86,7 +86,16 @@ function burst(x, y) {
 
 function nextRound() {
   metaLevel += 1;
-  metaMult *= 1.25;
+  metaMult = Math.min(2.8, metaMult * 1.25);
+  // Clear the previous meta-level's scene objects as well as their arrays.
+  // Dropping references alone leaves their sprites rendered forever and
+  // causes the scene to grow on every successful sky repair.
+  for (var i = 0; i < holes.length; i++) {
+    holes[i].open.visible = false;
+    holes[i].closed.visible = false;
+  }
+  for (var j = 0; j < demons.length; j++) demons[j].s.visible = false;
+  for (var k = 0; k < shards.length; k++) shards[k].s.visible = false;
   stitched = 0; holes = []; demons = []; shards = [];
   lives = MAX_LIVES; combo = 1; level = 1; holesSpawned = 0;
   spawnHoleT = 0; spawnDemonT = 2; spawnShardT = 1;
@@ -269,7 +278,7 @@ Shim.loop(function (dt) {
       }
       setScore();
       burst(sh.x, sh.y);
-      Shim.audio.tone({ freq: 740 + score, dur: 0.12, type: 'sine' });
+      Shim.audio.tone({ freq: 740 + (score % 860), dur: 0.12, type: 'sine' });
     } else if (sh.y > 900) {
       sh.s.visible = false;
       shards.splice(i, 1);

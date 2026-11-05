@@ -1,7 +1,6 @@
 // Bobo's Rainbow — gentle family arcade.
-// Catch 12 falling hearts to restore all six rainbow bands and help the kitten.
-// Missed hearts simply drift away; there are no lives, penalties, or failure state.
-// The pace increases gently as the rainbow is restored.
+// Catch 12 regular hearts to restore all six rainbow bands and help the kitten.
+// Golden hearts are optional bonus points. Missed hearts drift away without penalty.
 Shim.init({ width: 390, height: 844, background: '#8ecae6' });
 
 var BAND_NAMES = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple'];
@@ -39,27 +38,21 @@ function setCombo() {
   Shim.text('combo', combo > 1 ? ('COMBO x' + combo + '!') : '',
     { x: 16, y: 78, size: 20, color: '#b3402e' });
 }
-
 function setMeta() {
   Shim.text('meta', 'BANDS ' + bandsOn + '/6', { x: 216, y: 14, size: 19, color: '#1e7b3a' });
 }
-function starStr(n) {
-  var s = '';
-  for (var i = 0; i < 3; i++) s += (i < n ? '★' : '☆');
-  return s;
-}
 
 function restoreBand() {
+  if (bandsOn >= bands.length) return;
   bands[bandsOn].visible = true;
-  // Round level up every 2 hearts: quicker within the round too.
-  var nl = Math.min(6, Math.floor(caught / 2) + 1);
-  var msg = BAND_NAMES[bandsOn] + ' restored!';
-  if (nl > level) {
-    level = nl;
-    msg = 'LEVEL ' + level + '! ' + msg;
+  var nextLevel = Math.min(6, Math.floor(caught / 2) + 1);
+  var message = BAND_NAMES[bandsOn] + ' restored!';
+  if (nextLevel > level) {
+    level = nextLevel;
+    message = 'LEVEL ' + level + '! ' + message;
     Shim.audio.tone({ freq: 660 + level * 110, dur: 0.25, type: 'triangle' });
   }
-  Shim.text('banner', msg, { x: 16, y: 108, size: 20, color: '#b3402e' });
+  Shim.text('banner', message, { x: 16, y: 108, size: 20, color: '#b3402e' });
   bandsOn += 1;
   setMeta();
 }
@@ -74,15 +67,18 @@ function winGame() {
   Shim.audio.tone({ freq: 784, dur: 0.18, type: 'triangle' });
   Shim.audio.tone({ freq: 988, dur: 0.18, type: 'triangle' });
   Shim.audio.tone({ freq: 1175, dur: 0.32, type: 'triangle' });
-  Shim.end({ score: score, won: true,
-    stats: { time_s: Math.round(elapsed), hearts: caught, rainbow_bands: bandsOn } });
+  Shim.end({
+    score: score,
+    won: true,
+    stats: { time_s: Math.round(elapsed), hearts: caught, rainbow_bands: bandsOn }
+  });
 }
 
 Shim.loop(function (dt) {
   if (over) return;
   elapsed += dt;
 
-  // Pace: a small, bounded ramp as the six rainbow bands are restored.
+  // Gentle, bounded within-round ramp; misses never reduce progress or end the run.
   var speed = 175 * Math.pow(1.12, level - 1);
   var interval = Math.max(0.48, 0.9 / Math.pow(1.08, level - 1));
   if (caught < HEARTS_TO_WIN) {
@@ -91,21 +87,20 @@ Shim.loop(function (dt) {
       spawnT = 0;
       var gold = Math.random() < 0.12;
       var kind = gold ? 'heart_gold' : (Math.random() < 0.5 ? 'heart' : 'heart_blue');
-      var s = Shim.sprite(kind, { x: 30 + Math.random() * 330, y: -24, w: 46, h: 46 });
-      hearts.push({ s: s, gold: gold });
+      var sprite = Shim.sprite(kind, { x: 30 + Math.random() * 330, y: -24, w: 46, h: 46 });
+      hearts.push({ s: sprite, gold: gold });
     }
   }
 
   for (var i = hearts.length - 1; i >= 0; i--) {
-    var h = hearts[i];
-    h.s.y += speed * dt;
-    var dx = h.s.x - bear.x;
-    var dy = h.s.y - (bear.y - 40);
+    var heart = hearts[i];
+    heart.s.y += speed * dt;
+    var dx = heart.s.x - bear.x;
+    var dy = heart.s.y - (bear.y - 40);
     if (dx * dx + dy * dy < 3600) {
-      // Caught!
-      h.s.visible = false;
+      heart.s.visible = false;
       hearts.splice(i, 1);
-      if (h.gold) {
+      if (heart.gold) {
         score += 50;
         Shim.text('banner', 'GOLDEN HEART +50!', { x: 16, y: 108, size: 20, color: '#b8860b' });
         Shim.audio.tone({ freq: 1200, dur: 0.2, type: 'sine' });
@@ -118,12 +113,14 @@ Shim.loop(function (dt) {
       }
       setScore();
       setCombo();
-      if (caught >= HEARTS_TO_WIN) { winGame(); return; }
-    } else if (h.s.y > 880) {
-      // Missed.
-      h.s.visible = false;
+      if (caught >= HEARTS_TO_WIN) {
+        winGame();
+        return;
+      }
+    } else if (heart.s.y > 880) {
+      heart.s.visible = false;
       hearts.splice(i, 1);
-      // A miss has no penalty: keep the gentle promise in the questionnaire.
+      // A missed heart simply disappears; no lives, penalty, or failure state.
     }
   }
 });

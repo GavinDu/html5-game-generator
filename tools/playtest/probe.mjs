@@ -126,20 +126,28 @@ async function playGame(browser, gameId) {
       title: document.getElementById('shell-start-title')?.textContent || '',
       obj: document.getElementById('shell-start-obj')?.textContent || '',
     })).catch(() => ({ shown: false, title: '', obj: '' }));
-    if (card.shown && !probe.shell.started) {
-      push('shell.start_card', 'pass',
-        `start card shown before play: "${card.title}" / "${card.obj}"`, null);
+    const startMode = probe.shell.startMode || 'auto';
+    if (startMode === 'tap_to_start') {
+      if (card.shown && !probe.shell.started) {
+        push('shell.start_card', 'pass',
+          `gated start card shown before play: "${card.title}" / "${card.obj}"`, null);
+      } else {
+        push('shell.start_card', 'fail',
+          `tap_to_start shell must hold at a visible start card (shown=${card.shown}, started=${probe.shell.started})`, null);
+      }
+      await page.click('#shell-start-btn').catch(() => {});
+      const startDeadline = Date.now() + 8000;
+      while (Date.now() < startDeadline) {
+        const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
+        if (fresh) probe = fresh;
+        if (probe && probe.shell && probe.shell.started && probe.frames > 0) break;
+        await sleep(300);
+      }
+    } else if (probe.shell.started && !card.shown) {
+      push('shell.start_card', 'pass', 'auto-start mode began immediately without a blocking start card', null);
     } else {
       push('shell.start_card', 'fail',
-        `shell game booted without a gating start card (shown=${card.shown}, started=${probe.shell.started})`, null);
-    }
-    await page.click('#shell-start-btn').catch(() => {});
-    const startDeadline = Date.now() + 8000;
-    while (Date.now() < startDeadline) {
-      const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
-      if (fresh) probe = fresh;
-      if (probe && probe.shell && probe.shell.started && probe.frames > 0) break;
-      await sleep(300);
+        `auto-start mode must begin immediately without a blocking start card (shown=${card.shown}, started=${probe.shell.started})`, null);
     }
   }
 
@@ -238,10 +246,16 @@ async function playGame(browser, gameId) {
     if (isCatcher) {
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
       if (points) {
-        await page.mouse.move(points.from.x, points.from.y).catch(() => {});
-        await page.mouse.down().catch(() => {});
-        await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
-        await page.mouse.up().catch(() => {});
+        // tap_x games move on discrete taps; a drag gesture never calls
+        // their tap handler and can falsely look like a softlock.
+        if (['tap', 'tap_x'].includes(probe?.shell?.controlsScheme)) {
+          await page.mouse.click(points.to.x, points.to.y).catch(() => {});
+        } else {
+          await page.mouse.move(points.from.x, points.from.y).catch(() => {});
+          await page.mouse.down().catch(() => {});
+          await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
+          await page.mouse.up().catch(() => {});
+        }
       }
     } else if (ki % 4 === 0) {
       await page.mouse.move(210, 450).catch(() => {});

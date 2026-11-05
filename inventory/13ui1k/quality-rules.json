@@ -26,40 +26,42 @@
     "accessibility": 2
   },
   "path": "inventory/13ui1k/quality-rules.json",
-  "profile": "collect-and-restore-family-arcade",
+  "profile": "gentle-catch-and-restore-family-arcade",
   "gameId": "sample-rainbow-bear",
   "title": "Bobo's Rainbow",
   "gameplayContract": {
     "coreLoop": [
-      "tap Start, then drag to move the bear",
-      "catch falling hearts (gold hearts worth more)",
-      "each catch visibly restores part of the rainbow",
-      "restore all six rainbow bands by reaching 12 hearts to win",
-      "missed hearts simply fall away — no penalty (gentle mode)",
-      "the fall speed ramps up gently as the session progresses",
-      "restart from the result card after a win"
+      "tap anywhere to move Bobo horizontally toward the touch point",
+      "catch regular pink and blue hearts; each regular heart advances the 12-heart restoration objective",
+      "golden hearts grant optional bonus score but do not replace a restoration heart",
+      "every two regular catches restore one rainbow band",
+      "twelve regular catches restore all six bands and complete the game as a win",
+      "missed hearts drift away without lives, penalties, combo reset, or a failure state",
+      "difficulty rises gently within the single session and remains bounded",
+      "restart from the result card to begin a fresh run"
     ],
     "fairness": [
-      "hearts must be reachable within the playfield",
-      "spawn and fall speed must allow a reasonable reaction window",
-      "the pacing ramp must not make success practically impossible"
+      "the first regular collectible must be reachable early in the session",
+      "tap-to-move clamps Bobo inside the playfield and responds without lane lock",
+      "regular-heart spawn timing and fall speed remain bounded and catchable",
+      "golden hearts are optional rewards and are never required to complete the objective",
+      "misses never remove progress or end the run; only twelve regular catches complete the win",
+      "the result card communicates the restored rainbow and provides a reliable replay action"
     ],
     "audience": "family; kid-friendly",
     "generated": {
       "archetype": "catcher",
-      "controlsScheme": "drag_x",
+      "controlsScheme": "tap",
       "objective": {
         "kind": "collect",
         "target": 12,
         "label": "Catch 12 hearts"
       },
       "failure": {
-        "mode": "gentle",
-        "health": null,
-        "invulnerableMs": null
+        "mode": "gentle"
       },
       "targetSessionSec": 20,
-      "firstRewardWithinSec": 10,
+      "firstRewardWithinSec": 8,
       "milestones": 6,
       "scenes": 1
     }
@@ -67,7 +69,7 @@
   "reviewFocus": [
     "Check that the bear, kitten, hearts, and rainbow read clearly at portrait mobile size.",
     "Check whether collecting hearts visibly repairs the rainbow and communicates progress toward helping the kitten.",
-    "Evaluate whether missed hearts and the speed ramp create a fair learning curve.",
+    "Verify that missed hearts never create a loss state and that twelve regular catches complete the win.",
     "Check touch targets, contrast, HUD overlap, and whether the restart affordance is actually usable."
   ]
 }
