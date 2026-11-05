@@ -40,11 +40,10 @@ func TestInventoryGamesExperience(t *testing.T) {
 	}
 }
 
-
 type generatedExperienceContract struct {
-	Archetype             string `json:"archetype"`
-	ControlsScheme        string `json:"controlsScheme"`
-	Objective             struct {
+	Archetype      string `json:"archetype"`
+	ControlsScheme string `json:"controlsScheme"`
+	Objective      struct {
 		Kind   string `json:"kind"`
 		Target int    `json:"target"`
 		Label  string `json:"label"`
@@ -93,17 +92,17 @@ func TestInventoryQualityContractsMatchGameIR(t *testing.T) {
 		}
 		exp := doc.Experience
 		want := generatedExperienceContract{
-			Archetype: exp.Archetype,
+			Archetype:      exp.Archetype,
 			ControlsScheme: exp.Controls.Scheme,
 			Failure: struct {
-				Mode string `json:"mode"`
-				Health *int `json:"health"`
-				InvulnerableMs *int `json:"invulnerableMs"`
+				Mode           string `json:"mode"`
+				Health         *int   `json:"health"`
+				InvulnerableMs *int   `json:"invulnerableMs"`
 			}{Mode: exp.Failure.Mode, Health: optionalPositiveInt(exp.Failure.Health), InvulnerableMs: optionalPositiveInt(exp.Failure.InvulnerableMs)},
-			TargetSessionSec: optionalPositiveInt(exp.Pacing.TargetSessionSec),
+			TargetSessionSec:     optionalPositiveInt(exp.Pacing.TargetSessionSec),
 			FirstRewardWithinSec: optionalPositiveInt(exp.Pacing.FirstRewardWithinSec),
-			Milestones: len(exp.Milestones),
-			Scenes: len(doc.Scenes),
+			Milestones:           len(exp.Milestones),
+			Scenes:               len(doc.Scenes),
 		}
 		want.Objective.Kind = exp.Objective.Kind
 		want.Objective.Target = exp.Objective.Target
@@ -113,7 +112,6 @@ func TestInventoryQualityContractsMatchGameIR(t *testing.T) {
 		}
 	}
 }
-
 
 // The three uploaded penguin drawings are three progression skins, not
 // decorative unused assets: the canonical IR must start with the rainbow
