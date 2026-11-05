@@ -61,7 +61,7 @@ try {
           : 0;
         const textEntities = (snapshot?.entities || []).filter(entity => entity.kind === 'text' && entity.visible);
         const obscuredTextEntities = textEntities.filter(entity =>
-          (entity.y - entity.h / 2) < headerBottomLogical - 8
+          (entity.y - entity.h / 2) < headerBottomLogical + 4
         );
         const viewportWidth = document.documentElement.clientWidth;
         const viewportHeight = document.documentElement.clientHeight;

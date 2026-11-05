@@ -185,8 +185,8 @@ func TestInventoryTextEntitiesClearNativeHeader(t *testing.T) {
 		}
 		for _, scene := range doc.Scenes {
 			for _, entity := range scene.Entities {
-				if entity.Kind == "text" && len(entity.Position) > 1 && entity.Position[1] < 80 {
-					t.Errorf("%s/%s: text entity y=%.1f overlaps the native player header; want y >= 80", dir, entity.ID, entity.Position[1])
+				if entity.Kind == "text" && len(entity.Position) > 1 && entity.Position[1] < 110 {
+					t.Errorf("%s/%s: text entity y=%.1f overlaps the native player header; want y >= 110", dir, entity.ID, entity.Position[1])
 				}
 			}
 		}
