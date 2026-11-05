@@ -244,18 +244,29 @@ async function playGame(browser, gameId) {
     }
     ki++;
     if (isCatcher) {
+      const tapControls = ['tap', 'tap_x'].includes(probe?.shell?.controlsScheme);
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
-      if (points) {
-        // tap_x games move on discrete taps; a drag gesture never calls
-        // their tap handler and can falsely look like a softlock.
-        if (['tap', 'tap_x'].includes(probe?.shell?.controlsScheme)) {
-          await page.mouse.click(points.to.x, points.to.y).catch(() => {});
-        } else {
-          await page.mouse.move(points.from.x, points.from.y).catch(() => {});
-          await page.mouse.down().catch(() => {});
-          await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
-          await page.mouse.up().catch(() => {});
-        }
+      if (tapControls) {
+        // Some legacy Shim games do not expose the generic player/pickup
+        // snapshot. Keep the bot exercising their real tap handler anyway:
+        // sweep the horizontal catch lane so every part of the playfield is
+        // visited repeatedly while falling pickups approach the player.
+        const fallback = await page.evaluate(() => {
+          const canvas = document.querySelector('#stage canvas');
+          if (!canvas) return null;
+          const rect = canvas.getBoundingClientRect();
+          return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        }).catch(() => null);
+        const target = points?.to || (fallback ? {
+          x: fallback.left + fallback.width * (0.08 + ((ki % 10) * 0.093)),
+          y: fallback.top + fallback.height * 0.86,
+        } : null);
+        if (target) await page.mouse.click(target.x, target.y).catch(() => {});
+      } else if (points) {
+        await page.mouse.move(points.from.x, points.from.y).catch(() => {});
+        await page.mouse.down().catch(() => {});
+        await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
+        await page.mouse.up().catch(() => {});
       }
     } else if (ki % 4 === 0) {
       await page.mouse.move(210, 450).catch(() => {});
