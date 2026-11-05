@@ -59,7 +59,7 @@
       "failure": {
         "mode": "health",
         "health": 1,
-        "invulnerableMs": 0
+        "invulnerableMs": 750
       },
       "targetSessionSec": 600,
       "firstRewardWithinSec": 8,
