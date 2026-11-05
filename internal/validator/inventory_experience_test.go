@@ -178,7 +178,6 @@ func schemaEnumContains(values []string, want string) bool {
 	return false
 }
 
-
 func TestInventoryTextEntitiesClearNativeHeader(t *testing.T) {
 	for _, dir := range []string{"13ui1k", "u46ex5", "2uowg9", "p3ngui"} {
 		doc, err := readGameIR(filepath.Join("..", "..", "inventory", dir))
