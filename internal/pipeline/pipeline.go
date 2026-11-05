@@ -612,9 +612,6 @@ func buildGameIR(doc *model.DesignDoc, gameID string) *gameir.Document {
 
 func floatPtr(v float64) *float64 { return &v }
 
-// buildBoboRemixIR creates a playable variant from the original legacy Bobo's
-// Rainbow inventory entry. It reuses parent assets and expresses new behavior
-// as Game IR data rather than downloaded executable code.
 // buildGenericRemixIR applies a metadata delta to a canonical parent IR.
 // Gameplay scenes, entities, assets, bindings, experience, and rules are
 // copied intact so a remix does not silently replace its parent's game loop.
