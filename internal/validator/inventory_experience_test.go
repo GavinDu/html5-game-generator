@@ -177,3 +177,43 @@ func schemaEnumContains(values []string, want string) bool {
 	}
 	return false
 }
+
+
+// Screenshot review found Game IR instruction labels underneath the native
+// player header on phone and tablet. Keep authored text below that overlay;
+// the responsive browser evaluator remains responsible for pixel-level proof.
+func TestInventoryInstructionTextClearsNativePlayerHeader(t *testing.T) {
+	for _, dir := range []string{"13ui1k", "p3ngui"} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "inventory", dir, "game-ir.json"))
+		if err != nil {
+			t.Fatalf("%s: read game IR: %v", dir, err)
+		}
+		var doc struct {
+			Scenes []struct {
+				Entities []struct {
+					ID       string    `json:"id"`
+					Kind     string    `json:"kind"`
+					Position []float64 `json:"position"`
+				} `json:"entities"`
+			} `json:"scenes"`
+		}
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Fatalf("%s: decode game IR: %v", dir, err)
+		}
+		found := false
+		for _, scene := range doc.Scenes {
+			for _, entity := range scene.Entities {
+				if entity.Kind != "text" {
+					continue
+				}
+				found = true
+				if len(entity.Position) < 2 || entity.Position[1] < 80 {
+					t.Errorf("%s/%s text y=%v overlaps native player header; want y >= 80", dir, entity.ID, entity.Position)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: expected at least one authored instruction text entity", dir)
+		}
+	}
+}
