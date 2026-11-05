@@ -35,7 +35,8 @@ func TestInventoryGamesExperience(t *testing.T) {
 		var quality struct {
 			GameplayContract struct {
 				Generated struct {
-					ControlsScheme string `json:"controlsScheme"`
+					ControlsScheme   string `json:"controlsScheme"`
+					TargetSessionSec int    `json:"targetSessionSec"`
 					Objective      struct {
 						Kind   string `json:"kind"`
 						Target int    `json:"target"`
@@ -55,6 +56,7 @@ func TestInventoryGamesExperience(t *testing.T) {
 		generated := quality.GameplayContract.Generated
 		exp := doc.Experience
 		if generated.ControlsScheme != exp.Controls.Scheme ||
+			generated.TargetSessionSec != exp.Pacing.TargetSessionSec ||
 			generated.Objective.Kind != exp.Objective.Kind ||
 			generated.Objective.Target != exp.Objective.Target ||
 			generated.Objective.Label != exp.Objective.Label ||
