@@ -52,7 +52,7 @@
       "objective": {
         "kind": "collect",
         "target": 12,
-        "label": "Catch 12 hearts"
+        "label": "Collect 12 hearts"
       },
       "failure": {
         "mode": "gentle"
