@@ -1,0 +1,33 @@
+{
+  "game_id": "penguin-heartlight-rescue",
+  "title": "Penguin's Heartlight Rescue",
+  "owner": "doodlequest",
+  "intent": "Guide a cheerful penguin to catch floating hearts and relight the six colors of the winter aurora.",
+  "visibility": "public",
+  "version": 1,
+  "shim": "gameshim/v1",
+  "entry": "game.js",
+  "controls": ["tap"],
+  "elements": [
+    {"id":"penguin","kind":"character","label":"winter penguin","description":"A round black-and-white penguin with large bright eyes, a small golden beak, golden webbed feet and a striped scarf, based on the supplied coloring drawings."},
+    {"id":"rainbow-scarf","kind":"prop","label":"rainbow scarf","description":"A six-color striped scarf matching the colorful first drawing."},
+    {"id":"holiday-scarf","kind":"prop","label":"holiday scarf","description":"A festive multicolor scarf with a small heart tuft, inspired by the second drawing."},
+    {"id":"classic-scarf","kind":"prop","label":"blue scarf","description":"A blue and indigo striped scarf inspired by the third drawing."},
+    {"id":"hearts","kind":"collectible","label":"floating hearts","description":"Pink hearts that carry the warmth needed to restore the winter aurora."},
+    {"id":"aurora","kind":"background","label":"six-color aurora","description":"Six glowing color bands that brighten as hearts are collected."}
+  ],
+  "music": {"mood":"calm","source":"synthesized","src":"audio/theme.wav"},
+  "sprites": [
+    {"id":"penguin_rainbow","label":"penguin with rainbow scarf","mime":"image/png","source":"generated","file":"assets/penguin-rainbow.png.b64","src":"sprites/penguin-rainbow.png"},
+    {"id":"penguin_holiday","label":"penguin with festive scarf","mime":"image/png","source":"generated","file":"assets/penguin-holiday.png.b64","src":"sprites/penguin-holiday.png"},
+    {"id":"penguin_classic","label":"penguin with blue scarf","mime":"image/png","source":"generated","file":"assets/penguin-classic.png.b64","src":"sprites/penguin-classic.png"},
+    {"id":"heart","label":"pink heart","mime":"image/png","source":"procedural","procedural":"heart:#F17AA5","src":"sprites/heart.png"},
+    {"id":"heart_gold","label":"golden heart","mime":"image/png","source":"procedural","procedural":"heart:#FFD45A","src":"sprites/heart_gold.png"},
+    {"id":"band0","label":"aurora red band","mime":"image/png","source":"procedural","procedural":"band:0","src":"sprites/band0.png"},
+    {"id":"band1","label":"aurora orange band","mime":"image/png","source":"procedural","procedural":"band:1","src":"sprites/band1.png"},
+    {"id":"band2","label":"aurora yellow band","mime":"image/png","source":"procedural","procedural":"band:2","src":"sprites/band2.png"},
+    {"id":"band3","label":"aurora green band","mime":"image/png","source":"procedural","procedural":"band:3","src":"sprites/band3.png"},
+    {"id":"band4","label":"aurora blue band","mime":"image/png","source":"procedural","procedural":"band:4","src":"sprites/band4.png"},
+    {"id":"band5","label":"aurora purple band","mime":"image/png","source":"procedural","procedural":"band:5","src":"sprites/band5.png"}
+  ]
+}
