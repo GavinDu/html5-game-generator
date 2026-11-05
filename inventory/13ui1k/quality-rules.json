@@ -60,7 +60,7 @@
       "failure": {
         "mode": "gentle"
       },
-      "targetSessionSec": 55,
+      "targetSessionSec": 20,
       "firstRewardWithinSec": 8,
       "milestones": 6,
       "scenes": 1
