@@ -1,6 +1,14 @@
 {
   "irVersion": "1.2",
-  "capabilities": ["render.sprite", "render.text", "physics.bodies", "physics.colliders", "audio", "input.pointer", "shell.v1"],
+  "capabilities": [
+    "render.sprite",
+    "render.text",
+    "physics.bodies",
+    "physics.colliders",
+    "audio",
+    "input.pointer",
+    "shell.v1"
+  ],
   "game": {
     "id": "penguin-heartlight-rescue",
     "title": "Penguin's Heartlight Rescue",
@@ -11,102 +19,1020 @@
     "audience": "kids"
   },
   "assets": [
-    {"id":"penguin_rainbow","kind":"image","uri":"sprites/penguin-rainbow.png","mimeType":"image/png","source":"generated","altText":"Round black-and-white penguin with a rainbow striped scarf, based on the first supplied coloring page."},
-    {"id":"penguin_holiday","kind":"image","uri":"sprites/penguin-holiday.png","mimeType":"image/png","source":"generated","altText":"The same penguin with festive rainbow scarf details, based on the second supplied coloring page."},
-    {"id":"penguin_classic","kind":"image","uri":"sprites/penguin-classic.png","mimeType":"image/png","source":"generated","altText":"The same penguin with a blue striped scarf, based on the third supplied coloring page."},
-    {"id":"heart","kind":"image","uri":"sprites/heart.png","mimeType":"image/png","source":"generated","altText":"Pink collectible heart."},
-    {"id":"band0","kind":"image","uri":"sprites/band0.png","mimeType":"image/png","source":"generated","altText":"First aurora color band."},
-    {"id":"band1","kind":"image","uri":"sprites/band1.png","mimeType":"image/png","source":"generated","altText":"Second aurora color band."},
-    {"id":"band2","kind":"image","uri":"sprites/band2.png","mimeType":"image/png","source":"generated","altText":"Third aurora color band."},
-    {"id":"band3","kind":"image","uri":"sprites/band3.png","mimeType":"image/png","source":"generated","altText":"Fourth aurora color band."},
-    {"id":"band4","kind":"image","uri":"sprites/band4.png","mimeType":"image/png","source":"generated","altText":"Fifth aurora color band."},
-    {"id":"band5","kind":"image","uri":"sprites/band5.png","mimeType":"image/png","source":"generated","altText":"Sixth aurora color band."},
-    {"id":"theme","kind":"audio","uri":"audio/theme.wav","mimeType":"audio/wav","source":"generated","altText":"Calm winter background music."}
+    {
+      "id": "penguin_rainbow",
+      "kind": "image",
+      "uri": "sprites/penguin-rainbow.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Round black-and-white penguin with a rainbow striped scarf, based on the first supplied coloring page."
+    },
+    {
+      "id": "penguin_holiday",
+      "kind": "image",
+      "uri": "sprites/penguin-holiday.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "The same penguin with festive rainbow scarf details, based on the second supplied coloring page."
+    },
+    {
+      "id": "penguin_classic",
+      "kind": "image",
+      "uri": "sprites/penguin-classic.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "The same penguin with a blue striped scarf, based on the third supplied coloring page."
+    },
+    {
+      "id": "heart",
+      "kind": "image",
+      "uri": "sprites/heart.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Pink collectible heart."
+    },
+    {
+      "id": "band0",
+      "kind": "image",
+      "uri": "sprites/band0.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "First aurora color band."
+    },
+    {
+      "id": "band1",
+      "kind": "image",
+      "uri": "sprites/band1.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Second aurora color band."
+    },
+    {
+      "id": "band2",
+      "kind": "image",
+      "uri": "sprites/band2.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Third aurora color band."
+    },
+    {
+      "id": "band3",
+      "kind": "image",
+      "uri": "sprites/band3.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Fourth aurora color band."
+    },
+    {
+      "id": "band4",
+      "kind": "image",
+      "uri": "sprites/band4.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Fifth aurora color band."
+    },
+    {
+      "id": "band5",
+      "kind": "image",
+      "uri": "sprites/band5.png",
+      "mimeType": "image/png",
+      "source": "generated",
+      "altText": "Sixth aurora color band."
+    },
+    {
+      "id": "theme",
+      "kind": "audio",
+      "uri": "audio/theme.wav",
+      "mimeType": "audio/wav",
+      "source": "generated",
+      "altText": "Calm winter background music."
+    }
   ],
   "scenes": [
     {
       "id": "aurora-field",
       "backgroundColor": "#C8ECF8",
-      "worldSize": [390,844],
+      "worldSize": [
+        390,
+        844
+      ],
       "entities": [
-        {"id":"penguin","kind":"player","assetId":"penguin_rainbow","position":[195,700],"size":[112,134],"components":["movement","score","collider"]},
-        {"id":"heart01","kind":"pickup","assetId":"heart","position":[65,170],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart02","kind":"pickup","assetId":"heart","position":[195,150],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart03","kind":"pickup","assetId":"heart","position":[325,170],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart04","kind":"pickup","assetId":"heart","position":[80,290],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart05","kind":"pickup","assetId":"heart","position":[200,280],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart06","kind":"pickup","assetId":"heart","position":[310,300],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart07","kind":"pickup","assetId":"heart","position":[70,420],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart08","kind":"pickup","assetId":"heart","position":[195,410],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart09","kind":"pickup","assetId":"heart","position":[320,430],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart10","kind":"pickup","assetId":"heart","position":[80,550],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart11","kind":"pickup","assetId":"heart","position":[200,540],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"heart12","kind":"pickup","assetId":"heart","position":[310,560],"size":[38,38],"components":["collider","collectible","physics_body"],"physics":{"body":"dynamic","shape":"ball","initialVelocity":[0,150],"gravityScale":0}},
-        {"id":"band0","kind":"decoration","assetId":"band0","position":[195,110],"size":[360,190],"components":[],"render":{"alpha":0.0}},
-        {"id":"band1","kind":"decoration","assetId":"band1","position":[195,110],"size":[360,190],"components":[],"render":{"alpha":0.0}},
-        {"id":"band2","kind":"decoration","assetId":"band2","position":[195,110],"size":[360,190],"components":[],"render":{"alpha":0.0}},
-        {"id":"band3","kind":"decoration","assetId":"band3","position":[195,110],"size":[360,190],"components":[],"render":{"alpha":0.0}},
-        {"id":"band4","kind":"decoration","assetId":"band4","position":[195,110],"size":[360,190],"components":[],"render":{"alpha":0.0}},
-        {"id":"band5","kind":"decoration","assetId":"band5","position":[195,110],"size":[360,190],"components":[],"render":{"alpha":0.0}},
-        {"id":"title","kind":"text","position":[195,36],"size":[360,38],"components":["text_label"],"render":{"text":{"content":"Catch 12 hearts to relight the aurora","fontSize":20,"fill":"#173B59","fontWeight":"bold","align":"center"}}}
+        {
+          "id": "penguin",
+          "kind": "player",
+          "assetId": "penguin_rainbow",
+          "position": [
+            195,
+            700
+          ],
+          "size": [
+            112,
+            134
+          ],
+          "components": [
+            "movement",
+            "score",
+            "collider"
+          ]
+        },
+        {
+          "id": "heart01",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            65,
+            170
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart02",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            195,
+            150
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart03",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            325,
+            170
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart04",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            80,
+            290
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart05",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            200,
+            280
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart06",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            310,
+            300
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart07",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            70,
+            420
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart08",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            195,
+            410
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart09",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            320,
+            430
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart10",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            80,
+            550
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart11",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            200,
+            540
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "heart12",
+          "kind": "pickup",
+          "assetId": "heart",
+          "position": [
+            310,
+            560
+          ],
+          "size": [
+            38,
+            38
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0
+          }
+        },
+        {
+          "id": "band0",
+          "kind": "decoration",
+          "assetId": "band0",
+          "position": [
+            195,
+            110
+          ],
+          "size": [
+            360,
+            190
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0
+          }
+        },
+        {
+          "id": "band1",
+          "kind": "decoration",
+          "assetId": "band1",
+          "position": [
+            195,
+            110
+          ],
+          "size": [
+            360,
+            190
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0
+          }
+        },
+        {
+          "id": "band2",
+          "kind": "decoration",
+          "assetId": "band2",
+          "position": [
+            195,
+            110
+          ],
+          "size": [
+            360,
+            190
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0
+          }
+        },
+        {
+          "id": "band3",
+          "kind": "decoration",
+          "assetId": "band3",
+          "position": [
+            195,
+            110
+          ],
+          "size": [
+            360,
+            190
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0
+          }
+        },
+        {
+          "id": "band4",
+          "kind": "decoration",
+          "assetId": "band4",
+          "position": [
+            195,
+            110
+          ],
+          "size": [
+            360,
+            190
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0
+          }
+        },
+        {
+          "id": "band5",
+          "kind": "decoration",
+          "assetId": "band5",
+          "position": [
+            195,
+            110
+          ],
+          "size": [
+            360,
+            190
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0
+          }
+        },
+        {
+          "id": "title",
+          "kind": "text",
+          "position": [
+            195,
+            36
+          ],
+          "size": [
+            360,
+            38
+          ],
+          "components": [
+            "text_label"
+          ],
+          "render": {
+            "text": {
+              "content": "Catch 12 hearts to relight the aurora",
+              "fontSize": 20,
+              "fill": "#173B59",
+              "fontWeight": "bold",
+              "align": "center"
+            }
+          }
+        }
       ]
     }
   ],
   "inputBindings": [
-    {"action":"move","input":"tap"}
+    {
+      "action": "move",
+      "input": "tap"
+    }
   ],
   "rules": [
-    {"id":"start-theme","when":{"event":"game_start"},"actions":[{"type":"play_sound","assetId":"theme"}]},
-    {"id":"collect-heart","when":{"event":"collected","source":"penguin","target":"heart01"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart01"}]},
-    {"id":"collect-heart-02","when":{"event":"collected","source":"penguin","target":"heart02"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart02"}]},
-    {"id":"collect-heart-03","when":{"event":"collected","source":"penguin","target":"heart03"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart03"}]},
-    {"id":"collect-heart-04","when":{"event":"collected","source":"penguin","target":"heart04"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart04"}]},
-    {"id":"collect-heart-05","when":{"event":"collected","source":"penguin","target":"heart05"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart05"}]},
-    {"id":"collect-heart-06","when":{"event":"collected","source":"penguin","target":"heart06"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart06"}]},
-    {"id":"collect-heart-07","when":{"event":"collected","source":"penguin","target":"heart07"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart07"}]},
-    {"id":"collect-heart-08","when":{"event":"collected","source":"penguin","target":"heart08"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart08"}]},
-    {"id":"collect-heart-09","when":{"event":"collected","source":"penguin","target":"heart09"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart09"}]},
-    {"id":"collect-heart-10","when":{"event":"collected","source":"penguin","target":"heart10"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart10"}]},
-    {"id":"collect-heart-11","when":{"event":"collected","source":"penguin","target":"heart11"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart11"}]},
-    {"id":"collect-heart-12","when":{"event":"collected","source":"penguin","target":"heart12"},"actions":[{"type":"add_score","target":"penguin","value":1},{"type":"destroy_entity","target":"heart12"}]},
-    {"id":"aurora-band-1","when":{"event":"score_reached","value":2},"actions":[{"type":"set_visible","target":"band0","value":true},{"type":"show_text","value":"Ruby aurora restored!"}]},
-    {"id":"aurora-band-2","when":{"event":"score_reached","value":4},"actions":[{"type":"set_visible","target":"band1","value":true},{"type":"set_asset","target":"penguin","assetId":"penguin_holiday"},{"type":"show_text","value":"Festive scarf unlocked!"}]},
-    {"id":"aurora-band-3","when":{"event":"score_reached","value":6},"actions":[{"type":"set_visible","target":"band2","value":true},{"type":"show_text","value":"Sunshine aurora restored!"}]},
-    {"id":"aurora-band-4","when":{"event":"score_reached","value":8},"actions":[{"type":"set_visible","target":"band3","value":true},{"type":"set_asset","target":"penguin","assetId":"penguin_classic"},{"type":"show_text","value":"Classic blue scarf unlocked!"}]},
-    {"id":"aurora-band-5","when":{"event":"score_reached","value":10},"actions":[{"type":"set_visible","target":"band4","value":true},{"type":"show_text","value":"Ocean aurora restored!"}]},
-    {"id":"aurora-complete","when":{"event":"score_reached","value":12},"actions":[{"type":"set_visible","target":"band5","value":true},{"type":"show_text","value":"The whole aurora is shining!"},{"type":"end_game","value":true}]}
+    {
+      "id": "start-theme",
+      "when": {
+        "event": "game_start"
+      },
+      "actions": [
+        {
+          "type": "play_sound",
+          "assetId": "theme"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart01"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart01"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-02",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart02"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart02"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-03",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart03"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart03"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-04",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart04"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart04"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-05",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart05"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart05"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-06",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart06"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart06"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-07",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart07"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart07"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-08",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart08"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart08"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-09",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart09"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart09"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-10",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart10"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart10"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-11",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart11"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart11"
+        }
+      ]
+    },
+    {
+      "id": "collect-heart-12",
+      "when": {
+        "event": "collected",
+        "source": "penguin",
+        "target": "heart12"
+      },
+      "actions": [
+        {
+          "type": "add_score",
+          "target": "penguin",
+          "value": 1
+        },
+        {
+          "type": "destroy_entity",
+          "target": "heart12"
+        }
+      ]
+    },
+    {
+      "id": "aurora-band-1",
+      "when": {
+        "event": "score_reached",
+        "value": 2
+      },
+      "actions": [
+        {
+          "type": "set_visible",
+          "target": "band0",
+          "value": true
+        },
+        {
+          "type": "show_text",
+          "value": "Ruby aurora restored!"
+        }
+      ]
+    },
+    {
+      "id": "aurora-band-2",
+      "when": {
+        "event": "score_reached",
+        "value": 4
+      },
+      "actions": [
+        {
+          "type": "set_visible",
+          "target": "band1",
+          "value": true
+        },
+        {
+          "type": "set_asset",
+          "target": "penguin",
+          "assetId": "penguin_holiday"
+        },
+        {
+          "type": "show_text",
+          "value": "Festive scarf unlocked!"
+        }
+      ]
+    },
+    {
+      "id": "aurora-band-3",
+      "when": {
+        "event": "score_reached",
+        "value": 6
+      },
+      "actions": [
+        {
+          "type": "set_visible",
+          "target": "band2",
+          "value": true
+        },
+        {
+          "type": "show_text",
+          "value": "Sunshine aurora restored!"
+        }
+      ]
+    },
+    {
+      "id": "aurora-band-4",
+      "when": {
+        "event": "score_reached",
+        "value": 8
+      },
+      "actions": [
+        {
+          "type": "set_visible",
+          "target": "band3",
+          "value": true
+        },
+        {
+          "type": "set_asset",
+          "target": "penguin",
+          "assetId": "penguin_classic"
+        },
+        {
+          "type": "show_text",
+          "value": "Classic blue scarf unlocked!"
+        }
+      ]
+    },
+    {
+      "id": "aurora-band-5",
+      "when": {
+        "event": "score_reached",
+        "value": 10
+      },
+      "actions": [
+        {
+          "type": "set_visible",
+          "target": "band4",
+          "value": true
+        },
+        {
+          "type": "show_text",
+          "value": "Ocean aurora restored!"
+        }
+      ]
+    },
+    {
+      "id": "aurora-complete",
+      "when": {
+        "event": "score_reached",
+        "value": 12
+      },
+      "actions": [
+        {
+          "type": "set_visible",
+          "target": "band5",
+          "value": true
+        },
+        {
+          "type": "show_text",
+          "value": "The whole aurora is shining!"
+        },
+        {
+          "type": "end_game",
+          "value": true
+        }
+      ]
+    }
   ],
   "experience": {
     "archetype": "catcher",
-    "controls": {"scheme": "tap", "hint": "Tap left or right to guide the penguin"},
-    "objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts"},
-    "hud": {"left": "objective_progress", "right": "none"},
-    "start": {"mode": "auto"},
-    "failure": {"mode": "gentle"},
+    "controls": {
+      "scheme": "tap",
+      "hint": "Tap left or right to guide the penguin"
+    },
+    "objective": {
+      "kind": "collect",
+      "target": 12,
+      "label": "Catch 12 hearts"
+    },
+    "hud": {
+      "left": "objective_progress",
+      "right": "none"
+    },
+    "start": {
+      "mode": "tap_to_start"
+    },
+    "failure": {
+      "mode": "gentle"
+    },
     "pacing": {
       "targetSessionSec": 55,
       "firstRewardWithinSec": 8,
       "expectedCatchRate": 0.1,
       "ramp": [
-        {"at": 0, "speedMul": 1},
-        {"at": 0.5, "speedMul": 1.2},
-        {"at": 0.85, "speedMul": 1.32}
+        {
+          "at": 0,
+          "speedMul": 1
+        },
+        {
+          "at": 0.5,
+          "speedMul": 1.2
+        },
+        {
+          "at": 0.85,
+          "speedMul": 1.32
+        }
       ]
     },
-    "milestones": [0.1667, 0.3333, 0.5, 0.6667, 0.8333, 1],
+    "milestones": [
+      0.1667,
+      0.3333,
+      0.5,
+      0.6667,
+      0.8333,
+      1
+    ],
     "milestoneVisuals": {
+      "1": "band5",
       "0.1667": "band0",
       "0.3333": "band1",
       "0.5": "band2",
       "0.6667": "band3",
-      "0.8333": "band4",
-      "1": "band5"
+      "0.8333": "band4"
     },
-    "result": {"win": {"title": "The whole aurora is shining!"}},
-    "feedback": {"haptics": "none", "juice": "standard"}
+    "result": {
+      "win": {
+        "title": "The whole aurora is shining!"
+      }
+    },
+    "feedback": {
+      "haptics": "none",
+      "juice": "standard"
+    }
   },
   "metadata": {
     "creatorDisplayName": "DoodleQuest",
-    "tags": ["penguin","drawing-inspired","family","gentle-arcade","collecting","winter"]
+    "tags": [
+      "penguin",
+      "drawing-inspired",
+      "family",
+      "gentle-arcade",
+      "collecting",
+      "winter"
+    ]
   }
 }
