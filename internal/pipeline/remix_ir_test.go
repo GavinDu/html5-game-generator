@@ -1,8 +1,8 @@
 package pipeline
 
 import (
-	"testing"
 	"strings"
+	"testing"
 
 	"doodlequest/internal/gameir"
 	"doodlequest/internal/model"
@@ -121,11 +121,10 @@ func TestBuildRemixIRUsesCanonicalBoboParentWithoutReplacingGameplay(t *testing.
 	}
 }
 
-
 func TestBoboRemixDesignDocUsesCanonicalParentExperience(t *testing.T) {
 	parent := &model.Game{
-		ID:    "sample-rainbow-bear",
-		Title: "Bobo's Rainbow",
+		ID:       "sample-rainbow-bear",
+		Title:    "Bobo's Rainbow",
 		Manifest: &model.BundleManifest{Controls: []string{"tap"}},
 		GameIR: &gameir.Document{
 			Game: gameir.Game{Description: "Catch twelve hearts to restore six rainbow bands."},
@@ -150,7 +149,6 @@ func TestBoboRemixDesignDocUsesCanonicalParentExperience(t *testing.T) {
 		t.Fatalf("gentle parent failure rules not preserved: %q", doc.LoseCondition)
 	}
 }
-
 
 func TestBuildRemixIRRejectsLegacyBoboWithoutCanonicalGameIR(t *testing.T) {
 	parent := &model.Game{
