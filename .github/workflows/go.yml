@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Validate source before spending runners on browser jobs.
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
   # uploaded as artifacts; a FAIL on the gate checks fails the job.
   playtest:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Run browsers sequentially: WebKit and Chromium are resource-heavy and
     # simultaneous matrix dispatch adds pressure without improving the gate.
     strategy:
@@ -173,7 +173,7 @@ jobs:
   # coverage and issue classification for the repair loop.
   playability-kit:
     needs: playtest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -234,7 +234,7 @@ jobs:
           if-no-files-found: ignore
 
   socialgraph-postgres:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
