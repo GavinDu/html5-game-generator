@@ -267,29 +267,15 @@ async function playGame(browser, gameId) {
           y: fallback.top + fallback.height * 0.86,
         } : null);
         if (target) {
-          // Try the real touch path first. Some headless Chromium builds do
-          // not forward emulated touch into Pixi's canvas pointer listener,
-          // so verify that the runtime recorded the input before moving on.
-          const beforeInputs = (await readProbe(page))?.inputs ?? 0;
+          // Exercise the real touch path, then hold a pointer for enough
+          // simulation frames that the runtime can apply the catch-lane move.
+          // A zero-duration touchscreen tap can dispatch down/up between
+          // ticker frames and be counted without moving the player.
           await page.touchscreen.tap(target.x, target.y).catch(() => {});
-          await sleep(80);
-          const afterTouchInputs = (await readProbe(page))?.inputs ?? beforeInputs;
-          if (afterTouchInputs <= beforeInputs) {
-            // Deterministic fallback: dispatch the same bubbling pointer
-            // events the runtime listens for directly on the game canvas.
-            await page.evaluate(({ x, y }) => {
-              const canvas = document.querySelector('#stage canvas');
-              if (!canvas) return;
-              const base = {
-                pointerId: 1, pointerType: 'touch', isPrimary: true,
-                button: 0, buttons: 1, clientX: x, clientY: y,
-                bubbles: true, cancelable: true,
-              };
-              canvas.dispatchEvent(new PointerEvent('pointerdown', base));
-              canvas.dispatchEvent(new PointerEvent('pointerup', { ...base, buttons: 0 }));
-            }, target).catch(() => {});
-            await sleep(80);
-          }
+          await page.mouse.move(target.x, target.y).catch(() => {});
+          await page.mouse.down().catch(() => {});
+          await sleep(120);
+          await page.mouse.up().catch(() => {});
         }
       } else if (points) {
         await page.mouse.move(points.from.x, points.from.y).catch(() => {});
