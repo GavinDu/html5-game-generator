@@ -595,8 +595,13 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 	if job.Status != model.JobAwaitingConfirm || job.DesignDoc == nil {
 		t.Fatalf("remix did not reach design confirmation: %+v", job)
 	}
-	if job.DesignDoc.Title != "Bobo's Rainbow: Heart Rescue" {
+	if job.DesignDoc.Title != "Remix: Bobo's Rainbow" {
 		t.Fatalf("unexpected remix design title: %q", job.DesignDoc.Title)
+	}
+	if parent.GameIR == nil || parent.GameIR.Experience == nil ||
+		job.DesignDoc.WinCondition != parent.GameIR.Experience.Objective.Label ||
+		len(job.DesignDoc.Controls) != 1 || job.DesignDoc.Controls[0] != parent.GameIR.Experience.Controls.Scheme {
+		t.Fatalf("remix questionnaire must follow canonical parent experience: %+v", job.DesignDoc)
 	}
 	rec = do(t, srv, "POST", "/v1/games/"+created.Game.ID+"/confirm", map[string]any{}, "remix-tester")
 	if rec.Code != http.StatusAccepted {

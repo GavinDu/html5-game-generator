@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"strings"
 	"testing"
 
 	"doodlequest/internal/gameir"
@@ -117,5 +118,50 @@ func TestBuildRemixIRUsesCanonicalBoboParentWithoutReplacingGameplay(t *testing.
 	}
 	if parentIR.Game.ID != "sample-rainbow-bear" || parentIR.Metadata.ParentGameID != "" {
 		t.Fatal("Bobo remix mutated its canonical parent")
+	}
+}
+
+func TestBoboRemixDesignDocUsesCanonicalParentExperience(t *testing.T) {
+	parent := &model.Game{
+		ID:       "sample-rainbow-bear",
+		Title:    "Bobo's Rainbow",
+		Manifest: &model.BundleManifest{Controls: []string{"tap"}},
+		GameIR: &gameir.Document{
+			Game: gameir.Game{Description: "Catch twelve hearts to restore six rainbow bands."},
+			Experience: &gameir.Experience{
+				Archetype: "catcher",
+				Controls:  gameir.ExpControls{Scheme: "tap"},
+				Objective: gameir.ExpObjective{Kind: "collect", Target: 12, Label: "Catch 12 hearts"},
+				Failure:   gameir.ExpFailure{Mode: "gentle"},
+			},
+		},
+	}
+	doc := &model.DesignDoc{Title: "Generated placeholder", Plot: "Generated story"}
+	applyRemixDesignDoc(doc, parent)
+
+	if doc.Title != "Remix: Bobo's Rainbow" || doc.Plot != "Catch twelve hearts to restore six rainbow bands." {
+		t.Fatalf("remix metadata not derived from parent: %+v", doc)
+	}
+	if doc.Mechanics == "" || len(doc.Controls) != 1 || doc.Controls[0] != "tap" || doc.WinCondition != "Catch 12 hearts" {
+		t.Fatalf("remix questionnaire diverged from canonical experience: %+v", doc)
+	}
+	if !strings.Contains(doc.LoseCondition, "gentle") {
+		t.Fatalf("gentle parent failure rules not preserved: %q", doc.LoseCondition)
+	}
+}
+
+func TestBuildRemixIRRejectsLegacyBoboWithoutCanonicalGameIR(t *testing.T) {
+	parent := &model.Game{
+		ID:       "sample-rainbow-bear",
+		Title:    "Bobo's Rainbow",
+		Manifest: &model.BundleManifest{Version: 4},
+	}
+	child := &model.Game{ID: "bobo-remix"}
+	_, err := buildRemixIR(&model.DesignDoc{Title: "Bobo Remix"}, child, parent)
+	if err == nil {
+		t.Fatal("legacy Bobo manifest without canonical Game IR must be rejected")
+	}
+	if !strings.Contains(err.Error(), "canonical Game IR") {
+		t.Fatalf("error = %v, want canonical Game IR requirement", err)
 	}
 }
