@@ -150,3 +150,20 @@ func TestBoboRemixDesignDocUsesCanonicalParentExperience(t *testing.T) {
 		t.Fatalf("gentle parent failure rules not preserved: %q", doc.LoseCondition)
 	}
 }
+
+
+func TestBuildRemixIRRejectsLegacyBoboWithoutCanonicalGameIR(t *testing.T) {
+	parent := &model.Game{
+		ID:       "sample-rainbow-bear",
+		Title:    "Bobo's Rainbow",
+		Manifest: &model.BundleManifest{Version: 4},
+	}
+	child := &model.Game{ID: "bobo-remix"}
+	_, err := buildRemixIR(&model.DesignDoc{Title: "Bobo Remix"}, child, parent)
+	if err == nil {
+		t.Fatal("legacy Bobo manifest without canonical Game IR must be rejected")
+	}
+	if !strings.Contains(err.Error(), "canonical Game IR") {
+		t.Fatalf("error = %v, want canonical Game IR requirement", err)
+	}
+}
