@@ -16,6 +16,13 @@ inventory/
     verify.js              # headless playtest (dev, optional)
   u46ex5/                  # 飘带补天 Ribbon Mends the Sky
     ...
+  p3ngui/                  # Penguin's Heartlight Rescue
+    manifest.json          # drawing-derived game metadata and sprite references
+    game.js                # gentle tap-to-catch gameplay
+    game-ir.json           # canonical declarative game fixture
+    quality-rules.json     # game-specific quality contract
+    plot.md                 # completed questionnaire and creative brief
+    assets/*.png.b64       # generated penguin scarf variants
 ```
 
 At server start `internal/inventory` loads every `<6-char-id>/` folder:
