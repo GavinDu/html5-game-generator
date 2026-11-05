@@ -61,6 +61,7 @@ function restoreBand() {
   }
   Shim.text('banner', msg, { x: 16, y: 108, size: 20, color: '#b3402e' });
   bandsOn += 1;
+  setMeta();
 }
 
 function winGame() {
