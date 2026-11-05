@@ -133,7 +133,6 @@ func TestExperienceBalanceOutOfBand(t *testing.T) {
 	}
 }
 
-
 func TestExperienceBalanceSkipsStationaryPickups(t *testing.T) {
 	static := strings.ReplaceAll(expDocJSON, `"gravity": [0, 700]`, `"gravity": [0, 0]`)
 	static = strings.ReplaceAll(static, `, "physics": {"body": "dynamic", "shape": "ball", "initialVelocity": [0, 50]}`, "")
