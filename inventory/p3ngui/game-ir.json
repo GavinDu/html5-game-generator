@@ -123,8 +123,30 @@
           "components": [
             "movement",
             "score",
-            "collider"
-          ]
+            "collider",
+            "physics_body",
+            "character_controller"
+          ],
+          "physics": {
+            "body": "kinematic_position",
+            "shape": "capsule",
+            "friction": 0.2,
+            "collisionGroups": {
+              "memberships": [
+                0
+              ],
+              "filter": [
+                1,
+                3
+              ]
+            },
+            "activeEvents": true
+          },
+          "character": {
+            "offset": 4,
+            "snapToGroundDistance": 10,
+            "applyImpulsesToDynamicBodies": true
+          }
         },
         {
           "id": "heart01",
@@ -140,8 +162,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart02",
@@ -157,8 +203,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart03",
@@ -174,8 +244,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart04",
@@ -191,8 +285,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart05",
@@ -208,8 +326,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart06",
@@ -225,8 +367,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart07",
@@ -242,8 +408,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart08",
@@ -259,8 +449,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart09",
@@ -276,8 +490,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart10",
@@ -293,8 +531,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart11",
@@ -310,8 +572,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "heart12",
@@ -327,8 +613,32 @@
           ],
           "components": [
             "collider",
-            "collectible"
-          ]
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "ball",
+            "density": 0.7,
+            "friction": 0.2,
+            "restitution": 0.45,
+            "initialVelocity": [
+              0,
+              150
+            ],
+            "gravityScale": 0,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0,
+                3
+              ]
+            },
+            "activeEvents": true,
+            "canSleep": false
+          }
         },
         {
           "id": "band0",
@@ -437,11 +747,11 @@
           "kind": "text",
           "position": [
             195,
-            36
+            90
           ],
           "size": [
             360,
-            38
+            42
           ],
           "components": [
             "text_label"
@@ -449,10 +759,11 @@
           "render": {
             "text": {
               "content": "Catch 12 hearts to relight the aurora",
-              "fontSize": 20,
+              "fontSize": 16,
               "fill": "#173B59",
               "fontWeight": "bold",
-              "align": "center"
+              "align": "center",
+              "wordWrapWidth": 340
             }
           }
         }
@@ -492,8 +803,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart01"
+          "type": "teleport_entity",
+          "target": "heart01",
+          "value": [
+            65,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart01",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -511,8 +834,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart02"
+          "type": "teleport_entity",
+          "target": "heart02",
+          "value": [
+            195,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart02",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -530,8 +865,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart03"
+          "type": "teleport_entity",
+          "target": "heart03",
+          "value": [
+            325,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart03",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -549,8 +896,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart04"
+          "type": "teleport_entity",
+          "target": "heart04",
+          "value": [
+            80,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart04",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -568,8 +927,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart05"
+          "type": "teleport_entity",
+          "target": "heart05",
+          "value": [
+            200,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart05",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -587,8 +958,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart06"
+          "type": "teleport_entity",
+          "target": "heart06",
+          "value": [
+            310,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart06",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -606,8 +989,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart07"
+          "type": "teleport_entity",
+          "target": "heart07",
+          "value": [
+            70,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart07",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -625,8 +1020,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart08"
+          "type": "teleport_entity",
+          "target": "heart08",
+          "value": [
+            195,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart08",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -644,8 +1051,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart09"
+          "type": "teleport_entity",
+          "target": "heart09",
+          "value": [
+            320,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart09",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -663,8 +1082,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart10"
+          "type": "teleport_entity",
+          "target": "heart10",
+          "value": [
+            80,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart10",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -682,8 +1113,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart11"
+          "type": "teleport_entity",
+          "target": "heart11",
+          "value": [
+            200,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart11",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -701,8 +1144,20 @@
           "value": 1
         },
         {
-          "type": "destroy_entity",
-          "target": "heart12"
+          "type": "teleport_entity",
+          "target": "heart12",
+          "value": [
+            310,
+            -40
+          ]
+        },
+        {
+          "type": "set_velocity",
+          "target": "heart12",
+          "value": [
+            0,
+            150
+          ]
         }
       ]
     },
@@ -864,7 +1319,7 @@
     "pacing": {
       "targetSessionSec": 55,
       "firstRewardWithinSec": 8,
-      "expectedCatchRate": 0.2,
+      "expectedCatchRate": 0.1,
       "ramp": [
         {
           "at": 0,
@@ -919,6 +1374,9 @@
     "render.text",
     "audio",
     "input.pointer",
-    "shell.v1"
+    "shell.v1",
+    "physics.bodies",
+    "physics.colliders",
+    "physics.character_controller"
   ]
 }

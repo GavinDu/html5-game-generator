@@ -74,7 +74,7 @@ async function catcherPointerPoints(pg, fallbackRatio = 0.5) {
     const player = snap.player;
     const pickup = snap.entities
       .filter((e) => e.kind === 'pickup' && e.visible && e.y <= player.y + 20)
-      .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
+      .sort((a, b) => b.y - a.y || Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
     const targetX = pickup ? pickup.x : snap.world.w * ratio;
     const rect = canvas.getBoundingClientRect();
     const point = (x, y) => ({
@@ -95,7 +95,7 @@ async function playGame(browser, gameId) {
   const navStart = Date.now();
   let probe = null;
   try {
-    await page.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1`,
+    await page.goto(`${base}/player?game=${encodeURIComponent(gameId)}&presentation=play&probe=1`,
       { waitUntil: 'load', timeout: 30000 });
     // Wait for the probe verdict to show a booted game. Shell games
     // (IR 1.2) boot to a STOPPED ticker at the start card — frames stay

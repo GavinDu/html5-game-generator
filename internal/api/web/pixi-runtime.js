@@ -1284,7 +1284,13 @@ async function run(id) {
     }
     view.eventMode = 'static';
     view.on('pointerdown', (ev) => {
+      const controlsScheme = ir.experience?.controls?.scheme;
+      // Tap/drag shell controls are handled by the canvas-level pointer
+      // listener so tapping a sprite still moves the catcher. Keep the
+      // entity-target path for tap_target and legacy documents.
+      if (controlsScheme && controlsScheme !== 'tap_target') return;
       ev.stopPropagation();
+      noteInput('entity-pointer', ent.id);
       emit('input', ent, ent, undefined, tapActionName());
     });
     register(ent);
@@ -1851,7 +1857,8 @@ async function run(id) {
     const b = (ir.inputBindings || []).find((x) => x.input === 'tap');
     return b?.action;
   }
-  const dragXOnly = ir.experience?.controls?.scheme === 'drag_x';
+  const dragXOnly = ir.experience?.archetype === 'catcher' &&
+    ['tap', 'drag_x'].includes(ir.experience?.controls?.scheme);
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {

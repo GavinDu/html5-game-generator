@@ -177,3 +177,20 @@ func schemaEnumContains(values []string, want string) bool {
 	}
 	return false
 }
+
+
+func TestInventoryTextEntitiesClearNativeHeader(t *testing.T) {
+	for _, dir := range []string{"13ui1k", "u46ex5", "2uowg9", "p3ngui"} {
+		doc, err := readGameIR(filepath.Join("..", "..", "inventory", dir))
+		if err != nil {
+			t.Fatalf("%s: IR must validate structurally: %v", dir, err)
+		}
+		for _, scene := range doc.Scenes {
+			for _, entity := range scene.Entities {
+				if entity.Kind == "text" && len(entity.Position) > 1 && entity.Position[1] < 80 {
+					t.Errorf("%s/%s: text entity y=%.1f overlaps the native player header; want y >= 80", dir, entity.ID, entity.Position[1])
+				}
+			}
+		}
+	}
+}
