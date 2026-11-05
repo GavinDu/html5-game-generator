@@ -17,7 +17,7 @@ var bear = Shim.sprite('bear', { x: 195, y: 740, w: 104, h: 192 });
 
 var hearts = []; // {s, gold}
 var caught = 0, score = 0, combo = 1, bandsOn = 0;
-var elapsed = 0, spawnT = 0, over = false, level = 1;, quicker
+var elapsed = 0, spawnT = 0, over = false, level = 1;
 
 Shim.audio.music('audio/theme.wav', { loop: true, volume: 0.5 });
 
