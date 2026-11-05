@@ -178,7 +178,6 @@ func schemaEnumContains(values []string, want string) bool {
 	return false
 }
 
-
 // Screenshot review found Game IR instruction labels underneath the native
 // player header on phone and tablet. Keep authored text below that overlay;
 // the responsive browser evaluator remains responsible for pixel-level proof.
