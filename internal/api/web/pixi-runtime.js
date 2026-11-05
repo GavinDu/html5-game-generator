@@ -1857,8 +1857,8 @@ async function run(id) {
     const b = (ir.inputBindings || []).find((x) => x.input === 'tap');
     return b?.action;
   }
-  const dragXOnly = ir.experience?.archetype === 'catcher' &&
-    ['tap', 'drag_x'].includes(ir.experience?.controls?.scheme);
+  const dragXOnly = ir.experience?.controls?.scheme === 'drag_x' ||
+    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap');
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
