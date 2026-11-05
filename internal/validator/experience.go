@@ -201,7 +201,10 @@ func expBalanceCheck(doc *gameir.Document) Check {
 		}
 		vSum := 0.0
 		for _, p := range pickups {
-			v := 50.0
+			// Do not invent a fall speed for stationary pickups. Without
+			// physics velocity or scene gravity, the static layout's travel
+			// economics require a game-aware movement probe, not a default.
+			v := 0.0
 			if p.Physics != nil && len(p.Physics.InitialVelocity) == 2 {
 				v = math.Abs(p.Physics.InitialVelocity[1])
 			}
@@ -212,13 +215,14 @@ func expBalanceCheck(doc *gameir.Document) Check {
 		if len(sc.Gravity) == 2 {
 			g = math.Abs(sc.Gravity[1])
 		}
+		if g <= 0 && v <= 0 {
+			return mk(id, StatusSkip, "", "", "stationary pickups have no fall/recycle cycle; collection economics require a game-aware movement probe", "game-ir.json", "")
+		}
 		var fall float64
 		if g > 0 {
 			fall = (-v + math.Sqrt(v*v+2*g*h)) / g
-		} else if v > 0 {
-			fall = h / v
 		} else {
-			return mk(id, StatusSkip, "", "", "pickups neither fall nor are gravity-driven — cycle time unknown", "game-ir.json", "")
+			fall = h / v
 		}
 		// Weighted scoring: collect rules award different points per
 		// pickup kind (a gold heart is worth 3). The economics run on
