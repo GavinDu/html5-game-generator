@@ -154,7 +154,7 @@ func TestGameIRSchemaDeclaresExperienceV12(t *testing.T) {
 	if err := json.Unmarshal(root.Properties["irVersion"], &version); err != nil {
 		t.Fatalf("decode irVersion schema: %v", err)
 	}
-	if !containsString(version.Enum, "1.2") {
+	if !schemaEnumContains(version.Enum, "1.2") {
 		t.Fatal("Game IR schema must accept irVersion 1.2")
 	}
 	var capabilities struct {
@@ -165,12 +165,12 @@ func TestGameIRSchemaDeclaresExperienceV12(t *testing.T) {
 	if err := json.Unmarshal(root.Properties["capabilities"], &capabilities); err != nil {
 		t.Fatalf("decode capabilities schema: %v", err)
 	}
-	if !containsString(capabilities.Items.Enum, "shell.v1") {
+	if !schemaEnumContains(capabilities.Items.Enum, "shell.v1") {
 		t.Fatal("Game IR schema must declare shell.v1 capability")
 	}
 }
 
-func containsString(values []string, want string) bool {
+func schemaEnumContains(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
 			return true
