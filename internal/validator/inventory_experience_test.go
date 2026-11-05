@@ -37,7 +37,7 @@ func TestInventoryGamesExperience(t *testing.T) {
 				Generated struct {
 					ControlsScheme   string `json:"controlsScheme"`
 					TargetSessionSec int    `json:"targetSessionSec"`
-					Objective      struct {
+					Objective        struct {
 						Kind   string `json:"kind"`
 						Target int    `json:"target"`
 						Label  string `json:"label"`
