@@ -1,13 +1,11 @@
-// Bobo's Rainbow v4 — endless meta-levels + leaderboard.
-// Catch falling hearts to repaint the rainbow. Clear all 12 hearts and you
-// advance to the next LV, faster and faster. Score accumulates across LVs.
-// Miss 3 hearts and the run ends — your LV goes on the leaderboard.
-// Tap Play Again for another run.
+// Bobo's Rainbow — gentle family arcade.
+// Catch 12 falling hearts to restore all six rainbow bands and help the kitten.
+// Missed hearts simply drift away; there are no lives, penalties, or failure state.
+// The pace increases gently as the rainbow is restored.
 Shim.init({ width: 390, height: 844, background: '#8ecae6' });
 
 var BAND_NAMES = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple'];
 var HEARTS_TO_WIN = 12;
-var MAX_MISSES = 3;
 var MAX_COMBO = 5;
 
 var bands = [];
@@ -18,17 +16,15 @@ var kitten = Shim.sprite('kitten', { x: 195, y: 600, w: 76, h: 88 });
 var bear = Shim.sprite('bear', { x: 195, y: 740, w: 104, h: 192 });
 
 var hearts = []; // {s, gold}
-var caught = 0, misses = 0, score = 0, combo = 1, bandsOn = 0;
-var elapsed = 0, spawnT = 0, over = false, level = 1;
-var metaLevel = 1, metaMult = 1; // win a round -> next LV, quicker
+var caught = 0, score = 0, combo = 1, bandsOn = 0;
+var elapsed = 0, spawnT = 0, over = false, level = 1;, quicker
 
 Shim.audio.music('audio/theme.wav', { loop: true, volume: 0.5 });
 
 Shim.text('title', "Bobo's Rainbow", { x: 16, y: 14, size: 24, color: '#123046' });
-Shim.text('meta', 'LV 1', { x: 216, y: 14, size: 24, color: '#1e7b3a' });
+Shim.text('meta', 'BANDS 0/6', { x: 216, y: 14, size: 19, color: '#1e7b3a' });
 Shim.text('score', 'Score: 0', { x: 16, y: 46, size: 26, color: '#123046' });
 Shim.text('combo', '', { x: 16, y: 78, size: 20, color: '#b3402e' });
-Shim.text('lives', '❤❤❤', { x: 296, y: 14, size: 24, color: '#d33a4e' });
 Shim.text('banner', '', { x: 16, y: 108, size: 20, color: '#b3402e' });
 Shim.text('hint', 'Tap to move Bobo - catch the hearts!', { x: 16, y: 140, size: 18, color: '#123046' });
 
@@ -43,13 +39,9 @@ function setCombo() {
   Shim.text('combo', combo > 1 ? ('COMBO x' + combo + '!') : '',
     { x: 16, y: 78, size: 20, color: '#b3402e' });
 }
-function setLives() {
-  var s = '';
-  for (var i = 0; i < MAX_MISSES - misses; i++) s += '❤';
-  Shim.text('lives', s, { x: 296, y: 14, size: 24, color: '#d33a4e' });
-}
+
 function setMeta() {
-  Shim.text('meta', 'LV ' + metaLevel, { x: 216, y: 14, size: 24, color: '#1e7b3a' });
+  Shim.text('meta', 'BANDS ' + bandsOn + '/6', { x: 216, y: 14, size: 19, color: '#1e7b3a' });
 }
 function starStr(n) {
   var s = '';
@@ -71,29 +63,18 @@ function restoreBand() {
   bandsOn += 1;
 }
 
-function nextRound() {
-  metaLevel += 1;
-  metaMult *= 1.25;
-  caught = 0; misses = 0; combo = 1; bandsOn = 0; level = 1; spawnT = 0;
-  hearts = [];
-  for (var b = 0; b < 6; b++) bands[b].visible = false;
-  setMeta(); setCombo(); setLives();
-  Shim.text('banner', 'LV ' + metaLevel + '! Faster!',
-    { x: 16, y: 108, size: 24, color: '#1e7b3a' });
-  Shim.audio.tone({ freq: 784, dur: 0.15, type: 'triangle' });
-  Shim.audio.tone({ freq: 1047, dur: 0.25, type: 'triangle' });
-}
-
-function endGame() {
+function winGame() {
+  if (over) return;
   over = true;
-  var n = Math.min(3, metaLevel);
-  Shim.text('banner', starStr(n) + ' Reached LV ' + metaLevel + '!',
-    { x: 16, y: 108, size: 22, color: '#b3402e' });
-  Shim.text('hint', 'Tap Play Again for another run!',
-    { x: 16, y: 140, size: 18, color: '#123046' });
-  Shim.audio.tone({ freq: 220, dur: 0.5, type: 'triangle' });
-  Shim.end({ score: score, won: false,
-    stats: { time_s: Math.round(elapsed), stars: n, level: metaLevel } });
+  Shim.text('banner', 'Rainbow restored! The kitten can cross! ✨',
+    { x: 16, y: 108, size: 20, color: '#1e7b3a' });
+  Shim.text('hint', 'Wonderful teamwork! Tap Play Again to play again.',
+    { x: 16, y: 140, size: 17, color: '#123046' });
+  Shim.audio.tone({ freq: 784, dur: 0.18, type: 'triangle' });
+  Shim.audio.tone({ freq: 988, dur: 0.18, type: 'triangle' });
+  Shim.audio.tone({ freq: 1175, dur: 0.32, type: 'triangle' });
+  Shim.end({ score: score, won: true,
+    stats: { time_s: Math.round(elapsed), hearts: caught, rainbow_bands: bandsOn } });
 }
 
 Shim.loop(function (dt) {
@@ -101,8 +82,8 @@ Shim.loop(function (dt) {
   elapsed += dt;
 
   // Pace: round level ramp x meta-level multiplier — quicker every LV.
-  var speed = 175 * Math.pow(1.15, level - 1) * metaMult;
-  var interval = Math.max(0.35, 0.8 / Math.pow(1.12, level - 1) / metaMult);
+  var speed = 175 * Math.pow(1.12, level - 1);
+  var interval = Math.max(0.48, 0.9 / Math.pow(1.08, level - 1));
   if (caught < HEARTS_TO_WIN) {
     spawnT += dt;
     if (spawnT > interval) {
@@ -136,19 +117,12 @@ Shim.loop(function (dt) {
       }
       setScore();
       setCombo();
-      if (caught >= HEARTS_TO_WIN) { nextRound(); return; }
+      if (caught >= HEARTS_TO_WIN) { winGame(); return; }
     } else if (h.s.y > 880) {
       // Missed.
       h.s.visible = false;
       hearts.splice(i, 1);
-      if (!h.gold) {
-        misses += 1;
-        combo = 1;
-        setCombo();
-        setLives();
-        Shim.audio.tone({ freq: 180, dur: 0.2, type: 'sine' });
-        if (misses >= MAX_MISSES) { endGame(); return; }
-      }
+      // A miss has no penalty: keep the gentle promise in the questionnaire.
     }
   }
 });
