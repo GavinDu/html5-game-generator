@@ -24,7 +24,8 @@ test('visible developer logs stay bounded like the backing buffer', () => {
   assert.ok(!source.includes("logEl.textContent += line"));
 });
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
-  assert.match(source, /const dragXOnly = ir\.experience\?\.controls\?\.scheme === 'drag_x'/);
+  assert.match(source, /const dragXOnly = ir\.experience\?\.controls\?\.scheme === 'drag_x' \|\|/);
+  assert.match(source, /ir\.experience\?\.archetype === 'catcher' && ir\.experience\?\.controls\?\.scheme === 'tap'/);
   assert.match(source, /pointer\.y = dragXOnly && playerEnt \? playerTarget\.y : p\.y/);
   assert.match(source, /if \(!dragXOnly && keysDown\.has\('move_up'\)\)/);
   assert.match(source, /if \(!dragXOnly && keysDown\.has\('move_down'\)\)/);
