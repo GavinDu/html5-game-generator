@@ -437,11 +437,11 @@
           "kind": "text",
           "position": [
             195,
-            36
+            90
           ],
           "size": [
             360,
-            38
+            42
           ],
           "components": [
             "text_label"
@@ -449,10 +449,11 @@
           "render": {
             "text": {
               "content": "Catch 12 hearts to relight the aurora",
-              "fontSize": 20,
+              "fontSize": 16,
               "fill": "#173B59",
               "fontWeight": "bold",
-              "align": "center"
+              "align": "center",
+              "wordWrapWidth": 340
             }
           }
         }
