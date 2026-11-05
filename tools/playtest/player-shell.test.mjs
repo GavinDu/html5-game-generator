@@ -52,8 +52,8 @@ test('tap-controlled catcher playtests send discrete taps instead of drag-only g
   ]);
   assert.match(runtime, /controlsScheme: play\.shell\.controls\?\.scheme/);
   assert.match(probe, /\['tap', 'tap_x'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
-  assert.match(probe, /page\.mouse\.click\(target\.x, target\.y\)/);
-  assert.match(probe, /fallback\.width \* \(0\.08 \+ \(\(ki % 10\) \* 0\.093\)\)/);
+  assert.match(probe, /page\.touchscreen\.tap\(target\.x, target\.y\)/);
+  assert.match(probe, /hasTouch: true/);\n  assert.match(probe, /fallback\.width \* \(0\.08 \+ \(\(ki % 10\) \* 0\.093\)\)/);
 });
 
 
