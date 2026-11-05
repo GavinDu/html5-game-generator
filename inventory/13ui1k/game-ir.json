@@ -127,7 +127,7 @@
     "entryScene": "rainbow-field",
     "id": "sample-rainbow-bear",
     "orientation": "portrait",
-    "sessionTargetSeconds": 55,
+    "sessionTargetSeconds": 20,
     "title": "Bobo's Rainbow"
   },
   "inputBindings": [
@@ -1093,24 +1093,21 @@
       "mode": "gentle"
     },
     "pacing": {
-      "targetSessionSec": 55,
+      "targetSessionSec": 20,
       "firstRewardWithinSec": 8,
       "expectedCatchRate": 0.15,
       "ramp": [
         {
           "at": 0,
-          "speedMul": 1,
-          "spawnIntervalMs": 900
+          "speedMul": 1
         },
         {
           "at": 0.5,
-          "speedMul": 1.2,
-          "spawnIntervalMs": 714
+          "speedMul": 1.2
         },
         {
           "at": 0.85,
-          "speedMul": 1.45,
-          "spawnIntervalMs": 612
+          "speedMul": 1.45
         }
       ]
     },
