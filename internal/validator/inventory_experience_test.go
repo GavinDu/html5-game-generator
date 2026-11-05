@@ -113,3 +113,56 @@ func TestInventoryQualityContractsMatchGameIR(t *testing.T) {
 		}
 	}
 }
+
+
+// The three uploaded penguin drawings are three progression skins, not
+// decorative unused assets: the canonical IR must start with the rainbow
+// scarf and unlock the holiday and classic-blue designs at the authored
+// four-heart and eight-heart milestones.
+func TestPenguinUsesAllThreeSuppliedDrawingVariants(t *testing.T) {
+	doc, err := readGameIR(filepath.Join("..", "..", "inventory", "p3ngui"))
+	if err != nil {
+		t.Fatalf("Penguin IR must validate structurally: %v", err)
+	}
+	if doc == nil {
+		t.Fatal("Penguin game-ir.json is missing")
+	}
+	assets := map[string]bool{}
+	for _, asset := range doc.Assets {
+		assets[asset.ID] = true
+	}
+	for _, id := range []string{"penguin_rainbow", "penguin_holiday", "penguin_classic"} {
+		if !assets[id] {
+			t.Errorf("supplied drawing variant asset %q is missing", id)
+		}
+	}
+
+	playerUsesRainbow := false
+	for _, scene := range doc.Scenes {
+		for _, entity := range scene.Entities {
+			if entity.ID == "penguin" && entity.Kind == "player" && entity.AssetID == "penguin_rainbow" {
+				playerUsesRainbow = true
+			}
+		}
+	}
+	if !playerUsesRainbow {
+		t.Fatal("player must begin with the rainbow-scarf drawing")
+	}
+
+	unlocks := map[int]string{}
+	for _, rule := range doc.Rules {
+		if rule.When.Event != "score_reached" || rule.When.Value == nil {
+			continue
+		}
+		for _, action := range rule.Actions {
+			if action.Type == "set_asset" && action.Target == "penguin" {
+				unlocks[int(*rule.When.Value)] = action.AssetID
+			}
+		}
+	}
+	for score, want := range map[int]string{4: "penguin_holiday", 8: "penguin_classic"} {
+		if got := unlocks[score]; got != want {
+			t.Errorf("penguin skin unlock at %d hearts = %q, want %q", score, got, want)
+		}
+	}
+}
