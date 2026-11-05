@@ -165,6 +165,37 @@ func (r *Runner) CreateAndStart(game *model.Game, elements []model.Element, inte
 	return job
 }
 
+
+// applyRemixDesignDoc derives the confirmation summary from the canonical
+// parent package for every remix profile. The IR remains authoritative for
+// mechanics, controls, objective, and failure behavior; a child must never
+// silently replace a parent's loop with a Bobo-only questionnaire template.
+func applyRemixDesignDoc(doc *model.DesignDoc, parent *model.Game) {
+	if doc == nil || parent == nil {
+		return
+	}
+	doc.Title = capTitle("Remix: "+parent.Title, 80)
+	if parent.GameIR == nil {
+		return
+	}
+	if description := strings.TrimSpace(parent.GameIR.Game.Description); description != "" {
+		doc.Plot = description
+	}
+	if exp := parent.GameIR.Experience; exp != nil {
+		doc.Mechanics = fmt.Sprintf("Preserve the parent's %s gameplay loop and adapt only its presentation and story.", exp.Archetype)
+		doc.Controls = []string{exp.Controls.Scheme}
+		doc.WinCondition = exp.Objective.Label
+		if exp.Failure.Mode == "gentle" || exp.Failure.Mode == "none" {
+			doc.LoseCondition = "No failure penalty; preserve the parent's gentle play rules."
+		} else if exp.Failure.Health > 0 {
+			doc.LoseCondition = fmt.Sprintf("The run ends when the player exhausts %d health.", exp.Failure.Health)
+		}
+	}
+	if len(doc.Controls) == 0 && parent.Manifest != nil {
+		doc.Controls = append([]string(nil), parent.Manifest.Controls...)
+	}
+}
+
 func (r *Runner) runSpec(jobID string, elements []model.Element, intent string, keywords []string) {
 	job, ok := r.store.GetJob(jobID)
 	if !ok {
@@ -178,23 +209,7 @@ func (r *Runner) runSpec(jobID string, elements []model.Element, intent string, 
 			if !found || parent.Manifest == nil {
 				return fmt.Errorf("remix parent %q is unavailable", game.ParentGameID)
 			}
-			if parent.ID == "sample-rainbow-bear" {
-				job.DesignDoc.Title = "Bobo's Rainbow: Heart Rescue"
-				job.DesignDoc.Plot = "Help Bobo restore the rainbow by collecting three magic hearts so the kitten can cross safely."
-				job.DesignDoc.Mechanics = "Drag Bobo to collect three hearts. Each heart restores part of the rainbow; collecting all three wins."
-				job.DesignDoc.Controls = []string{"drag", "tap"}
-				job.DesignDoc.WinCondition = "Collect three magic hearts"
-				job.DesignDoc.LoseCondition = "No lose condition; play at your own pace."
-				job.DesignDoc.MusicMood = "calm"
-			} else {
-				job.DesignDoc.Title = capTitle("Remix: "+parent.Title, 80)
-				if job.DesignDoc.Plot == "" && parent.GameIR != nil {
-					job.DesignDoc.Plot = parent.GameIR.Game.Description
-				}
-				if len(job.DesignDoc.Controls) == 0 && parent.Manifest != nil {
-					job.DesignDoc.Controls = append([]string(nil), parent.Manifest.Controls...)
-				}
-			}
+			applyRemixDesignDoc(job.DesignDoc, parent)
 		}
 		return nil
 	})
@@ -257,28 +272,6 @@ func (r *Runner) runRemaining(jobID string) {
 						return fmt.Errorf("remix parent asset %q (%s) is missing", asset.ID, asset.URI)
 					}
 					r.store.PutArtifact(job.GameID, asset.URI, data, contentType)
-				}
-			} else if parent.ID == "sample-rainbow-bear" {
-				// Compatibility for legacy Bobo inventory records without a
-				// canonical IR; the canonical path above is preferred.
-				needed := map[string]bool{"bear": true, "kitten": true, "heart": true}
-				for i := 0; i < 6; i++ {
-					needed[fmt.Sprintf("band%d", i)] = true
-				}
-				for _, sprite := range parent.Manifest.Assets.Sprites {
-					if !needed[sprite.ID] {
-						continue
-					}
-					data, contentType, exists := r.store.GetArtifact(parent.ID, sprite.Src)
-					if !exists {
-						return fmt.Errorf("remix parent asset %q (%s) is missing", sprite.ID, sprite.Src)
-					}
-					r.store.PutArtifact(job.GameID, sprite.Src, data, contentType)
-				}
-				if music := parent.Manifest.Assets.Music; music.Src != "" {
-					if data, contentType, exists := r.store.GetArtifact(parent.ID, music.Src); exists {
-						r.store.PutArtifact(job.GameID, music.Src, data, contentType)
-					}
 				}
 			} else {
 				return fmt.Errorf("remix parent %q has no canonical Game IR to preserve", parent.ID)
@@ -366,7 +359,7 @@ func (r *Runner) runRemaining(jobID string) {
 		preserveParentAssets := false
 		if game.ParentGameID != "" {
 			if parent, found := r.store.GetGame(game.ParentGameID); found &&
-				parent.Manifest != nil && (parent.ID != "sample-rainbow-bear" || parent.GameIR != nil) {
+				parent.Manifest != nil && parent.GameIR != nil {
 				m.Assets = parent.Manifest.Assets
 				m.Controls = append([]string(nil), parent.Manifest.Controls...)
 				preserveParentAssets = true
