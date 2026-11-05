@@ -17,6 +17,7 @@ The scoring package is engine- and runner-independent. Each game selects a decla
 - `inventory/13ui1k/quality-rules.json`: Bobo's Rainbow — collect-and-restore arcade.
 - `inventory/2uowg9/quality-rules.json`: Escape from the Injection — lane-dodging chase.
 - `inventory/u46ex5/quality-rules.json`: Ribbon Mends the Sky — action/collect/repair.
+- `inventory/p3ngui/quality-rules.json`: Penguin's Heartlight Rescue — gentle collect-and-restore family arcade.
 
 Each rule file declares thresholds, metric weights (must total 100), hard gates, a game-specific gameplay contract, audience/fairness constraints, and AI reviewer focus. Keep shared metrics stable for cross-game comparison; tune the evidence and review emphasis per game.
 
