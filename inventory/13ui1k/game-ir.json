@@ -1007,11 +1007,11 @@
           "kind": "text",
           "position": [
             195,
-            46
+            90
           ],
           "size": [
             300,
-            34
+            40
           ],
           "zIndex": 5,
           "components": [
@@ -1020,11 +1020,12 @@
           "render": {
             "text": {
               "content": "Catch 12 hearts!",
-              "fontSize": 22,
+              "fontSize": 16,
               "fill": "#ffffff",
               "fontWeight": "bold",
               "stroke": "#1d4ed8",
-              "strokeWidth": 4
+              "strokeWidth": 4,
+              "wordWrapWidth": 280
             }
           }
         }
