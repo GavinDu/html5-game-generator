@@ -132,3 +132,13 @@ func TestExperienceBalanceOutOfBand(t *testing.T) {
 		t.Fatalf("balance evidence should show the recycle arithmetic: %s", c.Evidence)
 	}
 }
+
+
+func TestExperienceBalanceSkipsStationaryPickups(t *testing.T) {
+	static := strings.ReplaceAll(expDocJSON, `"gravity": [0, 700]`, `"gravity": [0, 0]`)
+	static = strings.ReplaceAll(static, `, "physics": {"body": "dynamic", "shape": "ball", "initialVelocity": [0, 50]}`, "")
+	c := findCheck(experienceChecks(decodeExp(t, static), nil), "experience.balance")
+	if c.Status != StatusSkip || !strings.Contains(c.Evidence, "stationary pickups") {
+		t.Fatalf("stationary pickup balance = %s (%s), want a game-aware probe skip", c.Status, c.Evidence)
+	}
+}
