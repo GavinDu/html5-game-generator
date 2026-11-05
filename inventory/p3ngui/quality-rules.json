@@ -48,7 +48,7 @@
     "audience": "children ages 4-8; family-friendly",
     "generated": {
       "archetype": "catcher",
-      "controlsScheme": "tap_x",
+      "controlsScheme": "tap",
       "objective": {
         "kind": "collect",
         "target": 12,
