@@ -5,16 +5,17 @@ import (
 	"testing"
 )
 
-// The shipped sample games are the standard's calibration set: they
+// The shipped inventory games are the standard's calibration set: they
 // must pass the experience checks. (Historical note: Escape once
 // declared milestones with no milestone art and pinned a warning
 // here; Phase E gave it hallway scenery visuals and the exception
-// was retired — all three games now pass every experience check.)
+// was retired — the standardized inventory games pass; Penguin now declares its IR 1.2 experience contract.)
 func TestInventoryGamesExperience(t *testing.T) {
 	games := map[string]map[string]string{ // dir -> checkID -> want status (default pass)
 		"13ui1k": {},
 		"u46ex5": {},
 		"2uowg9": {},
+		"p3ngui": {},
 	}
 	for dir, exceptions := range games {
 		doc, err := readGameIR(filepath.Join("..", "..", "inventory", dir))
