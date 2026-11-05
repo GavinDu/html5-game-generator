@@ -82,7 +82,7 @@ Shim.loop(function (dt) {
   if (over) return;
   elapsed += dt;
 
-  // Pace: round level ramp x meta-level multiplier — quicker every LV.
+  // Pace: a small, bounded ramp as the six rainbow bands are restored.
   var speed = 175 * Math.pow(1.12, level - 1);
   var interval = Math.max(0.48, 0.9 / Math.pow(1.08, level - 1));
   if (caught < HEARTS_TO_WIN) {
