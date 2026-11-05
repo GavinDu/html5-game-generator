@@ -5,6 +5,13 @@ Every shipped game lives in its own folder here, named by a unique
 
 ```
 inventory/
+  p3ngui/                  # Penguin's Heartlight Rescue
+    manifest.json          # game metadata + questionnaire-derived elements
+    game.js                # GameShim v1 gentle catcher
+    game-ir.json           # canonical Game IR fixture
+    quality-rules.json     # game quality score and hard-gate policy
+    plot.md                 # source interpretation and filled questionnaire
+    assets/                 # generated penguin scarf variants (.b64)
   13ui1k/                  # Bobo's Rainbow
     manifest.json          # game metadata + asset list (required)
     game.js                # GameShim v1 game code (required)
