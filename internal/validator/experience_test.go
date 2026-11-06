@@ -97,6 +97,36 @@ func TestExperienceSupportsIndependentCollectProgressVariable(t *testing.T) {
 	}
 }
 
+func TestExperienceBalanceUsesCustomObjectiveProgress(t *testing.T) {
+	doc := &gameir.Document{
+		Game: gameir.Game{ID: "counter-game", EntryScene: "main", SessionTargetSeconds: 20},
+		Scenes: []gameir.Scene{{
+			ID: "main", WorldSize: []float64{390, 844}, Gravity: []float64{0, 700},
+			Entities: []gameir.Entity{
+				{ID: "heart", Kind: "pickup", Position: []float64{50, 100}, Components: []string{"collider"}, Physics: &gameir.Physics{InitialVelocity: []float64{0, 50}}},
+				{ID: "heart_blue", Kind: "pickup", Position: []float64{195, 100}, Components: []string{"collider"}, Physics: &gameir.Physics{InitialVelocity: []float64{0, 50}}},
+				{ID: "heart_gold", Kind: "pickup", Position: []float64{340, 100}, Components: []string{"collider"}, Physics: &gameir.Physics{InitialVelocity: []float64{0, 50}}},
+			},
+		}},
+		Experience: &gameir.Experience{
+			Objective: gameir.ExpObjective{Kind: "collect", Target: 12, Label: "Catch 12 hearts", ProgressVariable: "hearts_collected"},
+			Pacing: gameir.ExpPacing{TargetSessionSec: 20, ExpectedCatchRate: 0.44},
+		},
+		Rules: []gameir.Rule{
+			{ID: "pink", When: gameir.Condition{Event: "collected", Target: "heart"}, Actions: []gameir.Action{{Type: "add_score", Value: 10}, {Type: "add_variable", Variable: "hearts_collected", Value: 1}}},
+			{ID: "blue", When: gameir.Condition{Event: "collected", Target: "heart_blue"}, Actions: []gameir.Action{{Type: "add_score", Value: 10}, {Type: "add_variable", Variable: "hearts_collected", Value: 1}}},
+			{ID: "gold", When: gameir.Condition{Event: "collected", Target: "heart_gold"}, Actions: []gameir.Action{{Type: "add_score", Value: 50}}},
+		},
+	}
+	check := expBalanceCheck(doc)
+	if check.Status != StatusPass {
+		t.Fatalf("custom objective balance = %s (%s), want pass", check.Status, check.Evidence)
+	}
+	if !strings.Contains(check.Evidence, "avg 0.67 objective units/catch") {
+		t.Fatalf("balance evidence should use regular-heart progress rather than bonus score: %s", check.Evidence)
+	}
+}
+
 func TestExperienceChecksPreStandardGame(t *testing.T) {
 	doc := decodeExp(t, strings.Replace(expDocJSON, `"irVersion": "1.2"`, `"irVersion": "1.1"`, 1))
 	doc.Experience = nil
