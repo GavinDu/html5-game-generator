@@ -56,8 +56,8 @@ test('preview renderer records a SHA-256 digest for each captured frame', () => 
 
  
 test('preview renderer supports bounded native portrait, landscape, and tablet viewports', () => {
-  assert.match(source, /const width = Number\(arg\('width', '420'\)\)/);
-  assert.match(source, /const height = Number\(arg\('height', '900'\)\)/);
+  assert.match(source, /let width = Number\(arg\('width', '420'\)\)/);
+  assert.match(source, /let height = Number\(arg\('height', '900'\)\)/);
   assert.match(source, /viewport: \{ width, height \}/);
   assert.match(source, /orientation: width === height \? 'square' : width > height \? 'landscape' : 'portrait'/);
   assert.match(source, /width < 240 \|\| height < 240 \|\| width > 4096 \|\| height > 4096/);

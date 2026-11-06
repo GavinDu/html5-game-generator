@@ -59,3 +59,10 @@ The winter sky has lost its six colors. A little penguin discovers that floating
 - Catch detection should be generous and consistent at 60 Hz.
 - The game must never softlock because a heart was missed.
 - Keep the scene portrait-first and avoid small precision targets.
+
+
+## Portrait polish and stability revision — 2026-11-06
+
+This is a portrait-only game (`game.orientation = "portrait"`). It does not require a second landscape layout. The player preserves the authored aspect, pauses in an unsupported viewport orientation, and guides the player to rotate; returning resumes the same session.
+
+The original three penguin variants remain. The scene now uses a moonlit winter palette, snowy mountain layers and an ice shelf. Dim aurora ribbons brighten after each pair of catches, with explicit alpha restoration so the reward is visible. Short taps move along the fixed horizontal lane without a platformer controller. Collectibles are sensors and recycle after misses, preserving the no-fail promise. Each catch adds a soft chime and a small particle burst. All twelve catches, six bright bands, scarf transitions and restart are verified with real touch input in both Chromium and WebKit.

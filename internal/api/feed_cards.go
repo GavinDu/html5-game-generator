@@ -93,6 +93,7 @@ type feedCard struct {
 	GameID             string                  `json:"game_id"`
 	Version            string                  `json:"version,omitempty"`
 	Title              string                  `json:"title"`
+	Orientation        string                  `json:"orientation"`
 	Caption            string                  `json:"caption,omitempty"`
 	Topics             []string                `json:"topics,omitempty"`
 	Creator            feedCreator             `json:"creator"`
@@ -206,6 +207,7 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 			PlayableExpression: publicFeedExpression(game.PlayableExpression, game.OwnerID),
 			Version:            version,
 			Title:              game.Title,
+			Orientation:        publishedOrientation(game),
 			Caption:            game.Caption,
 			Topics:             append([]string(nil), game.Topics...),
 			Creator:            feedCreator{ID: game.OwnerID, DisplayName: profiles[game.OwnerID].DisplayName, AvatarURL: profiles[game.OwnerID].AvatarURL},

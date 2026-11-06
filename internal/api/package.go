@@ -69,6 +69,7 @@ type GamePackage struct {
 	MinRuntimeVersion    string             `json:"minRuntimeVersion"`
 	IRVersion            string             `json:"irVersion"`
 	GameID               string             `json:"gameId"`
+	Orientation          string             `json:"orientation"`
 	IR                   *gameir.Document   `json:"ir"`
 	Assets               []GamePackageAsset `json:"assets"`
 	// IRHash identifies this exact IR content; leaderboard boards are
@@ -201,6 +202,7 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		MinRuntimeVersion:    MinRuntimeVersion,
 		IRVersion:            game.GameIR.IRVersion,
 		GameID:               game.ID,
+		Orientation:          publishedOrientation(game),
 		IR:                   game.GameIR,
 		Assets:               make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
 		IRHash:               irHashOf(game.GameIR),
@@ -288,4 +290,16 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
 	writeErr(w, http.StatusNotFound, "asset not found in Game IR")
+}
+
+// Canonical Game IR is the single source of truth for published orientation.
+// Legacy records without IR retain the historically portrait player layout.
+func publishedOrientation(game *model.Game) string {
+	if game != nil && game.GameIR != nil {
+		switch game.GameIR.Game.Orientation {
+		case "portrait", "landscape", "any":
+			return game.GameIR.Game.Orientation
+		}
+	}
+	return "portrait"
 }

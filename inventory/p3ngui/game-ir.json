@@ -2,7 +2,7 @@
   "irVersion": "1.2",
   "game": {
     "id": "penguin-heartlight-rescue",
-    "title": "Penguin's Heartlight",
+    "title": "Penguin's Heartlight Rescue",
     "description": "Guide a cheerful penguin to gather hearts and restore six colors to a winter aurora.",
     "entryScene": "aurora-field",
     "orientation": "portrait",
@@ -97,17 +97,769 @@
       "mimeType": "audio/wav",
       "source": "generated",
       "altText": "Calm winter background music."
+    },
+    {
+      "id": "chime",
+      "kind": "audio",
+      "uri": "audio/chime.wav",
+      "mimeType": "audio/wav",
+      "source": "generated",
+      "altText": "Soft rising chime when a heart is caught."
     }
   ],
   "scenes": [
     {
       "id": "aurora-field",
-      "backgroundColor": "#C8ECF8",
+      "backgroundColor": "#142E50",
       "worldSize": [
         390,
         844
       ],
       "entities": [
+        {
+          "id": "sky-halo",
+          "kind": "decoration",
+          "position": [
+            195,
+            370
+          ],
+          "size": [
+            580,
+            620
+          ],
+          "zIndex": -40,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#214E6B"
+            }
+          }
+        },
+        {
+          "id": "moon-glow",
+          "kind": "decoration",
+          "position": [
+            318,
+            105
+          ],
+          "size": [
+            92,
+            92
+          ],
+          "zIndex": -31,
+          "components": [],
+          "render": {
+            "alpha": 0.12,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#8ED6E1"
+            }
+          }
+        },
+        {
+          "id": "moon",
+          "kind": "decoration",
+          "position": [
+            318,
+            105
+          ],
+          "size": [
+            46,
+            46
+          ],
+          "zIndex": -30,
+          "components": [],
+          "render": {
+            "alpha": 1,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#F5F2D8"
+            }
+          }
+        },
+        {
+          "id": "moon-shadow",
+          "kind": "decoration",
+          "position": [
+            330,
+            98
+          ],
+          "size": [
+            42,
+            42
+          ],
+          "zIndex": -29,
+          "components": [],
+          "render": {
+            "alpha": 1,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#183451"
+            }
+          }
+        },
+        {
+          "id": "far-mountains",
+          "kind": "decoration",
+          "position": [
+            195,
+            640
+          ],
+          "size": [
+            390,
+            210
+          ],
+          "zIndex": -25,
+          "components": [],
+          "render": {
+            "alpha": 1,
+            "shape": {
+              "type": "polygon",
+              "fill": "#2F5970",
+              "points": [
+                [
+                  -195,
+                  65
+                ],
+                [
+                  -195,
+                  0
+                ],
+                [
+                  -130,
+                  -90
+                ],
+                [
+                  -45,
+                  8
+                ],
+                [
+                  35,
+                  -65
+                ],
+                [
+                  105,
+                  15
+                ],
+                [
+                  165,
+                  -95
+                ],
+                [
+                  195,
+                  -35
+                ],
+                [
+                  195,
+                  110
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": "snow-mountains",
+          "kind": "decoration",
+          "position": [
+            195,
+            690
+          ],
+          "size": [
+            390,
+            130
+          ],
+          "zIndex": -24,
+          "components": [],
+          "render": {
+            "alpha": 1,
+            "shape": {
+              "type": "polygon",
+              "fill": "#88BEC9",
+              "points": [
+                [
+                  -195,
+                  65
+                ],
+                [
+                  -195,
+                  10
+                ],
+                [
+                  -105,
+                  -65
+                ],
+                [
+                  -25,
+                  22
+                ],
+                [
+                  65,
+                  -45
+                ],
+                [
+                  155,
+                  25
+                ],
+                [
+                  195,
+                  -20
+                ],
+                [
+                  195,
+                  65
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": "ice-shelf",
+          "kind": "decoration",
+          "position": [
+            195,
+            790
+          ],
+          "size": [
+            520,
+            122
+          ],
+          "zIndex": -8,
+          "components": [],
+          "render": {
+            "alpha": 1,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#D6EDF1"
+            }
+          }
+        },
+        {
+          "id": "ice-inset",
+          "kind": "decoration",
+          "position": [
+            195,
+            814
+          ],
+          "size": [
+            460,
+            64
+          ],
+          "zIndex": -7,
+          "components": [],
+          "render": {
+            "alpha": 1,
+            "shape": {
+              "type": "ellipse",
+              "fill": "#AFD6E0"
+            }
+          }
+        },
+        {
+          "id": "snow-star-00",
+          "kind": "decoration",
+          "position": [
+            22,
+            68
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-01",
+          "kind": "decoration",
+          "position": [
+            95,
+            165
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-02",
+          "kind": "decoration",
+          "position": [
+            168,
+            262
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-03",
+          "kind": "decoration",
+          "position": [
+            241,
+            359
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-04",
+          "kind": "decoration",
+          "position": [
+            314,
+            456
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-05",
+          "kind": "decoration",
+          "position": [
+            41,
+            553
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-06",
+          "kind": "decoration",
+          "position": [
+            114,
+            156
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-07",
+          "kind": "decoration",
+          "position": [
+            187,
+            253
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-08",
+          "kind": "decoration",
+          "position": [
+            260,
+            350
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-09",
+          "kind": "decoration",
+          "position": [
+            333,
+            447
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-10",
+          "kind": "decoration",
+          "position": [
+            60,
+            544
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-11",
+          "kind": "decoration",
+          "position": [
+            133,
+            147
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-12",
+          "kind": "decoration",
+          "position": [
+            206,
+            244
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-13",
+          "kind": "decoration",
+          "position": [
+            279,
+            341
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-14",
+          "kind": "decoration",
+          "position": [
+            352,
+            438
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-15",
+          "kind": "decoration",
+          "position": [
+            79,
+            535
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-16",
+          "kind": "decoration",
+          "position": [
+            152,
+            138
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-17",
+          "kind": "decoration",
+          "position": [
+            225,
+            235
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-18",
+          "kind": "decoration",
+          "position": [
+            298,
+            332
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-19",
+          "kind": "decoration",
+          "position": [
+            25,
+            429
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-20",
+          "kind": "decoration",
+          "position": [
+            98,
+            526
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-21",
+          "kind": "decoration",
+          "position": [
+            171,
+            129
+          ],
+          "size": [
+            2,
+            2
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.35,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-22",
+          "kind": "decoration",
+          "position": [
+            244,
+            226
+          ],
+          "size": [
+            3,
+            3
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.5,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
+        {
+          "id": "snow-star-23",
+          "kind": "decoration",
+          "position": [
+            317,
+            323
+          ],
+          "size": [
+            4,
+            4
+          ],
+          "zIndex": -22,
+          "components": [],
+          "render": {
+            "alpha": 0.6499999999999999,
+            "shape": {
+              "type": "circle",
+              "fill": "#D0EDF2"
+            }
+          }
+        },
         {
           "id": "penguin",
           "kind": "player",
@@ -124,8 +876,7 @@
             "movement",
             "score",
             "collider",
-            "physics_body",
-            "character_controller"
+            "physics_body"
           ],
           "physics": {
             "body": "kinematic_position",
@@ -142,11 +893,7 @@
             },
             "activeEvents": true
           },
-          "character": {
-            "offset": 4,
-            "snapToGroundDistance": 10,
-            "applyImpulsesToDynamicBodies": true
-          }
+          "zIndex": 10
         },
         {
           "id": "heart01",
@@ -181,13 +928,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart02",
@@ -222,13 +973,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart03",
@@ -263,13 +1018,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart04",
@@ -304,13 +1063,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart05",
@@ -345,13 +1108,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart06",
@@ -386,13 +1153,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart07",
@@ -427,13 +1198,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart08",
@@ -468,13 +1243,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart09",
@@ -509,13 +1288,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart10",
@@ -550,13 +1333,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart11",
@@ -591,13 +1378,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "heart12",
@@ -632,13 +1423,17 @@
                 1
               ],
               "filter": [
-                0,
-                3
+                0
               ]
             },
             "activeEvents": true,
-            "canSleep": false
-          }
+            "canSleep": false,
+            "sensor": true
+          },
+          "properties": {
+            "recycle": true
+          },
+          "zIndex": 5
         },
         {
           "id": "band0",
@@ -646,16 +1441,71 @@
           "assetId": "band0",
           "position": [
             195,
-            110
+            242
           ],
           "size": [
-            360,
-            190
+            348,
+            68
           ],
           "components": [],
           "render": {
-            "alpha": 0
-          }
+            "alpha": 0.09,
+            "shape": {
+              "type": "polygon",
+              "fill": "#F28DB0",
+              "points": [
+                [
+                  -174,
+                  14
+                ],
+                [
+                  -120,
+                  -21
+                ],
+                [
+                  -44,
+                  -9
+                ],
+                [
+                  35,
+                  -31
+                ],
+                [
+                  104,
+                  -12
+                ],
+                [
+                  174,
+                  -29
+                ],
+                [
+                  174,
+                  -8
+                ],
+                [
+                  106,
+                  9
+                ],
+                [
+                  36,
+                  -10
+                ],
+                [
+                  -42,
+                  12
+                ],
+                [
+                  -118,
+                  0
+                ],
+                [
+                  -174,
+                  35
+                ]
+              ]
+            }
+          },
+          "zIndex": -15
         },
         {
           "id": "band1",
@@ -663,16 +1513,71 @@
           "assetId": "band1",
           "position": [
             195,
-            110
+            257
           ],
           "size": [
-            360,
-            190
+            348,
+            68
           ],
           "components": [],
           "render": {
-            "alpha": 0
-          }
+            "alpha": 0.09,
+            "shape": {
+              "type": "polygon",
+              "fill": "#FFC18A",
+              "points": [
+                [
+                  -174,
+                  14
+                ],
+                [
+                  -120,
+                  -21
+                ],
+                [
+                  -44,
+                  -9
+                ],
+                [
+                  35,
+                  -31
+                ],
+                [
+                  104,
+                  -12
+                ],
+                [
+                  174,
+                  -29
+                ],
+                [
+                  174,
+                  -8
+                ],
+                [
+                  106,
+                  9
+                ],
+                [
+                  36,
+                  -10
+                ],
+                [
+                  -42,
+                  12
+                ],
+                [
+                  -118,
+                  0
+                ],
+                [
+                  -174,
+                  35
+                ]
+              ]
+            }
+          },
+          "zIndex": -14
         },
         {
           "id": "band2",
@@ -680,16 +1585,71 @@
           "assetId": "band2",
           "position": [
             195,
-            110
+            272
           ],
           "size": [
-            360,
-            190
+            348,
+            68
           ],
           "components": [],
           "render": {
-            "alpha": 0
-          }
+            "alpha": 0.09,
+            "shape": {
+              "type": "polygon",
+              "fill": "#F5DF88",
+              "points": [
+                [
+                  -174,
+                  14
+                ],
+                [
+                  -120,
+                  -21
+                ],
+                [
+                  -44,
+                  -9
+                ],
+                [
+                  35,
+                  -31
+                ],
+                [
+                  104,
+                  -12
+                ],
+                [
+                  174,
+                  -29
+                ],
+                [
+                  174,
+                  -8
+                ],
+                [
+                  106,
+                  9
+                ],
+                [
+                  36,
+                  -10
+                ],
+                [
+                  -42,
+                  12
+                ],
+                [
+                  -118,
+                  0
+                ],
+                [
+                  -174,
+                  35
+                ]
+              ]
+            }
+          },
+          "zIndex": -13
         },
         {
           "id": "band3",
@@ -697,16 +1657,71 @@
           "assetId": "band3",
           "position": [
             195,
-            110
+            287
           ],
           "size": [
-            360,
-            190
+            348,
+            68
           ],
           "components": [],
           "render": {
-            "alpha": 0
-          }
+            "alpha": 0.09,
+            "shape": {
+              "type": "polygon",
+              "fill": "#79DCC4",
+              "points": [
+                [
+                  -174,
+                  14
+                ],
+                [
+                  -120,
+                  -21
+                ],
+                [
+                  -44,
+                  -9
+                ],
+                [
+                  35,
+                  -31
+                ],
+                [
+                  104,
+                  -12
+                ],
+                [
+                  174,
+                  -29
+                ],
+                [
+                  174,
+                  -8
+                ],
+                [
+                  106,
+                  9
+                ],
+                [
+                  36,
+                  -10
+                ],
+                [
+                  -42,
+                  12
+                ],
+                [
+                  -118,
+                  0
+                ],
+                [
+                  -174,
+                  35
+                ]
+              ]
+            }
+          },
+          "zIndex": -12
         },
         {
           "id": "band4",
@@ -714,16 +1729,71 @@
           "assetId": "band4",
           "position": [
             195,
-            110
+            302
           ],
           "size": [
-            360,
-            190
+            348,
+            68
           ],
           "components": [],
           "render": {
-            "alpha": 0
-          }
+            "alpha": 0.09,
+            "shape": {
+              "type": "polygon",
+              "fill": "#7FC9EE",
+              "points": [
+                [
+                  -174,
+                  14
+                ],
+                [
+                  -120,
+                  -21
+                ],
+                [
+                  -44,
+                  -9
+                ],
+                [
+                  35,
+                  -31
+                ],
+                [
+                  104,
+                  -12
+                ],
+                [
+                  174,
+                  -29
+                ],
+                [
+                  174,
+                  -8
+                ],
+                [
+                  106,
+                  9
+                ],
+                [
+                  36,
+                  -10
+                ],
+                [
+                  -42,
+                  12
+                ],
+                [
+                  -118,
+                  0
+                ],
+                [
+                  -174,
+                  35
+                ]
+              ]
+            }
+          },
+          "zIndex": -11
         },
         {
           "id": "band5",
@@ -731,48 +1801,106 @@
           "assetId": "band5",
           "position": [
             195,
-            110
+            317
           ],
           "size": [
-            360,
-            190
+            348,
+            68
           ],
           "components": [],
           "render": {
-            "alpha": 0
-          }
+            "alpha": 0.09,
+            "shape": {
+              "type": "polygon",
+              "fill": "#BFA9F0",
+              "points": [
+                [
+                  -174,
+                  14
+                ],
+                [
+                  -120,
+                  -21
+                ],
+                [
+                  -44,
+                  -9
+                ],
+                [
+                  35,
+                  -31
+                ],
+                [
+                  104,
+                  -12
+                ],
+                [
+                  174,
+                  -29
+                ],
+                [
+                  174,
+                  -8
+                ],
+                [
+                  106,
+                  9
+                ],
+                [
+                  36,
+                  -10
+                ],
+                [
+                  -42,
+                  12
+                ],
+                [
+                  -118,
+                  0
+                ],
+                [
+                  -174,
+                  35
+                ]
+              ]
+            }
+          },
+          "zIndex": -10
         },
         {
           "id": "title",
           "kind": "text",
           "position": [
             195,
-            115
+            126
           ],
           "size": [
-            360,
-            42
+            350,
+            62
           ],
           "components": [
             "text_label"
           ],
           "render": {
             "text": {
-              "content": "Catch 12 hearts to relight the aurora",
-              "fontSize": 16,
-              "fill": "#173B59",
+              "content": "A little warmth.\nA whole sky of color.",
+              "fontSize": 22,
+              "fill": "#F1F7F5",
               "fontWeight": "bold",
               "align": "center",
-              "wordWrapWidth": 340
+              "wordWrapWidth": 340,
+              "stroke": "#142E50",
+              "strokeWidth": 3
             }
-          }
+          },
+          "zIndex": 20
         },
         {
           "id": "controls-hint",
           "kind": "text",
           "position": [
             195,
-            150
+            181
           ],
           "size": [
             360,
@@ -783,14 +1911,17 @@
           ],
           "render": {
             "text": {
-              "content": "Tap anywhere to guide the penguin",
-              "fontSize": 10,
-              "fill": "#42677F",
+              "content": "Tap to glide \u00b7 catch 12 hearts",
+              "fontSize": 13,
+              "fill": "#C0DBE6",
               "fontWeight": "normal",
               "align": "center",
-              "wordWrapWidth": 340
+              "wordWrapWidth": 340,
+              "stroke": "#142E50",
+              "strokeWidth": 3
             }
-          }
+          },
+          "zIndex": 20
         }
       ]
     }
@@ -842,6 +1973,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart01",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -873,6 +2013,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart02",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -904,6 +2053,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart03",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -935,6 +2093,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart04",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -966,6 +2133,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart05",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -997,6 +2173,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart06",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1028,6 +2213,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart07",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1059,6 +2253,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart08",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1090,6 +2293,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart09",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1121,6 +2333,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart10",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1152,6 +2373,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart11",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1183,6 +2413,15 @@
             0,
             150
           ]
+        },
+        {
+          "type": "emit_particles",
+          "target": "heart12",
+          "value": 10
+        },
+        {
+          "type": "play_sound",
+          "assetId": "chime"
         }
       ]
     },
@@ -1194,9 +2433,9 @@
       },
       "actions": [
         {
-          "type": "set_visible",
+          "type": "set_alpha",
           "target": "band0",
-          "value": true
+          "value": 1
         },
         {
           "type": "show_text",
@@ -1212,9 +2451,9 @@
       },
       "actions": [
         {
-          "type": "set_visible",
+          "type": "set_alpha",
           "target": "band1",
-          "value": true
+          "value": 1
         },
         {
           "type": "set_asset",
@@ -1235,9 +2474,9 @@
       },
       "actions": [
         {
-          "type": "set_visible",
+          "type": "set_alpha",
           "target": "band2",
-          "value": true
+          "value": 1
         },
         {
           "type": "show_text",
@@ -1253,9 +2492,9 @@
       },
       "actions": [
         {
-          "type": "set_visible",
+          "type": "set_alpha",
           "target": "band3",
-          "value": true
+          "value": 1
         },
         {
           "type": "set_asset",
@@ -1276,9 +2515,9 @@
       },
       "actions": [
         {
-          "type": "set_visible",
+          "type": "set_alpha",
           "target": "band4",
-          "value": true
+          "value": 1
         },
         {
           "type": "show_text",
@@ -1294,9 +2533,9 @@
       },
       "actions": [
         {
-          "type": "set_visible",
+          "type": "set_alpha",
           "target": "band5",
-          "value": true
+          "value": 1
         },
         {
           "type": "show_text",

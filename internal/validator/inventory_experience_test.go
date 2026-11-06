@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -319,6 +320,49 @@ func TestInventoryTextEntitiesClearNativeHeader(t *testing.T) {
 					t.Errorf("%s/%s: text entity y=%.1f overlaps the native player header; want y >= 110", dir, entity.ID, entity.Position[1])
 				}
 			}
+		}
+	}
+}
+
+func TestPenguinPortraitLoopAndVisibleAurora(t *testing.T) {
+	doc, err := readGameIR(filepath.Join("..", "..", "inventory", "p3ngui"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Game.Orientation != "portrait" || doc.Experience.Objective.Target != 12 {
+		t.Fatal("Penguin must remain a portrait twelve-heart quest")
+	}
+	pickups := 0
+	for _, entity := range doc.Scenes[0].Entities {
+		if entity.ID == "penguin" && entity.Character != nil {
+			t.Fatal("a platformer controller must not block the horizontal catcher")
+		}
+		if entity.Kind == "pickup" {
+			pickups++
+			if entity.Properties["recycle"] != true || entity.Physics == nil || !entity.Physics.Sensor {
+				t.Fatalf("%s must recycle after misses and remain a non-blocking collectible", entity.ID)
+			}
+		}
+	}
+	if pickups != 12 {
+		t.Fatalf("expected twelve authored heart pickups, got %d", pickups)
+	}
+	restored := map[int]bool{}
+	for _, rule := range doc.Rules {
+		if rule.When.Event != "score_reached" || rule.When.Value == nil {
+			continue
+		}
+		for _, action := range rule.Actions {
+			if action.Type == "set_alpha" && strings.HasPrefix(action.Target, "band") {
+				if alpha, ok := action.Value.(float64); ok && alpha == 1 {
+					restored[int(*rule.When.Value)] = true
+				}
+			}
+		}
+	}
+	for _, score := range []int{2, 4, 6, 8, 10, 12} {
+		if !restored[score] {
+			t.Errorf("%d catches must restore a visibly bright aurora band", score)
 		}
 	}
 }
