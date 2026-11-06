@@ -55,6 +55,22 @@ func TestRunParsesGateFailureReport(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsSkippedInformationalInputTiming(t *testing.T) {
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"},
+		{"checkId":"hook.time_to_input","status":"skip","evidence":"late timing is informational"}]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	report, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{"g1"})
+	if err != nil {
+		t.Fatalf("informational timing skip must not invalidate a passing playtest: %v", err)
+	}
+	if report.Failed() {
+		t.Fatal("report with passed hard gates and skipped timing metric must pass")
+	}
+}
+
 func TestRunWorkerErrorIsError(t *testing.T) {
 	worker := writeFakeWorker(t, "not json", 2)
 	if _, err := Run(context.Background(), Config{
