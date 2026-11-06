@@ -1,0 +1,8 @@
+{
+  "version": 4,
+  "ir_sha256": "35250ea57024f49184298570ec5f58bd425fd9166f9e676fa57326a28a6b5164",
+  "poster_sha256": "776286f0d0e75e6f3e7b311706d221cdf14e6a5c7c22a7463c71e4eb0d605977",
+  "source_run": "https://github.com/GavinDu/html5-game-generator/actions/runs/42228113902",
+  "source_screenshot": "kit-out/sample-rainbow-bear.ready.png",
+  "note": "Reviewed gameplay screenshot, poster-only fallback; contains no original source upload."
+}

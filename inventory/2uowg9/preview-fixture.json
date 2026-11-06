@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "ir_sha256": "2a3d0d11109001b62f0422f325588d98174c7ee92122cf7d1708733205da7f4a",
+  "poster_sha256": "406ed3929a00c7eb72fb7bce3861276d3abb998d28a0ef6cceb5d8071076f51c",
+  "source_run": "https://github.com/GavinDu/html5-game-generator/actions/runs/42228113902",
+  "source_screenshot": "kit-out/escape-from-injection.ready.png",
+  "note": "Reviewed gameplay screenshot, poster-only fallback; contains no original source upload."
+}
