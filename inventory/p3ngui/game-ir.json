@@ -2,7 +2,7 @@
   "irVersion": "1.2",
   "game": {
     "id": "penguin-heartlight-rescue",
-    "title": "Penguin's Heartlight Rescue",
+    "title": "Penguin's Heartlight",
     "description": "Guide a cheerful penguin to gather hearts and restore six colors to a winter aurora.",
     "entryScene": "aurora-field",
     "orientation": "portrait",
@@ -762,6 +762,31 @@
               "fontSize": 16,
               "fill": "#173B59",
               "fontWeight": "bold",
+              "align": "center",
+              "wordWrapWidth": 340
+            }
+          }
+        },
+        {
+          "id": "controls-hint",
+          "kind": "text",
+          "position": [
+            195,
+            150
+          ],
+          "size": [
+            360,
+            24
+          ],
+          "components": [
+            "text_label"
+          ],
+          "render": {
+            "text": {
+              "content": "Tap anywhere to guide the penguin",
+              "fontSize": 10,
+              "fill": "#42677F",
+              "fontWeight": "normal",
               "align": "center",
               "wordWrapWidth": 340
             }
