@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 const runtimeURL = new URL('../../internal/api/web/pixi-runtime.js', import.meta.url);
 const source = await readFile(runtimeURL, 'utf8');
+const probeURL = new URL('./probe.mjs', import.meta.url);
+const probeSource = await readFile(probeURL, 'utf8');
 
 test('runtime image loading is bounded and concurrent', () => {
   assert.match(source, /const imageWorkerCount = Math\.min\(6, imageAssets\.length\)/);
@@ -30,6 +32,12 @@ test('custom collect progress is independent from score and increments through r
   assert.match(source, /state\.variables\[action\.variable\] = current \+ delta/);
   assert.match(source, /emit\('variable_changed', sourceEnt, targetEnt\)/);
   assert.match(source, /objectiveProgress\(\).*of \$\{target\}/s);
+});
+
+test('tap catcher falls back to a held pointer when touch is recorded without movement', () => {
+  assert.match(probeSource, /const needsHeldContact = afterInputs <= beforeInputs \|\| !points \|\| \(targetDelta > 12 && moved < 4\)/);
+  assert.match(probeSource, /if \(needsHeldContact\)/);
+  assert.match(probeSource, /await sleep\(220\)/);
 });
 
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
