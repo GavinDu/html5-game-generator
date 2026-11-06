@@ -165,6 +165,35 @@ func expBalanceCheck(doc *gameir.Document) Check {
 			}
 		}
 	}
+	// A collect objective may deliberately use a custom counter so optional
+	// bonus points do not satisfy the objective. In that case, estimate the
+	// win from add_variable awards, not add_score awards.
+	progressFor := func(entID string) float64 {
+		for _, r := range doc.Rules {
+			if r.When.Event != "collected" || (r.When.Target != entID && r.When.Target != "") {
+				continue
+			}
+			for _, a := range r.Actions {
+				if exp.Objective.ProgressVariable != "" {
+					if a.Type == "add_variable" && a.Variable == exp.Objective.ProgressVariable {
+						if fv, ok := a.Value.(float64); ok && fv > 0 {
+							return fv
+						}
+						return 1
+					}
+				} else if a.Type == "add_score" {
+					if fv, ok := a.Value.(float64); ok && fv > 0 {
+						return fv
+					}
+					return 1
+				}
+			}
+		}
+		if exp.Objective.ProgressVariable != "" {
+			return 0
+		}
+		return 1
+	}
 	var expected float64
 	var model string
 	if stream {
@@ -179,8 +208,33 @@ func expBalanceCheck(doc *gameir.Document) Check {
 			return mk(id, StatusSkip, "", "", "stream-spawned game without ramp spawn intervals — economics unknown", "game-ir.json", "")
 		}
 		avg := float64(sum) / float64(n)
-		expected = float64(target) / (catchRate * 1000.0 / avg)
-		model = fmt.Sprintf("stream: mean spawn interval %.0fms, catch rate %.2f (%s)", avg, catchRate, rateNote)
+		progressPerCatch := 1.0
+		if exp.Objective.ProgressVariable != "" {
+			sc := entryScene(doc)
+			if sc == nil {
+				return mk(id, StatusSkip, "", "", "no scenes", "game-ir.json", "")
+			}
+			var pickups []gameir.Entity
+			for _, e := range append(append([]gameir.Entity{}, sc.Entities...), sc.Templates...) {
+				if e.Kind == "pickup" {
+					pickups = append(pickups, e)
+				}
+			}
+			if len(pickups) == 0 {
+				return mk(id, StatusSkip, "", "", "custom-progress stream game has no declared pickup templates", "game-ir.json", "")
+			}
+			progressPerCatch = 0
+			for _, p := range pickups {
+				progressPerCatch += progressFor(p.ID)
+			}
+			progressPerCatch /= float64(len(pickups))
+		}
+		if progressPerCatch <= 0 {
+			return mk(id, StatusFail, "positive objective progress per pickup", "0",
+				"custom collect objective has no pickup rule that increments its progress variable", "game-ir.json", "add an add_variable action for the declared progressVariable")
+		}
+		expected = float64(target) / (catchRate * 1000.0 / avg * progressPerCatch)
+		model = fmt.Sprintf("stream: mean spawn interval %.0fms, avg %.2f objective units/catch, catch rate %.2f (%s)", avg, progressPerCatch, catchRate, rateNote)
 	} else {
 		sc := entryScene(doc)
 		if sc == nil {
@@ -224,35 +278,19 @@ func expBalanceCheck(doc *gameir.Document) Check {
 		} else {
 			fall = h / v
 		}
-		// Weighted scoring: collect rules award different points per
-		// pickup kind (a gold heart is worth 3). The economics run on
-		// points per second, so average the award over the concurrent
-		// pickups, read from the game's own collected rules.
-		pointsFor := func(entID string) float64 {
-			for _, r := range doc.Rules {
-				if r.When.Event != "collected" || (r.When.Target != entID && r.When.Target != "") {
-					continue
-				}
-				for _, a := range r.Actions {
-					if a.Type == "add_score" {
-						if fv, ok := a.Value.(float64); ok && fv > 0 {
-							return fv
-						}
-						return 1
-					}
-				}
-			}
-			return 1
-		}
-		ptsSum := 0.0
+		progressSum := 0.0
 		for _, p := range pickups {
-			ptsSum += pointsFor(p.ID)
+			progressSum += progressFor(p.ID)
 		}
-		avgPts := ptsSum / float64(len(pickups))
+		avgProgress := progressSum / float64(len(pickups))
 		maxRate := float64(len(pickups)) / fall
-		expected = float64(target) / (catchRate * maxRate * avgPts)
-		model = fmt.Sprintf("recycle: %d pickups, fall cycle %.2fs (v=%.0fpx/s, g=%.0f, h=%.0f), max rate %.2f catches/s, avg %.1f pts/catch, catch rate %.2f (%s)",
-			len(pickups), fall, v, g, h, maxRate, avgPts, catchRate, rateNote)
+		if avgProgress <= 0 {
+			return mk(id, StatusFail, "positive objective progress per pickup", "0",
+				"collect objective has no pickup rule that advances its progress", "game-ir.json", "add an add_score action or an add_variable action for the declared progressVariable")
+		}
+		expected = float64(target) / (catchRate * maxRate * avgProgress)
+		model = fmt.Sprintf("recycle: %d pickups, fall cycle %.2fs (v=%.0fpx/s, g=%.0f, h=%.0f), max rate %.2f catches/s, avg %.2f objective units/catch, catch rate %.2f (%s)",
+			len(pickups), fall, v, g, h, maxRate, avgProgress, catchRate, rateNote)
 	}
 	ratio := expected / float64(session)
 	ev := fmt.Sprintf("%s -> expected win %.1fs vs session target %ds (ratio %.2f, band 0.70-1.30)", model, expected, session, ratio)
