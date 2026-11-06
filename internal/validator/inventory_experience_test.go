@@ -87,8 +87,7 @@ func TestInventoryGamesExperience(t *testing.T) {
 	}
 }
 
-// All three supplied penguin drawings must be used as progression skins:
-// rainbow at start, holiday at four hearts, and classic blue at eight.
+// Bobo's questionnaire contract keeps regular-heart progress separate from bonus score.
 func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
 	dir := filepath.Join("..", "..", "inventory", "13ui1k")
 	doc, err := readGameIR(dir)
@@ -154,6 +153,17 @@ func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
 	if hasProgressIncrement(gold) {
 		t.Error("golden hearts must not advance rainbow restoration progress")
 	}
+	goldBonus := false
+	for _, a := range gold.Actions {
+		if a.Type == "add_score" {
+			if value, ok := a.Value.(float64); ok && value == 50 {
+				goldBonus = true
+			}
+		}
+	}
+	if !goldBonus {
+		t.Error("golden hearts must retain their optional +50 bonus score")
+	}
 	for band := 0; band < 6; band++ {
 		id := fmt.Sprintf("band%d-reveal", band)
 		r, ok := byID[id]
@@ -194,11 +204,13 @@ func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
 			}
 		}
 	}
-	if !winAtTwelve || !endGame {
+	if win.When.Event != "variable_changed" || !winAtTwelve || !endGame {
 		t.Error("Bobo must win only when hearts_collected reaches exactly 12")
 	}
 }
 
+// All three supplied penguin drawings must be used as progression skins:
+// rainbow at start, holiday at four hearts, and classic blue at eight.
 func TestPenguinUsesAllThreeSuppliedDrawingVariants(t *testing.T) {
 	doc, err := readGameIR(filepath.Join("..", "..", "inventory", "p3ngui"))
 	if err != nil {
