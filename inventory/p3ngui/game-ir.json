@@ -2,7 +2,7 @@
   "irVersion": "1.2",
   "game": {
     "id": "penguin-heartlight-rescue",
-    "title": "Penguin's Heartlight Rescue",
+    "title": "Penguin's Heartlight",
     "description": "Guide a cheerful penguin to gather hearts and restore six colors to a winter aurora.",
     "entryScene": "aurora-field",
     "orientation": "portrait",
