@@ -13,7 +13,7 @@ const browser = await (browserName === 'webkit' ? webkit : chromium).launch({ he
 const reports = [];
 try {
   for (const [name, width, height] of [['iphone-portrait', 390, 844], ['iphone-landscape', 844, 390], ['ipad-portrait', 820, 1180], ['ipad-landscape', 1180, 820]]) {
-    const context = await browser.newContext({ viewport: { width, height }, hasTouch: true, isMobile: width < 850 });
+    const context = await browser.newContext({ viewport: { width, height }, hasTouch: true, isMobile: name.startsWith('iphone') });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -36,8 +36,16 @@ try {
       const firstID = await cards.first().getAttribute('data-game-id');
       const feed = page.locator('#list');
       // Wheel and keyboard use the same native scrolling/snap surface as touch.
-      await feed.hover();
-      await page.mouse.wheel(0, metrics.feedHeight);
+      const inputMethod = browserName === 'webkit' && name.startsWith('iphone') ? 'keyboard' : 'wheel';
+      if (inputMethod === 'keyboard') {
+        // Playwright has no swipe API for mobile WebKit. Exercise the real
+        // keyboard paging alternative, and identify that limitation in evidence.
+        await feed.focus();
+        await page.keyboard.press('ArrowDown');
+      } else {
+        await feed.hover();
+        await page.mouse.wheel(0, metrics.feedHeight);
+      }
       await page.waitForTimeout(900);
       const afterID = await page.evaluate(() => {
         const feed = document.getElementById('list');
@@ -55,7 +63,7 @@ try {
         onePostPerViewport: Math.abs(metrics.feedHeight - metrics.cardHeight) <= 2,
         noHorizontalOverflow: metrics.scrollWidth <= width + 1,
         touchTargets: metrics.targets.length >= 4 && metrics.targets.every(t => t.width >= 44 && t.height >= 44 && t.x >= 0 && t.x + t.width <= width + 1 && t.y >= 0 && t.y + t.height <= height + 1),
-        swipeSurfaceAdvances: !!afterID && firstID !== afterID,
+        pagingAdvances: !!afterID && firstID !== afterID,
         screenshotChanged: changedPixelRatio > 0.005,
         noErrors: errors.length === 0,
       };
@@ -64,7 +72,7 @@ try {
       const visibleCard = page.locator(`.game-card[data-game-id="${afterID}"]`);
       const playURL = new URL(await visibleCard.locator('.play-link').getAttribute('href'), base);
       checks.immersivePlayLink = playURL.searchParams.get('presentation') === 'play' && playURL.searchParams.get('entry') === 'feed';
-      reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, changedPixelRatio, errors });
+      reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, changedPixelRatio, inputMethod, errors });
     } catch (error) { reports.push({ viewport: name, passed: false, error: error.message, errors }); }
     finally { await context.close(); }
   }

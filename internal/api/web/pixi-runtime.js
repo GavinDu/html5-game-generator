@@ -2011,6 +2011,12 @@ async function run(id) {
     // IR shell controls can constrain the pointer to horizontal-only movement.
     // Keep the player in the catcher lane instead of following vertical cursor drift.
     pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
+    // A tap is a destination command even when down/up happen between
+    // simulation frames. Holding the contact is reserved for drag controls.
+    if (ir.experience?.controls?.scheme === 'tap') {
+      playerTarget.x = p.x;
+      if (!dragXOnly) playerTarget.y = p.y;
+    }
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
     emit('input', playerEnt, undefined, undefined, tapActionName());
   });
@@ -2449,7 +2455,9 @@ async function run(id) {
           const t = ent.body.translation();
           const v = ent.body.linvel();
           if (t.y * PPM > worldH + ent.h) recycleEntity(ent);
-          else if (Math.hypot(v.x, v.y) < 0.2 && t.y * PPM > worldH * 0.5) {
+          // A missed pickup may keep swaying sideways on the floor. Its
+          // vertical rest, not total speed, determines when it recycles.
+          else if (Math.abs(v.y) < 0.2 && t.y * PPM > worldH - ent.h * 2) {
             ent.stillTime += dt;
             if (ent.stillTime > 1.4) recycleEntity(ent);
           } else ent.stillTime = 0;

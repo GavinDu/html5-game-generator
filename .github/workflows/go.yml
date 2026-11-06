@@ -104,6 +104,14 @@ jobs:
           cat /tmp/inventory-game-ids.txt
       - name: Verify social feed actions and source privacy in the browser
         run: node tools/playtest/feed-actions-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }}
+      - name: Verify Bobo short taps and missed-heart recycling
+        run: node tools/playtest/bobo-controls-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/bobo-controls-${{ matrix.browser }}
+      - name: Upload Bobo control and recycling screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bobo-controls-${{ matrix.browser }}
+          path: /tmp/bobo-controls-${{ matrix.browser }}/
       - name: Evaluate swipe feed with screenshot inputs on iPhone and iPad
         run: |
           node tools/playtest/feed-ui-evaluator.mjs --base http://localhost:18099 \

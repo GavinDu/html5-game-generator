@@ -1,0 +1,8 @@
+{
+  "version": 4,
+  "ir_sha256": "1cff1937849ac2f7002cea5ce7951a926610264b84e3c1db8eea466ab73ca95a",
+  "poster_sha256": "5eaa2198c6f5dde167b385f57b36a743f9fc5d1d63c51a3e43ca261a903b1aa0",
+  "source_run": "Local Chromium playtest after controller and recycling fix; evidence/bobo-recycle/playtest-report.json",
+  "source_screenshot": "evidence/bobo-recycle/sample-rainbow-bear.mid.png",
+  "note": "Reviewed gameplay screenshot, poster-only fallback; contains no original source upload."
+}

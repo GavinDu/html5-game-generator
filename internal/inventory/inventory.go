@@ -188,6 +188,9 @@ func seedGame(st store.Store, gdir string, m *manifest) error {
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("inventory: %s: cannot read game-ir.json: %w", gdir, err)
 	}
+	if err := seedPoster(st, game, prev, gdir, m.Version); err != nil {
+		return fmt.Errorf("inventory: %s: preview: %w", gdir, err)
+	}
 	if prev != nil {
 		game.Quarantined = prev.Quarantined
 		game.QuarantineReason = prev.QuarantineReason

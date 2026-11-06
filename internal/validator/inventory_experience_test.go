@@ -94,6 +94,11 @@ func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bobo IR must validate structurally: %v", err)
 	}
+	for _, entity := range doc.Scenes[0].Entities {
+		if entity.ID == "player" && entity.Character != nil {
+			t.Fatal("Bobo is a horizontal catcher; a platformer character controller blocks its destination movement")
+		}
+	}
 	if doc.Experience.Objective.ProgressVariable != "hearts_collected" {
 		t.Fatalf("Bobo objective progress variable = %q, want hearts_collected", doc.Experience.Objective.ProgressVariable)
 	}
