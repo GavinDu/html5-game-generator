@@ -48,16 +48,14 @@
     "audience": "children ages 4-8; family-friendly",
     "generated": {
       "archetype": "catcher",
-      "controlsScheme": "tap_x",
+      "controlsScheme": "tap",
       "objective": {
         "kind": "collect",
         "target": 12,
-        "label": "Catch 12 hearts"
+        "label": "Collect 12 hearts"
       },
       "failure": {
-        "mode": "gentle",
-        "health": null,
-        "invulnerableMs": null
+        "mode": "gentle"
       },
       "targetSessionSec": 55,
       "firstRewardWithinSec": 8,

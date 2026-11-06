@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Hephaestus Game IR v1 (1.0 + additive 1.1)",
-  "description": "Engine-independent declarative gameplay representation interpreted by the PixiJS + Rapier runtime. v1.1 adds rendering, physics, joints, effects, and capability vocabularies; v1.0 documents remain valid. Executable scripts are excluded.",
+  "title": "Hephaestus Game IR v1 (1.0, 1.1, and 1.2)",
+  "description": "Engine-independent declarative gameplay representation interpreted by the PixiJS + Rapier runtime. Version 1.1 adds rendering, physics, joints, effects, and capability vocabularies; version 1.2 adds the standardized experience and shell contract. Executable scripts are excluded.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,7 +16,8 @@
     "irVersion": {
       "enum": [
         "1.0",
-        "1.1"
+        "1.1",
+        "1.2"
       ]
     },
     "capabilities": {
@@ -42,7 +43,8 @@
           "fx.emitters",
           "audio",
           "input.keyboard",
-          "input.pointer"
+          "input.pointer",
+          "shell.v1"
         ]
       }
     },
@@ -2261,6 +2263,313 @@
           }
         }
       }
+    },
+    "experience": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archetype",
+        "controls",
+        "objective"
+      ],
+      "properties": {
+        "archetype": {
+          "enum": [
+            "catcher",
+            "dodger",
+            "tapper",
+            "runner",
+            "physics",
+            "puzzle"
+          ]
+        },
+        "controls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheme"
+          ],
+          "properties": {
+            "scheme": {
+              "enum": [
+                "drag_x",
+                "drag_free",
+                "tap",
+                "tap_target"
+              ]
+            },
+            "hint": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        },
+        "objective": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "label"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "collect",
+                "survive",
+                "reach",
+                "score"
+              ]
+            },
+            "target": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          }
+        },
+        "hud": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "left": {
+              "enum": [
+                "objective_progress",
+                "score",
+                "health",
+                "timer",
+                "none"
+              ]
+            },
+            "right": {
+              "enum": [
+                "objective_progress",
+                "score",
+                "health",
+                "timer",
+                "none"
+              ]
+            }
+          }
+        },
+        "start": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "enum": [
+                "tap_to_start",
+                "auto"
+              ]
+            }
+          }
+        },
+        "failure": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "enum": [
+                "health",
+                "gentle",
+                "sudden-death",
+                "none"
+              ]
+            },
+            "health": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9
+            },
+            "invulnerableMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000
+            },
+            "missCost": {
+              "type": "string"
+            }
+          }
+        },
+        "pacing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "targetSessionSec": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 600
+            },
+            "firstRewardWithinSec": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
+            "expectedCatchRate": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "ramp": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "at"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "spawnIntervalMs": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 10000
+                  },
+                  "speedMul": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "milestones": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          }
+        },
+        "milestoneVisuals": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "win": {
+              "$ref": "#/$defs/experienceResultSide"
+            },
+            "lose": {
+              "$ref": "#/$defs/experienceResultSide"
+            }
+          }
+        },
+        "leaderboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "metric": {
+              "enum": [
+                "score",
+                "time",
+                "streak"
+              ]
+            },
+            "order": {
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        },
+        "feedback": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "haptics": {
+              "enum": [
+                "none",
+                "standard"
+              ]
+            },
+            "juice": {
+              "enum": [
+                "none",
+                "standard",
+                "rich"
+              ]
+            }
+          }
+        }
+      }
     }
-  }
+  },
+  "$defs": {
+    "experienceResultSide": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "stars": {
+          "$ref": "#/$defs/experienceStars"
+        }
+      }
+    },
+    "experienceStars": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "enum": [
+            "time",
+            "score"
+          ]
+        },
+        "thresholdsSec": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "irVersion": {
+            "const": "1.2"
+          }
+        },
+        "required": [
+          "irVersion"
+        ]
+      },
+      "then": {
+        "required": [
+          "experience",
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "shell.v1"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

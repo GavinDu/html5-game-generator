@@ -90,3 +90,8 @@ at 1.25x speed (on top of the wave ramp), score accumulates, HUD shows
 第N关. Losing (0 lives) ends the run; the player submits {score, level} to
 the leaderboard (ranked by 关 then score) and the endcard shows the board
 with everyone's 关. Play Again starts a fresh run at 第1关.
+
+
+## v5 stability pass (2026-11-05)
+
+The endless meta-level multiplier now caps at 2.8x so demon movement and spawn cadence cannot overflow or become arbitrarily dense. Rainbow-shard chime frequency is also bounded to a safe audible range even when score accumulates over long runs. The six-hole round objective, three-life risk, and optional shard reward remain unchanged.

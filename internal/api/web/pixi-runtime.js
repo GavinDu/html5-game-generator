@@ -124,7 +124,12 @@ function emitProbe() {
     // no longer dilutes the number.
     fps: visibleSec > 1 ? Math.round(totalFrames / visibleSec) : 0,
     seed: play ? play.seed : null,
-    shell: play && play.shell ? { archetype: play.shell.archetype || '', started: play.shellStarted } : null,
+    shell: play && play.shell ? {
+      archetype: play.shell.archetype || '',
+      controlsScheme: play.shell.controls?.scheme || '',
+      startMode: play.shell.start?.mode || 'auto',
+      started: play.shellStarted,
+    } : null,
     events: dqEvents.slice(-40),
     inputs: play ? play.inputLog.length : 0,
     deadInputs: play ? play.deadInputs : 0,
@@ -640,10 +645,12 @@ function storeRemove(store, k) { try { store.removeItem(k); } catch { /* unavail
 let activeSession = null; // { app, abort: AbortController }
 let restartCount = 0;
 let skipStartCardOnce = false; // Play again skips the how-to card (design: retry < 1s)
+let skipStartCardGameId = null; // Scope the one-shot skip to the game being restarted
 async function restartGame() {
   if (!gameId) return;
   restartCount++;
   skipStartCardOnce = true;
+  skipStartCardGameId = gameId;
   recordEvent('restart', 'attempt ' + restartCount);
   await run(gameId).catch((err) => {
     $('status').textContent = 'Failed to restart: ' + err.message;
@@ -1277,7 +1284,13 @@ async function run(id) {
     }
     view.eventMode = 'static';
     view.on('pointerdown', (ev) => {
+      const controlsScheme = ir.experience?.controls?.scheme;
+      // Tap/drag shell controls are handled by the canvas-level pointer
+      // listener so tapping a sprite still moves the catcher. Keep the
+      // entity-target path for tap_target and legacy documents.
+      if (controlsScheme && controlsScheme !== 'tap_target') return;
       ev.stopPropagation();
+      noteInput('entity-pointer', ent.id);
       emit('input', ent, ent, undefined, tapActionName());
     });
     register(ent);
@@ -1844,7 +1857,8 @@ async function run(id) {
     const b = (ir.inputBindings || []).find((x) => x.input === 'tap');
     return b?.action;
   }
-  const dragXOnly = ir.experience?.controls?.scheme === 'drag_x';
+  const dragXOnly = ir.experience?.controls?.scheme === 'drag_x' ||
+    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap');
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
@@ -2417,8 +2431,11 @@ async function run(id) {
     emit('scene_entered', undefined, undefined);
   }
   play.beginPlay = beginPlay;
-  const skipCard = skipStartCardOnce; // consume: one restart skips once
+  // A Play-again restart may skip its own card once, but that flag must
+  // never leak into the next game loaded in the same browser page/session.
+  const skipCard = skipStartCardOnce && skipStartCardGameId === id;
   skipStartCardOnce = false;
+  skipStartCardGameId = null;
   if (play.shell && shellStartMode === 'tap_to_start' && !skipCard) {
     // Draw the world once so the start card floats over the actual
     // game, then freeze the ticker until the player taps Start.

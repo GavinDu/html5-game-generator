@@ -41,3 +41,32 @@ test('score changes are announced politely without making the whole page live', 
   assert.match(html, /id="score" aria-live="polite" aria-atomic="true"/);
   assert.doesNotMatch(html, /<body[^>]*aria-live=/);
 });
+
+
+test('tap-controlled catcher playtests send discrete taps instead of drag-only gestures', async () => {
+  const probePath = fileURLToPath(new URL('./probe.mjs', import.meta.url));
+  const runtimePath = fileURLToPath(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url));
+  const [probe, runtime] = await Promise.all([
+    readFile(probePath, 'utf8'),
+    readFile(runtimePath, 'utf8')
+  ]);
+  assert.match(runtime, /controlsScheme: play\.shell\.controls\?\.scheme/);
+  assert.match(probe, /\['tap', 'tap_x'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
+  assert.match(probe, /page\.touchscreen\.tap\(target\.x, target\.y\)/);
+  assert.match(probe, /hasTouch: true/);
+  assert.match(probe, /fallback\.width \* \(0\.08 \+ \(\(ki % 10\) \* 0\.093\)\)/);
+});
+
+
+test('playtest honors declared auto-start and tap-to-start shell modes', async () => {
+  const probePath = fileURLToPath(new URL('./probe.mjs', import.meta.url));
+  const runtimePath = fileURLToPath(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url));
+  const [probe, runtime] = await Promise.all([
+    readFile(probePath, 'utf8'),
+    readFile(runtimePath, 'utf8')
+  ]);
+  assert.match(runtime, /startMode: play\.shell\.start\?\.mode \|\| 'auto'/);
+  assert.match(probe, /startMode === 'tap_to_start'/);
+  assert.match(probe, /auto-start mode began immediately without a blocking start card/);
+  assert.match(probe, /\['tap', 'tap_x'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
+});

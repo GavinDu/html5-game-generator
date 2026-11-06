@@ -53,12 +53,37 @@ try {
         const rect = canvas?.getBoundingClientRect();
         const stageRect = stage?.getBoundingClientRect();
         const wrapRect = wrap?.getBoundingClientRect();
+        const headerRect = document.querySelector('header')?.getBoundingClientRect();
+        const snapshot = window.__dqTest?.snapshot?.();
+        const logicalHeight = snapshot?.world?.h || canvas?.height || 0;
+        const headerBottomLogical = rect && headerRect && rect.height > 0
+          ? Math.max(0, (headerRect.bottom - rect.top) * logicalHeight / rect.height)
+          : 0;
+        const textEntities = (snapshot?.entities || []).filter(entity => entity.kind === 'text' && entity.visible);
+        const obscuredTextEntities = textEntities.filter(entity =>
+          (entity.y - entity.h / 2) < headerBottomLogical + 4
+        );
         const viewportWidth = document.documentElement.clientWidth;
         const viewportHeight = document.documentElement.clientHeight;
         const visible = !!rect && rect.width > 0 && rect.height > 0 &&
           rect.left >= -1 && rect.top >= -1 &&
           rect.right <= viewportWidth + 1 && rect.bottom <= viewportHeight + 1;
         const shellButtons = [...document.querySelectorAll('.shell-card.on button')];
+        const shellControlScheme = window.__dqProbe?.shell?.controlsScheme || '';
+        const declaredTouchControls = ['tap', 'tap_target', 'drag_x', 'drag_free'].includes(shellControlScheme);
+        // A full-canvas surface is touch-capable only when the game declares
+        // a supported touch scheme in its canonical Game IR.
+        const canvasIsTouchSurface = !!rect &&
+          declaredTouchControls &&
+          rect.width >= 44 && rect.height >= 44;
+        const measuredShellControls = shellButtons.length
+          ? shellButtons.map(button => {
+              const box = button.getBoundingClientRect();
+              return { label: button.textContent.trim(), width: box.width, height: box.height };
+            })
+          : canvasIsTouchSurface
+            ? [{ label: 'full-canvas ' + shellControlScheme, width: rect.width, height: rect.height }]
+            : [];
         return {
           viewport: { width: viewportWidth, height: viewportHeight },
           canvas: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
@@ -83,10 +108,9 @@ try {
           bodyMode: document.body.dataset.presentation || 'feed',
           canvasAspect: rect ? rect.width / rect.height : 0,
           logicalCanvas: canvas ? { width: canvas.width, height: canvas.height } : null,
-          shellButtons: shellButtons.map(button => {
-            const box = button.getBoundingClientRect();
-            return { label: button.textContent.trim(), width: box.width, height: box.height };
-          }),
+          shellControlScheme,
+          shellButtons: measuredShellControls,
+          textLayout: { headerBottomLogical, textEntities, obscuredTextEntities },
           probe: window.__dqProbe ? { booted: window.__dqProbe.booted, errors: window.__dqProbe.errors?.length || 0 } : null,
         };
       });
@@ -99,18 +123,20 @@ try {
         { id: 'no-page-errors', pass: errors.length === 0 && metrics.probe?.errors === 0, actual: errors },
         { id: 'shell-controls-present', pass: metrics.shellButtons.length > 0, actual: metrics.shellButtons.length },
         { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.length > 0 && metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
+        { id: 'text-clears-native-header', pass: metrics.textLayout.obscuredTextEntities.length === 0, actual: metrics.textLayout },
       ];
       await page.screenshot({ path: `${shots}/${viewport.name}.png`, fullPage: true });
       const failed = checks.filter(check => !check.pass);
       const weights = {
         'player-presentation-active': 10,
-        'canvas-visible': 20,
-        'no-horizontal-overflow': 15,
-        'no-vertical-overflow': 15,
-        'canvas-rendered': 20,
+        'canvas-visible': 15,
+        'no-horizontal-overflow': 12,
+        'no-vertical-overflow': 12,
+        'canvas-rendered': 15,
         'no-page-errors': 10,
         'shell-controls-present': 5,
         'shell-controls-touch-sized': 5,
+        'text-clears-native-header': 16,
       };
       const score = checks.reduce((total, check) => total + (check.pass ? (weights[check.id] || 0) : 0), 0);
       results.push({ viewport: viewport.name, passed: failed.length === 0, score, metrics, checks });

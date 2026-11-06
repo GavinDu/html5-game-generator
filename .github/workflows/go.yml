@@ -86,13 +86,32 @@ jobs:
           for i in $(seq 1 30); do
             curl -sf http://localhost:18099/healthz && break || sleep 1
           done
-      - name: Evaluate responsive player UI on iPhone and iPad viewports
+      - name: Discover every inventory game ID
         run: |
-          node tools/playtest/ui-evaluator.mjs \
-            --base http://localhost:18099 \
-            --game sample-rainbow-bear \
-            --browser ${{ matrix.browser }} \
-            --shots /tmp/ui-evaluator-${{ matrix.browser }}
+          python3 - <<'PY' > /tmp/inventory-game-ids.txt
+          import json
+          from pathlib import Path
+          ids = []
+          for manifest_path in sorted(Path("inventory").glob("*/manifest.json")):
+              manifest = json.loads(manifest_path.read_text())
+              game_id = manifest.get("game_id")
+              if game_id:
+                  ids.append(game_id)
+          if not ids:
+              raise SystemExit("No inventory game IDs were found")
+          print("\n".join(ids))
+          PY
+          cat /tmp/inventory-game-ids.txt
+      - name: Evaluate responsive player UI on iPhone and iPad viewports for every game
+        run: |
+          while IFS= read -r game_id; do
+            echo "Evaluating responsive player UI: $game_id (${{ matrix.browser }})"
+            node tools/playtest/ui-evaluator.mjs \
+              --base http://localhost:18099 \
+              --game "$game_id" \
+              --browser ${{ matrix.browser }} \
+              --shots "/tmp/ui-evaluator-${{ matrix.browser }}/$game_id"
+          done < /tmp/inventory-game-ids.txt
       - name: Upload responsive UI evaluation screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -179,9 +198,20 @@ jobs:
           done
       - name: Run the Playability Kit on the shipped games
         run: |
+          GAME_IDS="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          ids = [json.loads(path.read_text()).get("game_id") for path in sorted(Path("inventory").glob("*/manifest.json"))]
+          ids = [game_id for game_id in ids if game_id]
+          if not ids:
+              raise SystemExit("No inventory game IDs were found")
+          print(",".join(ids))
+          PY
+          )"
+          echo "Playability Kit inventory: $GAME_IDS"
           node tools/playability-kit/playability.mjs \
             --base http://localhost:18099 \
-            --games sample-rainbow-bear,sample-ribbon-sky,escape-from-injection,penguin-heartlight-rescue \
+            --games "$GAME_IDS" \
             --budget 40 --out /tmp/kit-out
       # Phase 2 producer for the kit, same advisory contract as above.
       - name: Build kit test-feedback artifact

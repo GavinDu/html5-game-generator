@@ -74,7 +74,7 @@ async function catcherPointerPoints(pg, fallbackRatio = 0.5) {
     const player = snap.player;
     const pickup = snap.entities
       .filter((e) => e.kind === 'pickup' && e.visible && e.y <= player.y + 20)
-      .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
+      .sort((a, b) => b.y - a.y || Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
     const targetX = pickup ? pickup.x : snap.world.w * ratio;
     const rect = canvas.getBoundingClientRect();
     const point = (x, y) => ({
@@ -89,13 +89,13 @@ async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
     checks.push({ checkId, status, evidence, actual });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 } });
+  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, hasTouch: true });
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
   const navStart = Date.now();
   let probe = null;
   try {
-    await page.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1`,
+    await page.goto(`${base}/player?game=${encodeURIComponent(gameId)}&presentation=play&probe=1`,
       { waitUntil: 'load', timeout: 30000 });
     // Wait for the probe verdict to show a booted game. Shell games
     // (IR 1.2) boot to a STOPPED ticker at the start card — frames stay
@@ -126,20 +126,28 @@ async function playGame(browser, gameId) {
       title: document.getElementById('shell-start-title')?.textContent || '',
       obj: document.getElementById('shell-start-obj')?.textContent || '',
     })).catch(() => ({ shown: false, title: '', obj: '' }));
-    if (card.shown && !probe.shell.started) {
-      push('shell.start_card', 'pass',
-        `start card shown before play: "${card.title}" / "${card.obj}"`, null);
+    const startMode = probe.shell.startMode || 'auto';
+    if (startMode === 'tap_to_start') {
+      if (card.shown && !probe.shell.started) {
+        push('shell.start_card', 'pass',
+          `gated start card shown before play: "${card.title}" / "${card.obj}"`, null);
+      } else {
+        push('shell.start_card', 'fail',
+          `tap_to_start shell must hold at a visible start card (shown=${card.shown}, started=${probe.shell.started})`, null);
+      }
+      await page.click('#shell-start-btn').catch(() => {});
+      const startDeadline = Date.now() + 8000;
+      while (Date.now() < startDeadline) {
+        const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
+        if (fresh) probe = fresh;
+        if (probe && probe.shell && probe.shell.started && probe.frames > 0) break;
+        await sleep(300);
+      }
+    } else if (probe.shell.started && !card.shown) {
+      push('shell.start_card', 'pass', 'auto-start mode began immediately without a blocking start card', null);
     } else {
       push('shell.start_card', 'fail',
-        `shell game booted without a gating start card (shown=${card.shown}, started=${probe.shell.started})`, null);
-    }
-    await page.click('#shell-start-btn').catch(() => {});
-    const startDeadline = Date.now() + 8000;
-    while (Date.now() < startDeadline) {
-      const fresh = await page.evaluate(() => window.__dqProbe || null).catch(() => null);
-      if (fresh) probe = fresh;
-      if (probe && probe.shell && probe.shell.started && probe.frames > 0) break;
-      await sleep(300);
+        `auto-start mode must begin immediately without a blocking start card (shown=${card.shown}, started=${probe.shell.started})`, null);
     }
   }
 
@@ -228,11 +236,16 @@ async function playGame(browser, gameId) {
   let lastSig = '';
   const playDeadline = Date.now() + Math.min(playSeconds, winSeconds) * 1000;
   const isCatcher = probe?.shell?.archetype === 'catcher';
-  // Vertical keys are harmful to a catcher: remain in the catch lane.
+  // A tap-controlled dodger (Escape from the Injection) changes one lane
+  // per left/right tap. Keyboard arrows do not exercise that contract and
+  // made the generic bot miss every optional star reward. Drive the declared
+  // input scheme instead, steering toward the lowest visible pickup.
+  const isTapDodger = !isCatcher && probe?.shell?.archetype === 'dodger' &&
+    ['tap', 'tap_x'].includes(probe?.shell?.controlsScheme);
   const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
   let ki = 0;
   while (Date.now() < playDeadline) {
-    if (!isCatcher) {
+    if (!isCatcher && !isTapDodger) {
       await page.keyboard.down(keys[ki % keys.length]).catch(() => {});
       await sleep(450);
       await page.keyboard.up(keys[ki % keys.length]).catch(() => {});
@@ -241,12 +254,96 @@ async function playGame(browser, gameId) {
     }
     ki++;
     if (isCatcher) {
+      const tapControls = ['tap', 'tap_x'].includes(probe?.shell?.controlsScheme);
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
-      if (points) {
+      if (tapControls) {
+        // Some legacy Shim games do not expose the generic player/pickup
+        // snapshot. Keep the bot exercising their real tap handler anyway:
+        // sweep the horizontal catch lane so every part of the playfield is
+        // visited repeatedly while falling pickups approach the player.
+        const fallback = await page.evaluate(() => {
+          const canvas = document.querySelector('#stage canvas');
+          if (!canvas) return null;
+          const rect = canvas.getBoundingClientRect();
+          return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        }).catch(() => null);
+        const target = points?.to || (fallback ? {
+          x: fallback.left + fallback.width * (0.08 + ((ki % 10) * 0.093)),
+          y: fallback.top + fallback.height * 0.86,
+        } : null);
+        if (target) {
+          // Exercise touch first. Verify the runtime actually recorded it;
+          // headless Chromium can report a successful touchscreen tap while
+          // dropping the event before it reaches Pixi's canvas listener.
+          const beforeInputs = (await readProbe(page))?.inputs ?? 0;
+          await page.touchscreen.tap(target.x, target.y).catch(() => {});
+          await sleep(100);
+          let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
+          if (afterInputs <= beforeInputs) {
+            // Dispatch on the actual Pixi canvas (not a page-level synthetic
+            // click), and hold across several fixed simulation frames.
+            await page.evaluate(({ x, y }) => {
+              const canvas = document.querySelector('#stage canvas');
+              if (!canvas) return;
+              const base = {
+                pointerId: 1, pointerType: 'touch', isPrimary: true,
+                button: 0, buttons: 1, clientX: x, clientY: y,
+                bubbles: true, cancelable: true,
+              };
+              canvas.dispatchEvent(new PointerEvent('pointerdown', base));
+            }, target).catch(() => {});
+            await sleep(220);
+            await page.evaluate(() => {
+              const canvas = document.querySelector('#stage canvas');
+              if (!canvas) return;
+              canvas.dispatchEvent(new PointerEvent('pointerup', {
+                pointerId: 1, pointerType: 'touch', isPrimary: true,
+                button: 0, buttons: 0, bubbles: true, cancelable: true,
+              }));
+            }).catch(() => {});
+            afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
+          }
+          if (afterInputs <= beforeInputs) {
+            console.warn('[playtest] tap control produced no recorded input', { gameId, target, beforeInputs, afterInputs });
+          }
+        }
+      } else if (points) {
         await page.mouse.move(points.from.x, points.from.y).catch(() => {});
         await page.mouse.down().catch(() => {});
         await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
         await page.mouse.up().catch(() => {});
+      }
+    } else if (isTapDodger) {
+      const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
+      const canvas = await page.evaluate(() => {
+        const el = document.querySelector('#stage canvas');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { left: r.left, top: r.top, width: r.width, height: r.height };
+      }).catch(() => null);
+      if (canvas) {
+        const currentX = points?.from.x ?? (canvas.left + canvas.width * 0.5);
+        const targetX = points?.to.x ?? (canvas.left + canvas.width * (ki % 2 ? 0.25 : 0.75));
+        // Tap the half corresponding to the next lane. If already aligned,
+        // leave the player in that lane rather than oscillating away.
+        if (Math.abs(targetX - currentX) > canvas.width * 0.12 || !points) {
+          const tapX = targetX < currentX
+            ? canvas.left + canvas.width * 0.25
+            : canvas.left + canvas.width * 0.75;
+          const tapY = canvas.top + canvas.height * 0.82;
+          const beforeInputs = (await readProbe(page))?.inputs ?? 0;
+          await page.touchscreen.tap(tapX, tapY).catch(() => {});
+          await sleep(80);
+          let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
+          if (afterInputs <= beforeInputs) {
+            await page.mouse.click(tapX, tapY).catch(() => {});
+            await sleep(80);
+            afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
+          }
+          if (afterInputs <= beforeInputs) {
+            console.warn('[playtest] tap-dodger input was not recorded', { gameId, beforeInputs, afterInputs });
+          }
+        }
       }
     } else if (ki % 4 === 0) {
       await page.mouse.move(210, 450).catch(() => {});

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const source = await readFile(fileURLToPath(new URL('./ui-evaluator.mjs', import.meta.url)), 'utf8');
+const runtimeSource = await readFile(fileURLToPath(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url)), 'utf8');
 
 test('UI evaluator covers iPhone and iPad in portrait and landscape', () => {
   for (const name of ['iphone-portrait', 'iphone-landscape', 'ipad-portrait', 'ipad-landscape']) {
@@ -38,4 +39,14 @@ test('UI evaluator emits a weighted per-viewport score and overall grade', () =>
   assert.match(source, /score: averageScore/);
   assert.match(source, /grade: averageScore >= 90/);
   assert.match(source, /results\.length === viewports\.length/);
+});
+
+
+test('UI evaluator accepts a full-canvas touch surface only when the IR declares touch controls', () => {
+  assert.match(runtimeSource, /controlsScheme: play\.shell\.controls\?\.scheme/);
+  assert.match(source, /const shellControlScheme = window\.__dqProbe\?\.shell\?\.controlsScheme/);
+  assert.match(source, /const declaredTouchControls = \['tap', 'tap_target', 'drag_x', 'drag_free'\]\.includes\(shellControlScheme\)/);
+  assert.match(source, /const canvasIsTouchSurface = !!rect &&\s+declaredTouchControls/);
+  assert.match(source, /canvasIsTouchSurface/);
+  assert.match(source, /full-canvas /);
 });

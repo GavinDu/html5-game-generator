@@ -44,6 +44,7 @@ var score = 0;
 var elapsed = 0, levelT = 0, spawnT = 0, starT = 3, hintT = 0, bannerT = 0;
 var metaLevel = 1, metaMult = 1;
 var over = false, ended = false, cried = false, catchT = 0;
+var hitCooldown = 0;
 
 function levelName(n) {
   if (n <= LEVEL_NAMES.length) return LEVEL_NAMES[n - 1] + ' ' + LEVEL_EMOJI[n - 1];
@@ -116,6 +117,7 @@ Shim.loop(function (dt) {
   }
 
   elapsed += dt;
+  if (hitCooldown > 0) hitCooldown = Math.max(0, hitCooldown - dt);
   score += dt * 10;
   setScore();
 
@@ -133,7 +135,7 @@ Shim.loop(function (dt) {
   if (levelT >= LEVEL_SECS) {
     levelT = 0;
     metaLevel++;
-    metaMult *= 1.12;
+    metaMult = Math.min(3.2, metaMult * 1.12);
     var li = (metaLevel - 1) % 3;
     for (var k = 0; k < 3; k++) {
       bgs[k].visible = (k === li);
@@ -172,8 +174,14 @@ Shim.loop(function (dt) {
     it.s.y += speed * dt;
     if (it.kind === 'syringe') {
       if (Math.abs(it.s.y - 680) < 60 && Math.abs(it.s.x - blob.x) < 50) {
-        gap -= 45;
-        Shim.audio.tone({ freq: 150, dur: 0.2, type: 'sawtooth' });
+        // One syringe can only damage the chaser gap once per brief grace
+        // window. The item is always retired, but overlapping arrivals do
+        // not chain-drain the player in adjacent frames.
+        if (hitCooldown <= 0) {
+          gap -= 45;
+          hitCooldown = 0.75;
+          Shim.audio.tone({ freq: 150, dur: 0.2, type: 'sawtooth' });
+        }
         removeItem(i);
         continue;
       }

@@ -95,37 +95,13 @@
     "entryScene": "sky",
     "id": "sample-ribbon-sky",
     "orientation": "portrait",
-    "sessionTargetSeconds": 25,
+    "sessionTargetSeconds": 55,
     "title": "Ribbon Mends the Sky"
   },
   "inputBindings": [
     {
       "action": "move",
-      "input": "drag"
-    },
-    {
-      "action": "move",
       "input": "tap"
-    },
-    {
-      "action": "move_left",
-      "input": "keyboard",
-      "key": "ArrowLeft"
-    },
-    {
-      "action": "move_right",
-      "input": "keyboard",
-      "key": "ArrowRight"
-    },
-    {
-      "action": "move_up",
-      "input": "keyboard",
-      "key": "ArrowUp"
-    },
-    {
-      "action": "move_down",
-      "input": "keyboard",
-      "key": "ArrowDown"
     }
   ],
   "irVersion": "1.2",
@@ -919,29 +895,29 @@
   "experience": {
     "archetype": "catcher",
     "controls": {
-      "scheme": "drag_x",
-      "hint": "拖动移动，收集碎片补好天空"
+      "scheme": "tap",
+      "hint": "Tap to fly; tap a demon to bonk it"
     },
     "objective": {
-      "kind": "collect",
-      "target": 10,
-      "label": "收集 10 块天空碎片"
+      "kind": "reach",
+      "target": 6,
+      "label": "Stitch 6 sky-holes"
     },
     "hud": {
       "left": "objective_progress",
       "right": "health"
     },
     "start": {
-      "mode": "tap_to_start"
+      "mode": "auto"
     },
     "failure": {
       "mode": "health",
       "health": 3,
-      "invulnerableMs": 1000
+      "invulnerableMs": 1500
     },
     "pacing": {
-      "targetSessionSec": 25,
-      "firstRewardWithinSec": 10,
+      "targetSessionSec": 55,
+      "firstRewardWithinSec": 12,
       "expectedCatchRate": 0.15,
       "ramp": [
         {
