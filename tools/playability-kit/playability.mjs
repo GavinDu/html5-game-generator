@@ -221,8 +221,8 @@ async function runGame(browser, id) {
     if (!declaredTap && Math.abs(dx) <= 8 && Math.abs(dy) <= 8) {
       // Fallback for legacy tap-zone games whose manifest omitted bindings.
       style = 'tap';
-      const tapAt = await toClient(p0.x < W / 2 ? W * 0.8 : W * 0.2, p0.y);
-      await tapAt(tapAt.x, tapAt.y, 320); await sleep(380);
+      const tapPoint = await toClient(p0.x < W / 2 ? W * 0.8 : W * 0.2, p0.y);
+      await tapAt(tapPoint.x, tapPoint.y, 320); await sleep(380);
       s1 = await snap();
       dx = (s1?.player?.x ?? p0.x) - p0.x; dy = (s1?.player?.y ?? p0.y) - p0.y;
     }
