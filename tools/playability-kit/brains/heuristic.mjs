@@ -18,6 +18,14 @@
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// Deterministic tie-breaker for vertically aligned hazards. Stable entity IDs
+// make the quality bot reproducible across repeated CI runs and screenshots.
+export function evadeDirection(player, hazard) {
+  const horizontal = Math.sign(player.x - hazard.x);
+  if (horizontal !== 0) return horizontal;
+  return String(player.id ?? '').localeCompare(String(hazard.id ?? '')) <= 0 ? -1 : 1;
+}
+
 export function heuristicBrain() {
   let prev = null;                // previous snapshot
   const vel = new Map();          // entity id -> {vx, vy} px/s of game time
@@ -106,7 +114,7 @@ export function heuristicBrain() {
         .filter((o) => o.d < 130)
         .sort((a, b) => a.d - b.d)[0];
       if (threat) {
-        const away = Math.sign(p.x - threat.h.x) || (Math.random() < 0.5 ? -1 : 1);
+        const away = evadeDirection(p, threat.h);
         tx = clamp(p.x + away * 110, 30, W - 30);
         if (freeY) ty = clamp(p.y + (Math.sign(p.y - threat.h.y) || 1) * 110, 30, H - 30);
       }
