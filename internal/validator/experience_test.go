@@ -127,6 +127,27 @@ func TestExperienceBalanceUsesCustomObjectiveProgress(t *testing.T) {
 	}
 }
 
+func TestAddVariableRejectsMissingOrNonNumericArguments(t *testing.T) {
+	fixture := strings.Replace(expDocJSON,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts"}`,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts", "progressVariable": "hearts_collected"}`, 1)
+	fixture = strings.Replace(fixture,
+		`"actions": [{"type": "add_score", "value": 1}]`,
+		`"actions": [{"type": "add_variable", "variable": "hearts_collected", "value": 1}]`, 1)
+	badValue := strings.Replace(fixture,
+		`"variable": "hearts_collected", "value": 1`,
+		`"variable": "hearts_collected", "value": "one"`, 1)
+	if _, err := gameir.DecodeAndValidate([]byte(badValue)); err == nil {
+		t.Fatal("add_variable should reject a non-numeric increment")
+	}
+	missingVariable := strings.Replace(fixture,
+		`"variable": "hearts_collected", "value": 1`,
+		`"value": 1`, 1)
+	if _, err := gameir.DecodeAndValidate([]byte(missingVariable)); err == nil {
+		t.Fatal("add_variable should reject a missing variable name")
+	}
+}
+
 func TestExperienceChecksPreStandardGame(t *testing.T) {
 	doc := decodeExp(t, strings.Replace(expDocJSON, `"irVersion": "1.2"`, `"irVersion": "1.1"`, 1))
 	doc.Experience = nil
