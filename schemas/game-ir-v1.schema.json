@@ -2205,7 +2205,8 @@
                     "set_asset",
                     "emit_particles",
                     "camera_shake",
-                    "camera_follow"
+                    "camera_follow",
+                    "add_variable"
                   ]
                 },
                 "target": {
@@ -2328,6 +2329,10 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 60
+            },
+            "progressVariable": {
+              "type": "string",
+              "maxLength": 80
             }
           }
         },
