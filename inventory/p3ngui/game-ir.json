@@ -766,6 +766,31 @@
               "wordWrapWidth": 340
             }
           }
+        },
+        {
+          "id": "controls-hint",
+          "kind": "text",
+          "position": [
+            195,
+            150
+          ],
+          "size": [
+            360,
+            24
+          ],
+          "components": [
+            "text_label"
+          ],
+          "render": {
+            "text": {
+              "content": "Tap anywhere to guide the penguin",
+              "fontSize": 10,
+              "fill": "#42677F",
+              "fontWeight": "normal",
+              "align": "center",
+              "wordWrapWidth": 340
+            }
+          }
         }
       ]
     }
