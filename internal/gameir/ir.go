@@ -741,6 +741,15 @@ func Validate(d *Document) error {
 			if action.Type == "set_variable" && strings.TrimSpace(action.Variable) == "" {
 				return fmt.Errorf("rule %q set_variable requires variable", rule.ID)
 			}
+			if action.Type == "add_variable" {
+				if strings.TrimSpace(action.Variable) == "" {
+					return fmt.Errorf("rule %q add_variable requires variable", rule.ID)
+				}
+				v, ok := asNumber(action.Value)
+				if !ok || !finite(v) || abs(v) > 1000000 {
+					return fmt.Errorf("rule %q add_variable requires a finite bounded numeric value", rule.ID)
+				}
+			}
 			if action.Type == "change_scene" && action.SceneID == "" {
 				return fmt.Errorf("rule %q change_scene requires sceneId", rule.ID)
 			}
