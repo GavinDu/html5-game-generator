@@ -69,6 +69,10 @@
     "Verify that every pair of catches reveals a new aurora band and updates the progress counter.",
     "Verify that missing hearts never causes a softlock and that new hearts continue spawning.",
     "Check tap responsiveness, forgiving collision radius, HUD overlap and readable result messaging on phone and tablet.",
-    "Verify the tap-to-guide hint is visible beneath the objective on phone and tablet."
+    "Verify the tap-to-guide hint is visible beneath the objective on phone and tablet.",
+    "Use the three supplied penguin coloring-page images as visual reference inputs: preserve the shared round black-and-white penguin silhouette, large eyes, small beak, rosy cheeks, flippers, feet, and scarf across all variants.",
+    "Keep the three source-inspired variants distinguishable: rainbow patchwork scarf/body accents; festive multicolor head and scarf with cool-toned flippers; and classic black-and-white penguin with a blue striped scarf and warm orange feet.",
+    "Extract the penguin illustration only. Do not reproduce photographed paper borders, the coloring-page website watermark, handwritten names, or incidental pencil marks as game artwork.",
+    "Verify the penguin and collectible hearts remain visually distinct against the winter background at iPhone and iPad portrait and landscape sizes; retain before/after gameplay screenshots as review evidence."
   ]
 }
