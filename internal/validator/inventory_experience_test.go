@@ -113,8 +113,8 @@ func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
 		Value    any    `json:"value"`
 	}
 	type rule struct {
-		ID         string `json:"id"`
-		When       struct {
+		ID   string `json:"id"`
+		When struct {
 			Event string `json:"event"`
 		} `json:"when"`
 		Conditions []condition `json:"conditions"`
