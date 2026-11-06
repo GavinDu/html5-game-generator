@@ -29,6 +29,7 @@ test('custom collect progress is independent from score and increments through r
   assert.match(source, /case 'add_variable'/);
   assert.match(source, /state\.variables\[action\.variable\] = current \+ delta/);
   assert.match(source, /emit\('variable_changed', sourceEnt, targetEnt\)/);
+  assert.match(source, /objectiveProgress\(\).*of \$\{target\}/s);
 });
 
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
