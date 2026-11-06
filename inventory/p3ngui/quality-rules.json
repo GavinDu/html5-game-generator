@@ -28,7 +28,7 @@
   "path": "inventory/p3ngui/quality-rules.json",
   "profile": "gentle-collect-and-restore-family-arcade",
   "gameId": "penguin-heartlight-rescue",
-  "title": "Penguin's Heartlight Rescue",
+  "title": "Penguin's Heartlight",
   "gameplayContract": {
     "coreLoop": [
       "tap to guide the penguin horizontally",
