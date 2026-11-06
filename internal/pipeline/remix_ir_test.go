@@ -63,6 +63,66 @@ func TestBuildGenericRemixIRPreservesParentGameplayLoopAndAssets(t *testing.T) {
 	}
 }
 
+func TestBuildRemixIRSupportsRepeatedRemixesAndTracksImmediateParent(t *testing.T) {
+	originalIR := &gameir.Document{
+		IRVersion: gameir.Version,
+		Game: gameir.Game{ID: "original", Title: "Original", EntryScene: "field", Orientation: "portrait"},
+		Assets: []gameir.Asset{{ID: "hero", Kind: "image", URI: "sprites/hero.png", MIMEType: "image/png"}},
+		Scenes: []gameir.Scene{{ID: "field", Entities: []gameir.Entity{
+			{ID: "player", Kind: "player", AssetID: "hero", Position: []float64{195, 700}, Size: []float64{100, 120}, Components: []string{"movement", "collider"}},
+		}}},
+		InputBindings: []gameir.InputBinding{{Action: "move", Input: "tap"}},
+		Rules: []gameir.Rule{{
+			ID: "collect-heart",
+			When: gameir.Condition{Event: "collected", Source: "player", Target: "heart"},
+			Actions: []gameir.Action{{Type: "add_score", Target: "player", Value: 1}},
+		}},
+		Metadata: gameir.Metadata{Tags: []string{"family", "collecting"}},
+	}
+	original := &model.Game{ID: "original", Manifest: &model.BundleManifest{Version: 7}, GameIR: originalIR}
+
+	firstChild := &model.Game{ID: "remix-one"}
+	firstIR, err := buildRemixIR(&model.DesignDoc{Title: "First remix"}, firstChild, original)
+	if err != nil {
+		t.Fatalf("first remix: %v", err)
+	}
+	firstChild.Manifest = &model.BundleManifest{Version: 3}
+	firstChild.GameIR = firstIR
+
+	secondChild := &model.Game{ID: "remix-two"}
+	secondIR, err := buildRemixIR(&model.DesignDoc{Title: "Second remix"}, secondChild, firstChild)
+	if err != nil {
+		t.Fatalf("second remix: %v", err)
+	}
+
+	if firstIR.Metadata.ParentGameID != original.ID || firstIR.Metadata.ParentVersion != original.Manifest.Version {
+		t.Fatalf("first remix lineage changed: %+v", firstIR.Metadata)
+	}
+	if secondIR.Metadata.ParentGameID != firstChild.ID || secondIR.Metadata.ParentVersion != firstChild.Manifest.Version {
+		t.Fatalf("second remix must point to its immediate parent/version: %+v", secondIR.Metadata)
+	}
+	if secondIR.Game.ID != secondChild.ID || secondIR.Game.Title != "Second remix" {
+		t.Fatalf("second remix identity was not applied: %+v", secondIR.Game)
+	}
+	if len(secondIR.Assets) != 1 || secondIR.Assets[0].URI != "sprites/hero.png" ||
+		len(secondIR.Scenes) != 1 || len(secondIR.Scenes[0].Entities) != 1 ||
+		len(secondIR.Rules) != 1 || secondIR.Rules[0].ID != "collect-heart" ||
+		len(secondIR.InputBindings) != 1 || secondIR.InputBindings[0].Input != "tap" {
+		t.Fatal("repeated remix did not preserve the canonical gameplay loop and assets")
+	}
+	remixTags := 0
+	for _, tag := range secondIR.Metadata.Tags {
+		if tag == "remix" { remixTags++ }
+	}
+	if remixTags != 1 {
+		t.Fatalf("repeated remix should contain exactly one remix tag, got %d: %v", remixTags, secondIR.Metadata.Tags)
+	}
+	if originalIR.Game.ID != "original" || originalIR.Metadata.ParentGameID != "" ||
+		firstIR.Game.ID != firstChild.ID || firstIR.Metadata.ParentGameID != original.ID {
+		t.Fatal("building a second-generation remix mutated an ancestor Game IR")
+	}
+}
+
 func containsRemixTag(tags []string) bool {
 	for _, tag := range tags {
 		if tag == "remix" {
