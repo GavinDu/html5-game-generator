@@ -668,6 +668,9 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 
 	// Exercise a second real API generation from the just-published remix.
 	// This catches lineage or asset loss that unit-level IR cloning cannot see.
+	if child.Manifest == nil {
+		t.Fatal("first-generation remix has no published manifest")
+	}
 	firstVersion := child.Manifest.Version
 	rec = do(t, srv, "POST", "/v1/games", map[string]any{
 		"parent_game_id": child.ID,
