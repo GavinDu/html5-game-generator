@@ -166,6 +166,14 @@ async function runGame(browser, id) {
     const b = await page.locator('#stage canvas').boundingBox();
     return { x: b.x + lx * b.width / s0.world.w, y: b.y + ly * b.height / s0.world.h };
   };
+  // The runtime samples pointer.down on animation frames. A zero-duration
+  // mouse.click can begin and end between frames, so model a short finger
+  // contact (not a drag) to make tap input observable and repeatable.
+  const tapAt = async (x, y, holdMs = 180) => {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    try { await sleep(holdMs); } finally { await page.mouse.up().catch(() => {}); }
+  };
   const shot = async (name) => {
     const buf = await page.locator('#stage canvas').screenshot().catch(() => null);
     if (buf) fs.writeFileSync(`${outDir}/${id}${mutant ? '.' + mutant : ''}.${name}.png`, buf);
@@ -200,8 +208,8 @@ async function runGame(browser, id) {
       // A declared tap binding is an intentional destination command, not a
       // continuous drag. Exercise the actual contract instead of accepting
       // pointer movement that the gameplay loop itself never consumes.
-      await page.mouse.click(b.x, b.y);
-      await sleep(900);
+      await tapAt(b.x, b.y, 320);
+      await sleep(580);
       s1 = await snap();
     } else {
       const a = await toClient(p0.x, p0.y);
@@ -214,7 +222,7 @@ async function runGame(browser, id) {
       // Fallback for legacy tap-zone games whose manifest omitted bindings.
       style = 'tap';
       const tapAt = await toClient(p0.x < W / 2 ? W * 0.8 : W * 0.2, p0.y);
-      await page.mouse.click(tapAt.x, tapAt.y); await sleep(700);
+      await tapAt(tapAt.x, tapAt.y, 320); await sleep(380);
       s1 = await snap();
       dx = (s1?.player?.x ?? p0.x) - p0.x; dy = (s1?.player?.y ?? p0.y) - p0.y;
     }
@@ -266,7 +274,7 @@ async function runGame(browser, id) {
         // Re-issue discrete taps toward the brain's current target. Holding a
         // mouse button and moving it only tests drag semantics and starves
         // games whose IR explicitly declares tap-to-move controls.
-        if (tick % 5 === 0) await page.mouse.click(c.x, c.y);
+        if (tick % 5 === 0) await tapAt(c.x, c.y, 180);
       } else {
         await page.mouse.move(c.x, c.y, { steps: 2 });
         if (tick % 10 === 9) { await page.mouse.up().catch(() => {}); await page.mouse.down().catch(() => {}); }
