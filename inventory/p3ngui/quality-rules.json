@@ -68,6 +68,7 @@
     "Check that the player and heart sprites remain distinct on a snowy background.",
     "Verify that every pair of catches reveals a new aurora band and updates the progress counter.",
     "Verify that missing hearts never causes a softlock and that new hearts continue spawning.",
-    "Check tap responsiveness, forgiving collision radius, HUD overlap and readable result messaging on phone and tablet."
+    "Check tap responsiveness, forgiving collision radius, HUD overlap and readable result messaging on phone and tablet.",
+    "Verify the tap-to-guide hint is visible beneath the objective on phone and tablet."
   ]
 }
