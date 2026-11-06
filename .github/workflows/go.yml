@@ -104,6 +104,22 @@ jobs:
           cat /tmp/inventory-game-ids.txt
       - name: Verify social feed actions and source privacy in the browser
         run: node tools/playtest/feed-actions-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }}
+      - name: Verify authored orientation and pause/resume policy
+        run: node tools/playtest/orientation-policy-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/orientation-policy-${{ matrix.browser }}
+      - name: Upload orientation policy screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orientation-policy-${{ matrix.browser }}
+          path: /tmp/orientation-policy-${{ matrix.browser }}/
+      - name: Verify Penguin portrait play, missed hearts, aurora and scarf progression
+        run: node tools/playtest/penguin-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/penguin-quality-${{ matrix.browser }}
+      - name: Upload Penguin gameplay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: penguin-quality-${{ matrix.browser }}
+          path: /tmp/penguin-quality-${{ matrix.browser }}/
       - name: Verify Bobo short taps and missed-heart recycling
         run: node tools/playtest/bobo-controls-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/bobo-controls-${{ matrix.browser }}
       - name: Upload Bobo control and recycling screenshots

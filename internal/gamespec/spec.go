@@ -106,6 +106,7 @@ const (
 
 	OrientPortrait  = "portrait"
 	OrientLandscape = "landscape"
+	OrientAny       = "any"
 
 	PerfInstant = "instant"
 	PerfLowEnd  = "low-end"
@@ -311,7 +312,7 @@ func (s *GameSpec) Validate() error {
 	for _, t := range s.Targets {
 		oneOf("targets[]", t, TargetWeb, TargetIOS, TargetAndroid, TargetDesktop)
 	}
-	oneOf("orientation", s.Orientation, OrientPortrait, OrientLandscape)
+	oneOf("orientation", s.Orientation, OrientPortrait, OrientLandscape, OrientAny)
 	oneOf("perfBudget", s.PerfBudget, PerfInstant, PerfLowEnd, PerfMid, PerfHigh)
 	if s.SpriteCount < 0 {
 		errs = append(errs, "spriteCount cannot be negative")

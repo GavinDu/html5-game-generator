@@ -619,7 +619,7 @@ async function listGames() {
     topline.className = 'card-topline';
     const tag = document.createElement('span');
     tag.className = 'playable-tag';
-    tag.textContent = 'PLAYABLE';
+    tag.textContent = metadata?.orientation === 'landscape' ? 'LANDSCAPE GAME' : metadata?.orientation === 'portrait' ? 'PORTRAIT GAME' : 'PLAYABLE';
     topline.append(tag);
 
     const title = document.createElement('a');
@@ -917,6 +917,16 @@ async function run(id) {
   const scene = (ir.scenes || []).find((s) => s.id === wantedScene) || ir.scenes?.[0];
   if (!scene) throw new Error('entry scene missing');
 
+  const orientation = ir.game.orientation;
+  if (!['portrait', 'landscape', 'any'].includes(orientation)) throw new Error('unsupported game orientation');
+  if (pkg.orientation && pkg.orientation !== orientation) throw new Error('package orientation does not match Game IR');
+  // These are the authored viewport dimensions, not a device-driven reflow of
+  // the game world. Large worlds still use the existing camera behavior.
+  const wide = orientation === 'landscape' || (orientation === 'any' && scene.worldSize?.[0] > scene.worldSize?.[1]);
+  const W = wide ? 844 : 390, H = wide ? 390 : 844;
+  document.documentElement.style.setProperty('--dq-stage-aspect', String(W / H));
+  document.body.dataset.gameOrientation = orientation;
+  let orientationBlocked = false;
   $('title').textContent = ir.game.title || id;
 
   const PPM = scene.pixelsPerMeter ?? 100;
@@ -956,7 +966,7 @@ async function run(id) {
       recordEvent('pause', 'hidden');
       flushPerfWindow();
     } else {
-      if (play.shellStarted && !(deterministicCapture && capturePaused)) { try { app.ticker.start(); } catch { /* ignore */ } }
+      if (play.shellStarted && !orientationBlocked && !(deterministicCapture && capturePaused)) { try { app.ticker.start(); } catch { /* ignore */ } }
       recordEvent('resume', '');
     }
   }, { signal: abort.signal });
@@ -1381,6 +1391,7 @@ async function run(id) {
       baseRot: view.rotation, offX: 0, offY: 0,
       destroyed: false, phase: rng() * Math.PI * 2, stillTime: 0,
       bodyKind: def.physics?.body || (def.physics ? 'kinematic_position' : 'legacy'),
+      currentAssetId: def.assetId || null,
       tweens: (def.tweens || []).map((t) => ({ ...t, t: -(t.delayMs || 0), cycle: 0, done: false })),
       emitter: null, controller: null, forceUntil: 0, forceVec: null,
     };
@@ -1821,7 +1832,7 @@ async function run(id) {
             warnOnce('asset-' + action.assetId, 'RULE', `set_asset: texture '${action.assetId}' unavailable — skipped`);
             break;
           }
-          if (ent.view instanceof PIXI.Sprite) ent.view.texture = textures.get(action.assetId);
+          if (ent.view instanceof PIXI.Sprite) { ent.view.texture = textures.get(action.assetId); ent.currentAssetId = action.assetId; }
           else warnOnce('asset-view-' + ent.defId, 'RULE', `set_asset on non-sprite '${ent.defId}' skipped`);
           break;
         case 'emit_particles': {
@@ -2004,7 +2015,7 @@ async function run(id) {
     };
   };
   app.canvas.addEventListener('pointerdown', (ev) => {
-    if (replayTrace) return; // the trace drives; live input would corrupt the replay
+    if (replayTrace || orientationBlocked) return; // replay and rotation guidance cannot consume live input
     pointer.down = true;
     const p = toLogical(ev);
     pointer.x = p.x;
@@ -2031,7 +2042,7 @@ async function run(id) {
   const keysDown = new Set();
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   addEventListener('keydown', (ev) => {
-    if (replayTrace) return;
+    if (replayTrace || orientationBlocked) return;
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (!b) return;
     keysDown.add(b.action);
@@ -2566,7 +2577,7 @@ async function run(id) {
     if (play.shellStarted) return;
     play.shellStarted = true;
     $('shell-start').classList.remove('on');
-    if (!deterministicCapture) {
+    if (!deterministicCapture && !orientationBlocked) {
       try { app.ticker.start(); } catch { /* ignore */ }
     }
     recordEvent('start', fromProbe ? 'probe-auto' : 'tap');
@@ -2609,6 +2620,23 @@ async function run(id) {
       log('RT', 'CAPTURE INITIAL RENDER ERROR ' + (err.message || err));
     }
   }
+  const orientationHint = $('orientation-hint');
+  const syncOrientation = () => {
+    const deviceWide = innerWidth > innerHeight;
+    orientationBlocked = orientation !== 'any' && ((orientation === 'landscape') !== deviceWide);
+    document.body.dataset.orientationBlocked = String(orientationBlocked);
+    if (orientationHint) {
+      orientationHint.hidden = !orientationBlocked;
+      orientationHint.textContent = orientationBlocked
+        ? (orientation === 'portrait' ? 'Portrait game · turn your device upright to play' : 'Landscape game · turn your device sideways to play') : '';
+    }
+    if (orientationBlocked) { pointer.down = false; keysDown.clear(); app.ticker.stop(); }
+    else if (play.shellStarted && !state.ended && !document.hidden && !deterministicCapture) app.ticker.start();
+  };
+  addEventListener('resize', syncOrientation, { signal: abort.signal });
+  syncOrientation();
+  // Even when rotation guidance pauses the ticker, show a real first frame.
+  app.renderer.render(app.stage);
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
@@ -2629,6 +2657,7 @@ async function run(id) {
           id: e.runtimeId, def: e.defId, kind: e.def.kind,
           x: e.x, y: e.y, w: e.w, h: e.h,
           visible: !!e.view.visible && e.view.alpha > 0.05,
+          alpha: e.view.alpha, assetId: e.currentAssetId,
         })),
         world: { w: W, h: H },
       }),

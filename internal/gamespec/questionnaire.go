@@ -78,7 +78,7 @@ func Questionnaire() []Factor {
 		{Key: "targets", Group: "platform", Prompt: "Where should it run?", Type: "enum-list",
 			Options: []string{TargetWeb, TargetIOS, TargetAndroid, TargetDesktop}, Default: TargetWeb},
 		{Key: "orientation", Group: "platform", Prompt: "Orientation?", Type: "enum",
-			Options: []string{OrientPortrait, OrientLandscape}, Default: OrientPortrait},
+			Options: []string{OrientPortrait, OrientLandscape, OrientAny}, Default: OrientPortrait},
 		{Key: "perfBudget", Group: "platform", Prompt: "Performance budget?", Type: "enum",
 			Options: []string{PerfInstant, PerfLowEnd, PerfMid, PerfHigh}, Default: PerfLowEnd, Preference: true},
 	}

@@ -27,6 +27,7 @@ import { chromium, webkit } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { selectFirstRewardMeasurement } from './reward-timing.mjs';
 import { resolvePlayBudgetSeconds } from './play-budget.mjs';
+import { preferredViewport } from './game-orientation.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -90,7 +91,8 @@ async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
     checks.push({ checkId, status, evidence, actual });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, hasTouch: true });
+  const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(gameId)}/package`)).json();
+  const page = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900), hasTouch: true });
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
   const navStart = Date.now();
@@ -551,7 +553,7 @@ async function playGame(browser, gameId) {
     }
     script.push({ tick: 280, type: 'pointerup', detail: '' });
     const scriptedScore = async () => {
-      const p2 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      const p2 = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900) });
       try {
         await p2.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&seed=777`,
           { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -602,7 +604,7 @@ async function playGame(browser, gameId) {
     } else if (!runId) {
       push('leaderboard.replay_verified', 'skip', 'no submitted run id observed after the win (submission may have been rejected)', null);
     } else {
-      const p3 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      const p3 = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900) });
       try {
         await p3.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&replay=${encodeURIComponent(runId)}`,
           { waitUntil: 'domcontentloaded', timeout: 30000 });

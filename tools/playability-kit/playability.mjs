@@ -37,6 +37,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { heuristicBrain } from './brains/heuristic.mjs';
+import { preferredViewport } from '../playtest/game-orientation.mjs';
 
 function resolveChromium() {
   // Explicit override wins; otherwise return undefined and let the
@@ -96,7 +97,8 @@ function analyzePng(buf) {
 async function runGame(browser, id) {
   const checks = []; const issues = [];
   const add = (checkId, status, evidence, extra = {}) => checks.push({ checkId, status, evidence, ...extra });
-  const ctx = await browser.newContext({ viewport: { width: 430, height: 960 }, deviceScaleFactor: 1, hasTouch: true });
+  const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(id)}/package`)).json();
+  const ctx = await browser.newContext({ viewport: preferredViewport(envelope.ir), deviceScaleFactor: 1, hasTouch: true });
   const page = await ctx.newPage();
 
   // ---- collectors -------------------------------------------------------
@@ -235,11 +237,18 @@ async function runGame(browser, id) {
   {
     const e0 = errors.length; const problems = [];
     const f0 = (await snap())?.frames ?? 0;
-    await page.setViewportSize({ width: 960, height: 430 }); await sleep(1300);
-    const f1 = (await snap())?.frames ?? 0; if (f1 - f0 < 2) problems.push('stopped rendering after rotation');
-    await page.setViewportSize({ width: 430, height: 960 }); await sleep(500);
+    const nativeViewport = preferredViewport(envelope.ir);
+    await page.setViewportSize({ width: nativeViewport.height, height: nativeViewport.width }); await sleep(1300);
+    const f1 = (await snap())?.frames ?? 0;
+    if (envelope.ir.game.orientation === 'any') {
+      if (f1 - f0 < 2) problems.push('stopped rendering in a supported orientation');
+    } else {
+      const guided = await page.evaluate(() => document.body.dataset.orientationBlocked === 'true' && !document.getElementById('orientation-hint').hidden);
+      if (!guided) problems.push('missing guidance for unsupported orientation');
+    }
+    await page.setViewportSize(nativeViewport); await sleep(500);
     for (let i = 0; i < 60; i++) {
-      const c = await toClient(30 + Math.random() * 330, 60 + Math.random() * 700);
+      const c = await toClient(30 + Math.random() * (s0.world.w - 60), 60 + Math.random() * (s0.world.h - 120));
       await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.mouse.up();
     }
     const f2 = (await snap())?.frames ?? 0; await sleep(700); const f3 = (await snap())?.frames ?? 0;

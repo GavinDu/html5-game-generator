@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Responsive player UI evaluator. Opens one real generated game at phone,
 // phone-landscape, iPad portrait, and iPad landscape viewport sizes.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { gameOrientation, supportsViewport } from './game-orientation.mjs';
 import { chromium, webkit } from 'playwright';
 
 function arg(name, fallback = '') {
@@ -25,6 +26,8 @@ const viewports = [
   { name: 'ipad-landscape', width: 1180, height: 820, deviceScaleFactor: 2, isTablet: true },
 ];
 
+const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(game)}/package`)).json();
+const orientation = gameOrientation(envelope.ir);
 mkdirSync(shots, { recursive: true });
 const engine = browserName === 'webkit' ? webkit : chromium;
 const browser = await engine.launch({ headless: true });
@@ -114,7 +117,8 @@ try {
           probe: window.__dqProbe ? { booted: window.__dqProbe.booted, errors: window.__dqProbe.errors?.length || 0 } : null,
         };
       });
-      const checks = [
+      const gameplayProfile = supportsViewport(orientation, viewport.width, viewport.height);
+      let checks = [
         { id: 'player-presentation-active', pass: metrics.bodyMode === 'play', actual: metrics.bodyMode },
         { id: 'canvas-visible', pass: metrics.visible, actual: metrics.canvas },
         { id: 'no-horizontal-overflow', pass: metrics.body.scrollWidth <= viewport.width + 1, actual: metrics.body.scrollWidth },
@@ -125,6 +129,15 @@ try {
         { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.length > 0 && metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
         { id: 'text-clears-native-header', pass: metrics.textLayout.obscuredTextEntities.length === 0, actual: metrics.textLayout },
       ];
+      if (!gameplayProfile) {
+        // Opposite orientation is a paused safe fallback, not a second game
+        // layout. Do not score gameplay hierarchy/controls in this profile.
+        checks = checks.filter(check => !['shell-controls-present', 'shell-controls-touch-sized', 'text-clears-native-header'].includes(check.id));
+        const paused = await page.evaluate(() => document.body.dataset.orientationBlocked === 'true' && !document.getElementById('orientation-hint').hidden);
+        checks.push({ id: 'orientation-guidance-and-pause', pass: paused, actual: { orientation, paused } });
+      }
+      const logicalAspect = metrics.logicalCanvas ? metrics.logicalCanvas.width / metrics.logicalCanvas.height : 0;
+      checks.push({ id: 'authored-aspect-preserved', pass: logicalAspect > 0 && Math.abs(metrics.canvasAspect - logicalAspect) < 0.01, actual: { rendered: metrics.canvasAspect, authored: logicalAspect } });
       await page.screenshot({ path: `${shots}/${viewport.name}.png`, fullPage: true });
       const failed = checks.filter(check => !check.pass);
       const weights = {
@@ -138,8 +151,8 @@ try {
         'shell-controls-touch-sized': 5,
         'text-clears-native-header': 16,
       };
-      const score = checks.reduce((total, check) => total + (check.pass ? (weights[check.id] || 0) : 0), 0);
-      results.push({ viewport: viewport.name, passed: failed.length === 0, score, metrics, checks });
+      const score = gameplayProfile ? checks.reduce((total, check) => total + (check.pass ? (weights[check.id] || 0) : 0), 0) : null;
+      results.push({ viewport: viewport.name, mode: gameplayProfile ? "gameplay" : "rotation-fallback", passed: failed.length === 0, score, metrics, checks });
       console.log(JSON.stringify({ viewport: viewport.name, passed: failed.length === 0, score, failed }));
     } catch (error) {
       results.push({ viewport: viewport.name, passed: false, error: String(error.message || error), pageErrors: errors });
@@ -151,16 +164,19 @@ try {
 } finally {
   await browser.close();
 }
-const averageScore = results.length
-  ? Math.round(results.reduce((total, result) => total + (result.score || 0), 0) / results.length)
+const gameplayResults = results.filter(result => result.mode === 'gameplay');
+const averageScore = gameplayResults.length
+  ? Math.round(gameplayResults.reduce((total, result) => total + (result.score || 0), 0) / gameplayResults.length)
   : 0;
 const report = {
   game,
+  orientation,
   browser: browserName,
   viewports: results,
   score: averageScore,
   grade: averageScore >= 90 ? 'excellent' : averageScore >= 80 ? 'acceptable' : 'needs-improvement',
   passed: results.length === viewports.length && results.every(result => result.passed),
 };
+writeFileSync(`${shots}/report.json`, JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report));
 if (!report.passed) process.exitCode = 1;
