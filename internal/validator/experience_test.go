@@ -110,7 +110,7 @@ func TestExperienceBalanceUsesCustomObjectiveProgress(t *testing.T) {
 		}},
 		Experience: &gameir.Experience{
 			Objective: gameir.ExpObjective{Kind: "collect", Target: 12, Label: "Catch 12 hearts", ProgressVariable: "hearts_collected"},
-			Pacing: gameir.ExpPacing{TargetSessionSec: 20, ExpectedCatchRate: 0.44},
+			Pacing:    gameir.ExpPacing{TargetSessionSec: 20, ExpectedCatchRate: 0.44},
 		},
 		Rules: []gameir.Rule{
 			{ID: "pink", When: gameir.Condition{Event: "collected", Target: "heart"}, Actions: []gameir.Action{{Type: "add_score", Value: 10}, {Type: "add_variable", Variable: "hearts_collected", Value: 1}}},
