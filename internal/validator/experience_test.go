@@ -81,6 +81,22 @@ func TestExperienceChecksHappyPath(t *testing.T) {
 	}
 }
 
+func TestExperienceSupportsIndependentCollectProgressVariable(t *testing.T) {
+	fixture := strings.Replace(expDocJSON,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts"}`,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts", "progressVariable": "hearts_collected"}`, 1)
+	fixture = strings.Replace(fixture,
+		`"actions": [{"type": "add_score", "value": 1}]`,
+		`"actions": [{"type": "add_score", "value": 10}, {"type": "add_variable", "variable": "hearts_collected", "value": 1}]`, 1)
+	doc := decodeExp(t, fixture)
+	if doc.Experience.Objective.ProgressVariable != "hearts_collected" {
+		t.Fatalf("progress variable = %q, want hearts_collected", doc.Experience.Objective.ProgressVariable)
+	}
+	if !strings.Contains(fixture, `"type": "add_variable"`) {
+		t.Fatal("fixture should exercise the additive variable action")
+	}
+}
+
 func TestExperienceChecksPreStandardGame(t *testing.T) {
 	doc := decodeExp(t, strings.Replace(expDocJSON, `"irVersion": "1.2"`, `"irVersion": "1.1"`, 1))
 	doc.Experience = nil
