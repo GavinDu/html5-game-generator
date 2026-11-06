@@ -288,12 +288,19 @@ async function playGame(browser, gameId) {
           // headless Chromium can report a successful touchscreen tap while
           // dropping the event before it reaches Pixi's canvas listener.
           const beforeInputs = (await readProbe(page))?.inputs ?? 0;
+          const beforePlayer = await page.evaluate(() => window.__dqTest?.snapshot?.().player ?? null).catch(() => null);
           await page.touchscreen.tap(target.x, target.y).catch(() => {});
-          await sleep(100);
+          await sleep(120);
           let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
-          if (afterInputs <= beforeInputs) {
-            // Dispatch on the actual Pixi canvas (not a page-level synthetic
-            // click), and hold across several fixed simulation frames.
+          const afterPlayer = await page.evaluate(() => window.__dqTest?.snapshot?.().player ?? null).catch(() => null);
+          const targetDelta = points ? Math.abs(points.to.x - points.from.x) : Number.POSITIVE_INFINITY;
+          const moved = beforePlayer && afterPlayer
+            ? Math.hypot(afterPlayer.x - beforePlayer.x, afterPlayer.y - beforePlayer.y) : 0;
+          // An input counter can increment even when a zero-duration tap is
+          // missed by the animation-frame movement loop. Hold a pointer contact
+          // across frames whenever the player has not started toward its target.
+          const needsHeldContact = afterInputs <= beforeInputs || !points || (targetDelta > 12 && moved < 4);
+          if (needsHeldContact) {
             await page.evaluate(({ x, y }) => {
               const canvas = document.querySelector('#stage canvas');
               if (!canvas) return;

@@ -81,6 +81,73 @@ func TestExperienceChecksHappyPath(t *testing.T) {
 	}
 }
 
+func TestExperienceSupportsIndependentCollectProgressVariable(t *testing.T) {
+	fixture := strings.Replace(expDocJSON,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts"}`,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts", "progressVariable": "hearts_collected"}`, 1)
+	fixture = strings.Replace(fixture,
+		`"actions": [{"type": "add_score", "value": 1}]`,
+		`"actions": [{"type": "add_score", "value": 10}, {"type": "add_variable", "variable": "hearts_collected", "value": 1}]`, 1)
+	doc := decodeExp(t, fixture)
+	if doc.Experience.Objective.ProgressVariable != "hearts_collected" {
+		t.Fatalf("progress variable = %q, want hearts_collected", doc.Experience.Objective.ProgressVariable)
+	}
+	if !strings.Contains(fixture, `"type": "add_variable"`) {
+		t.Fatal("fixture should exercise the additive variable action")
+	}
+}
+
+func TestExperienceBalanceUsesCustomObjectiveProgress(t *testing.T) {
+	doc := &gameir.Document{
+		Game: gameir.Game{ID: "counter-game", EntryScene: "main", SessionTargetSeconds: 20},
+		Scenes: []gameir.Scene{{
+			ID: "main", WorldSize: []float64{390, 844}, Gravity: []float64{0, 700},
+			Entities: []gameir.Entity{
+				{ID: "heart", Kind: "pickup", Position: []float64{50, 100}, Components: []string{"collider"}, Physics: &gameir.Physics{InitialVelocity: []float64{0, 50}}},
+				{ID: "heart_blue", Kind: "pickup", Position: []float64{195, 100}, Components: []string{"collider"}, Physics: &gameir.Physics{InitialVelocity: []float64{0, 50}}},
+				{ID: "heart_gold", Kind: "pickup", Position: []float64{340, 100}, Components: []string{"collider"}, Physics: &gameir.Physics{InitialVelocity: []float64{0, 50}}},
+			},
+		}},
+		Experience: &gameir.Experience{
+			Objective: gameir.ExpObjective{Kind: "collect", Target: 12, Label: "Catch 12 hearts", ProgressVariable: "hearts_collected"},
+			Pacing:    gameir.ExpPacing{TargetSessionSec: 20, ExpectedCatchRate: 0.44},
+		},
+		Rules: []gameir.Rule{
+			{ID: "pink", When: gameir.Condition{Event: "collected", Target: "heart"}, Actions: []gameir.Action{{Type: "add_score", Value: 10}, {Type: "add_variable", Variable: "hearts_collected", Value: 1}}},
+			{ID: "blue", When: gameir.Condition{Event: "collected", Target: "heart_blue"}, Actions: []gameir.Action{{Type: "add_score", Value: 10}, {Type: "add_variable", Variable: "hearts_collected", Value: 1}}},
+			{ID: "gold", When: gameir.Condition{Event: "collected", Target: "heart_gold"}, Actions: []gameir.Action{{Type: "add_score", Value: 50}}},
+		},
+	}
+	check := expBalanceCheck(doc)
+	if check.Status != StatusPass {
+		t.Fatalf("custom objective balance = %s (%s), want pass", check.Status, check.Evidence)
+	}
+	if !strings.Contains(check.Evidence, "avg 0.67 objective units/catch") {
+		t.Fatalf("balance evidence should use regular-heart progress rather than bonus score: %s", check.Evidence)
+	}
+}
+
+func TestAddVariableRejectsMissingOrNonNumericArguments(t *testing.T) {
+	fixture := strings.Replace(expDocJSON,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts"}`,
+		`"objective": {"kind": "collect", "target": 12, "label": "Catch 12 hearts", "progressVariable": "hearts_collected"}`, 1)
+	fixture = strings.Replace(fixture,
+		`"actions": [{"type": "add_score", "value": 1}]`,
+		`"actions": [{"type": "add_variable", "variable": "hearts_collected", "value": 1}]`, 1)
+	badValue := strings.Replace(fixture,
+		`"variable": "hearts_collected", "value": 1`,
+		`"variable": "hearts_collected", "value": "one"`, 1)
+	if _, err := gameir.DecodeAndValidate([]byte(badValue)); err == nil {
+		t.Fatal("add_variable should reject a non-numeric increment")
+	}
+	missingVariable := strings.Replace(fixture,
+		`"variable": "hearts_collected", "value": 1`,
+		`"value": 1`, 1)
+	if _, err := gameir.DecodeAndValidate([]byte(missingVariable)); err == nil {
+		t.Fatal("add_variable should reject a missing variable name")
+	}
+}
+
 func TestExperienceChecksPreStandardGame(t *testing.T) {
 	doc := decodeExp(t, strings.Replace(expDocJSON, `"irVersion": "1.2"`, `"irVersion": "1.1"`, 1))
 	doc.Experience = nil

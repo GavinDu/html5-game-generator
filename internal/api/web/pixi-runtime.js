@@ -1449,14 +1449,36 @@ async function run(id) {
     }
   }
 
+  function objectiveProgress() {
+    const progressVariable = play.shell?.objective?.progressVariable;
+    return progressVariable ? Number(state.variables[progressVariable] ?? 0) : state.score;
+  }
+
+  function recordExperienceMilestones() {
+    const exp = play.shell;
+    if (exp?.objective?.target > 0 && Array.isArray(exp.milestones)) {
+      const progress = objectiveProgress();
+      for (const frac of exp.milestones) {
+        const key = String(frac);
+        if (!play.milestonesHit.has(key) && progress >= Math.max(1, Math.round(exp.objective.target * frac))) {
+          play.milestonesHit.add(key);
+          recordEvent('milestone', key);
+        }
+      }
+    }
+  }
+
   function updateHUD() {
-    // Shell games (IR 1.2) get the standardized HUD: objective progress
-    // on the score side, hearts only when the failure model uses them.
+    // Shell games (IR 1.2) get the standardized HUD. A collect objective may
+    // use its own counter so bonus score cannot accidentally complete it.
     const exp = play.shell;
     if (exp) {
       const target = exp.objective?.target;
+      const progressVariable = exp.objective?.progressVariable;
+      const progress = objectiveProgress();
       const scoreTxt = exp.objective?.kind === 'collect' && target
-        ? `★ ${state.score}/${target}` : `★ ${state.score}`;
+        ? (progressVariable ? `♥ ${progress}/${target}  ★ ${state.score}` : `★ ${state.score}/${target}`)
+        : `★ ${state.score}`;
       const mode = exp.failure?.mode || 'health';
       const hearts = (mode === 'health' || mode === 'sudden-death') ? `  ♥ ${state.health}` : '';
       $('score').textContent = scoreTxt + hearts;
@@ -1544,18 +1566,7 @@ async function run(id) {
             recordEvent('first_reward', 'score ' + state.score);
             sendTelemetryEvent('milestone', { milestone: 'first_reward', ms: play.firstRewardAt });
           }
-          // Experience milestones (IR 1.2): fractions of the objective
-          // target, recorded as events the shell + worker can see.
-          const exp = play.shell;
-          if (exp?.objective?.target > 0 && Array.isArray(exp.milestones)) {
-            for (const frac of exp.milestones) {
-              const key = String(frac);
-              if (!play.milestonesHit.has(key) && state.score >= Math.max(1, Math.round(exp.objective.target * frac))) {
-                play.milestonesHit.add(key);
-                recordEvent('milestone', key);
-              }
-            }
-          }
+          recordExperienceMilestones();
           updateHUD();
           emitScoreThresholds();
           break;
@@ -1566,6 +1577,21 @@ async function run(id) {
             emit('variable_changed', sourceEnt, targetEnt);
           }
           break;
+        case 'add_variable': {
+          if (action.variable) {
+            const current = Number(state.variables[action.variable] ?? 0);
+            const delta = Number(action.value ?? 1);
+            if (!Number.isFinite(current) || !Number.isFinite(delta)) {
+              warnOnce('variable-' + action.variable, 'RULE', `add_variable: '${action.variable}' must be numeric — skipped`);
+              break;
+            }
+            state.variables[action.variable] = current + delta;
+            recordExperienceMilestones();
+            updateHUD();
+            emit('variable_changed', sourceEnt, targetEnt);
+          }
+          break;
+        }
         case 'move_entity':
           if (ent) {
             if (Array.isArray(action.value)) { ent.x += action.value[0]; ent.y += action.value[1]; }
@@ -1735,7 +1761,7 @@ async function run(id) {
     if (isBest) storeSet(localStorage, bestKey, String(state.score));
     const target = exp.objective?.target;
     const progress = exp.objective?.kind === 'collect' && target
-      ? `${state.score} of ${target} — ` : '';
+      ? `${objectiveProgress()} of ${target} — ` : '';
     $('shell-result-sub').textContent =
       `${progress}Score: ${state.score}${isBest && state.score > 0 ? ' · New best!' : prevBest ? ` · Best: ${prevBest}` : ''}`;
     $('shell-result').classList.add('on');

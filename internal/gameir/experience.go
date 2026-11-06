@@ -33,9 +33,10 @@ type ExpControls struct {
 }
 
 type ExpObjective struct {
-	Kind   string `json:"kind"`
-	Target int    `json:"target,omitempty"`
-	Label  string `json:"label"`
+	Kind             string `json:"kind"`
+	Target           int    `json:"target,omitempty"`
+	Label            string `json:"label"`
+	ProgressVariable string `json:"progressVariable,omitempty"`
 }
 
 type ExpHUD struct {
@@ -141,6 +142,12 @@ func validateExperience(d *Document) error {
 	}
 	if strings.TrimSpace(exp.Objective.Label) == "" || len(exp.Objective.Label) > 60 {
 		return fmt.Errorf("experience.objective.label is required (max 60 characters)")
+	}
+	if len(exp.Objective.ProgressVariable) > 80 {
+		return fmt.Errorf("experience.objective.progressVariable exceeds 80 characters")
+	}
+	if exp.Objective.ProgressVariable != "" && exp.Objective.Kind != "collect" {
+		return fmt.Errorf("experience.objective.progressVariable is only supported for collect objectives")
 	}
 	for _, slot := range []string{exp.HUD.Left, exp.HUD.Right} {
 		if slot != "" && !has(expHUDSlots, slot) {

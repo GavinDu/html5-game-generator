@@ -167,6 +167,11 @@
       "actions": [
         {
           "type": "add_score",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -194,7 +199,12 @@
       "actions": [
         {
           "type": "add_score",
-          "value": 2
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
+          "value": 1
         },
         {
           "type": "emit_particles",
@@ -221,7 +231,7 @@
       "actions": [
         {
           "type": "add_score",
-          "value": 3
+          "value": 50
         },
         {
           "type": "emit_particles",
@@ -241,9 +251,15 @@
     {
       "id": "band0-reveal",
       "when": {
-        "event": "score_reached",
-        "value": 2
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 2
+        }
+      ],
       "actions": [
         {
           "type": "set_alpha",
@@ -273,9 +289,15 @@
     {
       "id": "band1-reveal",
       "when": {
-        "event": "score_reached",
-        "value": 4
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 4
+        }
+      ],
       "actions": [
         {
           "type": "set_alpha",
@@ -305,9 +327,15 @@
     {
       "id": "band2-reveal",
       "when": {
-        "event": "score_reached",
-        "value": 6
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 6
+        }
+      ],
       "actions": [
         {
           "type": "set_alpha",
@@ -337,9 +365,15 @@
     {
       "id": "band3-reveal",
       "when": {
-        "event": "score_reached",
-        "value": 8
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 8
+        }
+      ],
       "actions": [
         {
           "type": "set_alpha",
@@ -369,9 +403,15 @@
     {
       "id": "band4-reveal",
       "when": {
-        "event": "score_reached",
-        "value": 10
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 10
+        }
+      ],
       "actions": [
         {
           "type": "set_alpha",
@@ -401,9 +441,15 @@
     {
       "id": "band5-reveal",
       "when": {
-        "event": "score_reached",
-        "value": 12
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 12
+        }
+      ],
       "actions": [
         {
           "type": "set_alpha",
@@ -433,10 +479,15 @@
     {
       "id": "rainbow-complete",
       "when": {
-        "event": "score_reached",
-        "source": "player",
-        "value": 12
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 12
+        }
+      ],
       "actions": [
         {
           "type": "show_text",
@@ -1080,7 +1131,8 @@
     "objective": {
       "kind": "collect",
       "target": 12,
-      "label": "Catch 12 hearts"
+      "label": "Catch 12 hearts",
+      "progressVariable": "hearts_collected"
     },
     "hud": {
       "left": "objective_progress",
@@ -1095,7 +1147,7 @@
     "pacing": {
       "targetSessionSec": 20,
       "firstRewardWithinSec": 8,
-      "expectedCatchRate": 0.15,
+      "expectedCatchRate": 0.44,
       "ramp": [
         {
           "at": 0,
