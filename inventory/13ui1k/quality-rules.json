@@ -55,7 +55,8 @@
       "objective": {
         "kind": "collect",
         "target": 12,
-        "label": "Catch 12 hearts"
+        "label": "Catch 12 hearts",
+        "progressVariable": "hearts_collected"
       },
       "failure": {
         "mode": "gentle"
