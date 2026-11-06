@@ -191,15 +191,27 @@ async function runGame(browser, id) {
     add('control.pointer', 'fail', 'no player entity in the running game');
   } else {
     const p0 = s0.player; const W = s0.world.w, H = s0.world.h;
-    const a = await toClient(p0.x, p0.y); await page.mouse.move(a.x, a.y); await page.mouse.down();
+    const declaredTap = (seenPkg?.ir?.inputBindings || []).some((binding) =>
+      ['tap', 'tap_x'].includes(binding.input));
     const b = await toClient(Math.min(W - 30, p0.x + 90), Math.max(30, p0.y - 90));
-    await page.mouse.move(b.x, b.y, { steps: 10 }); await sleep(900);
-    let s1 = await snap(); await page.mouse.up();
+    let style = declaredTap ? 'tap' : 'drag';
+    let s1;
+    if (declaredTap) {
+      // A declared tap binding is an intentional destination command, not a
+      // continuous drag. Exercise the actual contract instead of accepting
+      // pointer movement that the gameplay loop itself never consumes.
+      await page.mouse.click(b.x, b.y);
+      await sleep(900);
+      s1 = await snap();
+    } else {
+      const a = await toClient(p0.x, p0.y);
+      await page.mouse.move(a.x, a.y); await page.mouse.down();
+      await page.mouse.move(b.x, b.y, { steps: 10 }); await sleep(900);
+      s1 = await snap(); await page.mouse.up();
+    }
     let dx = (s1?.player?.x ?? p0.x) - p0.x, dy = (s1?.player?.y ?? p0.y) - p0.y;
-    let style = 'drag';
-    if (Math.abs(dx) <= 8 && Math.abs(dy) <= 8) {
-      // Tap-zone games (tap a side to switch lanes) ignore drags: tap the
-      // opposite half from the player, like a user figuring it out.
+    if (!declaredTap && Math.abs(dx) <= 8 && Math.abs(dy) <= 8) {
+      // Fallback for legacy tap-zone games whose manifest omitted bindings.
       style = 'tap';
       const tapAt = await toClient(p0.x < W / 2 ? W * 0.8 : W * 0.2, p0.y);
       await page.mouse.click(tapAt.x, tapAt.y); await sleep(700);
@@ -239,7 +251,9 @@ async function runGame(browser, id) {
   let lastPos = last?.player ? { x: last.player.x, y: last.player.y } : null; let tick = 0; let midShot = false;
   await page.evaluate(() => { window.__ft.length = 0; });
   const playStart = Date.now();
-  if (last?.player) {
+  const tapDriven = (seenPkg?.ir?.inputBindings || []).some((binding) =>
+    ['tap', 'tap_x'].includes(binding.input));
+  if (last?.player && !tapDriven) {
     const c = await toClient(last.player.x, last.player.y); await page.mouse.move(c.x, c.y); await page.mouse.down();
   }
   while (Date.now() - playStart < budgetS * 1000) {
@@ -247,8 +261,16 @@ async function runGame(browser, id) {
     if (s.ended) break;
     const tgt = brain.decide(s, controls);
     if (tgt) {
-      const c = await toClient(tgt.x, tgt.y); await page.mouse.move(c.x, c.y, { steps: 2 });
-      if (tick % 10 === 9) { await page.mouse.up().catch(() => {}); await page.mouse.down().catch(() => {}); }
+      const c = await toClient(tgt.x, tgt.y);
+      if (tapDriven) {
+        // Re-issue discrete taps toward the brain's current target. Holding a
+        // mouse button and moving it only tests drag semantics and starves
+        // games whose IR explicitly declares tap-to-move controls.
+        if (tick % 5 === 0) await page.mouse.click(c.x, c.y);
+      } else {
+        await page.mouse.move(c.x, c.y, { steps: 2 });
+        if (tick % 10 === 9) { await page.mouse.up().catch(() => {}); await page.mouse.down().catch(() => {}); }
+      }
     }
     if (++tick % 8 === 0) timeline.push({ t: +((Date.now() - playStart) / 1000).toFixed(1), score: s.score, health: s.health });
     if (s.player && lastPos && Math.hypot(s.player.x - lastPos.x, s.player.y - lastPos.y) > 5) { lastMoveAt = Date.now(); lastPos = { x: s.player.x, y: s.player.y }; }
