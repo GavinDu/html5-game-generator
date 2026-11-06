@@ -546,8 +546,7 @@
           ],
           "components": [
             "movement",
-            "physics_body",
-            "character_controller"
+            "physics_body"
           ],
           "physics": {
             "body": "kinematic_position",
@@ -563,11 +562,6 @@
                 3
               ]
             }
-          },
-          "character": {
-            "offset": 4,
-            "snapToGroundDistance": 10,
-            "applyImpulsesToDynamicBodies": true
           },
           "tweens": [
             {

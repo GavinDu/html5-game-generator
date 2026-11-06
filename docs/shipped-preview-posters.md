@@ -9,3 +9,5 @@ The loader stores only a poster under the existing version-scoped preview delive
 Restarting an inventory game preserves an existing creator preview only when its published version and canonical IR still match. It does not replace a valid uploaded clip with a fixture poster. The generic generation/playtest/preview publication pipeline remains tracked in #98 and #100; physical-device preview performance remains Hephaestus #55.
 
 Verification includes poster content/hash/version tests and the real feed/preview delivery contract. Review the native and browser feed screenshots after deployment to confirm these actual gameplay frames replace gradient placeholders.
+
+Bobo’s poster is refreshed after its catcher-control repair, using the local Chromium gameplay screenshot and observed-completion report recorded in its fixture metadata. The original three other screenshots retain their CI provenance.

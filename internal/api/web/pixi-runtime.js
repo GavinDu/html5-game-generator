@@ -429,9 +429,25 @@ const gameId = params.get('game');
 const probeMode = params.get('probe') === '1';
 const deterministicCapture = probeMode && params.get('capture') === '1';
 const playPresentation = Boolean(gameId && params.get('presentation') === 'play');
+if (!gameId) document.body.classList.add('dq-feed');
 if (playPresentation) {
   document.body.classList.add('dq-play');
   document.body.dataset.presentation = 'play';
+  if (params.get('entry') === 'feed') {
+    const back = document.createElement('a');
+    back.id = 'feed-return';
+    back.href = '/player';
+    back.textContent = '‹ Feed';
+    back.setAttribute('aria-label', 'Return to feed');
+    back.addEventListener('click', event => {
+      const previous = document.referrer ? new URL(document.referrer) : null;
+      if (previous?.origin === location.origin && previous.pathname === '/player' && !previous.searchParams.has('game')) {
+        event.preventDefault();
+        history.back();
+      }
+    });
+    document.querySelector('header')?.prepend(back);
+  }
   // The native host owns identity, feed navigation, and diagnostics. Remove
   // browser-only chrome from the DOM rather than merely making it inert.
   document.getElementById('account')?.remove();
@@ -463,6 +479,8 @@ async function apiFetch(input, init = {}) {
 function setAccountStatus(message) {
   const el = $('account-status');
   if (el) el.textContent = message;
+  const notice = $('feed-notice');
+  if (notice) { notice.textContent = message; notice.hidden = false; }
 }
 function initializeAccountControls() {
   const tokenInput = $('bearer-token');
@@ -560,6 +578,7 @@ async function listGames() {
   }
 
   const data = await res.json();
+  const cards = new Map((data.cards || []).map(card => [card.game_id, card]));
   const games = Array.isArray(data.games) ? data.games : [];
   if (list) list.replaceChildren();
   if (count) count.textContent = games.length + (games.length === 1 ? ' game' : ' games');
@@ -579,6 +598,23 @@ async function listGames() {
   for (const g of games) {
     const card = document.createElement('article');
     card.className = 'game-card';
+    card.dataset.gameId = g.game_id;
+    card.setAttribute('aria-label', g.title || 'Untitled game');
+    const metadata = cards.get(g.game_id);
+    const content = document.createElement('div');
+    content.className = 'card-content';
+    if (metadata?.preview?.poster_url) {
+      const poster = document.createElement('img');
+      poster.className = 'feed-poster';
+      poster.src = metadata.preview.poster_url;
+      poster.alt = 'Gameplay preview of ' + (g.title || 'this game');
+      poster.loading = 'lazy';
+      card.append(poster);
+    }
+    const cue = document.createElement('span');
+    cue.className = 'swipe-cue';
+    cue.textContent = 'Swipe to explore ↕';
+    card.append(cue);
     const topline = document.createElement('div');
     topline.className = 'card-topline';
     const tag = document.createElement('span');
@@ -588,13 +624,13 @@ async function listGames() {
 
     const title = document.createElement('a');
     title.className = 'game-title';
-    title.href = '/player?game=' + encodeURIComponent(g.game_id);
+    title.href = '/player?game=' + encodeURIComponent(g.game_id) + '&presentation=play&entry=feed';
     title.textContent = g.title || 'Untitled game';
 
     const sub = document.createElement('div');
     sub.className = 'sub';
     const creatorID = g.owner_id || g.creator_id || g.creatorId;
-    sub.textContent = creatorID ? 'Created by ' + creatorID : 'Community game';
+    sub.textContent = metadata?.creator?.display_name || (creatorID ? 'Created by ' + creatorID : 'Community game');
 
     const actions = document.createElement('div');
     actions.className = 'card-actions';
@@ -603,6 +639,50 @@ async function listGames() {
     play.href = title.href;
     play.textContent = '▶ Play now';
     actions.append(play);
+    const social = document.createElement('div');
+    social.className = 'social-actions';
+    const toggleAction = (label, active, endpoint, body) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.setAttribute('aria-label', label + ' game');
+      button.setAttribute('aria-pressed', String(active));
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const next = button.getAttribute('aria-pressed') !== 'true';
+          const response = await apiFetch('/v1/games/' + encodeURIComponent(g.game_id) + '/' + endpoint, {
+            method: next ? 'POST' : 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            ...(next && body ? { body: JSON.stringify(body) } : {}),
+          });
+          if (!response.ok) throw new Error(response.status === 401 ? 'Sign in to ' + label.toLowerCase() + ' games.' : label + ' failed. Please try again.');
+          button.setAttribute('aria-pressed', String(next));
+          setAccountStatus(next ? label + ' added.' : label + ' removed.');
+        } catch (err) { setAccountStatus(err.message); }
+        finally { button.disabled = false; }
+      });
+      social.append(button);
+    };
+    toggleAction('Like', metadata?.viewer?.liked === true, 'reactions', { reaction: 'like' });
+    toggleAction('Save', metadata?.viewer?.saved === true, 'save');
+    const share = document.createElement('button');
+    share.type = 'button';
+    share.textContent = 'Share';
+    share.setAttribute('aria-label', 'Share game');
+    share.addEventListener('click', async () => {
+      try {
+        const url = new URL(title.href, location.href).href;
+        if (navigator.share) await navigator.share({ title: g.title, url });
+        else {
+          await navigator.clipboard.writeText(url);
+          setAccountStatus('Game link copied.');
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') setAccountStatus('Sharing is unavailable. Open the game and copy its address.');
+      }
+    });
+    social.append(share);
 
     if (creatorID) {
       const follow = document.createElement('button');
@@ -624,10 +704,39 @@ async function listGames() {
       });
       actions.append(follow);
     }
-    card.append(topline, title, sub, actions);
+    const caption = document.createElement('p');
+    caption.className = 'card-caption';
+    caption.textContent = metadata?.caption || g.caption || 'A small world, ready to play.';
+    const expression = metadata?.playable_expression;
+    if (expression?.source_visibility === 'public') {
+      const details = document.createElement('details');
+      details.className = 'expression-details';
+      const summary = document.createElement('summary');
+      const source = { drawing: 'a drawing', image: 'a photo', video: 'a video', audio: 'a voice note', text: 'a story' };
+      summary.textContent = 'Made from ' + (source[expression.source_type] || 'a story');
+      details.append(summary);
+      for (const [label, value] of [['Creator intent', expression.intent], ['Game interpretation', expression.chosen_interpretation]]) {
+        if (!value) continue;
+        const line = document.createElement('p');
+        line.textContent = label + ': ' + value;
+        details.append(line);
+      }
+      content.append(details);
+    }
+    content.append(topline, title, sub, caption, social, actions);
+    card.append(content);
     list?.append(card);
   }
-  if (list) list.setAttribute('aria-busy', 'false');
+  if (list) {
+    list.setAttribute('aria-busy', 'false');
+    list.tabIndex = 0;
+    list.setAttribute('aria-label', 'Game feed. Swipe up or down to browse.');
+    list.onkeydown = event => {
+      if (event.target !== list || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+      event.preventDefault();
+      list.scrollBy({ top: list.clientHeight * (event.key === 'ArrowDown' ? 1 : -1), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    };
+  }
   log('PKG', `feed listed ${games.length} games in ${scope}`);
 }
 
@@ -1902,6 +2011,12 @@ async function run(id) {
     // IR shell controls can constrain the pointer to horizontal-only movement.
     // Keep the player in the catcher lane instead of following vertical cursor drift.
     pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
+    // A tap is a destination command even when down/up happen between
+    // simulation frames. Holding the contact is reserved for drag controls.
+    if (ir.experience?.controls?.scheme === 'tap') {
+      playerTarget.x = p.x;
+      if (!dragXOnly) playerTarget.y = p.y;
+    }
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
     emit('input', playerEnt, undefined, undefined, tapActionName());
   });
@@ -2340,7 +2455,9 @@ async function run(id) {
           const t = ent.body.translation();
           const v = ent.body.linvel();
           if (t.y * PPM > worldH + ent.h) recycleEntity(ent);
-          else if (Math.hypot(v.x, v.y) < 0.2 && t.y * PPM > worldH * 0.5) {
+          // A missed pickup may keep swaying sideways on the floor. Its
+          // vertical rest, not total speed, determines when it recycles.
+          else if (Math.abs(v.y) < 0.2 && t.y * PPM > worldH - ent.h * 2) {
             ent.stillTime += dt;
             if (ent.stillTime > 1.4) recycleEntity(ent);
           } else ent.stillTime = 0;

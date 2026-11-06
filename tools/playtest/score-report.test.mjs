@@ -108,3 +108,9 @@ test('evidence pack judge view carries observations, never check statuses or sco
   assert.ok(!text.includes('"score"'), 'judge view must not leak scores');
   await access(join(dir, 'packs', 'sample-rainbow-bear', 'pack.json'));
 });
+
+
+test('shipped questionnaire contracts include custom progress and omit absent failure fields', async () => {
+  const { stdout } = await run(process.execPath, [script, '--check-contracts']);
+  assert.equal((stdout.match(/contract matches IR/g) || []).length, 4);
+});
