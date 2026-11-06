@@ -209,10 +209,16 @@ jobs:
           PY
           )"
           echo "Playability Kit inventory: $GAME_IDS"
+          set -o pipefail
           node tools/playability-kit/playability.mjs \
             --base http://localhost:18099 \
             --games "$GAME_IDS" \
-            --budget 40 --out /tmp/kit-out
+            --budget 40 --out /tmp/kit-out | tee /tmp/playability-kit.log
+          # A NEEDS_REVIEW verdict is not a successful release gate.
+          if grep -Eq '^(NEEDS_REVIEW|BROKEN)[[:space:]]' /tmp/playability-kit.log; then
+            echo "::error::Playability Kit did not mark every shipped game PLAYABLE."
+            exit 1
+          fi
       # Phase 2 producer for the kit, same advisory contract as above.
       - name: Build kit test-feedback artifact
         if: always()
