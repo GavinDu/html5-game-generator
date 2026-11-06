@@ -236,11 +236,16 @@ async function playGame(browser, gameId) {
   let lastSig = '';
   const playDeadline = Date.now() + Math.min(playSeconds, winSeconds) * 1000;
   const isCatcher = probe?.shell?.archetype === 'catcher';
-  // Vertical keys are harmful to a catcher: remain in the catch lane.
+  // A tap-controlled dodger (Escape from the Injection) changes one lane
+  // per left/right tap. Keyboard arrows do not exercise that contract and
+  // made the generic bot miss every optional star reward. Drive the declared
+  // input scheme instead, steering toward the lowest visible pickup.
+  const isTapDodger = !isCatcher && probe?.shell?.archetype === 'dodger' &&
+    ['tap', 'tap_x'].includes(probe?.shell?.controlsScheme);
   const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
   let ki = 0;
   while (Date.now() < playDeadline) {
-    if (!isCatcher) {
+    if (!isCatcher && !isTapDodger) {
       await page.keyboard.down(keys[ki % keys.length]).catch(() => {});
       await sleep(450);
       await page.keyboard.up(keys[ki % keys.length]).catch(() => {});
@@ -307,6 +312,38 @@ async function playGame(browser, gameId) {
         await page.mouse.down().catch(() => {});
         await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
         await page.mouse.up().catch(() => {});
+      }
+    } else if (isTapDodger) {
+      const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
+      const canvas = await page.evaluate(() => {
+        const el = document.querySelector('#stage canvas');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { left: r.left, top: r.top, width: r.width, height: r.height };
+      }).catch(() => null);
+      if (canvas) {
+        const currentX = points?.from.x ?? (canvas.left + canvas.width * 0.5);
+        const targetX = points?.to.x ?? (canvas.left + canvas.width * (ki % 2 ? 0.25 : 0.75));
+        // Tap the half corresponding to the next lane. If already aligned,
+        // leave the player in that lane rather than oscillating away.
+        if (Math.abs(targetX - currentX) > canvas.width * 0.12 || !points) {
+          const tapX = targetX < currentX
+            ? canvas.left + canvas.width * 0.25
+            : canvas.left + canvas.width * 0.75;
+          const tapY = canvas.top + canvas.height * 0.82;
+          const beforeInputs = (await readProbe(page))?.inputs ?? 0;
+          await page.touchscreen.tap(tapX, tapY).catch(() => {});
+          await sleep(80);
+          let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
+          if (afterInputs <= beforeInputs) {
+            await page.mouse.click(tapX, tapY).catch(() => {});
+            await sleep(80);
+            afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
+          }
+          if (afterInputs <= beforeInputs) {
+            console.warn('[playtest] tap-dodger input was not recorded', { gameId, beforeInputs, afterInputs });
+          }
+        }
       }
     } else if (ki % 4 === 0) {
       await page.mouse.move(210, 450).catch(() => {});
