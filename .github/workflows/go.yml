@@ -102,6 +102,16 @@ jobs:
           print("\n".join(ids))
           PY
           cat /tmp/inventory-game-ids.txt
+      - name: Evaluate swipe feed with screenshot inputs on iPhone and iPad
+        run: |
+          node tools/playtest/feed-ui-evaluator.mjs --base http://localhost:18099 \
+            --browser ${{ matrix.browser }} --shots /tmp/feed-ui-evaluator-${{ matrix.browser }}
+      - name: Upload feed UI screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feed-ui-evaluator-${{ matrix.browser }}
+          path: /tmp/feed-ui-evaluator-${{ matrix.browser }}/
       - name: Evaluate responsive player UI on iPhone and iPad viewports for every game
         run: |
           while IFS= read -r game_id; do

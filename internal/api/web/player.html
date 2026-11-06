@@ -272,6 +272,44 @@
   }
   body.dq-play #end { display: none !important; }
 
+
+  /* One playable post per viewport, using browser-native touch scrolling. */
+  body.dq-feed { height: 100dvh; min-height: 0; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  body.dq-feed > header { flex: none; min-height: 52px; margin: 0; width: 100%; }
+  body.dq-feed > #stage-wrap, body.dq-feed > #status, body.dq-feed > #end, body.dq-feed > details:not(#account) { display: none; }
+  body.dq-feed > section[aria-labelledby="feed-title"] { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  body.dq-feed .feed-heading { padding: 8px 16px; margin: 0 auto; width: min(100%, 760px); flex: none; }
+  body.dq-feed .feed-heading h2 { font-size: 16px; margin: 0; }
+  body.dq-feed .feed-heading p { display: none; }
+  body.dq-feed #list { flex: 1; min-height: 0; width: min(100%, 760px); max-width: 760px; margin: 0 auto; padding: 0; display: block; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior-y: contain; }
+  body.dq-feed .game-card { min-height: 100%; height: 100%; position: relative; isolation: isolate; scroll-snap-align: start; scroll-snap-stop: always; border-radius: 0; padding: 0; display: flex; align-items: stretch; justify-content: flex-end; background: linear-gradient(155deg, #403877, #214355 60%, #101729); overflow: hidden; }
+  body.dq-feed .game-card:nth-child(even) { background: linear-gradient(155deg, #834252, #35406b 60%, #101729); }
+  .feed-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: -2; }
+  .card-content { width: 100%; padding: 70px 20px max(20px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(5,9,20,.94)); }
+  body.dq-feed .game-title { font-size: clamp(22px, 4vw, 32px); line-height: 1.15; display: block; margin: 8px 0; }
+  .card-caption { line-height: 1.4; margin: 10px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .swipe-cue { position: absolute; top: 16px; left: 20px; font-size: 12px; padding: 8px 12px; background: rgba(5,9,20,.55); border-radius: 24px; }
+  .social-actions { display: flex; gap: 8px; margin: 12px 0; }
+  .social-actions button { min-height: 44px; min-width: 60px; color: #fff; background: #263148; border: 1px solid #657089; border-radius: 24px; padding: 8px 14px; font: inherit; cursor: pointer; }
+  .social-actions button[aria-pressed="true"] { background: #783b6d; border-color: #f4b5e1; }
+  body.dq-feed #account { width: max-content; position: absolute; z-index: 10; top: 6px; right: 12px; margin: 0; padding: 0; max-width: min(90vw, 420px); background: #141a32; }
+  body.dq-feed #account > summary { min-height: 44px; padding: 12px; color: white; }
+  body.dq-feed #account[open] { width: min(90vw, 420px); padding: 12px; box-shadow: 0 10px 30px #0009; }
+  body.dq-feed #account input { width: 100%; }
+  body.dq-feed .expression-details { margin: 0 0 12px; padding: 0; }
+  .expression-details summary { min-height: 44px; padding: 12px 0; color: #e3d8ff; }
+  .expression-details[open] { max-height: 35dvh; overflow-y: auto; }
+  #feed-notice { position: absolute; z-index: 12; top: 62px; left: 16px; right: 16px; max-width: 700px; margin: auto; padding: 12px; background: #263148; border-radius: 12px; }
+  #feed-notice[hidden] { display: none; }
+  @media (orientation: landscape) and (max-height: 500px) {
+    body.dq-feed .card-content { padding: 38px 16px 10px; }
+    body.dq-feed .card-caption, body.dq-feed .card-topline, body.dq-feed .expression-details { display: none; }
+    body.dq-feed .social-actions { position: absolute; right: 16px; bottom: 10px; margin: 0; }
+    body.dq-feed .card-actions { padding-right: 240px; }
+    body.dq-feed .swipe-cue { left: auto; right: 16px; top: 8px; }
+    body.dq-feed .game-title { font-size: 22px; margin: 0; }
+  }
+
 </style>
 <script type="importmap">
 {
@@ -308,7 +346,8 @@
   <div id="end-sub"></div>
   <button id="again" type="button">Play again</button>
 </div>
-<section id="account" aria-label="Account and social feed">
+<details id="account" aria-label="Account and social feed">
+  <summary>Account · Feeds</summary>
   <label for="bearer-token">Account session token (provided by your trusted sign-in provider)</label>
   <input id="bearer-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste short-lived bearer token">
   <div class="controls">
@@ -324,7 +363,8 @@
     <button id="refresh-feed" type="button">Refresh</button>
   </div>
   <div id="account-status" role="status" aria-live="polite">Public games can be browsed without signing in. Social actions require a valid session token.</div>
-</section>
+</details>
+<div id="feed-notice" role="status" aria-live="polite" hidden></div>
 <section aria-labelledby="feed-title">
   <div class="feed-heading">
     <div><h2 id="feed-title">Discover games</h2><p>Small games made from big imaginations.</p></div>
