@@ -26,6 +26,7 @@
 import { chromium, webkit } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { selectFirstRewardMeasurement } from './reward-timing.mjs';
+import { resolvePlayBudgetSeconds } from './play-budget.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -35,7 +36,7 @@ function arg(name, dflt) {
 const base = (arg('base', '') || '').replace(/\/$/, '');
 const browserName = arg('browser', 'chromium');
 const playSeconds = Number(arg('play-seconds', '14'));
-const winSeconds = Number(arg('win-seconds', '40'));
+const winSeconds = Number(arg('win-seconds', '60'));
 const shotsDir = arg('shots', '');
 if (!base) {
   console.error('probe.mjs: --base is required');
@@ -242,7 +243,10 @@ async function playGame(browser, gameId) {
   let winSeen = false;
   let endSeen = false;
   let lastSig = '';
-  const playDeadline = Date.now() + Math.min(playSeconds, winSeconds) * 1000;
+  // The configured win budget extends the normal play budget; never let
+  // the shorter default play window prevent longer games from reaching an ending.
+  const playBudgetSeconds = resolvePlayBudgetSeconds(playSeconds, winSeconds);
+  const playDeadline = Date.now() + playBudgetSeconds * 1000;
   const isCatcher = probe?.shell?.archetype === 'catcher';
   // A tap-controlled dodger (Escape from the Injection) changes one lane
   // per left/right tap. Keyboard arrows do not exercise that contract and
