@@ -41,9 +41,10 @@ func TestInventoryGamesExperience(t *testing.T) {
 					Milestones           int    `json:"milestones"`
 					Scenes               int    `json:"scenes"`
 					Objective            struct {
-						Kind   string `json:"kind"`
-						Target int    `json:"target"`
-						Label  string `json:"label"`
+						Kind             string `json:"kind"`
+						Target           int    `json:"target"`
+						Label            string `json:"label"`
+						ProgressVariable string `json:"progressVariable"`
 					} `json:"objective"`
 					Failure struct {
 						Mode           string `json:"mode"`
@@ -67,6 +68,7 @@ func TestInventoryGamesExperience(t *testing.T) {
 			generated.Objective.Kind != exp.Objective.Kind ||
 			generated.Objective.Target != exp.Objective.Target ||
 			generated.Objective.Label != exp.Objective.Label ||
+			generated.Objective.ProgressVariable != exp.Objective.ProgressVariable ||
 			generated.Failure.Mode != exp.Failure.Mode ||
 			generated.Failure.Health != exp.Failure.Health ||
 			generated.Failure.InvulnerableMs != exp.Failure.InvulnerableMs {
@@ -86,6 +88,116 @@ func TestInventoryGamesExperience(t *testing.T) {
 
 // All three supplied penguin drawings must be used as progression skins:
 // rainbow at start, holiday at four hearts, and classic blue at eight.
+func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
+	dir := filepath.Join("..", "..", "inventory", "13ui1k")
+	doc, err := readGameIR(dir)
+	if err != nil {
+		t.Fatalf("Bobo IR must validate structurally: %v", err)
+	}
+	if doc.Experience.Objective.ProgressVariable != "hearts_collected" {
+		t.Fatalf("Bobo objective progress variable = %q, want hearts_collected", doc.Experience.Objective.ProgressVariable)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "game-ir.json"))
+	if err != nil {
+		t.Fatalf("read Bobo Game IR: %v", err)
+	}
+	type condition struct {
+		Variable string `json:"variable"`
+		Operator string `json:"operator"`
+		Value    any    `json:"value"`
+	}
+	type action struct {
+		Type     string `json:"type"`
+		Variable string `json:"variable"`
+		Value    any    `json:"value"`
+	}
+	type rule struct {
+		ID         string `json:"id"`
+		When       struct {
+			Event string `json:"event"`
+		} `json:"when"`
+		Conditions []condition `json:"conditions"`
+		Actions    []action    `json:"actions"`
+	}
+	var ir struct {
+		Rules []rule `json:"rules"`
+	}
+	if err := json.Unmarshal(raw, &ir); err != nil {
+		t.Fatalf("decode Bobo rules: %v", err)
+	}
+	byID := map[string]rule{}
+	for _, r := range ir.Rules {
+		byID[r.ID] = r
+	}
+	hasProgressIncrement := func(r rule) bool {
+		for _, a := range r.Actions {
+			if a.Type == "add_variable" && a.Variable == "hearts_collected" {
+				if value, ok := a.Value.(float64); ok && value == 1 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, id := range []string{"heart-caught", "heart-blue-caught"} {
+		r, ok := byID[id]
+		if !ok || !hasProgressIncrement(r) {
+			t.Errorf("%s must add exactly one regular heart to hearts_collected", id)
+		}
+	}
+	gold, ok := byID["heart-gold-caught"]
+	if !ok {
+		t.Fatal("golden-heart rule is missing")
+	}
+	if hasProgressIncrement(gold) {
+		t.Error("golden hearts must not advance rainbow restoration progress")
+	}
+	for band := 0; band < 6; band++ {
+		id := fmt.Sprintf("band%d-reveal", band)
+		r, ok := byID[id]
+		if !ok || r.When.Event != "variable_changed" {
+			t.Errorf("%s must react to hearts_collected changes", id)
+			continue
+		}
+		want := float64((band + 1) * 2)
+		found := false
+		for _, c := range r.Conditions {
+			if c.Variable == "hearts_collected" && c.Operator == "eq" {
+				if value, ok := c.Value.(float64); ok && value == want {
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s must reveal at exactly %g regular hearts", id, want)
+		}
+	}
+	win, ok := byID["rainbow-complete"]
+	if !ok {
+		t.Fatal("rainbow-complete rule is missing")
+	}
+	winAtTwelve := false
+	for _, c := range win.Conditions {
+		if c.Variable == "hearts_collected" && c.Operator == "eq" {
+			if value, ok := c.Value.(float64); ok && value == 12 {
+				winAtTwelve = true
+			}
+		}
+	}
+	endGame := false
+	for _, a := range win.Actions {
+		if a.Type == "end_game" {
+			if value, ok := a.Value.(bool); ok && value {
+				endGame = true
+			}
+		}
+	}
+	if !winAtTwelve || !endGame {
+		t.Error("Bobo must win only when hearts_collected reaches exactly 12")
+	}
+}
+
 func TestPenguinUsesAllThreeSuppliedDrawingVariants(t *testing.T) {
 	doc, err := readGameIR(filepath.Join("..", "..", "inventory", "p3ngui"))
 	if err != nil {
