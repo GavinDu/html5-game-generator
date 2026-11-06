@@ -1,0 +1,8 @@
+{
+  "version": 4,
+  "ir_sha256": "a2c6827abc6ee453829aa3802d6fa4f27c6030763bcfa994710e55fd33559fc4",
+  "poster_sha256": "b9046bdd1c53a5e882a1941ff493044286aa73f618bf0a3a6f2b8ddaf6a31b25",
+  "source_run": "https://github.com/GavinDu/html5-game-generator/actions/runs/42228113902",
+  "source_screenshot": "kit-out/sample-ribbon-sky.ready.png",
+  "note": "Reviewed gameplay screenshot, poster-only fallback; contains no original source upload."
+}
