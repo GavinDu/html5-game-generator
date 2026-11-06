@@ -66,15 +66,15 @@ func TestBuildGenericRemixIRPreservesParentGameplayLoopAndAssets(t *testing.T) {
 func TestBuildRemixIRSupportsRepeatedRemixesAndTracksImmediateParent(t *testing.T) {
 	originalIR := &gameir.Document{
 		IRVersion: gameir.Version,
-		Game: gameir.Game{ID: "original", Title: "Original", EntryScene: "field", Orientation: "portrait"},
-		Assets: []gameir.Asset{{ID: "hero", Kind: "image", URI: "sprites/hero.png", MIMEType: "image/png"}},
+		Game:      gameir.Game{ID: "original", Title: "Original", EntryScene: "field", Orientation: "portrait"},
+		Assets:    []gameir.Asset{{ID: "hero", Kind: "image", URI: "sprites/hero.png", MIMEType: "image/png"}},
 		Scenes: []gameir.Scene{{ID: "field", Entities: []gameir.Entity{
 			{ID: "player", Kind: "player", AssetID: "hero", Position: []float64{195, 700}, Size: []float64{100, 120}, Components: []string{"movement", "collider"}},
 		}}},
 		InputBindings: []gameir.InputBinding{{Action: "move", Input: "tap"}},
 		Rules: []gameir.Rule{{
-			ID: "collect-heart",
-			When: gameir.Condition{Event: "collected", Source: "player", Target: "heart"},
+			ID:      "collect-heart",
+			When:    gameir.Condition{Event: "collected", Source: "player", Target: "heart"},
 			Actions: []gameir.Action{{Type: "add_score", Target: "player", Value: 1}},
 		}},
 		Metadata: gameir.Metadata{Tags: []string{"family", "collecting"}},
@@ -112,7 +112,9 @@ func TestBuildRemixIRSupportsRepeatedRemixesAndTracksImmediateParent(t *testing.
 	}
 	remixTags := 0
 	for _, tag := range secondIR.Metadata.Tags {
-		if tag == "remix" { remixTags++ }
+		if tag == "remix" {
+			remixTags++
+		}
 	}
 	if remixTags != 1 {
 		t.Fatalf("repeated remix should contain exactly one remix tag, got %d: %v", remixTags, secondIR.Metadata.Tags)
