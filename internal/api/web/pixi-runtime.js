@@ -1761,7 +1761,7 @@ async function run(id) {
     if (isBest) storeSet(localStorage, bestKey, String(state.score));
     const target = exp.objective?.target;
     const progress = exp.objective?.kind === 'collect' && target
-      ? `${state.score} of ${target} — ` : '';
+      ? `${objectiveProgress()} of ${target} — ` : '';
     $('shell-result-sub').textContent =
       `${progress}Score: ${state.score}${isBest && state.score > 0 ? ' · New best!' : prevBest ? ` · Best: ${prevBest}` : ''}`;
     $('shell-result').classList.add('on');
