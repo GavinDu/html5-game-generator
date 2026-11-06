@@ -665,6 +665,95 @@ func TestBoboRainbowRemixPublishesGameIRPackage(t *testing.T) {
 	if unchanged.GameIR == nil || unchanged.GameIR.Metadata.ParentGameID != "" {
 		t.Fatal("remix modified the original inventory game's Game IR")
 	}
+
+	// Exercise a second real API generation from the just-published remix.
+	// This catches lineage or asset loss that unit-level IR cloning cannot see.
+	firstVersion := child.Manifest.Version
+	rec = do(t, srv, "POST", "/v1/games", map[string]any{
+		"parent_game_id": child.ID,
+		"intent":         "Make a second remix with a new story while preserving Bobo's playable loop",
+	}, "remix-tester")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("create second-generation remix: %d %s", rec.Code, rec.Body.String())
+	}
+	var secondCreated struct {
+		Game model.Game `json:"game"`
+		Job  model.Job  `json:"job"`
+	}
+	decode(t, rec, &secondCreated)
+	if secondCreated.Game.ParentGameID != child.ID {
+		t.Fatalf("second remix should name the first remix as its immediate parent: %+v", secondCreated.Game)
+	}
+	secondJob := waitJob(t, srv, secondCreated.Job.ID, model.JobAwaitingConfirm)
+	if secondJob.DesignDoc == nil || child.GameIR.Experience == nil ||
+		secondJob.DesignDoc.WinCondition != child.GameIR.Experience.Objective.Label ||
+		len(secondJob.DesignDoc.Controls) != 1 ||
+		secondJob.DesignDoc.Controls[0] != child.GameIR.Experience.Controls.Scheme {
+		t.Fatalf("second remix questionnaire diverged from its immediate parent's canonical experience: %+v", secondJob.DesignDoc)
+	}
+	rec = do(t, srv, "POST", "/v1/games/"+secondCreated.Game.ID+"/confirm", map[string]any{}, "remix-tester")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("confirm second-generation remix: %d %s", rec.Code, rec.Body.String())
+	}
+	secondJob = waitJob(t, srv, secondCreated.Job.ID, model.JobDone)
+	if secondJob.Status != model.JobDone {
+		t.Fatalf("second remix generation failed: %s", secondJob.Error)
+	}
+	grandchild, ok := st.GetGame(secondCreated.Game.ID)
+	if !ok || grandchild.GameIR == nil || grandchild.Manifest == nil {
+		t.Fatal("second-generation remix was not published with a manifest and canonical Game IR")
+	}
+	if grandchild.GameIR.Metadata.ParentGameID != child.ID ||
+		grandchild.GameIR.Metadata.ParentVersion != firstVersion {
+		t.Fatalf("second-generation lineage must point to the immediate parent/version: %+v", grandchild.GameIR.Metadata)
+	}
+	if err := gameir.Validate(grandchild.GameIR); err != nil {
+		t.Fatalf("second-generation remix Game IR failed semantic validation: %v", err)
+	}
+	if len(grandchild.GameIR.Assets) != len(child.GameIR.Assets) ||
+		len(grandchild.GameIR.Scenes) != len(child.GameIR.Scenes) ||
+		len(grandchild.GameIR.Rules) != len(child.GameIR.Rules) ||
+		len(grandchild.GameIR.InputBindings) != len(child.GameIR.InputBindings) {
+		t.Fatalf("second remix dropped parent gameplay structure: assets/scenes/rules/bindings=%d/%d/%d/%d want %d/%d/%d/%d",
+			len(grandchild.GameIR.Assets), len(grandchild.GameIR.Scenes), len(grandchild.GameIR.Rules), len(grandchild.GameIR.InputBindings),
+			len(child.GameIR.Assets), len(child.GameIR.Scenes), len(child.GameIR.Rules), len(child.GameIR.InputBindings))
+	}
+	for i, rule := range child.GameIR.Rules {
+		if grandchild.GameIR.Rules[i].ID != rule.ID {
+			t.Fatalf("second remix changed gameplay rule %d: got %q want %q", i, grandchild.GameIR.Rules[i].ID, rule.ID)
+		}
+	}
+
+	rec = do(t, srv, "GET", "/v1/games/"+grandchild.ID+"/package", nil, "remix-tester")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second-generation package endpoint: %d %s", rec.Code, rec.Body.String())
+	}
+	var secondPackage GamePackage
+	decode(t, rec, &secondPackage)
+	if secondPackage.GameID != grandchild.ID ||
+		secondPackage.IR.Metadata.ParentGameID != child.ID ||
+		secondPackage.IR.Metadata.ParentVersion != firstVersion ||
+		len(secondPackage.Assets) != len(pkg.Assets) {
+		t.Fatalf("second-generation package contract/asset count mismatch: %+v", secondPackage)
+	}
+	for _, asset := range secondPackage.Assets {
+		rec = do(t, srv, "GET", asset.URL, nil, "remix-tester")
+		if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
+			t.Fatalf("second-generation package asset %q unavailable at %s: %d", asset.ID, asset.URL, rec.Code)
+		}
+	}
+
+	// Neither the original nor the first published remix may be mutated by
+	// generating the second child.
+	firstUnchanged, ok := st.GetGame(child.ID)
+	if !ok || firstUnchanged.Manifest.Version != firstVersion ||
+		firstUnchanged.GameIR.Metadata.ParentGameID != parent.ID {
+		t.Fatal("second remix modified its first-generation parent")
+	}
+	originalUnchanged, ok := st.GetGame(parent.ID)
+	if !ok || originalUnchanged.GameIR.Metadata.ParentGameID != "" {
+		t.Fatal("second remix modified the original ancestor")
+	}
 }
 
 func TestDecodeJSONRejectsTrailingJSONAndOversizedBodies(t *testing.T) {
