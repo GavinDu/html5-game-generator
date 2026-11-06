@@ -56,8 +56,8 @@ function contractFromIR(ir) {
   return {
     archetype: exp.archetype || null,
     controlsScheme: exp.controls?.scheme || null,
-    objective: exp.objective ? { kind: exp.objective.kind, target: exp.objective.target, label: exp.objective.label } : null,
-    failure: exp.failure ? { mode: exp.failure.mode, health: exp.failure.health ?? null, invulnerableMs: exp.failure.invulnerableMs ?? null } : null,
+    objective: exp.objective ? { kind: exp.objective.kind, target: exp.objective.target, label: exp.objective.label, ...(exp.objective.progressVariable ? { progressVariable: exp.objective.progressVariable } : {}) } : null,
+    failure: exp.failure ? { mode: exp.failure.mode, ...(exp.failure.health != null ? { health: exp.failure.health } : {}), ...(exp.failure.invulnerableMs != null ? { invulnerableMs: exp.failure.invulnerableMs } : {}) } : null,
     targetSessionSec: exp.pacing?.targetSessionSec ?? null,
     firstRewardWithinSec: exp.pacing?.firstRewardWithinSec ?? null,
     milestones: Array.isArray(exp.milestones) ? exp.milestones.length : 0,
