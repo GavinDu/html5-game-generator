@@ -23,6 +23,14 @@ test('visible developer logs stay bounded like the backing buffer', () => {
   assert.ok(source.includes("logEl.textContent = logBuffer.join('\\n') + '\\n';"));
   assert.ok(!source.includes("logEl.textContent += line"));
 });
+test('custom collect progress is independent from score and increments through rules', () => {
+  assert.match(source, /function objectiveProgress\(\)/);
+  assert.match(source, /progressVariable \? Number\(state\.variables\[progressVariable\] \?\? 0\) : state\.score/);
+  assert.match(source, /case 'add_variable'/);
+  assert.match(source, /state\.variables\[action\.variable\] = current \+ delta/);
+  assert.match(source, /emit\('variable_changed', sourceEnt, targetEnt\)/);
+});
+
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
   assert.match(source, /const dragXOnly = ir\.experience\?\.controls\?\.scheme === 'drag_x' \|\|/);
   assert.match(source, /ir\.experience\?\.archetype === 'catcher' && ir\.experience\?\.controls\?\.scheme === 'tap'/);
