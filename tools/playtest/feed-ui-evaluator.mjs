@@ -59,6 +59,11 @@ try {
         screenshotChanged: changedPixelRatio > 0.005,
         noErrors: errors.length === 0,
       };
+      // The browser player has a feed exit; the native host keeps its own
+      // controls because it never sends entry=feed.
+      const visibleCard = page.locator(`.game-card[data-game-id="${afterID}"]`);
+      const playURL = new URL(await visibleCard.locator('.play-link').getAttribute('href'), base);
+      checks.immersivePlayLink = playURL.searchParams.get('presentation') === 'play' && playURL.searchParams.get('entry') === 'feed';
       reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, changedPixelRatio, errors });
     } catch (error) { reports.push({ viewport: name, passed: false, error: error.message, errors }); }
     finally { await context.close(); }

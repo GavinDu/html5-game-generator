@@ -433,6 +433,21 @@ if (!gameId) document.body.classList.add('dq-feed');
 if (playPresentation) {
   document.body.classList.add('dq-play');
   document.body.dataset.presentation = 'play';
+  if (params.get('entry') === 'feed') {
+    const back = document.createElement('a');
+    back.id = 'feed-return';
+    back.href = '/player';
+    back.textContent = '‹ Feed';
+    back.setAttribute('aria-label', 'Return to feed');
+    back.addEventListener('click', event => {
+      const previous = document.referrer ? new URL(document.referrer) : null;
+      if (previous?.origin === location.origin && previous.pathname === '/player' && !previous.searchParams.has('game')) {
+        event.preventDefault();
+        history.back();
+      }
+    });
+    document.querySelector('header')?.prepend(back);
+  }
   // The native host owns identity, feed navigation, and diagnostics. Remove
   // browser-only chrome from the DOM rather than merely making it inert.
   document.getElementById('account')?.remove();
@@ -609,7 +624,7 @@ async function listGames() {
 
     const title = document.createElement('a');
     title.className = 'game-title';
-    title.href = '/player?game=' + encodeURIComponent(g.game_id);
+    title.href = '/player?game=' + encodeURIComponent(g.game_id) + '&presentation=play&entry=feed';
     title.textContent = g.title || 'Untitled game';
 
     const sub = document.createElement('div');

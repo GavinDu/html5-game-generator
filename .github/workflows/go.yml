@@ -102,6 +102,8 @@ jobs:
           print("\n".join(ids))
           PY
           cat /tmp/inventory-game-ids.txt
+      - name: Verify social feed actions and source privacy in the browser
+        run: node tools/playtest/feed-actions-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }}
       - name: Evaluate swipe feed with screenshot inputs on iPhone and iPad
         run: |
           node tools/playtest/feed-ui-evaluator.mjs --base http://localhost:18099 \
