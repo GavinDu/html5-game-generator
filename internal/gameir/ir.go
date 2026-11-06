@@ -364,7 +364,7 @@ var (
 	// were declarable but dead (two shipped artifacts declared them).
 	inputKinds  = enum("tap", "drag", "keyboard")
 	eventKinds  = enum("game_start", "input", "collision", "collected", "timer_elapsed", "score_reached", "health_changed", "scene_entered", "contact_started", "contact_stopped", "contact_force", "entity_destroyed", "variable_changed", "region_entered", "region_exited", "animation_complete")
-	actionKinds = enum("add_score", "set_variable", "move_entity", "destroy_entity", "spawn_entity", "play_sound", "show_text", "change_scene", "set_health", "end_game", "change_health", "apply_impulse", "set_velocity", "set_angular_velocity", "add_force", "set_gravity", "teleport_entity", "set_alpha", "set_tint", "set_visible", "set_asset", "emit_particles", "camera_shake", "camera_follow")
+	actionKinds = enum("add_score", "add_variable", "set_variable", "move_entity", "destroy_entity", "spawn_entity", "play_sound", "show_text", "change_scene", "set_health", "end_game", "change_health", "apply_impulse", "set_velocity", "set_angular_velocity", "add_force", "set_gravity", "teleport_entity", "set_alpha", "set_tint", "set_visible", "set_asset", "emit_particles", "camera_shake", "camera_follow")
 	operators   = enum("eq", "neq", "gt", "gte", "lt", "lte")
 
 	behaviorKinds     = enum("fall", "chase", "patrol", "oscillate", "spin", "pulse", "drift", "orbit")
