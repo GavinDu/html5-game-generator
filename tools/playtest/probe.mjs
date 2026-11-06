@@ -416,7 +416,7 @@ async function playGame(browser, gameId) {
   // result-card and restart checks below need an observed end; without
   // one they skip honestly.
   if (isShell && !endSeen) {
-    const extDeadline = Date.now() + Math.max(0, winSeconds - playSeconds) * 1000;
+    const extDeadline = Date.now() + Math.max(0, winSeconds - playBudgetSeconds) * 1000;
     await page.mouse.move(90, 700).catch(() => {});
     await page.mouse.down().catch(() => {});
     let sweep = 0;
