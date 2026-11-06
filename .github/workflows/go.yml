@@ -187,6 +187,8 @@ jobs:
         run: |
           npm --prefix tools/playtest install --no-audit --no-fund
           npm --prefix tools/playability-kit install --no-audit --no-fund
+      - name: Test deterministic Playability Kit brain
+        run: npm --prefix tools/playability-kit test
       - name: Install Chromium
         run: npx --prefix tools/playtest playwright install --with-deps chromium
       - name: Build and start the server
