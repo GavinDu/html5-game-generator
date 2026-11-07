@@ -2081,7 +2081,6 @@ async function run(id) {
         // frames cannot award progress twice. The closed-patch sprite stays
         // on screen; ordinary collectible pickups keep their old behavior.
         if (other.def.properties?.closeOnCollect && !other.destroyed) {
-          other.def.components = (other.def.components || []).filter((component) => component !== 'collectible');
           if (other.collider) {
             byCollider.delete(other.collider.handle);
             other.collider.setSensor(true);
