@@ -2019,7 +2019,8 @@ async function run(id) {
   const laneCenters = [W * 0.25, W * 0.5, W * 0.75];
   let laneIndex = 1;
   const dragXOnly = laneTap || ir.experience?.controls?.scheme === 'drag_x' ||
-    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap');
+    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap' &&
+      ir.experience?.objective?.progressVariable !== 'holes_stitched');
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
@@ -2095,7 +2096,7 @@ async function run(id) {
       }
       return;
     }
-    if (other.destroyed) return;
+    if (other.destroyed || other.closed) return;
     const isPickup = other.def.kind === 'pickup' || (other.def.components || []).includes('collectible');
     const isTrigger = other.def.kind === 'trigger';
     const isHazard = other.def.kind === 'obstacle' || other.def.kind === 'enemy';
@@ -2103,6 +2104,15 @@ async function run(id) {
       if (!state.collectedPairs.has(key)) {
         state.collectedPairs.add(key);
         emit('collected', playerEnt, other);
+        // Permanently stitched sky-hole sensors cannot award progress twice.
+        if (other.def.properties?.closeOnCollect && !other.destroyed) {
+          other.closed = true;
+          if (other.collider) {
+            byCollider.delete(other.collider.handle);
+            other.collider.setSensor(true);
+            other.collider.setEnabled(false);
+          }
+        }
       }
     } else if (isTrigger) {
       if (!state.insideRegions.has(key)) {
@@ -2533,6 +2543,19 @@ async function run(id) {
     }
     drainEvents();
     if (state.ended) return;
+    // Authored sky-hole zones can be skipped by a Rapier collision-start
+    // event when a kinematic player teleports between substeps.
+    if (play.shell?.objective?.progressVariable === 'holes_stitched' && playerEnt) {
+      for (const hole of entities.values()) {
+        if (hole.closed || hole.destroyed || !hole.def.properties?.closeOnCollect) continue;
+        if (Math.abs(playerEnt.x - hole.x) <= (playerEnt.w + hole.w) * 0.35 &&
+            Math.abs(playerEnt.y - hole.y) <= (playerEnt.h + hole.h) * 0.35) {
+          handleContact(playerEnt, hole, true);
+          if (state.ended) break;
+        }
+      }
+    }
+    if (state.ended) return;
 
     // View sync, tweens, emitters, camera.
     state.shake *= Math.pow(0.002, dt);
@@ -2683,13 +2706,13 @@ async function run(id) {
     window.__dqTest = {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
-        variables: { ...state.variables },
+        objectiveProgress: objectiveProgress(), variables: { ...state.variables },
         ended: state.ended, won: state.won, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         started: play.shellStarted,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
-          id: e.runtimeId, def: e.defId, kind: e.def.kind,
+          id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
           x: e.x, y: e.y, w: e.w, h: e.h,
           visible: !!e.view.visible && e.view.alpha > 0.05,
           alpha: e.view.alpha, assetId: e.currentAssetId,
