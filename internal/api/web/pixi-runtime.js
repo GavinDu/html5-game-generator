@@ -2076,6 +2076,18 @@ async function run(id) {
       if (!state.collectedPairs.has(key)) {
         state.collectedPairs.add(key);
         emit('collected', playerEnt, other);
+        // A repaired sky-hole must remain visibly stitched for the rest of
+        // the run. Its collider is disabled immediately so overlapping
+        // frames cannot award progress twice. The closed-patch sprite stays
+        // on screen; ordinary collectible pickups keep their old behavior.
+        if (other.def.properties?.closeOnCollect && !other.destroyed) {
+          other.def.components = (other.def.components || []).filter((component) => component !== 'collectible');
+          if (other.collider) {
+            byCollider.delete(other.collider.handle);
+            other.collider.setSensor(true);
+            other.collider.setEnabled(false);
+          }
+        }
       }
     } else if (isTrigger) {
       if (!state.insideRegions.has(key)) {
