@@ -2661,6 +2661,7 @@ async function run(id) {
     window.__dqTest = {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
+        objectiveProgress: objectiveProgress(), variables: { ...state.variables },
         ended: state.ended, won: state.won, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         started: play.shellStarted,
