@@ -15,6 +15,7 @@ import (
 type Experience struct {
 	Archetype        string            `json:"archetype"`
 	Controls         ExpControls       `json:"controls"`
+	ChaserGap        *ExpChaserGap     `json:"chaserGap,omitempty"`
 	Objective        ExpObjective      `json:"objective"`
 	HUD              ExpHUD            `json:"hud,omitempty"`
 	Start            ExpStart          `json:"start,omitempty"`
@@ -30,6 +31,13 @@ type Experience struct {
 type ExpControls struct {
 	Scheme string `json:"scheme"`
 	Hint   string `json:"hint,omitempty"`
+}
+
+type ExpChaserGap struct {
+	Start             float64 `json:"start"`
+	Max               float64 `json:"max"`
+	CaughtAt          float64 `json:"caughtAt"`
+	RecoveryPerSecond float64 `json:"recoveryPerSecond"`
 }
 
 type ExpObjective struct {
@@ -98,7 +106,7 @@ var (
 	// Schemes are the control gestures the character controller really
 	// performs; swipe and stick_button were removed 2026-10-23 with the
 	// rest of the unimplemented vocabulary (see ir.go assetKinds).
-	expSchemes    = enum("drag_x", "drag_free", "tap", "tap_target")
+	expSchemes    = enum("drag_x", "drag_free", "tap", "tap_target", "lane_tap")
 	expObjectives = enum("collect", "survive", "reach", "score")
 	expFailModes  = enum("health", "gentle", "sudden-death", "none")
 	expHUDSlots   = enum("objective_progress", "score", "health", "timer", "none")
@@ -133,6 +141,17 @@ func validateExperience(d *Document) error {
 	}
 	if len(exp.Controls.Hint) > 80 {
 		return fmt.Errorf("experience.controls.hint exceeds 80 characters")
+	}
+	if gap := exp.ChaserGap; gap != nil {
+		if gap.Start <= 0 || gap.Max <= gap.Start || gap.CaughtAt < 0 || gap.CaughtAt >= gap.Start {
+			return fmt.Errorf("experience.chaserGap requires 0 <= caughtAt < start < max")
+		}
+		if gap.Max > 10000 || gap.RecoveryPerSecond < 0 || gap.RecoveryPerSecond > 100 {
+			return fmt.Errorf("experience.chaserGap max or recoveryPerSecond out of range")
+		}
+		if exp.Controls.Scheme != "lane_tap" {
+			return fmt.Errorf("experience.chaserGap requires lane_tap controls")
+		}
 	}
 	if !has(expObjectives, exp.Objective.Kind) {
 		return fmt.Errorf("experience.objective.kind %q unsupported", exp.Objective.Kind)
