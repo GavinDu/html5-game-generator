@@ -1318,7 +1318,7 @@
     "pacing": {
       "targetSessionSec": 55,
       "firstRewardWithinSec": 12,
-      "expectedCatchRate": 0.15,
+      "expectedCatchRate": 0.035,
       "ramp": [
         {
           "at": 0,
