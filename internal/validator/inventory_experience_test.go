@@ -360,12 +360,20 @@ func TestPenguinUsesAllThreeSuppliedDrawingVariants(t *testing.T) {
 	}
 	unlocks := map[int]string{}
 	for _, rule := range doc.Rules {
-		if rule.When.Event != "score_reached" || rule.When.Value == nil {
+		if rule.When.Event != "variable_changed" {
 			continue
+		}
+		threshold := 0
+		for _, condition := range rule.Conditions {
+			if condition.Variable == "hearts_collected" && condition.Operator == "eq" {
+				if value, ok := condition.Value.(float64); ok {
+					threshold = int(value)
+				}
+			}
 		}
 		for _, action := range rule.Actions {
 			if action.Type == "set_asset" && action.Target == "penguin" {
-				unlocks[int(*rule.When.Value)] = action.AssetID
+				unlocks[threshold] = action.AssetID
 			}
 		}
 	}
@@ -462,13 +470,21 @@ func TestPenguinPortraitLoopAndVisibleAurora(t *testing.T) {
 	}
 	restored := map[int]bool{}
 	for _, rule := range doc.Rules {
-		if rule.When.Event != "score_reached" || rule.When.Value == nil {
+		if rule.When.Event != "variable_changed" {
 			continue
+		}
+		threshold := 0
+		for _, condition := range rule.Conditions {
+			if condition.Variable == "hearts_collected" && condition.Operator == "eq" {
+				if value, ok := condition.Value.(float64); ok {
+					threshold = int(value)
+				}
+			}
 		}
 		for _, action := range rule.Actions {
 			if action.Type == "set_alpha" && strings.HasPrefix(action.Target, "band") {
 				if alpha, ok := action.Value.(float64); ok && alpha == 1 {
-					restored[int(*rule.When.Value)] = true
+					restored[threshold] = true
 				}
 			}
 		}
@@ -478,4 +494,56 @@ func TestPenguinPortraitLoopAndVisibleAurora(t *testing.T) {
 			t.Errorf("%d catches must restore a visibly bright aurora band", score)
 		}
 	}
+}
+
+func TestPenguinBonusScoringNeverShortCircuitsAuroraVictory(t *testing.T) {
+	doc, err := readGameIR(filepath.Join("..", "..", "inventory", "p3ngui"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Experience.Objective.ProgressVariable != "hearts_collected" {
+		t.Fatal("heart progress must not use bonus score")
+	}
+	goldHearts := map[string]bool{}
+	for _, scene := range doc.Scenes {
+		for _, entity := range scene.Entities {
+			if entity.Kind == "pickup" && entity.Render != nil && entity.Render.Tint != "" {
+				goldHearts[entity.ID] = true
+			}
+		}
+	}
+	if len(goldHearts) != 2 {
+		t.Errorf("expected two visibly gold heart pickups, got %d", len(goldHearts))
+	}
+	collected := 0
+	for _, rule := range doc.Rules {
+		if rule.When.Event == "collected" && strings.HasPrefix(rule.When.Target, "heart") {
+			collected++
+			score := 0.0
+			progress := 0.0
+			for _, action := range rule.Actions {
+				if action.Type == "add_score" {
+					if v, ok := action.Value.(float64); ok { score = v }
+				}
+				if action.Type == "add_variable" && action.Variable == "hearts_collected" {
+					if v, ok := action.Value.(float64); ok { progress = v }
+				}
+			}
+			want := 10.0
+			if goldHearts[rule.When.Target] { want = 30 }
+			if score != want || progress != 1 {
+				t.Errorf("%s needs +%.0f score, exactly one heart, got %.0f score/%.0f hearts", rule.ID, want, score, progress)
+			}
+		}
+		for _, action := range rule.Actions {
+			if action.Type == "end_game" && action.Value == true {
+				valid := false
+				for _, condition := range rule.Conditions {
+					if condition.Variable == "hearts_collected" && condition.Operator == "eq" && condition.Value == float64(12) { valid = true }
+				}
+				if !valid { t.Errorf("%s cannot win from raw score", rule.ID) }
+			}
+		}
+	}
+	if collected != 12 { t.Errorf("expected 12 collected-heart rules, got %d", collected) }
 }

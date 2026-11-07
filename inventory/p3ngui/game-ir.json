@@ -938,7 +938,10 @@
           "properties": {
             "recycle": true
           },
-          "zIndex": 5
+          "zIndex": 5,
+          "render": {
+            "tint": "#fde047"
+          }
         },
         {
           "id": "heart02",
@@ -1208,7 +1211,10 @@
           "properties": {
             "recycle": true
           },
-          "zIndex": 5
+          "zIndex": 5,
+          "render": {
+            "tint": "#fde047"
+          }
         },
         {
           "id": "heart08",
@@ -1911,7 +1917,7 @@
           ],
           "render": {
             "text": {
-              "content": "Tap to glide \u00b7 catch 12 hearts",
+              "content": "Tap to glide · catch 12 hearts",
               "fontSize": 13,
               "fill": "#C0DBE6",
               "fontWeight": "normal",
@@ -1956,6 +1962,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 30
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -1996,6 +2007,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2036,6 +2052,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2076,6 +2097,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2116,6 +2142,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2156,6 +2187,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2196,6 +2232,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 30
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2236,6 +2277,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2276,6 +2322,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2316,6 +2367,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2356,6 +2412,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2396,6 +2457,11 @@
         {
           "type": "add_score",
           "target": "penguin",
+          "value": 10
+        },
+        {
+          "type": "add_variable",
+          "variable": "hearts_collected",
           "value": 1
         },
         {
@@ -2428,8 +2494,7 @@
     {
       "id": "aurora-band-1",
       "when": {
-        "event": "score_reached",
-        "value": 2
+        "event": "variable_changed"
       },
       "actions": [
         {
@@ -2441,13 +2506,19 @@
           "type": "show_text",
           "value": "Ruby aurora restored!"
         }
+      ],
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 2
+        }
       ]
     },
     {
       "id": "aurora-band-2",
       "when": {
-        "event": "score_reached",
-        "value": 4
+        "event": "variable_changed"
       },
       "actions": [
         {
@@ -2464,13 +2535,19 @@
           "type": "show_text",
           "value": "Festive scarf unlocked!"
         }
+      ],
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 4
+        }
       ]
     },
     {
       "id": "aurora-band-3",
       "when": {
-        "event": "score_reached",
-        "value": 6
+        "event": "variable_changed"
       },
       "actions": [
         {
@@ -2482,13 +2559,19 @@
           "type": "show_text",
           "value": "Sunshine aurora restored!"
         }
+      ],
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 6
+        }
       ]
     },
     {
       "id": "aurora-band-4",
       "when": {
-        "event": "score_reached",
-        "value": 8
+        "event": "variable_changed"
       },
       "actions": [
         {
@@ -2505,13 +2588,19 @@
           "type": "show_text",
           "value": "Classic blue scarf unlocked!"
         }
+      ],
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 8
+        }
       ]
     },
     {
       "id": "aurora-band-5",
       "when": {
-        "event": "score_reached",
-        "value": 10
+        "event": "variable_changed"
       },
       "actions": [
         {
@@ -2523,13 +2612,19 @@
           "type": "show_text",
           "value": "Ocean aurora restored!"
         }
+      ],
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 10
+        }
       ]
     },
     {
       "id": "aurora-complete",
       "when": {
-        "event": "score_reached",
-        "value": 12
+        "event": "variable_changed"
       },
       "actions": [
         {
@@ -2544,6 +2639,13 @@
         {
           "type": "end_game",
           "value": true
+        }
+      ],
+      "conditions": [
+        {
+          "variable": "hearts_collected",
+          "operator": "eq",
+          "value": 12
         }
       ]
     }
@@ -2568,7 +2670,8 @@
     "objective": {
       "kind": "collect",
       "target": 12,
-      "label": "Collect 12 hearts"
+      "label": "Collect 12 hearts",
+      "progressVariable": "hearts_collected"
     },
     "hud": {
       "left": "objective_progress",

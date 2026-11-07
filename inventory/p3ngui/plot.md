@@ -66,3 +66,7 @@ The winter sky has lost its six colors. A little penguin discovers that floating
 This is a portrait-only game (`game.orientation = "portrait"`). It does not require a second landscape layout. The player preserves the authored aspect, pauses in an unsupported viewport orientation, and guides the player to rotate; returning resumes the same session.
 
 The original three penguin variants remain. The scene now uses a moonlit winter palette, snowy mountain layers and an ice shelf. Dim aurora ribbons brighten after each pair of catches, with explicit alpha restoration so the reward is visible. Short taps move along the fixed horizontal lane without a platformer controller. Collectibles are sensors and recycle after misses, preserving the no-fail promise. Each catch adds a soft chime and a small particle burst. All twelve catches, six bright bands, scarf transitions and restart are verified with real touch input in both Chromium and WebKit.
+
+## Collection-score fidelity repair — 2026-11-07
+
+The heart count is independent of bonus score. Every real caught heart increments `hearts_collected` once; regular pink hearts award 10 points, and two yellow-tinted golden hearts in the twelve-heart field award 30 points. The same 2/4/6/8/10/12 heart thresholds unlock aurora bands and source-inspired scarf variants regardless of point bonuses. The win still requires twelve catches, not a score threshold. No penalty is imposed for misses.
