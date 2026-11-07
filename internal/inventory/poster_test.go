@@ -99,10 +99,16 @@ func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
 	if err := Load(st, filepath.Join("..", "..", "inventory")); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sample-rainbow-bear", "escape-from-injection", "sample-ribbon-sky", "penguin-heartlight-rescue"} {
+	for _, id := range []string{"sample-rainbow-bear", "sample-ribbon-sky", "penguin-heartlight-rescue"} {
 		game, ok := st.GetGame(id)
 		if !ok || game.Preview == nil || game.Preview.PosterURL == "" || game.Preview.ClipURL != "" {
 			t.Fatalf("%s has no honest poster fallback", id)
 		}
+	}
+	// Escape gameplay no longer matches the old preview hash. A stale
+	// approved poster must not be presented as evidence of the new run.
+	escape, ok := st.GetGame("escape-from-injection")
+	if !ok || escape.Preview != nil {
+		t.Fatal("Escape's changed game IR must invalidate its old poster")
 	}
 }
