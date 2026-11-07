@@ -99,10 +99,18 @@ func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
 	if err := Load(st, filepath.Join("..", "..", "inventory")); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sample-rainbow-bear", "escape-from-injection", "sample-ribbon-sky", "penguin-heartlight-rescue"} {
+	for _, id := range []string{"sample-rainbow-bear", "escape-from-injection", "penguin-heartlight-rescue"} {
 		game, ok := st.GetGame(id)
 		if !ok || game.Preview == nil || game.Preview.PosterURL == "" || game.Preview.ClipURL != "" {
 			t.Fatalf("%s has no honest poster fallback", id)
 		}
+	}
+	// Ribbon has new six-hole gameplay. Its previous approved poster is
+	// deliberately invalidated by the IR hash until fresh screenshot review
+	// produces a version-bound replacement. Never advertise the old art as
+	// evidence of the changed game.
+	ribbon, ok := st.GetGame("sample-ribbon-sky")
+	if !ok || ribbon.Preview != nil {
+		t.Fatal("changed Ribbon gameplay must invalidate the stale approved poster")
 	}
 }
