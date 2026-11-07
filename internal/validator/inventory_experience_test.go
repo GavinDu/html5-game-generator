@@ -88,6 +88,105 @@ func TestInventoryGamesExperience(t *testing.T) {
 	}
 }
 
+
+func TestRibbonSixUniqueHolesDriveVictoryIndependentlyOfBonusScore(t *testing.T) {
+	dir := filepath.Join("..", "..", "inventory", "u46ex5")
+	doc, err := readGameIR(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Experience.Objective.ProgressVariable != "holes_stitched" || doc.Experience.Objective.Target != 6 {
+		t.Fatal("Ribbon's objective must be six repaired holes, not shard score")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "game-ir.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ir struct {
+		Scenes []struct {
+			Entities []struct {
+				ID string `json:"id"`
+				Kind string `json:"kind"`
+				Components []string `json:"components"`
+				Physics struct {
+					Sensor bool `json:"sensor"`
+				} `json:"physics"`
+			} `json:"entities"`
+		} `json:"scenes"`
+		Rules []struct {
+			ID string `json:"id"`
+			When struct {
+				Event string `json:"event"`
+				Target string `json:"target"`
+			} `json:"when"`
+			Conditions []struct {
+				Variable string `json:"variable"`
+				Operator string `json:"operator"`
+				Value any `json:"value"`
+			} `json:"conditions"`
+			Actions []struct {
+				Type string `json:"type"`
+				Target string `json:"target"`
+				Variable string `json:"variable"`
+				AssetID string `json:"assetId"`
+				Value any `json:"value"`
+			} `json:"actions"`
+		} `json:"rules"`
+	}
+	if err := json.Unmarshal(raw, &ir); err != nil {
+		t.Fatal(err)
+	}
+	holes := map[string]bool{}
+	for _, e := range ir.Scenes[0].Entities {
+		if strings.HasPrefix(e.ID, "hole") {
+			collectible := false
+			for _, c := range e.Components {
+				if c == "collectible" { collectible = true }
+			}
+			if !collectible || !e.Physics.Sensor || e.Kind != "pickup" {
+				t.Errorf("%s must have a contactable non-blocking sensor", e.ID)
+			}
+			holes[e.ID] = true
+		}
+	}
+	if len(holes) != 6 { t.Errorf("expected six unique playable sky holes, got %d", len(holes)) }
+	stitches := map[string]bool{}
+	hasWin := false
+	for _, rule := range ir.Rules {
+		increment := 0
+		closed := false
+		destroyed := false
+		ends := false
+		for _, a := range rule.Actions {
+			if a.Type == "add_variable" && a.Variable == "holes_stitched" && a.Value == float64(1) {
+				increment++
+			}
+			if a.Type == "set_asset" && a.Target == rule.When.Target && a.AssetID == "hole_closed" { closed = true }
+			if a.Type == "destroy_entity" && a.Target == rule.When.Target { destroyed = true }
+			if a.Type == "end_game" && a.Value == true { ends = true }
+		}
+		if rule.When.Event == "collected" && holes[rule.When.Target] {
+			if increment != 1 || !closed || !destroyed {
+				t.Errorf("%s must stitch and remove exactly one hole", rule.ID)
+			}
+			stitches[rule.When.Target] = true
+		}
+		if ends {
+			if rule.When.Event != "variable_changed" { t.Errorf("%s: score must never end Ribbon", rule.ID) }
+			six := false
+			for _, c := range rule.Conditions {
+				if c.Variable == "holes_stitched" && c.Operator == "eq" && c.Value == float64(6) { six = true }
+			}
+			if !six { t.Errorf("%s: victory must require six distinct repairs", rule.ID) }
+			hasWin = true
+		}
+		if strings.Contains(rule.ID, "shard") && increment != 0 {
+			t.Errorf("%s must never advance repair progress", rule.ID)
+		}
+	}
+	if len(stitches) != 6 || !hasWin { t.Errorf("six unique stitch rules and a six-repair win rule are required; stitched=%d win=%v", len(stitches), hasWin) }
+}
+
 // Bobo's questionnaire contract keeps regular-heart progress separate from bonus score.
 func TestBoboRegularHeartsAloneRestoreRainbow(t *testing.T) {
 	dir := filepath.Join("..", "..", "inventory", "13ui1k")
