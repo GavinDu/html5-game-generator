@@ -73,6 +73,10 @@
     "Use the three supplied penguin coloring-page images as visual reference inputs: preserve the shared round black-and-white penguin silhouette, large eyes, small beak, rosy cheeks, flippers, feet, and scarf across all variants.",
     "Keep the three source-inspired variants distinguishable: rainbow patchwork scarf/body accents; festive multicolor head and scarf with cool-toned flippers; and classic black-and-white penguin with a blue striped scarf and warm orange feet.",
     "Extract the penguin illustration only. Do not reproduce photographed paper borders, the coloring-page website watermark, handwritten names, or incidental pencil marks as game artwork.",
-    "Verify the penguin and collectible hearts remain visually distinct against the winter background at iPhone and iPad portrait and landscape sizes; retain before/after gameplay screenshots as review evidence."
+    "Verify the penguin and collectible hearts remain visually distinct against the winter background at iPhone and iPad portrait and landscape sizes; retain before/after gameplay screenshots as review evidence.",
+    "Treat this as a portrait-only game: optimize portrait phone and tablet composition; landscape needs safe letterboxing and rotate guidance, not a redesigned playable layout.",
+    "Every missed heart must recycle and a single short tap must move the penguin along its fixed horizontal lane.",
+    "Verify aurora bands visibly brighten at 2, 4, 6, 8, 10 and 12 hearts; a visibility toggle with zero alpha does not meet this requirement.",
+    "Preserve all three supplied scarf variants while keeping snowy scenery behind pickups and outside the instruction area."
   ]
 }

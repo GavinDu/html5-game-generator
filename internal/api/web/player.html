@@ -178,7 +178,7 @@
     position: fixed;
     inset: 0 auto auto 50%;
     z-index: 6;
-    width: min(100vw, calc(100dvh * 390 / 844));
+    width: min(100vw, calc(100dvh * var(--dq-stage-aspect, 0.4620853)));
     margin: 0;
     transform: translateX(-50%);
     padding: max(12px, env(safe-area-inset-top)) 16px 10px;
@@ -233,8 +233,8 @@
     overflow: hidden;
   }
   body.dq-play #stage {
-    width: min(100vw, calc(100dvh * 390 / 844));
-    height: min(100dvh, calc(100vw * 844 / 390));
+    width: min(100vw, calc(100dvh * var(--dq-stage-aspect, 0.4620853)));
+    height: min(100dvh, calc(100vw / var(--dq-stage-aspect, 0.4620853)));
     max-width: none;
     padding: 0;
     margin: 0;
@@ -254,8 +254,8 @@
   }
   body.dq-play .shell-card {
     inset: 50% auto auto 50%;
-    width: min(100vw, calc(100dvh * 390 / 844));
-    height: min(100dvh, calc(100vw * 844 / 390));
+    width: min(100vw, calc(100dvh * var(--dq-stage-aspect, 0.4620853)));
+    height: min(100dvh, calc(100vw / var(--dq-stage-aspect, 0.4620853)));
     transform: translate(-50%, -50%);
     border-radius: 0;
   }
@@ -274,6 +274,8 @@
 
 
   #feed-return { pointer-events: auto; display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; color: white; text-decoration: none; padding: 0 8px; background: #151d37; border-radius: 12px; }
+  #orientation-hint { position: absolute; z-index: 8; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 24px); padding: 12px 18px; border: 1px solid #8196b0; border-radius: 16px; background: #14233bf5; color: white; text-align: center; font-size: 15px; line-height: 1.4; pointer-events: none; }
+  #orientation-hint[hidden] { display: none; }
   /* One playable post per viewport, using browser-native touch scrolling. */
   body.dq-feed { height: 100dvh; min-height: 0; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
   body.dq-feed > header { flex: none; min-height: 52px; margin: 0; width: 100%; }
@@ -328,6 +330,7 @@
 </header>
 <div id="stage-wrap">
   <div id="stage"></div>
+  <div id="orientation-hint" role="status" aria-live="polite" hidden></div>
   <div class="shell-card" id="shell-start" role="dialog" aria-modal="true" aria-labelledby="shell-start-title" aria-describedby="shell-start-hint">
     <div class="shell-title" id="shell-start-title"></div>
     <div class="shell-obj" id="shell-start-obj"></div>

@@ -27,6 +27,7 @@ import { chromium, webkit } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { selectFirstRewardMeasurement } from './reward-timing.mjs';
 import { resolvePlayBudgetSeconds } from './play-budget.mjs';
+import { preferredViewport } from './game-orientation.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -90,7 +91,8 @@ async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
     checks.push({ checkId, status, evidence, actual });
-  const page = await browser.newPage({ viewport: { width: 420, height: 900 }, hasTouch: true });
+  const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(gameId)}/package`)).json();
+  const page = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900), hasTouch: true });
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
   const navStart = Date.now();
@@ -457,8 +459,12 @@ async function playGame(browser, gameId) {
   }
 
   if (firstRewardMs !== null) {
-    push('hook.first_reward', firstRewardMs <= 15000 ? 'pass' : 'fail',
-      `first reward from ${firstRewardSource} at ${firstRewardMs}ms`, { firstRewardMs, source: firstRewardSource });
+    // First reward is a quality/timing signal, not proof of a broken
+    // game. Preserve the measured latency but do not make a slow reward
+    // a binary PASS/FAIL contradiction or a release-blocking verdict.
+    push('hook.first_reward', firstRewardMs <= 15000 ? 'pass' : 'skip',
+      `first reward from ${firstRewardSource} at ${firstRewardMs}ms`,
+      { firstRewardMs, source: firstRewardSource, targetMs: 15000, gating: false });
   } else if (endSeen) {
     push('hook.first_reward', 'skip', 'game ended before any score change was observed', null);
   } else {
@@ -551,7 +557,7 @@ async function playGame(browser, gameId) {
     }
     script.push({ tick: 280, type: 'pointerup', detail: '' });
     const scriptedScore = async () => {
-      const p2 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      const p2 = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900) });
       try {
         await p2.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&seed=777`,
           { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -602,7 +608,7 @@ async function playGame(browser, gameId) {
     } else if (!runId) {
       push('leaderboard.replay_verified', 'skip', 'no submitted run id observed after the win (submission may have been rejected)', null);
     } else {
-      const p3 = await browser.newPage({ viewport: { width: 420, height: 900 } });
+      const p3 = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900) });
       try {
         await p3.goto(`${base}/player?game=${encodeURIComponent(gameId)}&probe=1&replay=${encodeURIComponent(runId)}`,
           { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -640,10 +646,10 @@ async function playGame(browser, gameId) {
   // reported (and lands in merged ValidationReports) but does NOT gate:
   // on shared CI runners its timing is environment noise, and a gate
   // that fires on noise teaches everyone to ignore the gate.
-  const failed = checks.some((c) => c.status === 'fail' &&
-    (c.checkId === 'playtest.boot_clean' || c.checkId === 'playtest.render_nonblank' ||
-     c.checkId === 'simulation.no_softlock' || c.checkId === 'shell.start_card' ||
-     c.checkId === 'shell.restart_in_place'));
+  // Every failed check that remains in the worker report is an actual
+  // broken runtime/playability invariant. Informational timing misses
+  // above are marked skip with the measured value and do not gate.
+  const failed = checks.some((c) => c.status === 'fail');
   return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 

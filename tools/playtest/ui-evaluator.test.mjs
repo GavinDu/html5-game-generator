@@ -35,7 +35,7 @@ test('UI evaluator fails when no shell controls are measured instead of passing 
 
 test('UI evaluator emits a weighted per-viewport score and overall grade', () => {
   assert.match(source, /const weights =/);
-  assert.match(source, /const score = checks\.reduce/);
+  assert.match(source, /const score = gameplayProfile \? checks\.reduce/);
   assert.match(source, /score: averageScore/);
   assert.match(source, /grade: averageScore >= 90/);
   assert.match(source, /results\.length === viewports\.length/);
@@ -49,4 +49,12 @@ test('UI evaluator accepts a full-canvas touch surface only when the IR declares
   assert.match(source, /const canvasIsTouchSurface = !!rect &&\s+declaredTouchControls/);
   assert.match(source, /canvasIsTouchSurface/);
   assert.match(source, /full-canvas /);
+});
+
+
+test('unsupported orientation is evaluated only as a paused fallback', () => {
+  assert.match(source, /supportsViewport\(orientation, viewport.width, viewport.height\)/);
+  assert.match(source, /mode: gameplayProfile \? "gameplay" : "rotation-fallback"/);
+  assert.match(source, /orientation-guidance-and-pause/);
+  assert.match(source, /results.filter\(result => result.mode === 'gameplay'\)/);
 });

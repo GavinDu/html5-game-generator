@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { preferredViewport, supportsViewport } from './game-orientation.mjs';
 
 function arg(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -25,8 +26,8 @@ const fps = Math.max(1, Math.min(30, Number(arg('fps', '12'))));
 const startDelayMs = Math.max(0, Number(arg('start-delay-ms', '0')));
 // Match the game's native aspect ratio (portrait, landscape, or tablet) instead
 // of silently cropping every preview into a phone-portrait viewport.
-const width = Number(arg('width', '420'));
-const height = Number(arg('height', '900'));
+let width = Number(arg('width', '420'));
+let height = Number(arg('height', '900'));
 
 if (!base || !game || !run || !out || !poster) {
   console.error('usage: render-preview.mjs --base URL --game ID --run RUN_ID --out CLIP --poster PNG');
@@ -68,10 +69,13 @@ function runFFmpeg(args) {
 }
 
 try {
+  const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(game)}/package`)).json();
+  if (!arg('width') && !arg('height')) ({ width, height } = preferredViewport(envelope.ir, 420, 900));
+  if (!supportsViewport(envelope.ir.game.orientation, width, height)) throw new Error('Preview viewport conflicts with the declared game orientation');
   const launch = browserName === 'webkit' ? webkit : chromium;
   browser = await launch.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
-  const url = `${base}/player?game=${encodeURIComponent(game)}&probe=1&capture=1&replay=${encodeURIComponent(run)}`;
+  const url = `${base}/player?game=${encodeURIComponent(game)}&presentation=play&probe=1&capture=1&replay=${encodeURIComponent(run)}`;
   await page.goto(url, { waitUntil: 'load', timeout: 30000 });
   await page.waitForFunction(() => window.__dqProbe?.booted === true && typeof window.__dqTest?.advanceToStep === 'function', null, { timeout: 30000 });
   if (startDelayMs) await page.waitForTimeout(startDelayMs);

@@ -1,8 +1,8 @@
 {
-  "version": 1,
-  "ir_sha256": "e62674f30aebc0616faac9b3b0c2030b1b2596e13a7c3908ef3dba66c36816dc",
-  "poster_sha256": "855ae215b48654a727f52c2397d5482daa0971882b09c720c2c2800a3f13f617",
-  "source_run": "https://github.com/GavinDu/html5-game-generator/actions/runs/42228113902",
-  "source_screenshot": "kit-out/penguin-heartlight-rescue.ready.png",
-  "note": "Reviewed gameplay screenshot, poster-only fallback; contains no original source upload."
+  "version": 2,
+  "ir_sha256": "7bd8722186be5e5d94a00ed10a7edbb7708f88746d16a0689de6b1010ff0558f",
+  "poster_sha256": "6358195f46dd315c2fd62922467d21d877eee426b791d1ec9e380f44494c40aa",
+  "source_run": "Local Chromium and WebKit penguin-quality-test; both reached twelve catches, six bright bands, three variants and restart",
+  "source_screenshot": "orientation-evidence/final-penguin-chromium/restoring-aurora.png",
+  "note": "Actual portrait gameplay screenshot from the improved winter scene; source coloring-page photographs are not included."
 }
