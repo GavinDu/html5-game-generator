@@ -111,6 +111,7 @@ func TestRibbonSixUniqueHolesDriveVictoryIndependentlyOfBonusScore(t *testing.T)
 				Physics struct {
 					Sensor bool `json:"sensor"`
 				} `json:"physics"`
+				Properties map[string]any `json:"properties"`
 			} `json:"entities"`
 		} `json:"scenes"`
 		Rules []struct {
@@ -143,7 +144,7 @@ func TestRibbonSixUniqueHolesDriveVictoryIndependentlyOfBonusScore(t *testing.T)
 			for _, c := range e.Components {
 				if c == "collectible" { collectible = true }
 			}
-			if !collectible || !e.Physics.Sensor || e.Kind != "pickup" {
+			if !collectible || !e.Physics.Sensor || e.Kind != "pickup" || e.Properties["closeOnCollect"] != true {
 				t.Errorf("%s must have a contactable non-blocking sensor", e.ID)
 			}
 			holes[e.ID] = true
@@ -155,19 +156,17 @@ func TestRibbonSixUniqueHolesDriveVictoryIndependentlyOfBonusScore(t *testing.T)
 	for _, rule := range ir.Rules {
 		increment := 0
 		closed := false
-		destroyed := false
 		ends := false
 		for _, a := range rule.Actions {
 			if a.Type == "add_variable" && a.Variable == "holes_stitched" && a.Value == float64(1) {
 				increment++
 			}
 			if a.Type == "set_asset" && a.Target == rule.When.Target && a.AssetID == "hole_closed" { closed = true }
-			if a.Type == "destroy_entity" && a.Target == rule.When.Target { destroyed = true }
-			if a.Type == "end_game" && a.Value == true { ends = true }
+ 			if a.Type == "end_game" && a.Value == true { ends = true }
 		}
 		if rule.When.Event == "collected" && holes[rule.When.Target] {
-			if increment != 1 || !closed || !destroyed {
-				t.Errorf("%s must stitch and remove exactly one hole", rule.ID)
+			if increment != 1 || !closed {
+				t.Errorf("%s must stitch exactly one hole and retain its closed-patch art", rule.ID)
 			}
 			stitches[rule.When.Target] = true
 		}
