@@ -120,6 +120,14 @@ jobs:
         with:
           name: penguin-quality-${{ matrix.browser }}
           path: /tmp/penguin-quality-${{ matrix.browser }}/
+      - name: Verify Escape real one-lane taps, score fidelity and screenshot differences
+        run: node tools/playtest/escape-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-quality-${{ matrix.browser }}
+      - name: Upload Escape fidelity screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-quality-${{ matrix.browser }}
+          path: /tmp/escape-quality-${{ matrix.browser }}/
       - name: Verify Bobo short taps and missed-heart recycling
         run: node tools/playtest/bobo-controls-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/bobo-controls-${{ matrix.browser }}
       - name: Upload Bobo control and recycling screenshots
