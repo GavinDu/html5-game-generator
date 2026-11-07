@@ -255,7 +255,7 @@ async function playGame(browser, gameId) {
   // made the generic bot miss every optional star reward. Drive the declared
   // input scheme instead, steering toward the lowest visible pickup.
   const isTapDodger = !isCatcher && probe?.shell?.archetype === 'dodger' &&
-    ['tap', 'tap_x'].includes(probe?.shell?.controlsScheme);
+    ['tap', 'tap_x', 'lane_tap'].includes(probe?.shell?.controlsScheme);
   const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
   let ki = 0;
   while (Date.now() < playDeadline) {
@@ -268,7 +268,7 @@ async function playGame(browser, gameId) {
     }
     ki++;
     if (isCatcher) {
-      const tapControls = ['tap', 'tap_x'].includes(probe?.shell?.controlsScheme);
+      const tapControls = ['tap', 'tap_x', 'lane_tap'].includes(probe?.shell?.controlsScheme);
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
       if (tapControls) {
         // Some legacy Shim games do not expose the generic player/pickup
