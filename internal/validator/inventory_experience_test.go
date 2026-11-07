@@ -390,9 +390,9 @@ func TestEscapeQuestionnaireGapAndCaughtEnding(t *testing.T) {
 	exp := ir["experience"].(map[string]any)
 	gap := exp["chaserGap"].(map[string]any)
 	for field, want := range map[string]float64{
-		"start": 220,
-		"max": 250,
-		"caughtAt": 55,
+		"start":             220,
+		"max":               250,
+		"caughtAt":          55,
 		"recoveryPerSecond": 6,
 	} {
 		if got := gap[field].(float64); got != want {
