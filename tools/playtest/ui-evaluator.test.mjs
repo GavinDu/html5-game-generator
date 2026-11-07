@@ -45,7 +45,7 @@ test('UI evaluator emits a weighted per-viewport score and overall grade', () =>
 test('UI evaluator accepts a full-canvas touch surface only when the IR declares touch controls', () => {
   assert.match(runtimeSource, /controlsScheme: play\.shell\.controls\?\.scheme/);
   assert.match(source, /const shellControlScheme = window\.__dqProbe\?\.shell\?\.controlsScheme/);
-  assert.match(source, /const declaredTouchControls = \['tap', 'tap_target', 'drag_x', 'drag_free'\]\.includes\(shellControlScheme\)/);
+  assert.match(source, /const declaredTouchControls = \['tap', 'tap_target', 'drag_x', 'drag_free', 'lane_tap'\]\.includes\(shellControlScheme\)/);
   assert.match(source, /const canvasIsTouchSurface = !!rect &&\s+declaredTouchControls/);
   assert.match(source, /canvasIsTouchSurface/);
   assert.match(source, /full-canvas /);
