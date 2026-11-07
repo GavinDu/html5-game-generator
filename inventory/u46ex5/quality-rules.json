@@ -36,7 +36,7 @@
       "tap a wind demon to bonk it with the staff for bonus points",
       "collect rainbow shards for score and a bonus every third shard",
       "demon collisions cost one of three lives and grant 1.5 seconds of invulnerability",
-      "mending six holes begins the next meta-level with faster spawn and demon pacing",
+      "mending six unique holes completes the current six-repair round in the canonical package; endless meta-levels remain a later expansion",
       "losing all three lives ends the run and presents a replay result"
     ],
     "fairness": [
@@ -52,9 +52,10 @@
       "archetype": "catcher",
       "controlsScheme": "tap",
       "objective": {
-        "kind": "reach",
+        "kind": "collect",
         "target": 6,
-        "label": "Stitch 6 sky-holes"
+        "label": "Stitch 6 sky-holes",
+        "progressVariable": "holes_stitched"
       },
       "failure": {
         "mode": "health",
@@ -71,6 +72,8 @@
     "Assess visual hierarchy between hero, holes, demons, shards, HUD, and instructions.",
     "Check whether the core fantasy of repairing the sky is visible in action, not just described in text.",
     "Evaluate tap-to-move precision, collision readability, invulnerability feedback, and whether the staff/bonk mechanic is discoverable.",
-    "Check Chinese text legibility, edge clipping, HUD safe areas, win payoff, and difficulty progression."
+    "Check Chinese text legibility, edge clipping, HUD safe areas, win payoff, and difficulty progression.",
+    "Verify that exactly six distinct hole contacts increment holes_stitched once each; optional shard score must not close holes or win the game.",
+    "Capture screenshots before and after each hole repair, and assert closed-patch appearance and restart reset on both Chromium and WebKit."
   ]
 }
