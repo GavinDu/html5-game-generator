@@ -10,7 +10,7 @@ const option = (name, fallback) => {
   const i = process.argv.indexOf('--' + name);
   return i < 0 ? fallback : process.argv[i + 1];
 };
-const base = option('base', 'http://localhost:18099').replace(/\\/$/, '');
+const base = option('base', 'http://localhost:18099').replace(/[/]$/, '');
 const browserName = option('browser', 'chromium');
 const shots = option('shots', '/tmp/escape-quality');
 const engine = browserName === 'webkit' ? webkit : chromium;
