@@ -66,8 +66,10 @@ try {
         [375, 2], [375, 2], [15, 1], [15, 0], [15, 0], [375, 1]
       ]) {
         await tap(x);
-        await page.waitForFunction(lane => window.__dqTest.snapshot().player?.laneIndex === lane,
-          expectedLane, { timeout: 5000 });
+        await page.waitForFunction(({ lane, x }) => {
+          const player = window.__dqTest.snapshot().player;
+          return player?.laneIndex === lane && Math.abs(player.x - x) < 12;
+        }, { lane: expectedLane, x: [97.5, 195, 292.5][expectedLane] }, { timeout: 5000 });
         const current = await snap();
         assert.ok(Math.abs(current.player.x - [97.5, 195, 292.5][expectedLane]) < 12,
           'tap must snap to an authored lane center, not its XY destination');
