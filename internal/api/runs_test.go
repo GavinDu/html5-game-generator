@@ -142,18 +142,20 @@ func TestRunsNameFilterAndTimeBoard(t *testing.T) {
 	if board["entries"].([]any)[0].(map[string]any)["name"] != "Player" {
 		t.Fatalf("filtered name on board: %v", board["entries"])
 	}
-	// Escape's board is time/asc over WON runs only.
+	// Escape follows the authored caught ending: no fake wins. Until the
+	// level-then-score leaderboard has a first-class ranking metric, rank
+	// real caught runs by score descending rather than fastest fake escape.
 	gid := "escape-from-injection"
-	postRun(t, srv, gid, `{"name":"A","score":15,"won":true,"durationMs":45000,"seed":1}`)
-	postRun(t, srv, gid, `{"name":"B","score":15,"won":true,"durationMs":38000,"seed":2}`)
+	postRun(t, srv, gid, `{"name":"A","score":15,"won":false,"durationMs":45000,"seed":1}`)
+	postRun(t, srv, gid, `{"name":"B","score":25,"won":false,"durationMs":38000,"seed":2}`)
 	postRun(t, srv, gid, `{"name":"C","score":3,"won":false,"durationMs":20000,"seed":3}`)
 	board = getBoard(t, srv, gid, "week")
-	if board["metric"] != "time" || board["order"] != "asc" {
+	if board["metric"] != "score" || board["order"] != "desc" {
 		t.Fatalf("escape board metric: %v", board)
 	}
 	entries := board["entries"].([]any)
-	if len(entries) != 2 || entries[0].(map[string]any)["name"] != "B" {
-		t.Fatalf("time board: %v", entries)
+	if len(entries) != 3 || entries[0].(map[string]any)["name"] != "B" {
+		t.Fatalf("caught-run score board: %v", entries)
 	}
 }
 
