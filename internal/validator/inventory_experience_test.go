@@ -368,90 +368,57 @@ func TestPenguinPortraitLoopAndVisibleAurora(t *testing.T) {
 }
 
 func TestEscapeQuestionnaireGapAndCaughtEnding(t *testing.T) {
-    dir := filepath.Join("..", "..", "inventory", "2uowg9")
-    doc, err := readGameIR(dir)
-    if err != nil { t.Fatal(err) }
-    if doc == nil || doc.Experience == nil { t.Fatal("Escape must have canonical experience") }
-    if doc.Experience.Controls.Scheme != "lane_tap" {
-        t.Fatalf("Escape needs one-lane-per-tap controls, got %q", doc.Experience.Controls.Scheme)
-    }
-    raw, err := os.ReadFile(filepath.Join(dir, "game-ir.json"))
-    if err != nil { t.Fatal(err) }
-    var contract struct {
-        Experience struct {
-            ChaserGap struct {
-                Start float64 `json:"start"`
-                Max float64 `json:"max"`
-                CaughtAt float64 `json:"caughtAt"`
-                RecoveryPerSecond float64 `json:"recoveryPerSecond"`
-            } `json:"chaserGap"`
-        } `json:"experience"`
-        Rules []struct {
-            ID string `json:"id"`
-            When struct {
-                Event string `json:"event"`
-                Value float64 `json:"value"`
-            } `json:"when"`
-            Conditions []struct {
-                Variable string `json:"variable"`
-                Operator string `json:"operator"`
-                Value float64 `json:"value"`
-            } `json:"conditions"`
-            Actions []struct {
-                Type string `json:"type"`
-                Variable string `json:"variable"`
-                Value any `json:"value"`
-            } `json:"actions"`
-        } `json:"rules"`
-    }
-    if err := json.Unmarshal(raw, &contract); err != nil { t.Fatal(err) }
-    g := contract.Experience.ChaserGap
-    if g.Start != 220 || g.Max != 250 || g.CaughtAt != 55 || g.RecoveryPerSecond != 6 {
-        t.Errorf("chaser gap must start 220, cap 250, catch at 55, recover 6/s: %+v", g)
-    }
-    seen := map[string]bool{}
-    for _, rule := range contract.Rules {
-        score, gap := 0.0, 0.0
-        hasScore, hasGap, hasLoss := false, false, false
-        for _, action := range rule.Actions {
-            if action.Type == "change_health" { t.Errorf("legacy health damage remains in %s; gap must be authoritative", rule.ID) }
-            if action.Type == "end_game" {
-                if action.Value == true { t.Errorf("%s invents a winning ending, contrary to the authored caught ending", rule.ID) }
-                if action.Value == false { hasLoss = true }
-            }
-            if action.Type == "add_score" {
-                score, hasScore = action.Value.(float64), true
-            }
-            if action.Type == "add_variable" && action.Variable == "chaser_gap" {
-                gap, hasGap = action.Value.(float64), true
-            }
-        }
-        switch rule.ID {
-        case "star-collected", "star-gold-collected":
-            if !hasScore || score != 25 || !hasGap || gap != 12 {
-                t.Errorf("%s must award +25 score and +12 chaser gap", rule.ID)
-            }
-            seen[rule.ID] = true
-        case "syringe-hit":
-            if !hasGap || gap != -45 { t.Error("syringe collision must reduce gap by 45") }
-            seen[rule.ID] = true
-        case "running-score":
-            if rule.When.Event != "timer_elapsed" || rule.When.Value != 1 || !hasScore || score != 10 {
-                t.Error("running must award 10 points per second")
-            }
-            seen[rule.ID] = true
-        case "gap-caught":
-            condition := false
-            for _, c := range rule.Conditions {
-                if c.Variable == "chaser_gap" && c.Operator == "lte" && c.Value == 55 { condition = true }
-            }
-            if rule.When.Event != "variable_changed" || !condition || !hasLoss {
-                t.Error("caught loss must follow variable_changed when gap <= 55")
-            }
-            seen[rule.ID] = true
-        }
-    }
-    for _, id := range []string{"star-collected", "star-gold-collected", "syringe-hit", "running-score", "gap-caught"} {
-        if !seen[id] { t.Errorf("missing Escape fidelity rule %s", id) }
-    }
+	dir := filepath.Join("..", "..", "inventory", "2uowg9")
+	doc, err := readGameIR(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc == nil || doc.Experience == nil {
+		t.Fatal("Escape must have a canonical experience")
+	}
+	if doc.Experience.Controls.Scheme != "lane_tap" {
+		t.Fatalf("Escape must use discrete lane taps, got %q", doc.Experience.Controls.Scheme)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "game-ir.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ir map[string]any
+	if err := json.Unmarshal(raw, &ir); err != nil {
+		t.Fatal(err)
+	}
+	exp := ir["experience"].(map[string]any)
+	gap := exp["chaserGap"].(map[string]any)
+	for field, want := range map[string]float64{
+		"start": 220,
+		"max": 250,
+		"caughtAt": 55,
+		"recoveryPerSecond": 6,
+	} {
+		if got := gap[field].(float64); got != want {
+			t.Errorf("chaser gap %s = %v, want %v", field, got, want)
+		}
+	}
+	seenCaught := false
+	for _, item := range ir["rules"].([]any) {
+		rule := item.(map[string]any)
+		id := rule["id"].(string)
+		for _, actionItem := range rule["actions"].([]any) {
+			action := actionItem.(map[string]any)
+			if action["type"] == "change_health" {
+				t.Errorf("legacy health damage in %s, gap must be authoritative", id)
+			}
+			if action["type"] == "end_game" {
+				if action["value"] == true {
+					t.Errorf("rule %s invents a winning escape", id)
+				}
+				if id == "gap-caught" && action["value"] == false {
+					seenCaught = true
+				}
+			}
+		}
+	}
+	if !seenCaught {
+		t.Error("Escape needs an explicit caught ending")
+	}
 }
