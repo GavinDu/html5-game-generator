@@ -116,7 +116,17 @@ try {
         await page.waitForFunction(holeID => {
           const state = window.__dqTest?.snapshot();
           return state?.entities.some(e => e.id === holeID && e.assetId === 'hole_closed');
-        }, id, { timeout: 7000 });
+        }, id, { timeout: 7000 }).catch(async error => {
+          const state = await snap();
+          console.error('RIBBON_HOLE_DIAGNOSTIC', JSON.stringify({
+            profile: profile.name, holeID: id, player: state.player,
+            progress: stitched(state), score: state.score,
+            hole: state.entities.find(e => e.id === id),
+            errors,
+          }));
+          await capture('failed-contact-' + id);
+          throw error;
+        });
         current = await snap();
         assert.equal(stitched(current), repaired(current).length,
           'objective progress must count unique closed patches, not score');
