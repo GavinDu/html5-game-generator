@@ -2004,7 +2004,8 @@ async function run(id) {
     return b?.action;
   }
   const dragXOnly = ir.experience?.controls?.scheme === 'drag_x' ||
-    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap');
+    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap' &&
+      ir.experience?.objective?.progressVariable !== 'holes_stitched');
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
