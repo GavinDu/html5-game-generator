@@ -99,7 +99,7 @@ func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
 	if err := Load(st, filepath.Join("..", "..", "inventory")); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sample-rainbow-bear", "escape-from-injection", "penguin-heartlight-rescue"} {
+	for _, id := range []string{"sample-rainbow-bear", "penguin-heartlight-rescue"} {
 		game, ok := st.GetGame(id)
 		if !ok || game.Preview == nil || game.Preview.PosterURL == "" || game.Preview.ClipURL != "" {
 			t.Fatalf("%s has no honest poster fallback", id)
@@ -112,5 +112,10 @@ func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
 	ribbon, ok := st.GetGame("sample-ribbon-sky")
 	if !ok || ribbon.Preview != nil {
 		t.Fatal("changed Ribbon gameplay must invalidate the stale approved poster")
+	}
+	// The Escape rewrite similarly invalidates its previous approved poster.
+	escape, ok := st.GetGame("escape-from-injection")
+	if !ok || escape.Preview != nil {
+		t.Fatal("Escape's changed game IR must invalidate its old poster")
 	}
 }

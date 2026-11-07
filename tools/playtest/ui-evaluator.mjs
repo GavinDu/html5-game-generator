@@ -73,7 +73,7 @@ try {
           rect.right <= viewportWidth + 1 && rect.bottom <= viewportHeight + 1;
         const shellButtons = [...document.querySelectorAll('.shell-card.on button')];
         const shellControlScheme = window.__dqProbe?.shell?.controlsScheme || '';
-        const declaredTouchControls = ['tap', 'tap_target', 'drag_x', 'drag_free'].includes(shellControlScheme);
+        const declaredTouchControls = ['tap', 'tap_target', 'drag_x', 'drag_free', 'lane_tap'].includes(shellControlScheme);
         // A full-canvas surface is touch-capable only when the game declares
         // a supported touch scheme in its canonical Game IR.
         const canvasIsTouchSurface = !!rect &&

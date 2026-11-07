@@ -51,7 +51,7 @@ test('tap-controlled catcher playtests send discrete taps instead of drag-only g
     readFile(runtimePath, 'utf8')
   ]);
   assert.match(runtime, /controlsScheme: play\.shell\.controls\?\.scheme/);
-  assert.match(probe, /\['tap', 'tap_x'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
+  assert.match(probe, /\['tap', 'tap_x', 'lane_tap'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
   assert.match(probe, /page\.touchscreen\.tap\(target\.x, target\.y\)/);
   assert.match(probe, /hasTouch: true/);
   assert.match(probe, /fallback\.width \* \(0\.08 \+ \(\(ki % 10\) \* 0\.093\)\)/);
@@ -68,5 +68,5 @@ test('playtest honors declared auto-start and tap-to-start shell modes', async (
   assert.match(runtime, /startMode: play\.shell\.start\?\.mode \|\| 'auto'/);
   assert.match(probe, /startMode === 'tap_to_start'/);
   assert.match(probe, /auto-start mode began immediately without a blocking start card/);
-  assert.match(probe, /\['tap', 'tap_x'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
+  assert.match(probe, /\['tap', 'tap_x', 'lane_tap'\]\.includes\(probe\?\.shell\?\.controlsScheme\)/);
 });
