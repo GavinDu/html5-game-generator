@@ -642,10 +642,11 @@ async function playGame(browser, gameId) {
   // reported (and lands in merged ValidationReports) but does NOT gate:
   // on shared CI runners its timing is environment noise, and a gate
   // that fires on noise teaches everyone to ignore the gate.
-  const failed = checks.some((c) => c.status === 'fail' &&
-    (c.checkId === 'playtest.boot_clean' || c.checkId === 'playtest.render_nonblank' ||
-     c.checkId === 'simulation.no_softlock' || c.checkId === 'shell.start_card' ||
-     c.checkId === 'shell.restart_in_place'));
+  // The worker report is a validated contract: a PASS verdict must not
+  // contain failed checks, even when a check is advisory for scoring.  This
+  // prevents the publish gate from rejecting a contradictory PASS report
+  // after collecting otherwise useful browser and screenshot evidence.
+  const failed = checks.some((c) => c.status === 'fail');
   return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 
