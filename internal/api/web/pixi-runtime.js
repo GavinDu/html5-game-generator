@@ -1496,7 +1496,7 @@ async function run(id) {
   // --- Rule engine ----------------------------------------------------
   const state = {
     score: 0, health: 3, ended: false, won: false,
-    variables: {}, elapsed: 0, depth: 0,
+    variables: play.shell?.chaserGap ? { chaser_gap: Number(play.shell.chaserGap.start) } : {}, elapsed: 0, depth: 0,
     collectedPairs: new Set(), insideRegions: new Set(),
     firedThresholds: new Set(), timers: new Map(), shake: 0, follow: null,
   };
@@ -1593,6 +1593,11 @@ async function run(id) {
     // use its own counter so bonus score cannot accidentally complete it.
     const exp = play.shell;
     if (exp) {
+      if (exp.chaserGap) {
+        const gap = Number(state.variables.chaser_gap ?? exp.chaserGap.start);
+        $('score').textContent = `Lead ${Math.ceil(gap)} · Stage ${Math.floor(state.elapsed / 40) + 1} · ★ ${state.score}`;
+        return;
+      }
       const target = exp.objective?.target;
       const progressVariable = exp.objective?.progressVariable;
       const progress = objectiveProgress();
@@ -1705,7 +1710,14 @@ async function run(id) {
               warnOnce('variable-' + action.variable, 'RULE', `add_variable: '${action.variable}' must be numeric — skipped`);
               break;
             }
-            state.variables[action.variable] = current + delta;
+            if (action.variable === 'chaser_gap' && play.shell?.chaserGap) {
+              const cooldown = Number(play.shell.failure?.invulnerableMs ?? 0) / 1000;
+              if (delta < 0 && state.elapsed - (state.lastGapDamageAt ?? -1e9) < cooldown) break;
+              if (delta < 0) state.lastGapDamageAt = state.elapsed;
+              state.variables[action.variable] = clamp(current + delta, 0, Number(play.shell.chaserGap.max));
+            } else {
+              state.variables[action.variable] = current + delta;
+            }
             recordExperienceMilestones();
             updateHUD();
             emit('variable_changed', sourceEnt, targetEnt);
@@ -2003,7 +2015,10 @@ async function run(id) {
     const b = (ir.inputBindings || []).find((x) => x.input === 'tap');
     return b?.action;
   }
-  const dragXOnly = ir.experience?.controls?.scheme === 'drag_x' ||
+  const laneTap = ir.experience?.controls?.scheme === 'lane_tap';
+  const laneCenters = [W * 0.25, W * 0.5, W * 0.75];
+  let laneIndex = 1;
+  const dragXOnly = laneTap || ir.experience?.controls?.scheme === 'drag_x' ||
     (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap');
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
@@ -2024,7 +2039,13 @@ async function run(id) {
     pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
     // A tap is a destination command even when down/up happen between
     // simulation frames. Holding the contact is reserved for drag controls.
-    if (ir.experience?.controls?.scheme === 'tap') {
+    if (laneTap && playerEnt) {
+      // One physical tap advances exactly one lane. Touch position determines
+      // direction, not the destination; vertical drift is never accepted.
+      laneIndex = clamp(laneIndex + (p.x < W / 2 ? -1 : 1), 0, 2);
+      playerTarget.x = laneCenters[laneIndex];
+      playerTarget.y = playerEnt.anchorY;
+    } else if (ir.experience?.controls?.scheme === 'tap') {
       playerTarget.x = p.x;
       if (!dragXOnly) playerTarget.y = p.y;
     }
@@ -2045,6 +2066,12 @@ async function run(id) {
     if (replayTrace || orientationBlocked) return;
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (!b) return;
+    if (laneTap && playerEnt && !keysDown.has(b.action) &&
+        (b.action === 'move_left' || b.action === 'move_right')) {
+      laneIndex = clamp(laneIndex + (b.action === 'move_left' ? -1 : 1), 0, 2);
+      playerTarget.x = laneCenters[laneIndex];
+      playerTarget.y = playerEnt.anchorY;
+    }
     keysDown.add(b.action);
     noteInput('key', ev.key);
     emit('input', playerEnt, undefined, undefined, b.action);
@@ -2407,6 +2434,13 @@ async function run(id) {
     if (state.ended) return;
     const dt = Math.min(dtMs / 1000, 0.05);
     state.elapsed += dt;
+    if (play.shell?.chaserGap) {
+      const previous = Number(state.variables.chaser_gap ?? play.shell.chaserGap.start);
+      state.variables.chaser_gap = Math.min(Number(play.shell.chaserGap.max),
+        previous + dt * Number(play.shell.chaserGap.recoveryPerSecond));
+      if (Math.floor(previous) !== Math.floor(state.variables.chaser_gap) ||
+          Math.floor((state.elapsed - dt) / 40) !== Math.floor(state.elapsed / 40)) updateHUD();
+    }
 
     // Timer rules.
     for (const rule of ir.rules) {
@@ -2425,11 +2459,11 @@ async function run(id) {
     // Player intent.
     if (playerEnt && !playerEnt.destroyed) {
       const speed = 300;
-      if (keysDown.has('move_left')) playerTarget.x -= speed * dt;
-      if (keysDown.has('move_right')) playerTarget.x += speed * dt;
+      if (!laneTap && keysDown.has('move_left')) playerTarget.x -= speed * dt;
+      if (!laneTap && keysDown.has('move_right')) playerTarget.x += speed * dt;
       if (!dragXOnly && keysDown.has('move_up')) playerTarget.y -= speed * dt;
       if (!dragXOnly && keysDown.has('move_down')) playerTarget.y += speed * dt;
-      if (pointer.down) {
+      if (pointer.down && !laneTap) {
         playerTarget.x = pointer.x;
         if (!dragXOnly) playerTarget.y = pointer.y;
       }
@@ -2652,7 +2686,7 @@ async function run(id) {
         ended: state.ended, won: state.won, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         started: play.shellStarted,
-        player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h } : null,
+        player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
           id: e.runtimeId, def: e.defId, kind: e.def.kind,
           x: e.x, y: e.y, w: e.w, h: e.h,
