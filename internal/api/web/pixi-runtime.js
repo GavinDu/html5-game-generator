@@ -2068,7 +2068,7 @@ async function run(id) {
       }
       return;
     }
-    if (other.destroyed) return;
+    if (other.destroyed || other.closed) return;
     const isPickup = other.def.kind === 'pickup' || (other.def.components || []).includes('collectible');
     const isTrigger = other.def.kind === 'trigger';
     const isHazard = other.def.kind === 'obstacle' || other.def.kind === 'enemy';
@@ -2081,6 +2081,7 @@ async function run(id) {
         // frames cannot award progress twice. The closed-patch sprite stays
         // on screen; ordinary collectible pickups keep their old behavior.
         if (other.def.properties?.closeOnCollect && !other.destroyed) {
+          other.closed = true;
           if (other.collider) {
             byCollider.delete(other.collider.handle);
             other.collider.setSensor(true);
@@ -2665,7 +2666,7 @@ async function run(id) {
         started: play.shellStarted,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
-          id: e.runtimeId, def: e.defId, kind: e.def.kind,
+          id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
           x: e.x, y: e.y, w: e.w, h: e.h,
           visible: !!e.view.visible && e.view.alpha > 0.05,
           alpha: e.view.alpha, assetId: e.currentAssetId,
