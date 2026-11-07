@@ -523,14 +523,20 @@ func TestPenguinBonusScoringNeverShortCircuitsAuroraVictory(t *testing.T) {
 			progress := 0.0
 			for _, action := range rule.Actions {
 				if action.Type == "add_score" {
-					if v, ok := action.Value.(float64); ok { score = v }
+					if v, ok := action.Value.(float64); ok {
+						score = v
+					}
 				}
 				if action.Type == "add_variable" && action.Variable == "hearts_collected" {
-					if v, ok := action.Value.(float64); ok { progress = v }
+					if v, ok := action.Value.(float64); ok {
+						progress = v
+					}
 				}
 			}
 			want := 10.0
-			if goldHearts[rule.When.Target] { want = 30 }
+			if goldHearts[rule.When.Target] {
+				want = 30
+			}
 			if score != want || progress != 1 {
 				t.Errorf("%s needs +%.0f score, exactly one heart, got %.0f score/%.0f hearts", rule.ID, want, score, progress)
 			}
@@ -539,11 +545,17 @@ func TestPenguinBonusScoringNeverShortCircuitsAuroraVictory(t *testing.T) {
 			if action.Type == "end_game" && action.Value == true {
 				valid := false
 				for _, condition := range rule.Conditions {
-					if condition.Variable == "hearts_collected" && condition.Operator == "eq" && condition.Value == float64(12) { valid = true }
+					if condition.Variable == "hearts_collected" && condition.Operator == "eq" && condition.Value == float64(12) {
+						valid = true
+					}
 				}
-				if !valid { t.Errorf("%s cannot win from raw score", rule.ID) }
+				if !valid {
+					t.Errorf("%s cannot win from raw score", rule.ID)
+				}
 			}
 		}
 	}
-	if collected != 12 { t.Errorf("expected 12 collected-heart rules, got %d", collected) }
+	if collected != 12 {
+		t.Errorf("expected 12 collected-heart rules, got %d", collected)
+	}
 }
