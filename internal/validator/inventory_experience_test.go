@@ -513,11 +513,22 @@ func TestEscapeQuestionnaireGapAndCaughtEnding(t *testing.T) {
 		}
 	}
 	seenCaught := false
+	seenInevitableCatch := false
 	for _, item := range ir["rules"].([]any) {
 		rule := item.(map[string]any)
 		id := rule["id"].(string)
+		if id == "inevitable-catch" {
+			when := rule["when"].(map[string]any)
+			if when["event"] != "timer_elapsed" || when["value"] != float64(1200) {
+				t.Error("Escape must reach its inevitable caught chapter at 20 minutes")
+			}
+		}
 		for _, actionItem := range rule["actions"].([]any) {
 			action := actionItem.(map[string]any)
+			if id == "inevitable-catch" && action["type"] == "set_variable" &&
+				action["variable"] == "chaser_gap" && action["value"] == float64(55) {
+				seenInevitableCatch = true
+			}
 			if action["type"] == "change_health" {
 				t.Errorf("legacy health damage in %s, gap must be authoritative", id)
 			}
@@ -533,5 +544,8 @@ func TestEscapeQuestionnaireGapAndCaughtEnding(t *testing.T) {
 	}
 	if !seenCaught {
 		t.Error("Escape needs an explicit caught ending")
+	}
+	if !seenInevitableCatch {
+		t.Error("Escape needs the bounded 20-minute terminal catch")
 	}
 }

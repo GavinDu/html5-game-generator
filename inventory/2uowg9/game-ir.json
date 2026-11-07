@@ -388,6 +388,20 @@
           "value": false
         }
       ]
+    },
+    {
+      "id": "inevitable-catch",
+      "when": {
+        "event": "timer_elapsed",
+        "value": 1200
+      },
+      "actions": [
+        {
+          "type": "set_variable",
+          "variable": "chaser_gap",
+          "value": 55
+        }
+      ]
     }
   ],
   "scenes": [
@@ -837,7 +851,7 @@
     },
     "hud": {
       "left": "objective_progress",
-      "right": "health"
+      "right": "score"
     },
     "start": {
       "mode": "auto"
@@ -925,13 +939,13 @@
     ],
     "result": {
       "win": {
-        "title": "You escaped!",
+        "title": "",
         "stars": {
-          "by": "time",
+          "by": "score",
           "thresholdsSec": [
-            60,
-            45,
-            30
+            120,
+            180,
+            240
           ]
         }
       },

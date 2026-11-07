@@ -55,6 +55,10 @@ try {
       assert.equal(initial.world.w, 390);
       assert.equal(initial.player?.laneIndex, 1, 'Escape must start in middle lane');
       const startY = initial.player.y;
+      const firstChaser = initial.entities.find(e => e.def === 'chaser');
+      assert.ok(firstChaser, 'the authored chaser must exist');
+      assert.ok(Math.abs(firstChaser.y - startY - initial.variables.chaser_gap) < 2,
+        'the rendered chaser must trail by the actual gap, not overlap the hero');
       assert.ok(initial.variables.chaser_gap >= 220 && initial.variables.chaser_gap <= 250,
         'the gap begins at 220 and recovers toward 250');
       const box = await page.locator('#stage canvas').boundingBox();
@@ -98,6 +102,58 @@ try {
       };
       results.push(report);
       writeFileSync(dir + '/report.json', JSON.stringify(report, null, 2));
+      // Controlled collision fixture: the canonical rule engine and Rapier
+      // remain real, but start one syringe at the player's collider and use
+      // a 70-unit lead so a single *physical collision* exercises the caught
+      // result card and in-place restart without spending 20 minutes in CI.
+      // This verifies terminal plumbing, NOT natural long-run balance.
+      const terminal = await browser.newPage({
+        viewport: { width: profile.width, height: profile.height },
+        hasTouch: true, deviceScaleFactor: 1,
+      });
+      let fixtureFetches = 0;
+      try {
+        await terminal.route('**/v1/games/escape-from-injection/package', async route => {
+          const source = await route.fetch();
+          const payload = await source.json();
+          if (fixtureFetches++ === 0) {
+            payload.ir.experience.chaserGap.start = 70;
+            const syringe = payload.ir.scenes.flatMap(scene => scene.entities)
+              .find(ent => ent.id === 'syringe');
+            assert.ok(syringe, 'controlled fixture must retain the real syringe rule');
+            syringe.position = [195, 660];
+            syringe.behavior = undefined;
+            syringe.physics.body = 'dynamic';
+            syringe.physics.sensor = true;
+            syringe.physics.gravityScale = 0;
+          }
+          await route.fulfill({ response: source, json: payload });
+        });
+        await terminal.goto(base + '/player?game=escape-from-injection&presentation=play&probe=1');
+        await terminal.waitForFunction(() => window.__dqTest?.snapshot?.()?.ended,
+          null, { timeout: 15000 });
+        const caught = await terminal.evaluate(() => window.__dqTest.snapshot());
+        assert.equal(caught.won, false, 'physical syringe contact must lead to caught, never a win');
+        assert.ok(caught.variables.chaser_gap <= 55, 'collision must deplete the gap');
+        assert.equal(await terminal.locator('#shell-result').evaluate(el => el.classList.contains('on')),
+          true, 'caught result card must be visible');
+        await terminal.screenshot({ path: dir + '/caught-physical-fixture.png' });
+        await terminal.locator('#shell-again-btn').click();
+        await terminal.waitForFunction(() => {
+          const s = window.__dqTest?.snapshot?.();
+          return s && !s.ended && s.variables.chaser_gap >= 220 && s.t < 2;
+        }, null, { timeout: 15000 });
+        const restarted = await terminal.evaluate(() => window.__dqTest.snapshot());
+        assert.equal(restarted.won, false);
+        assert.equal(restarted.score, 0);
+        await terminal.screenshot({ path: dir + '/restarted-canonical.png' });
+        report.caughtFixture = true;
+        report.restartVerified = true;
+        report.screenshots.push('caught-physical-fixture', 'restarted-canonical');
+        writeFileSync(dir + '/report.json', JSON.stringify(report, null, 2));
+      } finally {
+        await terminal.close();
+      }
       console.log(JSON.stringify(report));
     } catch (error) {
       await capture('failed').catch(() => {});

@@ -2518,7 +2518,17 @@ async function run(id) {
           } else ent.stillTime = 0;
         }
       } else if (ent.bodyKind === 'kinematic_velocity') {
-        if (b) applyBehaviorVelocity(ent, b);
+        if (play.shell?.chaserGap && ent.defId === 'chaser' && playerEnt) {
+          // Story chase: the chaser's visible distance equals the ONE gap
+          // health resource, rather than an unrelated homing velocity.
+          // Keep the body stationary relative to that derived position so
+          // it cannot appear to have caught the player at full lead.
+          const gap = Number(state.variables.chaser_gap ?? play.shell.chaserGap.start);
+          ent.x = playerEnt.x;
+          ent.y = playerEnt.y + gap;
+          ent.body.setLinvel({ x: 0, y: 0 }, true);
+          ent.body.setTranslation({ x: toM(ent.x), y: toM(ent.y) }, true);
+        } else if (b) applyBehaviorVelocity(ent, b);
         else if (ent.velX !== undefined) ent.body.setLinvel({ x: toM(ent.velX), y: toM(ent.velY || 0) }, true);
       } else if (b) {
         applyBehaviorPosition(ent, b, dt);

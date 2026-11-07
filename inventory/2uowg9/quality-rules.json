@@ -38,7 +38,8 @@
       "every 40 seconds advance to a new route and increase obstacle speed up to the configured cap",
       "when the gap reaches 55 points the chaser catches the blob and the run ends after the short catch animation",
       "restart from the result card and try to beat the previous escape distance",
-      "The canonical end state is caught, not a score-triggered winning escape; a runner can earn points without escaping the authored ending."
+      "The canonical end state is caught, not a score-triggered winning escape; a runner can earn points without escaping the authored ending.",
+      "At 20 minutes the story always reaches the authored caught ending; score cannot produce a fabricated escape victory."
     ],
     "fairness": [
       "lane changes are deterministic and respond to one tap without requiring a precision drag",
@@ -74,6 +75,7 @@
     "Check that three lanes and tap-left/tap-right lane-change controls are obvious and reliable.",
     "Evaluate whether obstacles, stars, and the chaser create meaningful risk/reward rather than unavoidable hits.",
     "Inspect changing locations, speed escalation, feedback, and replay affordance.",
-    "Verify initial gap 220, clean regeneration +6/s capped 250, collision -45, star +12, and loss at <=55; inspect restart screenshots."
+    "Verify initial gap 220, clean regeneration +6/s capped 250, collision -45, star +12, and loss at <=55; inspect restart screenshots.",
+    "Use screenshots to confirm the chaser visibly trails the runner by the same authoritative gap shown in the HUD; verify the caught result and Play Again using controlled collider fixture."
   ]
 }
