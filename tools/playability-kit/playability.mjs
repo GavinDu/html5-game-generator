@@ -37,6 +37,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { heuristicBrain } from './brains/heuristic.mjs';
+import { outcomeContract } from './outcome-contract.mjs';
 import { preferredViewport } from '../playtest/game-orientation.mjs';
 
 function resolveChromium() {
@@ -306,9 +307,16 @@ async function runGame(browser, id) {
       : `no score, health or rule change in ${playedS.toFixed(0)} s of purposeful play`, { timeline, longestIdleS: +(stuckMs / 1000).toFixed(1) });
 
   const rules = seenPkg?.ir?.rules || [];
-  const winRule = rules.some((r) => r.actions.some((a) => a.type === 'end_game' && (a.value === true || a.value === 'true' || a.value === 1)));
+  const contract = outcomeContract(rules, seenPkg?.ir?.experience);
   if (fin.ended && fin.won) add('play.win_possible', 'pass', `observed a win at ${fin.score} points`, { confidence: 'observed' });
-  else if (!winRule) add('play.win_possible', 'fail', 'no rule in the IR can end the game as a win: unwinnable');
+  else if (contract.lossOnlyChase) {
+    const observedCaught = fin.ended && !fin.won;
+    add('play.win_possible', observedCaught ? 'pass' : 'warn',
+      observedCaught
+        ? 'authored caught ending observed; no victory was invented'
+        : `authored loss-only chase (caught ending); terminal not observed in ${budgetS} s — review required`,
+      { confidence: observedCaught ? 'observed' : 'unverified', expectedEnding: 'caught' });
+  } else if (!contract.hasWin) add('play.win_possible', 'fail', 'no rule in the IR can end the game as a win: unwinnable');
   else if (progressed) add('play.win_possible', 'pass', `win rule exists and the bot made progress (score ${fin.score}); win not observed within ${budgetS} s`, { confidence: 'inferred' });
   else add('play.win_possible', 'fail', 'win rule exists but the player could not make progress toward it');
   const ruleIds = rules.map((r) => r.id); const never = ruleIds.filter((r) => !fired.has(r));
