@@ -938,17 +938,6 @@
       1
     ],
     "result": {
-      "win": {
-        "title": "",
-        "stars": {
-          "by": "score",
-          "thresholdsSec": [
-            120,
-            180,
-            240
-          ]
-        }
-      },
       "lose": {
         "title": "Caught! The chaser finally caught up"
       }
