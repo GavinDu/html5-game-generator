@@ -484,7 +484,7 @@
           "components": [
             "movement",
             "physics_body",
-            "character_controller"
+            "collider"
           ],
           "physics": {
             "body": "kinematic_position",
@@ -500,11 +500,6 @@
                 3
               ]
             }
-          },
-          "character": {
-            "offset": 4,
-            "snapToGroundDistance": 10,
-            "applyImpulsesToDynamicBodies": true
           },
           "render": {
             "particles": {
