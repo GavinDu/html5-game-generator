@@ -1295,7 +1295,7 @@
     "archetype": "catcher",
     "controls": {
       "scheme": "tap",
-      "hint": "Tap the six sky-holes to fly through and stitch them; shards only add bonus score"
+      "hint": "Tap six sky-holes to stitch them; shards add only bonus points"
     },
     "objective": {
       "kind": "collect",
