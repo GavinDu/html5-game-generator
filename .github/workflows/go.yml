@@ -120,6 +120,14 @@ jobs:
         with:
           name: penguin-quality-${{ matrix.browser }}
           path: /tmp/penguin-quality-${{ matrix.browser }}/
+      - name: Verify Ribbon's six independent sky-hole repairs and screenshot differences
+        run: node tools/playtest/ribbon-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/ribbon-quality-${{ matrix.browser }}
+      - name: Upload Ribbon six-hole screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ribbon-quality-${{ matrix.browser }}
+          path: /tmp/ribbon-quality-${{ matrix.browser }}/
       - name: Verify Bobo short taps and missed-heart recycling
         run: node tools/playtest/bobo-controls-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/bobo-controls-${{ matrix.browser }}
       - name: Upload Bobo control and recycling screenshots
