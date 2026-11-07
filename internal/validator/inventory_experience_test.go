@@ -15,7 +15,7 @@ import (
 func TestInventoryGamesExperience(t *testing.T) {
 	games := map[string]map[string]string{ // dir -> checkID -> expected non-default status
 		"13ui1k": {},
-		"u46ex5": {"experience.balance": StatusSkip},
+		"u46ex5": {},
 		"2uowg9": {"experience.balance": StatusSkip},
 	}
 	for dir, exceptions := range games {
