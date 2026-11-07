@@ -414,14 +414,14 @@
       },
       "actions": [
         {
-          "type": "add_variable",
-          "variable": "holes_stitched",
-          "value": 1
-        },
-        {
           "type": "set_asset",
           "target": "hole6",
           "assetId": "hole_closed"
+        },
+        {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
         },
         {
           "type": "emit_particles",
