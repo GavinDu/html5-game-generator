@@ -2475,7 +2475,7 @@ async function run(id) {
         playerEnt.body.setLinvel({ x: toM(vx), y: toM(vy) }, true);
       } else {
         let nx = playerTarget.x, ny = playerTarget.y;
-        if (playerEnt.controller) {
+        if (playerEnt.controller && !laneTap) {
           playerEnt.controller.computeColliderMovement(playerEnt.collider,
             { x: toM(nx - playerEnt.x), y: toM(ny - playerEnt.y) });
           const mv = playerEnt.controller.computedMovement();
@@ -2683,6 +2683,7 @@ async function run(id) {
     window.__dqTest = {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
+        variables: { ...state.variables },
         ended: state.ended, won: state.won, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         started: play.shellStarted,
