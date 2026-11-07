@@ -264,10 +264,6 @@
           "value": 22
         },
         {
-          "type": "destroy_entity",
-          "target": "hole1"
-        },
-        {
           "type": "play_sound",
           "assetId": "stitch"
         },
@@ -299,10 +295,6 @@
           "type": "emit_particles",
           "target": "hole2",
           "value": 22
-        },
-        {
-          "type": "destroy_entity",
-          "target": "hole2"
         },
         {
           "type": "play_sound",
@@ -338,10 +330,6 @@
           "value": 22
         },
         {
-          "type": "destroy_entity",
-          "target": "hole3"
-        },
-        {
           "type": "play_sound",
           "assetId": "stitch"
         },
@@ -373,10 +361,6 @@
           "type": "emit_particles",
           "target": "hole4",
           "value": 22
-        },
-        {
-          "type": "destroy_entity",
-          "target": "hole4"
         },
         {
           "type": "play_sound",
@@ -412,10 +396,6 @@
           "value": 22
         },
         {
-          "type": "destroy_entity",
-          "target": "hole5"
-        },
-        {
           "type": "play_sound",
           "assetId": "stitch"
         },
@@ -447,10 +427,6 @@
           "type": "emit_particles",
           "target": "hole6",
           "value": 22
-        },
-        {
-          "type": "destroy_entity",
-          "target": "hole6"
         },
         {
           "type": "play_sound",
@@ -976,6 +952,9 @@
               "endScale": 0.05,
               "rate": 0
             }
+          },
+          "properties": {
+            "closeOnCollect": true
           }
         },
         {
@@ -1031,6 +1010,9 @@
               "endScale": 0.05,
               "rate": 0
             }
+          },
+          "properties": {
+            "closeOnCollect": true
           }
         },
         {
@@ -1086,6 +1068,9 @@
               "endScale": 0.05,
               "rate": 0
             }
+          },
+          "properties": {
+            "closeOnCollect": true
           }
         },
         {
@@ -1141,6 +1126,9 @@
               "endScale": 0.05,
               "rate": 0
             }
+          },
+          "properties": {
+            "closeOnCollect": true
           }
         },
         {
@@ -1196,6 +1184,9 @@
               "endScale": 0.05,
               "rate": 0
             }
+          },
+          "properties": {
+            "closeOnCollect": true
           }
         },
         {
@@ -1251,6 +1242,9 @@
               "endScale": 0.05,
               "rate": 0
             }
+          },
+          "properties": {
+            "closeOnCollect": true
           }
         }
       ],
