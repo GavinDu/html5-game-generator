@@ -91,7 +91,7 @@
   ],
   "game": {
     "audience": "family",
-    "description": "Ride the cloud, catch falling sky shards, and mend the holes torn in the sky.",
+    "description": "Fly through six distinct sky-holes to stitch the sky closed; collect falling shards for optional bonus score.",
     "entryScene": "sky",
     "id": "sample-ribbon-sky",
     "orientation": "portrait",
@@ -241,39 +241,51 @@
       ]
     },
     {
-      "id": "mend-hole-1",
+      "id": "stitch-hole-1",
       "when": {
-        "event": "score_reached",
-        "value": 4
+        "event": "collected",
+        "source": "player",
+        "target": "hole1"
       },
       "actions": [
         {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
+        },
+        {
           "type": "set_asset",
-          "target": "hole",
+          "target": "hole1",
           "assetId": "hole_closed"
         },
         {
           "type": "emit_particles",
-          "target": "hole",
+          "target": "hole1",
           "value": 22
-        },
-        {
-          "type": "show_text",
-          "value": "天空补好了一处裂口！"
         },
         {
           "type": "play_sound",
           "assetId": "stitch"
+        },
+        {
+          "type": "show_text",
+          "value": "天空补好了！ 1/6"
         }
       ]
     },
     {
-      "id": "mend-hole-2",
+      "id": "stitch-hole-2",
       "when": {
-        "event": "score_reached",
-        "value": 7
+        "event": "collected",
+        "source": "player",
+        "target": "hole2"
       },
       "actions": [
+        {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
+        },
         {
           "type": "set_asset",
           "target": "hole2",
@@ -285,26 +297,163 @@
           "value": 22
         },
         {
+          "type": "play_sound",
+          "assetId": "stitch"
+        },
+        {
           "type": "show_text",
-          "value": "天空快要完整了……"
+          "value": "天空补好了！ 2/6"
+        }
+      ]
+    },
+    {
+      "id": "stitch-hole-3",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "hole3"
+      },
+      "actions": [
+        {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
+        },
+        {
+          "type": "set_asset",
+          "target": "hole3",
+          "assetId": "hole_closed"
+        },
+        {
+          "type": "emit_particles",
+          "target": "hole3",
+          "value": 22
         },
         {
           "type": "play_sound",
           "assetId": "stitch"
+        },
+        {
+          "type": "show_text",
+          "value": "天空补好了！ 3/6"
+        }
+      ]
+    },
+    {
+      "id": "stitch-hole-4",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "hole4"
+      },
+      "actions": [
+        {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
+        },
+        {
+          "type": "set_asset",
+          "target": "hole4",
+          "assetId": "hole_closed"
+        },
+        {
+          "type": "emit_particles",
+          "target": "hole4",
+          "value": 22
+        },
+        {
+          "type": "play_sound",
+          "assetId": "stitch"
+        },
+        {
+          "type": "show_text",
+          "value": "天空补好了！ 4/6"
+        }
+      ]
+    },
+    {
+      "id": "stitch-hole-5",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "hole5"
+      },
+      "actions": [
+        {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
+        },
+        {
+          "type": "set_asset",
+          "target": "hole5",
+          "assetId": "hole_closed"
+        },
+        {
+          "type": "emit_particles",
+          "target": "hole5",
+          "value": 22
+        },
+        {
+          "type": "play_sound",
+          "assetId": "stitch"
+        },
+        {
+          "type": "show_text",
+          "value": "天空补好了！ 5/6"
+        }
+      ]
+    },
+    {
+      "id": "stitch-hole-6",
+      "when": {
+        "event": "collected",
+        "source": "player",
+        "target": "hole6"
+      },
+      "actions": [
+        {
+          "type": "set_asset",
+          "target": "hole6",
+          "assetId": "hole_closed"
+        },
+        {
+          "type": "add_variable",
+          "variable": "holes_stitched",
+          "value": 1
+        },
+        {
+          "type": "emit_particles",
+          "target": "hole6",
+          "value": 22
+        },
+        {
+          "type": "play_sound",
+          "assetId": "stitch"
+        },
+        {
+          "type": "show_text",
+          "value": "天空补好了！ 6/6"
         }
       ]
     },
     {
       "id": "sky-mended",
       "when": {
-        "event": "score_reached",
-        "source": "player",
-        "value": 10
+        "event": "variable_changed"
       },
+      "conditions": [
+        {
+          "variable": "holes_stitched",
+          "operator": "eq",
+          "value": 6
+        }
+      ],
       "actions": [
         {
           "type": "show_text",
-          "value": "天空补好了！"
+          "value": "六处天空裂口都补好了！"
         },
         {
           "type": "play_sound",
@@ -313,33 +462,6 @@
         {
           "type": "end_game",
           "value": true
-        },
-        {
-          "type": "play_sound",
-          "assetId": "stitch"
-        }
-      ]
-    },
-    {
-      "id": "mend-glow",
-      "when": {
-        "event": "score_reached",
-        "value": 2
-      },
-      "actions": [
-        {
-          "type": "emit_particles",
-          "target": "hole",
-          "value": 14
-        },
-        {
-          "type": "emit_particles",
-          "target": "hole2",
-          "value": 14
-        },
-        {
-          "type": "show_text",
-          "value": "天空开始缝合了……"
         }
       ]
     }
@@ -362,7 +484,7 @@
           "components": [
             "movement",
             "physics_body",
-            "character_controller"
+            "collider"
           ],
           "physics": {
             "body": "kinematic_position",
@@ -378,11 +500,6 @@
                 3
               ]
             }
-          },
-          "character": {
-            "offset": 4,
-            "snapToGroundDistance": 10,
-            "applyImpulsesToDynamicBodies": true
           },
           "render": {
             "particles": {
@@ -702,72 +819,6 @@
           }
         },
         {
-          "id": "hole",
-          "kind": "decoration",
-          "assetId": "hole",
-          "position": [
-            110,
-            180
-          ],
-          "size": [
-            76,
-            48
-          ],
-          "components": [],
-          "render": {
-            "filters": [
-              {
-                "type": "blur",
-                "value": 1.5
-              }
-            ]
-          },
-          "tweens": [
-            {
-              "property": "alpha",
-              "from": 0.75,
-              "to": 1,
-              "durationMs": 1600,
-              "repeat": -1,
-              "yoyo": true,
-              "easing": "sine"
-            }
-          ]
-        },
-        {
-          "id": "hole2",
-          "kind": "decoration",
-          "assetId": "hole",
-          "position": [
-            288,
-            330
-          ],
-          "size": [
-            76,
-            48
-          ],
-          "components": [],
-          "render": {
-            "filters": [
-              {
-                "type": "blur",
-                "value": 1.5
-              }
-            ]
-          },
-          "tweens": [
-            {
-              "property": "alpha",
-              "from": 0.75,
-              "to": 1,
-              "durationMs": 1900,
-              "repeat": -1,
-              "yoyo": true,
-              "easing": "sine"
-            }
-          ]
-        },
-        {
           "id": "cloudbank",
           "kind": "decoration",
           "position": [
@@ -842,6 +893,354 @@
               "fill": "#bfdbfe"
             }
           }
+        },
+        {
+          "id": "hole1",
+          "kind": "pickup",
+          "assetId": "hole",
+          "position": [
+            110,
+            180
+          ],
+          "size": [
+            76,
+            48
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "sensor": true,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0
+              ]
+            }
+          },
+          "render": {
+            "filters": [
+              {
+                "type": "blur",
+                "value": 1.5
+              }
+            ],
+            "particles": {
+              "burst": 22,
+              "tint": "#ffe69a",
+              "speed": [
+                40,
+                100
+              ],
+              "lifetime": [
+                0.3,
+                0.8
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          },
+          "properties": {
+            "closeOnCollect": true
+          }
+        },
+        {
+          "id": "hole2",
+          "kind": "pickup",
+          "assetId": "hole",
+          "position": [
+            288,
+            290
+          ],
+          "size": [
+            76,
+            48
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "sensor": true,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0
+              ]
+            }
+          },
+          "render": {
+            "filters": [
+              {
+                "type": "blur",
+                "value": 1.5
+              }
+            ],
+            "particles": {
+              "burst": 22,
+              "tint": "#ffe69a",
+              "speed": [
+                40,
+                100
+              ],
+              "lifetime": [
+                0.3,
+                0.8
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          },
+          "properties": {
+            "closeOnCollect": true
+          }
+        },
+        {
+          "id": "hole3",
+          "kind": "pickup",
+          "assetId": "hole",
+          "position": [
+            100,
+            395
+          ],
+          "size": [
+            76,
+            48
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "sensor": true,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0
+              ]
+            }
+          },
+          "render": {
+            "filters": [
+              {
+                "type": "blur",
+                "value": 1.5
+              }
+            ],
+            "particles": {
+              "burst": 22,
+              "tint": "#ffe69a",
+              "speed": [
+                40,
+                100
+              ],
+              "lifetime": [
+                0.3,
+                0.8
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          },
+          "properties": {
+            "closeOnCollect": true
+          }
+        },
+        {
+          "id": "hole4",
+          "kind": "pickup",
+          "assetId": "hole",
+          "position": [
+            285,
+            495
+          ],
+          "size": [
+            76,
+            48
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "sensor": true,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0
+              ]
+            }
+          },
+          "render": {
+            "filters": [
+              {
+                "type": "blur",
+                "value": 1.5
+              }
+            ],
+            "particles": {
+              "burst": 22,
+              "tint": "#ffe69a",
+              "speed": [
+                40,
+                100
+              ],
+              "lifetime": [
+                0.3,
+                0.8
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          },
+          "properties": {
+            "closeOnCollect": true
+          }
+        },
+        {
+          "id": "hole5",
+          "kind": "pickup",
+          "assetId": "hole",
+          "position": [
+            100,
+            600
+          ],
+          "size": [
+            76,
+            48
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "sensor": true,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0
+              ]
+            }
+          },
+          "render": {
+            "filters": [
+              {
+                "type": "blur",
+                "value": 1.5
+              }
+            ],
+            "particles": {
+              "burst": 22,
+              "tint": "#ffe69a",
+              "speed": [
+                40,
+                100
+              ],
+              "lifetime": [
+                0.3,
+                0.8
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          },
+          "properties": {
+            "closeOnCollect": true
+          }
+        },
+        {
+          "id": "hole6",
+          "kind": "pickup",
+          "assetId": "hole",
+          "position": [
+            285,
+            700
+          ],
+          "size": [
+            76,
+            48
+          ],
+          "components": [
+            "collider",
+            "collectible",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "fixed",
+            "shape": "cuboid",
+            "sensor": true,
+            "collisionGroups": {
+              "memberships": [
+                1
+              ],
+              "filter": [
+                0
+              ]
+            }
+          },
+          "render": {
+            "filters": [
+              {
+                "type": "blur",
+                "value": 1.5
+              }
+            ],
+            "particles": {
+              "burst": 22,
+              "tint": "#ffe69a",
+              "speed": [
+                40,
+                100
+              ],
+              "lifetime": [
+                0.3,
+                0.8
+              ],
+              "spread": 360,
+              "startScale": 0.4,
+              "endScale": 0.05,
+              "rate": 0
+            }
+          },
+          "properties": {
+            "closeOnCollect": true
+          }
         }
       ],
       "id": "sky",
@@ -896,12 +1295,13 @@
     "archetype": "catcher",
     "controls": {
       "scheme": "tap",
-      "hint": "Tap to fly; tap a demon to bonk it"
+      "hint": "Tap six sky-holes to stitch them; shards add only bonus points"
     },
     "objective": {
-      "kind": "reach",
+      "kind": "collect",
       "target": 6,
-      "label": "Stitch 6 sky-holes"
+      "label": "Stitch 6 sky-holes",
+      "progressVariable": "holes_stitched"
     },
     "hud": {
       "left": "objective_progress",
@@ -918,7 +1318,7 @@
     "pacing": {
       "targetSessionSec": 55,
       "firstRewardWithinSec": 12,
-      "expectedCatchRate": 0.15,
+      "expectedCatchRate": 0.035,
       "ramp": [
         {
           "at": 0,
@@ -941,9 +1341,9 @@
       1
     ],
     "milestoneVisuals": {
-      "0.2": "hole",
-      "0.4": "hole",
-      "0.7": "hole2"
+      "0.2": "hole1",
+      "0.4": "hole3",
+      "0.7": "hole5"
     },
     "result": {
       "win": {

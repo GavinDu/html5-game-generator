@@ -2004,7 +2004,8 @@ async function run(id) {
     return b?.action;
   }
   const dragXOnly = ir.experience?.controls?.scheme === 'drag_x' ||
-    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap');
+    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap' &&
+      ir.experience?.objective?.progressVariable !== 'holes_stitched');
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
@@ -2068,7 +2069,7 @@ async function run(id) {
       }
       return;
     }
-    if (other.destroyed) return;
+    if (other.destroyed || other.closed) return;
     const isPickup = other.def.kind === 'pickup' || (other.def.components || []).includes('collectible');
     const isTrigger = other.def.kind === 'trigger';
     const isHazard = other.def.kind === 'obstacle' || other.def.kind === 'enemy';
@@ -2076,6 +2077,18 @@ async function run(id) {
       if (!state.collectedPairs.has(key)) {
         state.collectedPairs.add(key);
         emit('collected', playerEnt, other);
+        // A repaired sky-hole must remain visibly stitched for the rest of
+        // the run. Its collider is disabled immediately so overlapping
+        // frames cannot award progress twice. The closed-patch sprite stays
+        // on screen; ordinary collectible pickups keep their old behavior.
+        if (other.def.properties?.closeOnCollect && !other.destroyed) {
+          other.closed = true;
+          if (other.collider) {
+            byCollider.delete(other.collider.handle);
+            other.collider.setSensor(true);
+            other.collider.setEnabled(false);
+          }
+        }
       }
     } else if (isTrigger) {
       if (!state.insideRegions.has(key)) {
@@ -2499,6 +2512,23 @@ async function run(id) {
     }
     drainEvents();
     if (state.ended) return;
+    // Ribbon's stitched holes are fixed, non-blocking zones. Rapier does
+    // not reliably report a new collision-start event when a kinematic
+    // player teleports directly into an overlapping fixed sensor between
+    // substeps. Resolve those authored zones from the same logical
+    // bounds used to render the sprites, once per frame, and let the rule
+    // engine own progress and the closed-patch transition.
+    if (play.shell?.objective?.progressVariable === 'holes_stitched' && playerEnt) {
+      for (const hole of entities.values()) {
+        if (hole.closed || hole.destroyed || !hole.def.properties?.closeOnCollect) continue;
+        if (Math.abs(playerEnt.x - hole.x) <= (playerEnt.w + hole.w) * 0.35 &&
+            Math.abs(playerEnt.y - hole.y) <= (playerEnt.h + hole.h) * 0.35) {
+          handleContact(playerEnt, hole, true);
+          if (state.ended) break;
+        }
+      }
+    }
+    if (state.ended) return;
 
     // View sync, tweens, emitters, camera.
     state.shake *= Math.pow(0.002, dt);
@@ -2649,12 +2679,13 @@ async function run(id) {
     window.__dqTest = {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
+        objectiveProgress: objectiveProgress(), variables: { ...state.variables },
         ended: state.ended, won: state.won, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         started: play.shellStarted,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
-          id: e.runtimeId, def: e.defId, kind: e.def.kind,
+          id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
           x: e.x, y: e.y, w: e.w, h: e.h,
           visible: !!e.view.visible && e.view.alpha > 0.05,
           alpha: e.view.alpha, assetId: e.currentAssetId,
