@@ -37,6 +37,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { heuristicBrain } from './brains/heuristic.mjs';
+import { outcomeContract } from './outcome-contract.mjs';
+import { verifyCaughtFixture } from './terminal-fixture.mjs';
 import { preferredViewport } from '../playtest/game-orientation.mjs';
 
 function resolveChromium() {
@@ -306,9 +308,27 @@ async function runGame(browser, id) {
       : `no score, health or rule change in ${playedS.toFixed(0)} s of purposeful play`, { timeline, longestIdleS: +(stuckMs / 1000).toFixed(1) });
 
   const rules = seenPkg?.ir?.rules || [];
-  const winRule = rules.some((r) => r.actions.some((a) => a.type === 'end_game' && (a.value === true || a.value === 'true' || a.value === 1)));
+  const contract = outcomeContract(rules, seenPkg?.ir?.experience);
+  // A 40s heuristic budget cannot prove a 15–20 minute authored
+  // caught-only ending. Exercise the REAL browser/physics/rule result
+  // path with a labeled, close-range collider fixture instead.
+  const terminalFixture = contract.lossOnlyChase && !(fin.ended && !fin.won)
+    ? await verifyCaughtFixture(ctx, { base, id, outDir })
+    : null;
   if (fin.ended && fin.won) add('play.win_possible', 'pass', `observed a win at ${fin.score} points`, { confidence: 'observed' });
-  else if (!winRule) add('play.win_possible', 'fail', 'no rule in the IR can end the game as a win: unwinnable');
+  else if (contract.lossOnlyChase) {
+    const observedCaught = fin.ended && !fin.won;
+    const fixtureCaught = terminalFixture?.passed === true;
+    add('play.win_possible', observedCaught || fixtureCaught ? 'pass' : 'warn',
+      observedCaught
+        ? 'authored caught ending observed in an unmodified run'
+        : fixtureCaught
+          ? 'caught result observed with real Rapier collider in a labeled controlled fixture; long-run reachability remains unmeasured'
+          : `authored caught-only chase; no terminal in ${budgetS} s and fixture failed: ${terminalFixture?.reason || 'unknown'}`,
+      { confidence: observedCaught ? 'observed' : fixtureCaught ? 'controlled-fixture' : 'unverified', expectedEnding: 'caught' });
+    if (fixtureCaught) add('info.long_run_balance', 'info',
+      'Natural 15–20 minute hazard frequency/reachability NOT measured in 40s; requires separate balance study');
+  } else if (!contract.hasWin) add('play.win_possible', 'fail', 'no rule in the IR can end the game as a win: unwinnable');
   else if (progressed) add('play.win_possible', 'pass', `win rule exists and the bot made progress (score ${fin.score}); win not observed within ${budgetS} s`, { confidence: 'inferred' });
   else add('play.win_possible', 'fail', 'win rule exists but the player could not make progress toward it');
   const ruleIds = rules.map((r) => r.id); const never = ruleIds.filter((r) => !fired.has(r));
@@ -327,6 +347,9 @@ async function runGame(browser, id) {
     let again = null; for (let i = 0; i < 30; i++) { again = await snap(); if (again && !again.ended && again.frames > 2) break; await sleep(500); }
     add('end.restart', again && !again.ended && again.score === 0 ? 'pass' : 'fail',
       again ? `after Play again: score ${again.score}, ended=${again.ended}` : 'game did not come back after Play again');
+  } else if (terminalFixture?.passed) {
+    add('end.flow', 'pass', 'caught result card observed in controlled Rapier-collision fixture', { confidence: 'controlled-fixture' });
+    add('end.restart', 'pass', 'Play Again restored canonical game and zero score in controlled fixture', { confidence: 'controlled-fixture' });
   } else {
     add('end.flow', 'skip', `game did not end within ${budgetS} s, so the end screen was not exercised`);
     add('end.restart', 'skip', 'needs an ended game');

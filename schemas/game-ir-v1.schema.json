@@ -2296,7 +2296,8 @@
                 "drag_x",
                 "drag_free",
                 "tap",
-                "tap_target"
+                "tap_target",
+                "lane_tap"
               ]
             },
             "hint": {
@@ -2508,6 +2509,38 @@
                 "standard",
                 "rich"
               ]
+            }
+          }
+        },
+        "chaserGap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "max",
+            "caughtAt",
+            "recoveryPerSecond"
+          ],
+          "properties": {
+            "start": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "max": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "caughtAt": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "recoveryPerSecond": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             }
           }
         }

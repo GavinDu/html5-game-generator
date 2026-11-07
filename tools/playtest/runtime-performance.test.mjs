@@ -41,10 +41,18 @@ test('tap catcher falls back to a held pointer when touch is recorded without mo
 });
 
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
-  assert.match(source, /const dragXOnly = ir\.experience\?\.controls\?\.scheme === 'drag_x' \|\|/);
+  assert.match(source, /const dragXOnly = laneTap \|\| ir\.experience\?\.controls\?\.scheme === 'drag_x' \|\|/);
   assert.match(source, /ir\.experience\?\.archetype === 'catcher' && ir\.experience\?\.controls\?\.scheme === 'tap'/);
   assert.match(source, /pointer\.y = dragXOnly && playerEnt \? playerTarget\.y : p\.y/);
   assert.match(source, /if \(!dragXOnly && keysDown\.has\('move_up'\)\)/);
   assert.match(source, /if \(!dragXOnly && keysDown\.has\('move_down'\)\)/);
   assert.match(source, /if \(!dragXOnly\) playerTarget\.y = pointer\.y/);
+});
+
+test('discrete lane taps clamp to three x centers and never follow held pointer y', () => {
+  assert.match(source, /const laneTap = ir\.experience\?\.controls\?\.scheme === 'lane_tap'/);
+  assert.match(source, /const laneCenters = \[W \* 0\.25, W \* 0\.5, W \* 0\.75\]/);
+  assert.match(source, /laneIndex = clamp\(laneIndex \+ \(p\.x < W \/ 2 \? -1 : 1\), 0, 2\)/);
+  assert.match(source, /if \(pointer\.down && !laneTap\)/);
+  assert.match(source, /playerTarget\.y = playerEnt\.anchorY/);
 });

@@ -107,7 +107,7 @@
   ],
   "game": {
     "audience": "family",
-    "description": "Drag to dodge between the lanes, grab the stars, and outrun the nurse and her syringe.",
+    "description": "Tap left or right to change exactly one lane. Collect courage stars to widen the chaser gap, but the chase ends when you are caught.",
     "entryScene": "chase",
     "id": "escape-from-injection",
     "orientation": "portrait",
@@ -118,6 +118,16 @@
     {
       "action": "move",
       "input": "tap"
+    },
+    {
+      "action": "move_left",
+      "input": "keyboard",
+      "key": "ArrowLeft"
+    },
+    {
+      "action": "move_right",
+      "input": "keyboard",
+      "key": "ArrowRight"
     }
   ],
   "irVersion": "1.2",
@@ -151,7 +161,12 @@
       "actions": [
         {
           "type": "add_score",
-          "value": 1
+          "value": 25
+        },
+        {
+          "type": "add_variable",
+          "variable": "chaser_gap",
+          "value": 12
         },
         {
           "type": "emit_particles",
@@ -178,7 +193,12 @@
       "actions": [
         {
           "type": "add_score",
-          "value": 2
+          "value": 25
+        },
+        {
+          "type": "add_variable",
+          "variable": "chaser_gap",
+          "value": 12
         },
         {
           "type": "emit_particles",
@@ -204,16 +224,9 @@
       },
       "actions": [
         {
-          "type": "change_health",
-          "value": -1
-        },
-        {
-          "type": "apply_impulse",
-          "target": "syringe",
-          "value": [
-            -260,
-            -220
-          ]
+          "type": "add_variable",
+          "variable": "chaser_gap",
+          "value": -45
         },
         {
           "type": "camera_shake",
@@ -230,40 +243,6 @@
       ]
     },
     {
-      "id": "chaser-caught",
-      "when": {
-        "event": "collision",
-        "source": "player",
-        "target": "chaser"
-      },
-      "actions": [
-        {
-          "type": "change_health",
-          "value": -1
-        },
-        {
-          "type": "teleport_entity",
-          "target": "chaser",
-          "value": [
-            195,
-            772
-          ]
-        },
-        {
-          "type": "camera_shake",
-          "value": 6
-        },
-        {
-          "type": "show_text",
-          "value": "The chaser grabbed you — shake free!"
-        },
-        {
-          "type": "play_sound",
-          "assetId": "thud"
-        }
-      ]
-    },
-    {
       "id": "germ-hit",
       "when": {
         "event": "collision",
@@ -272,16 +251,9 @@
       },
       "actions": [
         {
-          "type": "change_health",
-          "value": -1
-        },
-        {
-          "type": "apply_impulse",
-          "target": "germ",
-          "value": [
-            -320,
-            -260
-          ]
+          "type": "add_variable",
+          "variable": "chaser_gap",
+          "value": -45
         },
         {
           "type": "camera_shake",
@@ -323,41 +295,35 @@
       ]
     },
     {
-      "id": "escape-complete",
+      "id": "running-score",
       "when": {
-        "event": "score_reached",
-        "source": "player",
-        "value": 15
+        "event": "timer_elapsed",
+        "value": 1
       },
       "actions": [
         {
-          "type": "show_text",
-          "value": "You escaped!"
-        },
-        {
-          "type": "play_sound",
-          "assetId": "theme"
-        },
-        {
-          "type": "end_game",
-          "value": true
-        },
-        {
-          "type": "play_sound",
-          "assetId": "sting"
+          "type": "add_score",
+          "value": 10
         }
       ]
     },
     {
-      "id": "progress-5",
+      "id": "progress-40",
       "when": {
-        "event": "score_reached",
-        "value": 5
+        "event": "timer_elapsed",
+        "value": 40
       },
+      "conditions": [
+        {
+          "variable": "elapsed",
+          "operator": "lt",
+          "value": 80
+        }
+      ],
       "actions": [
         {
           "type": "show_text",
-          "value": "5 stars — keep going!"
+          "value": "The hallway! The chase gets faster."
         },
         {
           "type": "set_alpha",
@@ -367,15 +333,22 @@
       ]
     },
     {
-      "id": "progress-10",
+      "id": "progress-80",
       "when": {
-        "event": "score_reached",
-        "value": 10
+        "event": "timer_elapsed",
+        "value": 40
       },
+      "conditions": [
+        {
+          "variable": "elapsed",
+          "operator": "gte",
+          "value": 80
+        }
+      ],
       "actions": [
         {
           "type": "show_text",
-          "value": "10 stars — almost out!"
+          "value": "A new route — the chaser stays close!"
         },
         {
           "type": "set_alpha",
@@ -386,6 +359,47 @@
           "type": "set_alpha",
           "target": "hall-mid",
           "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gap-caught",
+      "when": {
+        "event": "variable_changed"
+      },
+      "conditions": [
+        {
+          "variable": "chaser_gap",
+          "operator": "lte",
+          "value": 55
+        }
+      ],
+      "actions": [
+        {
+          "type": "show_text",
+          "value": "Caught! A little shot and tears — the chase is over."
+        },
+        {
+          "type": "play_sound",
+          "assetId": "thud"
+        },
+        {
+          "type": "end_game",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "inevitable-catch",
+      "when": {
+        "event": "timer_elapsed",
+        "value": 1200
+      },
+      "actions": [
+        {
+          "type": "set_variable",
+          "variable": "chaser_gap",
+          "value": 55
         }
       ]
     }
@@ -827,8 +841,8 @@
   "experience": {
     "archetype": "dodger",
     "controls": {
-      "scheme": "tap",
-      "hint": "Tap left or right to change lanes"
+      "scheme": "lane_tap",
+      "hint": "Tap left or right: one lane per tap"
     },
     "objective": {
       "kind": "survive",
@@ -837,7 +851,7 @@
     },
     "hud": {
       "left": "objective_progress",
-      "right": "health"
+      "right": "score"
     },
     "start": {
       "mode": "auto"
@@ -857,12 +871,64 @@
           "speedMul": 1
         },
         {
-          "at": 0.5,
-          "speedMul": 1.2
+          "at": 0.06666666666666667,
+          "speedMul": 1.12
         },
         {
-          "at": 0.85,
-          "speedMul": 1.45
+          "at": 0.13333333333333333,
+          "speedMul": 1.254
+        },
+        {
+          "at": 0.2,
+          "speedMul": 1.405
+        },
+        {
+          "at": 0.26666666666666666,
+          "speedMul": 1.574
+        },
+        {
+          "at": 0.3333333333333333,
+          "speedMul": 1.762
+        },
+        {
+          "at": 0.4,
+          "speedMul": 1.974
+        },
+        {
+          "at": 0.4666666666666667,
+          "speedMul": 2.211
+        },
+        {
+          "at": 0.5333333333333333,
+          "speedMul": 2.476
+        },
+        {
+          "at": 0.6,
+          "speedMul": 2.773
+        },
+        {
+          "at": 0.6666666666666666,
+          "speedMul": 3.106
+        },
+        {
+          "at": 0.7333333333333333,
+          "speedMul": 3.2
+        },
+        {
+          "at": 0.8,
+          "speedMul": 3.2
+        },
+        {
+          "at": 0.8666666666666667,
+          "speedMul": 3.2
+        },
+        {
+          "at": 0.9333333333333333,
+          "speedMul": 3.2
+        },
+        {
+          "at": 1,
+          "speedMul": 3.2
         }
       ]
     },
@@ -872,24 +938,13 @@
       1
     ],
     "result": {
-      "win": {
-        "title": "You escaped!",
-        "stars": {
-          "by": "time",
-          "thresholdsSec": [
-            60,
-            45,
-            30
-          ]
-        }
-      },
       "lose": {
-        "title": "Caught! Try again"
+        "title": "Caught! The chaser finally caught up"
       }
     },
     "leaderboard": {
-      "metric": "time",
-      "order": "asc"
+      "metric": "score",
+      "order": "desc"
     },
     "feedback": {
       "haptics": "none",
@@ -898,6 +953,12 @@
     "milestoneVisuals": {
       "0.33": "hall-mid",
       "0.67": "hall-far"
+    },
+    "chaserGap": {
+      "start": 220,
+      "max": 250,
+      "caughtAt": 55,
+      "recoveryPerSecond": 6
     }
   }
 }

@@ -559,3 +559,73 @@ func TestPenguinBonusScoringNeverShortCircuitsAuroraVictory(t *testing.T) {
 		t.Errorf("expected 12 collected-heart rules, got %d", collected)
 	}
 }
+
+func TestEscapeQuestionnaireGapAndCaughtEnding(t *testing.T) {
+	dir := filepath.Join("..", "..", "inventory", "2uowg9")
+	doc, err := readGameIR(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc == nil || doc.Experience == nil {
+		t.Fatal("Escape must have a canonical experience")
+	}
+	if doc.Experience.Controls.Scheme != "lane_tap" {
+		t.Fatalf("Escape must use discrete lane taps, got %q", doc.Experience.Controls.Scheme)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "game-ir.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ir map[string]any
+	if err := json.Unmarshal(raw, &ir); err != nil {
+		t.Fatal(err)
+	}
+	exp := ir["experience"].(map[string]any)
+	gap := exp["chaserGap"].(map[string]any)
+	for field, want := range map[string]float64{
+		"start":             220,
+		"max":               250,
+		"caughtAt":          55,
+		"recoveryPerSecond": 6,
+	} {
+		if got := gap[field].(float64); got != want {
+			t.Errorf("chaser gap %s = %v, want %v", field, got, want)
+		}
+	}
+	seenCaught := false
+	seenInevitableCatch := false
+	for _, item := range ir["rules"].([]any) {
+		rule := item.(map[string]any)
+		id := rule["id"].(string)
+		if id == "inevitable-catch" {
+			when := rule["when"].(map[string]any)
+			if when["event"] != "timer_elapsed" || when["value"] != float64(1200) {
+				t.Error("Escape must reach its inevitable caught chapter at 20 minutes")
+			}
+		}
+		for _, actionItem := range rule["actions"].([]any) {
+			action := actionItem.(map[string]any)
+			if id == "inevitable-catch" && action["type"] == "set_variable" &&
+				action["variable"] == "chaser_gap" && action["value"] == float64(55) {
+				seenInevitableCatch = true
+			}
+			if action["type"] == "change_health" {
+				t.Errorf("legacy health damage in %s, gap must be authoritative", id)
+			}
+			if action["type"] == "end_game" {
+				if action["value"] == true {
+					t.Errorf("rule %s invents a winning escape", id)
+				}
+				if id == "gap-caught" && action["value"] == false {
+					seenCaught = true
+				}
+			}
+		}
+	}
+	if !seenCaught {
+		t.Error("Escape needs an explicit caught ending")
+	}
+	if !seenInevitableCatch {
+		t.Error("Escape needs the bounded 20-minute terminal catch")
+	}
+}
