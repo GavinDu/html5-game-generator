@@ -2512,6 +2512,23 @@ async function run(id) {
     }
     drainEvents();
     if (state.ended) return;
+    // Ribbon's stitched holes are fixed, non-blocking zones. Rapier does
+    // not reliably report a new collision-start event when a kinematic
+    // player teleports directly into an overlapping fixed sensor between
+    // substeps. Resolve those authored zones from the same logical
+    // bounds used to render the sprites, once per frame, and let the rule
+    // engine own progress and the closed-patch transition.
+    if (play.shell?.objective?.progressVariable === 'holes_stitched' && playerEnt) {
+      for (const hole of entities.values()) {
+        if (hole.closed || hole.destroyed || !hole.def.properties?.closeOnCollect) continue;
+        if (Math.abs(playerEnt.x - hole.x) <= (playerEnt.w + hole.w) * 0.35 &&
+            Math.abs(playerEnt.y - hole.y) <= (playerEnt.h + hole.h) * 0.35) {
+          handleContact(playerEnt, hole, true);
+          if (state.ended) break;
+        }
+      }
+    }
+    if (state.ended) return;
 
     // View sync, tweens, emitters, camera.
     state.shake *= Math.pow(0.002, dt);
