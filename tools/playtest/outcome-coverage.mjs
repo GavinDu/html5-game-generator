@@ -29,3 +29,11 @@ export function outcomeCoverage(rules, experience, { winSeen = false, endSeen = 
     actual: winSeen ? { win: true } : null,
   }];
 }
+
+// Prefer the canonical runtime outcome over localized result-card copy.
+// Only a legacy player without a game-state probe needs text heuristics.
+export function observedVictory({ won = null, title = '' } = {}) {
+  if (typeof won === 'boolean') return won;
+  if (/caught|got you|grabbed|game over|so close/i.test(title)) return false;
+  return /win|did it|complete|escaped|mended|great|hooray|whole/i.test(title);
+}
