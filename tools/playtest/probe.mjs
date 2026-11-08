@@ -28,7 +28,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { selectFirstRewardMeasurement } from './reward-timing.mjs';
 import { resolvePlayBudgetSeconds } from './play-budget.mjs';
 import { preferredViewport } from './game-orientation.mjs';
-import { outcomeCoverage } from './outcome-coverage.mjs';
+import { outcomeCoverage, observedVictory } from './outcome-coverage.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -384,6 +384,7 @@ async function playGame(browser, gameId) {
       endTitle: document.getElementById('end-title')?.textContent || '',
       shellEnd: !!document.querySelector('#shell-result.on'),
       shellTitle: document.getElementById('shell-result-title')?.textContent || '',
+      won: window.__dqTest?.snapshot?.()?.won ?? null,
     })).catch(() => null);
     if (!live) break;
     // Liveness signature: HUD, status, error count AND the stage census
@@ -409,10 +410,7 @@ async function playGame(browser, gameId) {
     if (live.endVisible || live.shellEnd) {
       endSeen = true;
       const title = live.shellEnd ? live.shellTitle : live.endTitle;
-      if (/win|did it|complete|escaped|mended|great|hooray|whole/i.test(title) ||
-          !/caught|got you|grabbed|game over|so close/i.test(title)) {
-        winSeen = true;
-      }
+      winSeen = observedVictory({ won: live.won, title });
       break;
     }
   }
@@ -438,11 +436,12 @@ async function playGame(browser, gameId) {
       const live = await page.evaluate(() => ({
         shellEnd: !!document.querySelector('#shell-result.on'),
         shellTitle: document.getElementById('shell-result-title')?.textContent || '',
+        won: window.__dqTest?.snapshot?.()?.won ?? null,
         endVisible: (() => { const e = document.getElementById('end'); return !!e && getComputedStyle(e).display !== 'none'; })(),
       })).catch(() => null);
       if (live && (live.shellEnd || live.endVisible)) {
         endSeen = true;
-        if (live.shellEnd && !/caught|so close/i.test(live.shellTitle)) winSeen = true;
+        winSeen = observedVictory({ won: live.won, title: live.shellTitle });
       }
     }
     await page.mouse.up().catch(() => {});
