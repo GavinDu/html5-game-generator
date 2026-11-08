@@ -55,6 +55,8 @@ try {
       await page.screenshot({ path: dir + '/recycled-heart.png' });
       const observedHeartCounts = [];
       let capturedMidway = false;
+      let capturedHolidayScarf = false;
+      let capturedClassicScarf = false;
       const deadline = Date.now() + 70000;
       while (Date.now() < deadline) {
         const state = await snap();
@@ -75,6 +77,22 @@ try {
         if (observedHeartCounts.at(-1) !== state.objectiveProgress) {
           observedHeartCounts.push(state.objectiveProgress);
         }
+        const penguinAsset = state.entities.find(e => e.id === 'penguin')?.assetId;
+        const expectedAsset = state.objectiveProgress >= 8 ? 'penguin_classic'
+          : state.objectiveProgress >= 4 ? 'penguin_holiday' : 'penguin_rainbow';
+        assert.equal(penguinAsset, expectedAsset,
+          'the current scarf must match the questionnaire milestones at 4 and 8 hearts');
+        // Keep real rendered screenshots as reviewer evidence for all three
+        // kid-drawn scarf variants, not just assertions about asset IDs.
+        if (!capturedHolidayScarf && state.objectiveProgress >= 4 &&
+            state.objectiveProgress < 8 && !state.ended) {
+          await page.screenshot({ path: dir + '/holiday-scarf.png' });
+          capturedHolidayScarf = true;
+        }
+        if (!capturedClassicScarf && state.objectiveProgress >= 8 && !state.ended) {
+          await page.screenshot({ path: dir + '/classic-scarf.png' });
+          capturedClassicScarf = true;
+        }
         if (!capturedMidway && state.objectiveProgress >= 6 && !state.ended) {
           await page.screenshot({ path: dir + '/restoring-aurora.png' });
           capturedMidway = true;
@@ -93,6 +111,8 @@ try {
         'the ending awards 10/30 scoring independent of catch count');
       assert.deepEqual([...variants].sort(),
         ['penguin_classic', 'penguin_holiday', 'penguin_rainbow']);
+      assert.ok(capturedHolidayScarf && capturedClassicScarf,
+        'both scarf milestone screenshots must be captured during real gameplay');
       await page.screenshot({ path: dir + '/win.png' });
       await page.evaluate(() => { window.__penguinReloadMarker = 'kept'; });
       await page.locator('#shell-again-btn').click();
@@ -112,8 +132,11 @@ try {
         brightBands: end.entities.filter(e => e.id.startsWith('band'))
           .map(e => ({ id: e.id, alpha: e.alpha })),
         restartInPlace: true,
-        screenshots: ['before', 'missed-heart', 'recycled-heart',
-          'restoring-aurora', 'win', 'restarted'],
+        scarfMilestoneScreenshots: {
+          rainbow: 'before.png', holiday: 'holiday-scarf.png', classic: 'classic-scarf.png'
+        },
+        screenshots: ['before', 'missed-heart', 'recycled-heart', 'holiday-scarf',
+          'restoring-aurora', 'classic-scarf', 'win', 'restarted'],
       };
       reports.push(report);
       writeFileSync(dir + '/report.json', JSON.stringify(report, null, 2));
