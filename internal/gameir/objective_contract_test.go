@@ -24,7 +24,7 @@ func validProgressObjectiveDoc(t *testing.T) *Document {
 			Actions: []Action{{Type: "add_variable", Variable: "hearts_collected", Value: 1}},
 		},
 		Rule{
-			ID: "only-twelve-win",
+			ID:   "only-twelve-win",
 			When: Condition{Event: "variable_changed"},
 			Conditions: []Predicate{{
 				Variable: "hearts_collected", Operator: "eq", Value: float64(12),
