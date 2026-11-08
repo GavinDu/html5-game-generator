@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { outcomeCoverage } from './outcome-coverage.mjs';
+import { outcomeCoverage, observedVictory } from './outcome-coverage.mjs';
 
 const caught = [{ actions: [{ type: 'end_game', value: false }] }];
 const exp = { controls: { scheme: 'lane_tap' }, chaserGap: { caughtAt: 55 },
@@ -37,4 +37,12 @@ test('do not falsely classify generic loss rules as lane-chase stories', () => {
     { endSeen: true, winSeen: false });
   assert.equal(x.length, 1);
   assert.equal(x[0].status, 'skip');
+});
+
+test('canonical runtime verdict wins over ambiguous/localized result titles', () => {
+  assert.equal(observedVictory({ won: false, title: 'Hooray! Caught at last' }), false);
+  assert.equal(observedVictory({ won: true, title: 'The end' }), true);
+  assert.equal(observedVictory({ won: false, title: 'Fin' }), false);
+  assert.equal(observedVictory({ won: null, title: 'Game over' }), false);
+  assert.equal(observedVictory({ won: null, title: 'The rainbow is whole' }), true);
 });
