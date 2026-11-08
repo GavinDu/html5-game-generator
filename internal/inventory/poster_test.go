@@ -99,7 +99,7 @@ func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
 	if err := Load(st, filepath.Join("..", "..", "inventory")); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sample-rainbow-bear", "penguin-heartlight-rescue"} {
+	for _, id := range []string{"sample-rainbow-bear"} {
 		game, ok := st.GetGame(id)
 		if !ok || game.Preview == nil || game.Preview.PosterURL == "" || game.Preview.ClipURL != "" {
 			t.Fatalf("%s has no honest poster fallback", id)
@@ -117,5 +117,12 @@ func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
 	escape, ok := st.GetGame("escape-from-injection")
 	if !ok || escape.Preview != nil {
 		t.Fatal("Escape's changed game IR must invalidate its old poster")
+	}
+	// The Penguin reward/collection rewrite changed the canonical IR too.
+	// Keep the previous approved poster out of the feed until screenshots
+	// for the new package hash have been reviewed and re-approved.
+	penguin, ok := st.GetGame("penguin-heartlight-rescue")
+	if !ok || penguin.Preview != nil {
+		t.Fatal("changed Penguin gameplay must invalidate the stale approved poster")
 	}
 }

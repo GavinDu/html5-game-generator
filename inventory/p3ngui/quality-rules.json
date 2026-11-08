@@ -37,13 +37,15 @@
       "change penguin scarf appearance at four and eight hearts",
       "catch twelve hearts to restore the complete aurora",
       "missed hearts disappear without penalty and new hearts continue to spawn",
-      "finish with a clear success state and celebratory audio"
+      "finish with a clear success state and celebratory audio",
+      "Award 10 points for a regular heart, 30 points for a visibly gold heart; only the separate hearts_collected counter advances the six aurora stages and 12-heart win."
     ],
     "fairness": [
       "the penguin catch area is generous and remains within the playfield",
       "heart spawn and fall speed allow a reasonable reaction window",
       "misses never consume lives or prevent eventual completion",
-      "all six aurora milestones are reachable in a normal play session"
+      "all six aurora milestones are reachable in a normal play session",
+      "Bonus score must never trigger an aurora band, scarf unlock, or early victory without the required distinct heart-catch count."
     ],
     "audience": "children ages 4-8; family-friendly",
     "generated": {
@@ -52,7 +54,8 @@
       "objective": {
         "kind": "collect",
         "target": 12,
-        "label": "Collect 12 hearts"
+        "label": "Collect 12 hearts",
+        "progressVariable": "hearts_collected"
       },
       "failure": {
         "mode": "gentle"
@@ -77,6 +80,7 @@
     "Treat this as a portrait-only game: optimize portrait phone and tablet composition; landscape needs safe letterboxing and rotate guidance, not a redesigned playable layout.",
     "Every missed heart must recycle and a single short tap must move the penguin along its fixed horizontal lane.",
     "Verify aurora bands visibly brighten at 2, 4, 6, 8, 10 and 12 hearts; a visibility toggle with zero alpha does not meet this requirement.",
-    "Preserve all three supplied scarf variants while keeping snowy scenery behind pickups and outside the instruction area."
+    "Preserve all three supplied scarf variants while keeping snowy scenery behind pickups and outside the instruction area.",
+    "Compare source-drawing scarf variants against before/mid/win images, and verify score can exceed twelve while progress remains twelve hearts."
   ]
 }
