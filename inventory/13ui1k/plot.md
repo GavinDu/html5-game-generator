@@ -97,3 +97,6 @@ missed hearts simply disappear, every two regular catches restore one band,
 and twelve regular catches complete the rainbow and win. Golden hearts remain
 optional bonus rewards and never replace a regular restoration heart.
 
+## v7 correction (2026-11-08) — audible completion payoff
+
+The authored 12-heart win previously placed `play_sound(jingle)` **after** `end_game`, but the runtime intentionally stops rule actions immediately at the ending. The celebration was therefore unreachable. Move the jingle immediately before the terminal action and stop restarting the calm background theme on victory. The six colored bands and no-failure story remain unchanged. The Game IR validator now rejects all actions after an `end_game` to prevent this class of silent ending regression in future generated games.

@@ -38,7 +38,8 @@
       "twelve regular catches restore all six bands and complete the game as a win",
       "missed hearts drift away without lives, penalties, combo reset, or a failure state",
       "difficulty rises gently within the single session and remains bounded",
-      "restart from the result card to begin a fresh run"
+      "restart from the result card to begin a fresh run",
+      "Play the final celebratory jingle BEFORE the win terminal action; restarting the calm theme over the jingle obscures the payoff."
     ],
     "fairness": [
       "the first regular collectible must be reachable early in the session",
@@ -75,6 +76,7 @@
     "Verify that pink and blue regular hearts each increment the 12-heart restoration objective by exactly one, while golden hearts add bonus score without advancing restoration progress.",
     "Verify the six rainbow bands reveal only after 2, 4, 6, 8, 10, and 12 regular hearts; the game wins only at 12 regular hearts, regardless of golden-heart bonus score.",
     "Verify that one short tap moves Bobo horizontally without a held gesture, and leaves its catcher lane unchanged.",
-    "Deliberately miss a blue heart and verify it recycles from the floor despite horizontal sway; a missed pickup must not exhaust the regular-heart supply."
+    "Deliberately miss a blue heart and verify it recycles from the floor despite horizontal sway; a missed pickup must not exhaust the regular-heart supply.",
+    "Check the 12-heart victory plays the authored jingle before the result-card stops the game; no sound or effect may follow end_game in the rule."
   ]
 }

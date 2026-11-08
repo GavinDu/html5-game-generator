@@ -270,3 +270,30 @@ func TestRejectsUnimplementedKinds(t *testing.T) {
 		}
 	}
 }
+
+func TestEndGameMustBeLastRuleAction(t *testing.T) {
+	doc, err := DecodeAndValidate(readFixture(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Rules) == 0 {
+		t.Fatal("golden document must contain a rule")
+	}
+	doc.Rules[0].Actions = []Action{
+		{Type: "show_text", Value: "Rainbow restored"},
+		{Type: "end_game", Value: true},
+		{Type: "show_text", Value: "Unreachable celebration"},
+	}
+	if err := Validate(doc); err == nil || !strings.Contains(err.Error(), "end_game must be its last action") {
+		t.Fatalf("unreachable action after terminal must fail validation, got %v", err)
+	}
+	// Presentation effects are allowed before the terminal boundary.
+	doc.Rules[0].Actions = []Action{
+		{Type: "show_text", Value: "Rainbow restored"},
+		{Type: "show_text", Value: "Victory fanfare"},
+		{Type: "end_game", Value: true},
+	}
+	if err := Validate(doc); err != nil {
+		t.Fatalf("pre-terminal effects should validate: %v", err)
+	}
+}

@@ -665,7 +665,13 @@ func Validate(d *Document) error {
 		if len(rule.Actions) == 0 || len(rule.Actions) > 16 {
 			return fmt.Errorf("rule %q must have 1 to 16 actions", rule.ID)
 		}
-		for _, action := range rule.Actions {
+		for actionIndex, action := range rule.Actions {
+			// The browser stops executing this rule immediately when end_game
+			// sets state.ended. Unreachable sounds, effects and text after the
+			// terminal action are authoring defects, not a valid win sequence.
+			if action.Type == "end_game" && actionIndex != len(rule.Actions)-1 {
+				return fmt.Errorf("rule %q end_game must be its last action; later actions never execute", rule.ID)
+			}
 			if !has(actionKinds, action.Type) {
 				return fmt.Errorf("rule %q has unsupported action %q", rule.ID, action.Type)
 			}
