@@ -1649,7 +1649,23 @@ async function run(id) {
 
   function recycleEntity(ent) {
     respawnIndex += 1;
-    const nx = 50 + ((respawnIndex * 83) % Math.max(60, worldW - 100));
+    // A lane-hazard stays on one of the authored three lane centers
+    // across each full fall. Two are live at most, so one lane is ALWAYS
+    // free even when both descend in the same row. Use the run's seeded
+    // RNG, not Math.random, so the input/seed replay is reproducible.
+    const laneHazard = ent.def.properties?.laneHazard === true;
+    const laneXs = [worldW / 4, worldW / 2, worldW * 3 / 4];
+    const nearby = laneHazard ? [...entities.values()].filter(other =>
+      other !== ent && other.def.properties?.laneHazard && !other.destroyed &&
+      other.y < ent.h * 3 && other.y > -ent.h * 4) : [];
+    const occupied = new Set(nearby.map(other =>
+      laneXs.reduce((best, x, i) =>
+        Math.abs(x - other.x) < Math.abs(laneXs[best] - other.x) ? i : best, 0)));
+    const available = laneXs.filter((_x, i) => !occupied.has(i));
+    const choices = available.length ? available : laneXs;
+    const nx = laneHazard
+      ? choices[Math.floor(rng() * choices.length)]
+      : 50 + ((respawnIndex * 83) % Math.max(60, worldW - 100));
     ent.x = nx; ent.y = -ent.h / 2; ent.stillTime = 0; ent.destroyed = false;
     ent.view.visible = ent.def.render?.visible ?? true;
     if (!entities.has(ent.runtimeId)) register(ent);

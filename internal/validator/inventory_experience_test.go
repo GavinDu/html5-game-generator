@@ -629,3 +629,70 @@ func TestEscapeQuestionnaireGapAndCaughtEnding(t *testing.T) {
 		t.Error("Escape needs the bounded 20-minute terminal catch")
 	}
 }
+
+func TestEscapeFallingSyringesPreserveAnOpenLane(t *testing.T) {
+	file := filepath.Join("..", "..", "inventory", "2uowg9", "game-ir.json")
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ir map[string]any
+	if err := json.Unmarshal(raw, &ir); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]float64{}
+	for _, sceneItem := range ir["scenes"].([]any) {
+		scene := sceneItem.(map[string]any)
+		for _, entityItem := range scene["entities"].([]any) {
+			entity := entityItem.(map[string]any)
+			id := entity["id"].(string)
+			if id != "syringe" && id != "syringe02" {
+				continue
+			}
+			position := entity["position"].([]any)
+			x := position[0].(float64)
+			if x != 97.5 && x != 195 && x != 292.5 {
+				t.Errorf("%s must start at a 3-lane center, got %.1f", id, x)
+			}
+			physics := entity["physics"].(map[string]any)
+			props := entity["properties"].(map[string]any)
+			if physics["body"] != "dynamic" || physics["sensor"] != true ||
+				physics["gravityScale"] != float64(0) || props["recycle"] != true ||
+				props["laneHazard"] != true {
+				t.Errorf("%s must be a falling, sensor-based, recycling lane hazard", id)
+			}
+			velocity := physics["initialVelocity"].([]any)
+			if velocity[0] != float64(0) || velocity[1].(float64) < 95 ||
+				velocity[1].(float64) > 125 {
+				t.Errorf("%s needs readable downward travel speed", id)
+			}
+			if _, chase := entity["behavior"]; chase {
+				t.Errorf("%s cannot home toward the player; lanes must be avoidable", id)
+			}
+			seen[id] = x
+		}
+	}
+	if len(seen) != 2 || seen["syringe"] == seen["syringe02"] {
+		t.Errorf("exactly two distinct initial syringe lanes required, got %v", seen)
+	}
+	for _, id := range []string{"syringe", "syringe02"} {
+		found := false
+		for _, ruleItem := range ir["rules"].([]any) {
+			rule := ruleItem.(map[string]any)
+			when := rule["when"].(map[string]any)
+			if when["event"] != "collision" || when["target"] != id {
+				continue
+			}
+			for _, actionItem := range rule["actions"].([]any) {
+				action := actionItem.(map[string]any)
+				if action["type"] == "add_variable" && action["variable"] == "chaser_gap" &&
+					action["value"] == float64(-45) {
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s must cause the authored -45 gap damage on physical contact", id)
+		}
+	}
+}
