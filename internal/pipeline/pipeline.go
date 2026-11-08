@@ -296,6 +296,9 @@ func (r *Runner) runRemaining(jobID string) {
 		}
 		return nil
 	})
+	if r.stopOnStageFailure(job) {
+		return
+	}
 
 	// CODEGEN: produce the canonical declarative Game IR. The GameShim output
 	// is retained only as a temporary HTML5 test oracle during migration.
@@ -325,6 +328,9 @@ func (r *Runner) runRemaining(jobID string) {
 		r.store.PutArtifact(job.GameID, "game.js", []byte(gameJS), "application/javascript")
 		return nil
 	})
+	if r.stopOnStageFailure(job) {
+		return
+	}
 
 	// VALIDATE: semantic Game IR validation is authoritative; the legacy
 	// static check only keeps the temporary HTML5 oracle safe during migration.
@@ -346,6 +352,9 @@ func (r *Runner) runRemaining(jobID string) {
 		// Quality comes from the playtest scorecard or stays absent.
 		return nil
 	})
+	if r.stopOnStageFailure(job) {
+		return
+	}
 
 	// PUBLISH: assemble the versioned bundle manifest.
 	r.runStage(job, model.StagePublish, func() error {
@@ -399,13 +408,25 @@ func (r *Runner) runRemaining(jobID string) {
 		return nil
 	})
 
-	if job.Status == model.JobFailed {
-		r.finishFailed(job, job.Error)
+	if r.stopOnStageFailure(job) {
 		return
 	}
 	job.Status = model.JobDone
 	job.UpdatedAt = time.Now()
 	r.store.UpdateJob(job)
+}
+
+// stopOnStageFailure keeps all later stages strictly unreachable after a
+// failure. In particular PUBLISH must never temporarily expose a ready game
+// (even privately) after missing assets, invalid IR, or failed validation.
+// Leaving later stages queued also makes the first actionable failure clear
+// to the creator instead of overwriting it with downstream symptoms.
+func (r *Runner) stopOnStageFailure(job *model.Job) bool {
+	if job.Status != model.JobFailed {
+		return false
+	}
+	r.finishFailed(job, job.Error)
+	return true
 }
 
 func (r *Runner) finishFailed(job *model.Job, errMsg string) {
