@@ -167,6 +167,32 @@ jobs:
           name: gameplay-preview-candidates
           path: /tmp/preview-candidates/
           if-no-files-found: ignore
+      - name: Browser-play two generations of every inventory remix
+        run: |
+          # Keep generated children private and isolated from the public test
+          # server. Only this temporary CI server allows test X-User-ID.
+          PORT=18102 INVENTORY_DIR=inventory DQ_ALLOW_INSECURE_USER_ID=true \
+            /tmp/dq-server > /tmp/dq-remix-server.log 2>&1 &
+          healthy=0
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:18102/healthz >/dev/null; then healthy=1; break; fi
+            sleep 1
+          done
+          if [ "$healthy" != 1 ]; then cat /tmp/dq-remix-server.log; exit 1; fi
+          node --check tools/playtest/remix-descendants-test.mjs
+          node tools/playtest/remix-descendants-test.mjs \
+            --base http://localhost:18102 \
+            --browser ${{ matrix.browser }} \
+            --shots /tmp/remix-descendants-${{ matrix.browser }}
+      - name: Upload generated descendant gameplay and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remix-descendants-${{ matrix.browser }}
+          path: |
+            /tmp/remix-descendants-${{ matrix.browser }}/
+            /tmp/dq-remix-server.log
+          if-no-files-found: ignore
       - name: Evaluate swipe feed with screenshot inputs on iPhone and iPad
         run: |
           node tools/playtest/feed-ui-evaluator.mjs --base http://localhost:18099 \
