@@ -57,6 +57,26 @@ try {
         const stageRect = stage?.getBoundingClientRect();
         const wrapRect = wrap?.getBoundingClientRect();
         const headerRect = document.querySelector('header')?.getBoundingClientRect();
+        const headerTitle = document.querySelector('header .title');
+        const headerScore = document.querySelector('header .score');
+        const titleRect = headerTitle?.getBoundingClientRect();
+        const scoreRect = headerScore?.getBoundingClientRect();
+        const titleStyle = headerTitle ? getComputedStyle(headerTitle) : null;
+        const headerLegibility = {
+          title: headerTitle?.textContent?.trim() || '',
+          score: headerScore?.textContent?.trim() || '',
+          titleWidth: titleRect?.width || 0,
+          titleHeight: titleRect?.height || 0,
+          titleLineHeight: titleStyle ? parseFloat(titleStyle.lineHeight) : 0,
+          titleWhiteSpace: titleStyle?.whiteSpace,
+          scoreWidth: scoreRect?.width || 0,
+          // A compact two-column HUD must never stack the score over the
+          // story title even when long text wraps across two lines.
+          noOverlap: !!titleRect && !!scoreRect &&
+            titleRect.right <= scoreRect.left - 4,
+          scoreInsideViewport: !!scoreRect &&
+            scoreRect.right <= document.documentElement.clientWidth + 1,
+        };
         const snapshot = window.__dqTest?.snapshot?.();
         const logicalHeight = snapshot?.world?.h || canvas?.height || 0;
         const headerBottomLogical = rect && headerRect && rect.height > 0
@@ -114,6 +134,7 @@ try {
           shellControlScheme,
           shellButtons: measuredShellControls,
           textLayout: { headerBottomLogical, textEntities, obscuredTextEntities },
+          headerLegibility,
           probe: window.__dqProbe ? { booted: window.__dqProbe.booted, errors: window.__dqProbe.errors?.length || 0 } : null,
         };
       });
@@ -128,11 +149,19 @@ try {
         { id: 'shell-controls-present', pass: metrics.shellButtons.length > 0, actual: metrics.shellButtons.length },
         { id: 'shell-controls-touch-sized', pass: metrics.shellButtons.length > 0 && metrics.shellButtons.every(button => button.width >= 44 && button.height >= 44), actual: metrics.shellButtons },
         { id: 'text-clears-native-header', pass: metrics.textLayout.obscuredTextEntities.length === 0, actual: metrics.textLayout },
+        { id: 'play-header-readable', pass: metrics.headerLegibility.title.length > 0 &&
+            metrics.headerLegibility.score.length > 0 &&
+            metrics.headerLegibility.titleWhiteSpace === 'normal' &&
+            metrics.headerLegibility.titleWidth >= 40 &&
+            metrics.headerLegibility.noOverlap &&
+            metrics.headerLegibility.scoreInsideViewport,
+          actual: metrics.headerLegibility },
       ];
       if (!gameplayProfile) {
         // Opposite orientation is a paused safe fallback, not a second game
         // layout. Do not score gameplay hierarchy/controls in this profile.
-        checks = checks.filter(check => !['shell-controls-present', 'shell-controls-touch-sized', 'text-clears-native-header'].includes(check.id));
+        checks = checks.filter(check => !['shell-controls-present', 'shell-controls-touch-sized',
+          'text-clears-native-header', 'play-header-readable'].includes(check.id));
         const paused = await page.evaluate(() => document.body.dataset.orientationBlocked === 'true' && !document.getElementById('orientation-hint').hidden);
         checks.push({ id: 'orientation-guidance-and-pause', pass: paused, actual: { orientation, paused } });
       }
