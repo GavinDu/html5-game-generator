@@ -26,7 +26,7 @@ func TestConfirmRejectsCrossUserWithoutAdvancingJob(t *testing.T) {
 	}
 	var response struct {
 		Game model.Game `json:"game"`
-		Job model.Job `json:"job"`
+		Job  model.Job  `json:"job"`
 	}
 	decode(t, created, &response)
 	waitJob(t, srv, response.Job.ID, model.JobAwaitingConfirm)
