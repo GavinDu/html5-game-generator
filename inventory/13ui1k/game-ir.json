@@ -495,15 +495,11 @@
         },
         {
           "type": "play_sound",
-          "assetId": "theme"
+          "assetId": "jingle"
         },
         {
           "type": "end_game",
           "value": true
-        },
-        {
-          "type": "play_sound",
-          "assetId": "jingle"
         }
       ]
     }

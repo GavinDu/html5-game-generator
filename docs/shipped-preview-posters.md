@@ -11,3 +11,5 @@ Restarting an inventory game preserves an existing creator preview only when its
 Verification includes poster content/hash/version tests and the real feed/preview delivery contract. Review the native and browser feed screenshots after deployment to confirm these actual gameplay frames replace gradient placeholders.
 
 Bobo’s poster is refreshed after its catcher-control repair, using the local Chromium gameplay screenshot and observed-completion report recorded in its fixture metadata. The original three other screenshots retain their CI provenance.
+
+Bobo's 2026-11-08 end-game jingle ordering change alters the canonical IR. The previously reviewed mid-play Bobo poster is deliberately **not** rebound to a new IR hash without a fresh rendered screenshot review. Until a new version-bound screenshot/clip is approved, the feed may show the explicitly labeled **Preview unavailable — Tap Play now to explore** fallback; the game remains playable. This does not relax the independent poster-hash validation test or publish a fabricated frame.

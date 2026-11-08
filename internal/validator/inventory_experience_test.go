@@ -696,3 +696,46 @@ func TestEscapeFallingSyringesPreserveAnOpenLane(t *testing.T) {
 		}
 	}
 }
+
+func TestBoboWinJinglePrecedesTerminal(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "inventory", "13ui1k", "game-ir.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Rules []struct {
+			ID      string `json:"id"`
+			Actions []struct {
+				Type    string `json:"type"`
+				AssetID string `json:"assetId"`
+				Value   any    `json:"value"`
+			} `json:"actions"`
+		} `json:"rules"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, rule := range doc.Rules {
+		if rule.ID != "rainbow-complete" {
+			continue
+		}
+		if len(rule.Actions) < 3 {
+			t.Fatal("Bobo final win rule lost presentation actions")
+		}
+		end := rule.Actions[len(rule.Actions)-1]
+		jingle := rule.Actions[len(rule.Actions)-2]
+		if end.Type != "end_game" || end.Value != true {
+			t.Fatalf("Bobo must end as a win only after feedback, got %+v", end)
+		}
+		if jingle.Type != "play_sound" || jingle.AssetID != "jingle" {
+			t.Fatalf("Bobo win jingle must execute before the game stops, got %+v", jingle)
+		}
+		for _, action := range rule.Actions[:len(rule.Actions)-2] {
+			if action.Type == "play_sound" && action.AssetID == "theme" {
+				t.Fatal("do not restart background music over the finale")
+			}
+		}
+		return
+	}
+	t.Fatal("Bobo is missing its rainbow-complete win rule")
+}

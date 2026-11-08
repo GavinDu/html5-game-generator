@@ -94,16 +94,17 @@ func TestInventoryRestartRetainsCurrentCreatorPreview(t *testing.T) {
 	}
 }
 
-func TestAllShippedGamesHaveVersionBoundPosters(t *testing.T) {
+func TestShippedGamePosterFallbacksRespectCurrentIR(t *testing.T) {
 	st := store.NewMemoryStore()
 	if err := Load(st, filepath.Join("..", "..", "inventory")); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"sample-rainbow-bear"} {
-		game, ok := st.GetGame(id)
-		if !ok || game.Preview == nil || game.Preview.PosterURL == "" || game.Preview.ClipURL != "" {
-			t.Fatalf("%s has no honest poster fallback", id)
-		}
+	// Bobo's final jingle was unreachable after end_game in the previous
+	// package. The approved mid-play poster belongs to that *old* IR
+	// hash. Do not claim it is validated for this corrected package.
+	bobo, ok := st.GetGame("sample-rainbow-bear")
+	if !ok || bobo.Preview != nil {
+		t.Fatal("Bobo's updated terminal sequence must invalidate its stale approved poster")
 	}
 	// Ribbon has new six-hole gameplay. Its previous approved poster is
 	// deliberately invalidated by the IR hash until fresh screenshot review
