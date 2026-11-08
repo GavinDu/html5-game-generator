@@ -55,6 +55,11 @@ try {
       assert.equal(initial.world.w, 390);
       assert.equal(initial.player?.laneIndex, 1, 'Escape must start in middle lane');
       const startY = initial.player.y;
+      // Two readable falling syringe hazards, never a three-lane wall.
+      const syringes = initial.entities.filter(e => /^syringe(?:02)?$/.test(e.def));
+      assert.equal(syringes.length, 2, 'two physical falling syringes must be in the game');
+      assert.deepEqual(syringes.map(e => e.x).sort((a, b) => a - b), [97.5, 292.5],
+        'authored hazard lanes must start distinct, leaving middle safe');
       const firstChaser = initial.entities.find(e => e.def === 'chaser');
       assert.ok(firstChaser, 'the authored chaser must exist');
       assert.ok(Math.abs(firstChaser.y - startY - initial.variables.chaser_gap) < 2,
@@ -92,13 +97,36 @@ try {
       assert.ok(progressed.variables.chaser_gap <= 250, 'lead recovery must be capped');
       assert.equal(errors.length, 0, 'no page runtime exceptions');
       await capture('score-without-false-victory');
+      // These screenshots and assertions verify a real running hazard,
+      // not an injected collider fixture. Missed syringes must fall off
+      // the screen and respawn at one of the three lane centers.
+      await page.waitForFunction(() => {
+        const s = window.__dqTest?.snapshot?.();
+        return s && !s.ended && s.entities.some(e => e.def === 'syringe' && e.y > 740);
+      }, null, { timeout: 15000 });
+      const falling = await snap();
+      assert.ok([97.5, 195, 292.5].some(x =>
+        Math.abs(falling.entities.find(e => e.def === 'syringe').x - x) < 1.5),
+      'falling syringe must occupy a legal lane, not home toward the player');
+      await capture('falling-syringe-lane');
+      await page.waitForFunction(() => {
+        const s = window.__dqTest?.snapshot?.();
+        return s && !s.ended && s.entities.some(e => e.def === 'syringe' && e.y < 0);
+      }, null, { timeout: 15000 });
+      const recycled = await snap();
+      assert.ok([97.5, 195, 292.5].some(x =>
+        Math.abs(recycled.entities.find(e => e.def === 'syringe').x - x) < 1.5),
+      'recycled syringe must respawn on one of three lanes');
+      await capture('recycled-syringe-lane');
       const report = {
         browser: browserName, viewport: profile.name, passed: true,
+        fallingSyringeVerified: true, recycledSyringeVerified: true,
         startingGap: initial.variables.chaser_gap, endingGap: progressed.variables.chaser_gap,
         initialLane: 1, finalLane: progressed.player.laneIndex,
         initialRunnerY: startY, score: progressed.score,
         falseVictory: progressed.ended, visualDelta,
-        screenshots: ['before', 'after-six-real-taps', 'score-without-false-victory']
+        screenshots: ['before', 'after-six-real-taps', 'score-without-false-victory',
+          'falling-syringe-lane', 'recycled-syringe-lane']
       };
       results.push(report);
       writeFileSync(dir + '/report.json', JSON.stringify(report, null, 2));
