@@ -88,6 +88,9 @@ func TestExperienceSupportsIndependentCollectProgressVariable(t *testing.T) {
 	fixture = strings.Replace(fixture,
 		`"actions": [{"type": "add_score", "value": 1}]`,
 		`"actions": [{"type": "add_score", "value": 10}, {"type": "add_variable", "variable": "hearts_collected", "value": 1}]`, 1)
+	fixture = strings.Replace(fixture,
+		`"when": {"event": "score_reached", "value": 12}`,
+		`"when": {"event": "variable_changed"}, "conditions": [{"variable": "hearts_collected", "operator": "eq", "value": 12}]`, 1)
 	doc := decodeExp(t, fixture)
 	if doc.Experience.Objective.ProgressVariable != "hearts_collected" {
 		t.Fatalf("progress variable = %q, want hearts_collected", doc.Experience.Objective.ProgressVariable)
@@ -166,14 +169,17 @@ func TestExperienceFailureContradictions(t *testing.T) {
 	bad := strings.Replace(expDocJSON, `{"id": "win"`, `{"id": "harsh", "when": {"event": "timer_elapsed", "value": 5},
      "actions": [{"type": "end_game", "value": false}]},
     {"id": "win"`, 1)
-	checks := experienceChecks(decodeExp(t, bad), nil)
-	if c := findCheck(checks, "experience.failure_model"); c.Status != StatusFail {
-		t.Fatalf("gentle + end_game rule: failure_model = %s, want fail", c.Status)
+	// This contradiction is now rejected *before* publishing, by the
+	// canonical Game IR gate, rather than merely flagged in an advisory
+	// scoring report.
+	if _, err := gameir.DecodeAndValidate([]byte(bad)); err == nil ||
+		!strings.Contains(err.Error(), "no-fail experience") {
+		t.Fatalf("gentle + explicit loss must fail closed in Game IR validation: %v", err)
 	}
 
 	// Sudden-death for a family audience.
 	bad = strings.Replace(expDocJSON, `"failure": {"mode": "gentle"}`, `"failure": {"mode": "sudden-death"}`, 1)
-	checks = experienceChecks(decodeExp(t, bad), nil)
+	checks := experienceChecks(decodeExp(t, bad), nil)
 	if c := findCheck(checks, "experience.failure_model"); c.Status != StatusFail {
 		t.Fatalf("sudden-death + family: failure_model = %s, want fail", c.Status)
 	}
