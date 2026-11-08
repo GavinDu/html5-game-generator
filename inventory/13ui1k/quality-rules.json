@@ -70,6 +70,7 @@
   },
   "reviewFocus": [
     "Check that the bear, kitten, hearts, and rainbow read clearly at portrait mobile size.",
+    "Source-art readability: the child's original brown crayon bear should be visibly recognizable in both iPhone and iPad gameplay screenshots without replacing or redrawing the source artwork. The canonical 92x104 physical catcher stays unchanged; a 1.28x render-only scale may increase visual size but must not change tap movement, collectible fairness, or HUD overlap.",
     "Check whether collecting hearts visibly repairs the rainbow and communicates progress toward helping the kitten.",
     "Verify that missed hearts never create a loss state and that twelve regular catches complete the win.",
     "Check touch targets, contrast, HUD overlap, and whether the restart affordance is actually usable.",
