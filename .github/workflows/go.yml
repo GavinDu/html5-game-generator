@@ -152,6 +152,21 @@ jobs:
         with:
           name: bobo-controls-${{ matrix.browser }}
           path: /tmp/bobo-controls-${{ matrix.browser }}/
+      # Screenshot inputs must come from the same SHA's successfully run
+      # game-specific browser tests. Produce a reviewable artifact; NEVER
+      # auto-commit candidate media or pretend that a poster is a video clip.
+      - name: Prepare version-bound gameplay poster candidates for review
+        if: matrix.browser == 'chromium'
+        run: |
+          node tools/playtest/prepare-preview-fixtures.mjs \
+            --shots-root /tmp --out /tmp/preview-candidates
+      - name: Upload reviewed-input poster candidates and integrity manifests
+        if: matrix.browser == 'chromium' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-preview-candidates
+          path: /tmp/preview-candidates/
+          if-no-files-found: ignore
       - name: Browser-play two generations of every inventory remix
         run: |
           # Keep generated children private and isolated from the public test

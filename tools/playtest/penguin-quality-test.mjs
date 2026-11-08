@@ -35,6 +35,17 @@ try {
       await page.goto(base + '/player?game=penguin-heartlight-rescue&presentation=play&probe=1');
       await page.waitForFunction(() => window.__dqTest?.snapshot?.()?.t > .1, null, { timeout: 20000 });
       const snap = () => page.evaluate(() => window.__dqTest.snapshot());
+      // Canonical Game IR keeps the authored collision size and lane but
+      // scales only the rendered sprite, so visual polish cannot create a
+      // much larger invisible pickup hitbox.
+      const pkgResponse = await page.request.get(base + '/v1/games/penguin-heartlight-rescue/package');
+      assert.equal(pkgResponse.status(), 200);
+      const pkg = await pkgResponse.json();
+      const playerDef = pkg.ir.scenes.flatMap(scene => scene.entities).find(e => e.id === 'penguin');
+      assert.ok(playerDef, 'canonical penguin must exist');
+      assert.deepEqual(playerDef.size, [112, 134], 'catcher collision footprint must not be inflated');
+      assert.deepEqual(playerDef.render?.scale, [1.5, 1.5],
+        'hero must be visibly readable at phone/tablet scale without changing physics');
       const first = await snap();
       const variants = new Set([first.entities.find(e => e.id === 'penguin')?.assetId]);
       assert.equal(first.objectiveProgress, 0, 'the 12-heart counter must start at zero');
