@@ -28,6 +28,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { selectFirstRewardMeasurement } from './reward-timing.mjs';
 import { resolvePlayBudgetSeconds } from './play-budget.mjs';
 import { preferredViewport } from './game-orientation.mjs';
+import { outcomeCoverage } from './outcome-coverage.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -472,11 +473,12 @@ async function playGame(browser, gameId) {
       `${playSeconds}s of bot play produced no score change; reward timing unproven`, null);
   }
 
-  if (winSeen) {
-    push('simulation.win_reachable', 'pass', 'bot observed the win/end overlay', { win: true });
-  } else {
-    push('simulation.win_reachable', 'skip',
-      'bot did not reach a win inside the play budget; reachability unproven (not a fail)', null);
+  // Gameplay and screenshot evidence is outcome-specific: an authored
+  // caught-only chase does not have a winning escape to prove. A short
+  // bot run that fails to reach its catch stays unverified, not passed.
+  for (const check of outcomeCoverage(envelope.ir?.rules, envelope.ir?.experience,
+    { winSeen, endSeen })) {
+    push(check.checkId, check.status, check.evidence, check.actual);
   }
 
   // Capture the submitted run id NOW, before the shell restart check
