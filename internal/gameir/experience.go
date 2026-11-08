@@ -253,5 +253,71 @@ func validateExperience(d *Document) error {
 	if exp.Feedback.Juice != "" && !has(enum("none", "standard", "rich"), exp.Feedback.Juice) {
 		return fmt.Errorf("experience.feedback.juice %q unsupported", exp.Feedback.Juice)
 	}
+	return validateExperienceOutcomes(d)
+}
+
+// validateExperienceOutcomes connects the declarative objective to the
+// terminal rules the browser actually runs. A bonus score event must never
+// finish a creator-authored "catch 12 hearts" game early. Likewise,
+// gentle/no-fail drawings must not contain hidden losing end_game rules.
+func validateExperienceOutcomes(d *Document) error {
+	exp := d.Experience
+	if exp == nil {
+		return nil
+	}
+	progressVariable := strings.TrimSpace(exp.Objective.ProgressVariable)
+	strictCollection := exp.Objective.Kind == "collect" && progressVariable != ""
+	hasProgressAction := false
+	hasObjectiveWin := false
+	for _, rule := range d.Rules {
+		for _, action := range rule.Actions {
+			if strictCollection && (action.Type == "add_variable" || action.Type == "set_variable") &&
+				action.Variable == progressVariable {
+				n, ok := asNumber(action.Value)
+				if ok && n > 0 {
+					hasProgressAction = true
+				}
+			}
+			if action.Type != "end_game" {
+				continue
+			}
+			won, ok := action.Value.(bool)
+			if !ok {
+				return fmt.Errorf("rule %q end_game requires a boolean value, not a truthy string or number", rule.ID)
+			}
+			if !won && (exp.Failure.Mode == "gentle" || exp.Failure.Mode == "none") {
+				return fmt.Errorf("rule %q declares a loss in a %s no-fail experience", rule.ID, exp.Failure.Mode)
+			}
+			if !strictCollection || !won {
+				continue
+			}
+			if rule.When.Event != "variable_changed" {
+				return fmt.Errorf("rule %q wins via %q rather than collected objective variable %q", rule.ID, rule.When.Event, progressVariable)
+			}
+			match := false
+			for _, condition := range rule.Conditions {
+				if condition.Variable != progressVariable ||
+					(condition.Operator != "eq" && condition.Operator != "gte") {
+					continue
+				}
+				threshold, numeric := asNumber(condition.Value)
+				if numeric && threshold >= float64(exp.Objective.Target) {
+					match = true
+				}
+			}
+			if !match {
+				return fmt.Errorf("rule %q wins before the %d-count objective %q is satisfied", rule.ID, exp.Objective.Target, progressVariable)
+			}
+			hasObjectiveWin = true
+		}
+	}
+	if strictCollection {
+		if !hasProgressAction {
+			return fmt.Errorf("collect objective %q has no positive increment or assignment", progressVariable)
+		}
+		if !hasObjectiveWin {
+			return fmt.Errorf("collect objective %q has no progress-gated winning rule", progressVariable)
+		}
+	}
 	return nil
 }
