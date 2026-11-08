@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"doodlequest/internal/expression"
@@ -37,7 +38,8 @@ var stageOrder = []model.StageName{
 // stages take time they do not.
 
 type Runner struct {
-	store store.Store
+	store     store.Store
+	confirmMu sync.Mutex // serializes confirmation check + running transition
 }
 
 func NewRunner(st store.Store) *Runner { return &Runner{store: st} }
@@ -236,6 +238,14 @@ func (r *Runner) runSpec(jobID string, elements []model.Element, intent string, 
 // Confirm resumes the pipeline after the user approves (or edits) the
 // design doc. Returns an error if the job isn't awaiting confirmation.
 func (r *Runner) Confirm(gameID string, doc *model.DesignDoc) (*model.Job, error) {
+	// Multiple network retries can hit Confirm before the async ART goroutine
+	// has reached its first stage update. Check and transition under one
+	// lock so only one request starts the pipeline and wins the design edits.
+	// The store returns value clones; the persisted transition MUST happen
+	// before scheduling the worker, not afterward.
+	r.confirmMu.Lock()
+	defer r.confirmMu.Unlock()
+
 	job, ok := r.store.GetJobByGame(gameID)
 	if !ok {
 		return nil, fmt.Errorf("no job for game %s", gameID)
@@ -246,6 +256,9 @@ func (r *Runner) Confirm(gameID string, doc *model.DesignDoc) (*model.Job, error
 	if doc != nil && doc.Title != "" {
 		job.DesignDoc = doc
 	}
+	job.Status = model.JobRunning
+	job.UpdatedAt = time.Now()
+	r.store.UpdateJob(job)
 	go r.runRemaining(job.ID)
 	return job, nil
 }
