@@ -17,28 +17,28 @@ import (
 func TestArtFailureCannotReachPublishOrReplaceOriginalError(t *testing.T) {
 	st := store.NewMemoryStore()
 	parent := &model.Game{
-		ID: "parent-with-missing-asset",
-		Title: "Parent",
-		Status: model.GameReady,
+		ID:       "parent-with-missing-asset",
+		Title:    "Parent",
+		Status:   model.GameReady,
 		Manifest: &model.BundleManifest{Version: 1},
 		GameIR: &gameir.Document{
 			Game: gameir.Game{ID: "parent-with-missing-asset"},
 			Assets: []gameir.Asset{{
-				ID: "source-drawing",
-				URI: "sprites/missing.png",
+				ID:   "source-drawing",
+				URI:  "sprites/missing.png",
 				Kind: "image",
 			}},
 		},
 		Elements: []model.Element{{ID: "el_1", Label: "heart", Kind: "character"}},
-		Intent: "Collect the glowing hearts",
+		Intent:   "Collect the glowing hearts",
 	}
 	st.CreateGame(parent)
 	child := &model.Game{
-		ID: "broken-remix-child",
+		ID:           "broken-remix-child",
 		ParentGameID: parent.ID,
-		Elements: append([]model.Element(nil), parent.Elements...),
-		Intent: parent.Intent,
-		Status: model.GameGenerating,
+		Elements:     append([]model.Element(nil), parent.Elements...),
+		Intent:       parent.Intent,
+		Status:       model.GameGenerating,
 	}
 	st.CreateGame(child)
 	runner := NewRunner(st)
