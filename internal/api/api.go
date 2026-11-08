@@ -491,6 +491,18 @@ func (s *Server) handleGetGame(w http.ResponseWriter, r *http.Request) {
 // POST /v1/games/{id}/confirm — approve (optionally edited) design doc,
 // resuming art -> codegen -> validate -> publish.
 func (s *Server) handleConfirm(w http.ResponseWriter, r *http.Request) {
+	// A valid bearer session alone is not sufficient: confirmation mutates
+	// the author's private game and commits generated assets. Check the
+	// target game's owner before allowing any pipeline transition.
+	game, exists := s.store.GetGame(r.PathValue("id"))
+	if !exists {
+		writeErr(w, http.StatusNotFound, "game not found")
+		return
+	}
+	if userID(r) == "" || userID(r) != game.OwnerID {
+		writeErr(w, http.StatusForbidden, "only the creator can confirm this game")
+		return
+	}
 	var req model.ConfirmRequest
 	if !decodeJSON(w, r, &req) {
 		return
