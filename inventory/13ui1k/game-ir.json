@@ -559,6 +559,12 @@
               ]
             }
           },
+          "render": {
+            "scale": [
+              1.28,
+              1.28
+            ]
+          },
           "tweens": [
             {
               "property": "scale",
