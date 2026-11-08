@@ -136,6 +136,14 @@ jobs:
         with:
           name: escape-quality-${{ matrix.browser }}
           path: /tmp/escape-quality-${{ matrix.browser }}/
+      - name: Verify Escape seeded replay physics and screenshots on phone/tablet
+        run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
+      - name: Upload Escape deterministic replay screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-seeded-replay-${{ matrix.browser }}
+          path: /tmp/escape-seeded-replay-${{ matrix.browser }}/
       - name: Verify Bobo short taps and missed-heart recycling
         run: node tools/playtest/bobo-controls-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/bobo-controls-${{ matrix.browser }}
       - name: Upload Bobo control and recycling screenshots
