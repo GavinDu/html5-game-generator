@@ -65,3 +65,7 @@ drawing: the blob, the syringe, the spiky-haired chaser.
 New game. Tap-to-dodge 3-lane escape with the visible chaser-gap mechanic,
 level-up-every-40-seconds pacing, and leaderboard integration (best run per
 player, ranked by level then score).
+
+## Fair falling-syringe revision — 2026-11-08
+
+The two syringe hazards fall down fixed lanes instead of homing into the hero. Their initial drops are staggered and each miss recycles to one of three deterministic, seeded lane centers. At most two syringe lanes can be occupied together, so a third remains open. A clear path and quick one-lane taps now matter more than luck; collisions still cost 45 lead with the authored cooldown. Speed grows only on respawn and uses the capped 3.2× session ramp. The chaser remains a visual representation of the authoritative gap; the 20-minute caught ceiling remains intact. The browser quality suite records before/falling/recycled/caught/restarted screenshots on both phone and tablet layouts.

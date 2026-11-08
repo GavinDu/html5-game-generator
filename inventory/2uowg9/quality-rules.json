@@ -39,7 +39,8 @@
       "when the gap reaches 55 points the chaser catches the blob and the run ends after the short catch animation",
       "restart from the result card and try to beat the previous escape distance",
       "The canonical end state is caught, not a score-triggered winning escape; a runner can earn points without escaping the authored ending.",
-      "At 20 minutes the story always reaches the authored caught ending; score cannot produce a fabricated escape victory."
+      "At 20 minutes the story always reaches the authored caught ending; score cannot produce a fabricated escape victory.",
+      "Two authored syringe hazards drop vertically down discrete lanes, respawning in seeded lane centers when missed, rather than tracking the player's position."
     ],
     "fairness": [
       "lane changes are deterministic and respond to one tap without requiring a precision drag",
@@ -48,7 +49,8 @@
       "courage stars are optional risk/reward and must not be required to survive",
       "speed progression is capped and must preserve a readable reaction window",
       "the caught sequence is brief, non-graphic and the result state is clear",
-      "Victory cannot be awarded from stars or timer score; the gap is clamped to 250, damage is cooldown-limited, and a visible caught ending is required."
+      "Victory cannot be awarded from stars or timer score; the gap is clamped to 250, damage is cooldown-limited, and a visible caught ending is required.",
+      "At most two syringe hazards are active across three lanes; collision sensors must pass through and recycle so camping/homing cannot cause a softlock."
     ],
     "audience": "family; humorous cartoon chase",
     "generated": {
@@ -76,6 +78,7 @@
     "Evaluate whether obstacles, stars, and the chaser create meaningful risk/reward rather than unavoidable hits.",
     "Inspect changing locations, speed escalation, feedback, and replay affordance.",
     "Verify initial gap 220, clean regeneration +6/s capped 250, collision -45, star +12, and loss at <=55; inspect restart screenshots.",
-    "Use screenshots to confirm the chaser visibly trails the runner by the same authoritative gap shown in the HUD; verify the caught result and Play Again using controlled collider fixture."
+    "Use screenshots to confirm the chaser visibly trails the runner by the same authoritative gap shown in the HUD; verify the caught result and Play Again using controlled collider fixture.",
+    "Use iPhone/iPad Chromium and WebKit screenshots of live falling and recycling syringes, not just the controlled caught/restart fixture, to prove an actual avoidable hazard loop."
   ]
 }

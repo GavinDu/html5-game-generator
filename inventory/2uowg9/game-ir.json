@@ -243,6 +243,33 @@
       ]
     },
     {
+      "id": "syringe02-hit",
+      "when": {
+        "event": "collision",
+        "source": "player",
+        "target": "syringe02"
+      },
+      "actions": [
+        {
+          "type": "add_variable",
+          "variable": "chaser_gap",
+          "value": -45
+        },
+        {
+          "type": "camera_shake",
+          "value": 8
+        },
+        {
+          "type": "show_text",
+          "value": "Ouch! The syringe nicked you."
+        },
+        {
+          "type": "play_sound",
+          "assetId": "boing"
+        }
+      ]
+    },
+    {
       "id": "germ-hit",
       "when": {
         "event": "collision",
@@ -650,8 +677,8 @@
           "kind": "obstacle",
           "assetId": "syringe",
           "position": [
-            110,
-            240
+            97.5,
+            140
           ],
           "size": [
             46,
@@ -661,12 +688,8 @@
             "collider",
             "physics_body"
           ],
-          "behavior": {
-            "type": "chase",
-            "speed": 62
-          },
           "physics": {
-            "body": "kinematic_velocity",
+            "body": "dynamic",
             "shape": "capsule",
             "ccd": true,
             "collisionGroups": {
@@ -676,7 +699,61 @@
               "filter": [
                 0
               ]
-            }
+            },
+            "sensor": true,
+            "gravityScale": 0,
+            "density": 1,
+            "restitution": 0,
+            "initialVelocity": [
+              0,
+              115
+            ]
+          },
+          "properties": {
+            "recycle": true,
+            "laneHazard": true
+          }
+        },
+        {
+          "id": "syringe02",
+          "kind": "obstacle",
+          "assetId": "syringe",
+          "position": [
+            292.5,
+            -220
+          ],
+          "size": [
+            46,
+            80
+          ],
+          "components": [
+            "collider",
+            "physics_body"
+          ],
+          "physics": {
+            "body": "dynamic",
+            "shape": "capsule",
+            "ccd": true,
+            "collisionGroups": {
+              "memberships": [
+                2
+              ],
+              "filter": [
+                0
+              ]
+            },
+            "sensor": true,
+            "gravityScale": 0,
+            "density": 1,
+            "restitution": 0,
+            "initialVelocity": [
+              0,
+              105
+            ]
+          },
+          "properties": {
+            "recycle": true,
+            "laneHazard": true
           }
         },
         {
