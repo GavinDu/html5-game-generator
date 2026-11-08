@@ -58,8 +58,9 @@ try {
       // Two readable falling syringe hazards, never a three-lane wall.
       const syringes = initial.entities.filter(e => /^syringe(?:02)?$/.test(e.def));
       assert.equal(syringes.length, 2, 'two physical falling syringes must be in the game');
-      assert.deepEqual(syringes.map(e => e.x).sort((a, b) => a - b), [97.5, 292.5],
-        'authored hazard lanes must start distinct, leaving middle safe');
+      const startingLanes = syringes.map(e => e.x).sort((a, b) => a - b);
+      assert.ok(startingLanes.every((x, i) => Math.abs(x - [97.5, 292.5][i]) < 0.01),
+        'authored hazard lanes must start distinct within physics float precision, leaving middle safe');
       const firstChaser = initial.entities.find(e => e.def === 'chaser');
       assert.ok(firstChaser, 'the authored chaser must exist');
       assert.ok(Math.abs(firstChaser.y - startY - initial.variables.chaser_gap) < 2,
