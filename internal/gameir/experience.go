@@ -301,12 +301,12 @@ func validateExperienceOutcomes(d *Document) error {
 					continue
 				}
 				threshold, numeric := asNumber(condition.Value)
-				if numeric && threshold >= float64(exp.Objective.Target) {
+				if numeric && threshold == float64(exp.Objective.Target) {
 					match = true
 				}
 			}
 			if !match {
-				return fmt.Errorf("rule %q wins before the %d-count objective %q is satisfied", rule.ID, exp.Objective.Target, progressVariable)
+				return fmt.Errorf("rule %q winning threshold must match the %d-count objective %q", rule.ID, exp.Objective.Target, progressVariable)
 			}
 			hasObjectiveWin = true
 		}

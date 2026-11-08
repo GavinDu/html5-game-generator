@@ -52,8 +52,30 @@ func TestCollectObjectiveRequiresItsCounterRatherThanBonusScoreForWin(t *testing
 	t.Run("wrong progress threshold", func(t *testing.T) {
 		doc := validProgressObjectiveDoc(t)
 		doc.Rules[len(doc.Rules)-1].Conditions[0].Value = float64(6)
-		if err := Validate(doc); err == nil || !strings.Contains(err.Error(), "wins before") {
+		if err := Validate(doc); err == nil || !strings.Contains(err.Error(), "winning threshold must match") {
 			t.Fatalf("early win must be rejected, got %v", err)
+		}
+	})
+	t.Run("gte wins precisely at target", func(t *testing.T) {
+		doc := validProgressObjectiveDoc(t)
+		doc.Rules[len(doc.Rules)-1].Conditions[0].Operator = "gte"
+		if err := Validate(doc); err != nil {
+			t.Fatalf("gte at the declared target should be valid: %v", err)
+		}
+	})
+	t.Run("late equality leaves the authored goal unfinished", func(t *testing.T) {
+		doc := validProgressObjectiveDoc(t)
+		doc.Rules[len(doc.Rules)-1].Conditions[0].Value = float64(13)
+		if err := Validate(doc); err == nil || !strings.Contains(err.Error(), "winning threshold must match") {
+			t.Fatalf("late equality must not quietly change a 12-heart goal to 13: %v", err)
+		}
+	})
+	t.Run("late greater-than-or-equal delays victory past target", func(t *testing.T) {
+		doc := validProgressObjectiveDoc(t)
+		doc.Rules[len(doc.Rules)-1].Conditions[0].Operator = "gte"
+		doc.Rules[len(doc.Rules)-1].Conditions[0].Value = float64(24)
+		if err := Validate(doc); err == nil || !strings.Contains(err.Error(), "winning threshold must match") {
+			t.Fatalf("a gate at 24 must not be accepted for the 12-heart goal: %v", err)
 		}
 	})
 	t.Run("no counter increment", func(t *testing.T) {
