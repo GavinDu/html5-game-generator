@@ -13,3 +13,28 @@ Verification includes poster content/hash/version tests and the real feed/previe
 Bobo’s poster is refreshed after its catcher-control repair, using the local Chromium gameplay screenshot and observed-completion report recorded in its fixture metadata. The original three other screenshots retain their CI provenance.
 
 Bobo's 2026-11-08 end-game jingle ordering change alters the canonical IR. The previously reviewed mid-play Bobo poster is deliberately **not** rebound to a new IR hash without a fresh rendered screenshot review. Until a new version-bound screenshot/clip is approved, the feed may show the explicitly labeled **Preview unavailable — Tap Play now to explore** fallback; the game remains playable. This does not relax the independent poster-hash validation test or publish a fabricated frame.
+
+## Replacing invalidated posters (2026-11-08)
+
+A screenshot from an earlier version MUST NOT be re-labeled as current gameplay after
+an IR edit. The Chromium game-quality job now runs
+`tools/playtest/prepare-preview-fixtures.mjs` against four *real, passed*
+game-specific screenshot sequences: Penguin's aurora at six hearts, Ribbon
+after an independently repaired sky hole, Escape with a real falling lane
+hazard, and Bobo after a real short tap. The job uploads the
+`gameplay-preview-candidates` GitHub Actions artifact with:
+
+- A readable `proof.png` for visual review; it is not a source photograph.
+- A `preview-poster.png.b64` containing the exact PNG bytes from that CI run.
+- A `preview-fixture.json` binding the PNG SHA-256, canonical
+  `game-ir.json` SHA-256, version, source screenshot and workflow run.
+- An `index.json` explicitly marked `AWAITING_SCREENSHOT_REVIEW`.
+
+After reviewing each screenshot against the source questionnaire, artwork and
+gameplay, **GPT must create a normal PR using the GitHub connector** to copy the
+approved candidate into its inventory folder, and GitHub Actions must verify
+hash/version, game rules and screenshot-backed playability before merging.
+Never auto-commit generated images from Actions. A pending or failed preview
+does not imply a published clip; genuine video capture and replay verification
+remain tracked in #100. If a screenshot does not honestly depict the current
+IR, reject it and keep the fallback rather than inventing media.
