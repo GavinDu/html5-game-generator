@@ -186,6 +186,38 @@
     border: 0;
     pointer-events: none;
   }
+  /* Source-game titles are often longer than a feed card's label.
+     The old nowrap+ellipsis header hid "Escape from the Injection"
+     and "Ribbon Mends the ..." in verified 390px screenshots. Wrap up
+     to two short lines while keeping the live HUD score readable.
+     This affects the dedicated play surface only, not the card feed. */
+  body.dq-play header {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  body.dq-play header .title {
+    min-width: 0;
+    flex: 1 1 0;
+    font-size: clamp(12px, 3.7vw, 17px);
+    line-height: 1.16;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    max-height: 2.32em;
+  }
+  body.dq-play header .score {
+    flex: 0 1 auto;
+    max-width: 54%;
+    min-width: 0;
+    font-size: clamp(12px, 3.1vw, 15px);
+    line-height: 1.18;
+    white-space: normal;
+    overflow-wrap: normal;
+    text-align: right;
+  }
   /* The native game route must not retain the browser-feed controls
      in document flow. Their wide account form caused horizontal overflow
      even though the game canvas itself fit correctly. */
