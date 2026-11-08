@@ -296,7 +296,9 @@ func (r *Runner) runRemaining(jobID string) {
 		}
 		return nil
 	})
-	if r.stopOnStageFailure(job) { return }
+	if r.stopOnStageFailure(job) {
+		return
+	}
 
 	// CODEGEN: produce the canonical declarative Game IR. The GameShim output
 	// is retained only as a temporary HTML5 test oracle during migration.
@@ -326,7 +328,9 @@ func (r *Runner) runRemaining(jobID string) {
 		r.store.PutArtifact(job.GameID, "game.js", []byte(gameJS), "application/javascript")
 		return nil
 	})
-	if r.stopOnStageFailure(job) { return }
+	if r.stopOnStageFailure(job) {
+		return
+	}
 
 	// VALIDATE: semantic Game IR validation is authoritative; the legacy
 	// static check only keeps the temporary HTML5 oracle safe during migration.
@@ -348,7 +352,9 @@ func (r *Runner) runRemaining(jobID string) {
 		// Quality comes from the playtest scorecard or stays absent.
 		return nil
 	})
-	if r.stopOnStageFailure(job) { return }
+	if r.stopOnStageFailure(job) {
+		return
+	}
 
 	// PUBLISH: assemble the versioned bundle manifest.
 	r.runStage(job, model.StagePublish, func() error {
@@ -402,7 +408,9 @@ func (r *Runner) runRemaining(jobID string) {
 		return nil
 	})
 
-	if r.stopOnStageFailure(job) { return }
+	if r.stopOnStageFailure(job) {
+		return
+	}
 	job.Status = model.JobDone
 	job.UpdatedAt = time.Now()
 	r.store.UpdateJob(job)
