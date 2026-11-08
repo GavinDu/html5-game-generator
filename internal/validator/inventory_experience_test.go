@@ -699,21 +699,29 @@ func TestEscapeFallingSyringesPreserveAnOpenLane(t *testing.T) {
 
 func TestBoboWinJinglePrecedesTerminal(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "inventory", "13ui1k", "game-ir.json"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	var doc struct {
 		Rules []struct {
-			ID string `json:"id"`
+			ID      string `json:"id"`
 			Actions []struct {
-				Type string `json:"type"`
+				Type    string `json:"type"`
 				AssetID string `json:"assetId"`
-				Value any `json:"value"`
+				Value   any    `json:"value"`
 			} `json:"actions"`
 		} `json:"rules"`
 	}
-	if err := json.Unmarshal(raw, &doc); err != nil { t.Fatal(err) }
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
 	for _, rule := range doc.Rules {
-		if rule.ID != "rainbow-complete" { continue }
-		if len(rule.Actions) < 3 { t.Fatal("Bobo final win rule lost presentation actions") }
+		if rule.ID != "rainbow-complete" {
+			continue
+		}
+		if len(rule.Actions) < 3 {
+			t.Fatal("Bobo final win rule lost presentation actions")
+		}
 		end := rule.Actions[len(rule.Actions)-1]
 		jingle := rule.Actions[len(rule.Actions)-2]
 		if end.Type != "end_game" || end.Value != true {
