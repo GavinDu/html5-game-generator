@@ -39,7 +39,7 @@ func TestEveryShippedGameSupportsTwoGenerationsOfCanonicalRemixes(t *testing.T) 
 			for generation := 1; generation <= 2; generation++ {
 				created := do(t, srv, http.MethodPost, "/v1/games", map[string]any{
 					"parent_game_id": current.ID,
-					"intent": "Remix the authored story without replacing its mechanics",
+					"intent":         "Remix the authored story without replacing its mechanics",
 				}, "remix-matrix-author")
 				if created.Code != http.StatusAccepted {
 					t.Fatalf("generation %d create status %d: %s", generation, created.Code, created.Body.String())
