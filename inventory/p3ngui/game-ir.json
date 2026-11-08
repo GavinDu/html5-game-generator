@@ -893,6 +893,12 @@
             },
             "activeEvents": true
           },
+          "render": {
+            "scale": [
+              1.5,
+              1.5
+            ]
+          },
           "zIndex": 10
         },
         {

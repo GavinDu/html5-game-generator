@@ -21,9 +21,9 @@ for (var b = 0; b < 6; b++) {
 }
 
 var penguins = [
-  Shim.sprite('penguin_rainbow', { x: 195, y: 724, w: 112, h: 134 }),
-  Shim.sprite('penguin_holiday', { x: 195, y: 724, w: 112, h: 134, visible: false }),
-  Shim.sprite('penguin_classic', { x: 195, y: 724, w: 112, h: 134, visible: false })
+  Shim.sprite('penguin_rainbow', { x: 195, y: 724, w: 168, h: 201 }),
+  Shim.sprite('penguin_holiday', { x: 195, y: 724, w: 168, h: 201, visible: false }),
+  Shim.sprite('penguin_classic', { x: 195, y: 724, w: 168, h: 201, visible: false })
 ];
 
 Shim.audio.music('audio/theme.wav', { loop: true, volume: 0.42 });

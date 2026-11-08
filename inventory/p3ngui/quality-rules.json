@@ -72,6 +72,7 @@
     "Verify that every pair of catches reveals a new aurora band and updates the progress counter.",
     "Verify that missing hearts never causes a softlock and that new hearts continue spawning.",
     "Check tap responsiveness, forgiving collision radius, HUD overlap and readable result messaging on phone and tablet.",
+    "Screenshot acceptance: the penguin and scarf should remain legible without zoom on phone and tablet. Use a 1.5x visual-only IR render scale while retaining the authored 112 by 134 collider and horizontal control lane so avatar polish does not silently alter collision fairness.",
     "Verify the tap-to-guide hint is visible beneath the objective on phone and tablet.",
     "Use the three supplied penguin coloring-page images as visual reference inputs: preserve the shared round black-and-white penguin silhouette, large eyes, small beak, rosy cheeks, flippers, feet, and scarf across all variants.",
     "Keep the three source-inspired variants distinguishable: rainbow patchwork scarf/body accents; festive multicolor head and scarf with cool-toned flippers; and classic black-and-white penguin with a blue striped scarf and warm orange feet.",
