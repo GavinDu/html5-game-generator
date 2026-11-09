@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { preferredViewport, supportsViewport } from './game-orientation.mjs';
 import { validateRecordedRun } from './preview-run-contract.mjs';
+import { previewCaptureStep, MAX_CAPTURE_START_MS } from './capture-window.mjs';
 
 function arg(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -25,6 +26,10 @@ const browserName = arg('browser', 'chromium');
 const durationMs = Math.max(1, Number(arg('duration-ms', '6000')));
 const fps = Math.max(1, Math.min(30, Number(arg('fps', '12'))));
 const startDelayMs = Math.max(0, Number(arg('start-delay-ms', '0')));
+// Simulated replay time to skip before recording; unlike start-delay-ms,
+// this advances gameplay, not the wall clock. Defaults to the original step zero.
+const captureStartMs = Number(arg('capture-start-ms', '0'));
+
 // Match the game's native aspect ratio (portrait, landscape, or tablet) instead
 // of silently cropping every preview into a phone-portrait viewport.
 let width = Number(arg('width', '420'));
@@ -40,9 +45,10 @@ if (!['chromium', 'webkit'].includes(browserName)) {
 }
 
 if (!Number.isFinite(durationMs) || !Number.isFinite(fps) || !Number.isFinite(startDelayMs) ||
+    !Number.isSafeInteger(captureStartMs) || captureStartMs < 0 || captureStartMs > MAX_CAPTURE_START_MS ||
     !Number.isInteger(width) || !Number.isInteger(height) ||
     width < 240 || height < 240 || width > 4096 || height > 4096) {
-  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite; width and height must be integers from 240 to 4096');
+  console.error('render-preview.mjs: duration-ms, fps, and start-delay-ms must be finite; capture-start-ms must be an integer in [0,30000]; width and height must be integers from 240 to 4096');
   process.exit(2);
 }
 
@@ -51,6 +57,7 @@ mkdirSync(frameDir, { recursive: true });
 mkdirSync(dirname(out), { recursive: true });
 mkdirSync(dirname(poster), { recursive: true });
 const frameCount = Math.max(1, Math.ceil(durationMs * fps / 1000));
+const captureStartStep = previewCaptureStep(0, fps, captureStartMs);
 let browser;
 let usedFallback = false;
 let posterReady = false;
@@ -101,10 +108,11 @@ try {
   // requests a target. Each screenshot is taken only after the exact fixed
   // simulation step is reached, so OS scheduling and browser wall-clock jitter
   // cannot change which game state appears in a frame.
-  const stepsPerSecond = 60;
+  // The first frame may start after the intro. Every subsequent frame must
+  // still match the replay's exact fixed simulation step.
   for (let index = 0; index < frameCount; index += 1) {
-    const targetStep = Math.round(index * stepsPerSecond / fps);
-    if (index > 0) {
+    const targetStep = previewCaptureStep(index, fps, captureStartMs);
+    if (targetStep > 0) {
       const accepted = await page.evaluate((step) => window.__dqTest.advanceToStep(step), targetStep);
       if (!accepted) throw new Error(`deterministic capture rejected simulation step ${targetStep}`);
       await page.waitForFunction((step) => {
@@ -148,6 +156,8 @@ try {
     game,
     run,
     duration_ms: durationMs,
+    capture_start_ms: captureStartMs,
+    capture_start_step: captureStartStep,
     frames: framesCaptured,
     frame_sha256: frameHashes,
     fps,
@@ -171,7 +181,8 @@ try {
     usedFallback = true;
     rmSync(out, { force: true });
     const result = {
-      game, run, duration_ms: durationMs, frames: framesCaptured, frame_sha256: frameHashes, fps,
+      game, run, duration_ms: durationMs, capture_start_ms: captureStartMs,
+      capture_start_step: captureStartStep, frames: framesCaptured, frame_sha256: frameHashes, fps,
       width, height, aspect: Number((width / height).toFixed(6)),
       orientation: width === height ? 'square' : width > height ? 'landscape' : 'portrait',
       browser: browserName, clip: null, clip_bytes: 0, poster,
