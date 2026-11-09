@@ -69,3 +69,23 @@ player, ranked by level then score).
 ## Fair falling-syringe revision — 2026-11-08
 
 The two syringe hazards fall down fixed lanes instead of homing into the hero. Their initial drops are staggered and each miss recycles to one of three deterministic, seeded lane centers. At most two syringe lanes can be occupied together, so a third remains open. A clear path and quick one-lane taps now matter more than luck; collisions still cost 45 lead with the authored cooldown. Speed grows only on respawn and uses the capped 3.2× session ramp. The chaser remains a visual representation of the authoritative gap; the 20-minute caught ceiling remains intact. The browser quality suite records before/falling/recycled/caught/restarted screenshots on both phone and tablet layouts.
+
+## v2 pacing and versioned replay correction — 2026-11-09
+
+The original narrative promises a skilled 15–20-minute chase and an
+inevitable **caught** ending at 20 minutes. The canonical Game IR incorrectly
+used a 600-second session target while its caught-ending rule explicitly waited
+1200 seconds. It also normalized the 40-second difficulty ramp over 600
+seconds, making pacing metadata and the authored ceiling disagree.
+
+Version 2 sets both game and experience session targets to **1200 seconds**.
+The existing 40-second speed steps still occur at their intended absolute
+times (40, 80, ... 600 seconds), and the cap stays at 3.2x. The chaser gap
+resource, one-lane tapping, syringe dodge loop, and caught-only ending are
+unchanged. A depleted gap may still end a run earlier than the ceiling; the
+full-duration playability of a skilled player **is not yet demonstrated** by
+the seeded idle-run or collision-fixture CI tests.
+
+The IR changed, so the shipped version is incremented to 2. Old poster
+fixtures are deliberately not silently rebound to this new gameplay version:
+a fresh version-bound screenshot review is required before promoting a poster.
