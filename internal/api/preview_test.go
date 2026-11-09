@@ -180,10 +180,10 @@ func TestFailedPreviewNeverServesStaleRecordedClipURL(t *testing.T) {
 func TestIncompleteReadyPreviewCannotServeDirectAssets(t *testing.T) {
 	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
 	cases := []struct {
-		name         string
-		duration     int
-		withPoster   bool
-		withClip     bool
+		name       string
+		duration   int
+		withPoster bool
+		withClip   bool
 	}{
 		{"missing-duration", 0, true, true},
 		{"oversized-duration", 10001, true, true},
