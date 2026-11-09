@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PNG } from 'pngjs';
-import { validatePenguinIntroEvidence } from './preview-evidence.mjs';
+import { validatePenguinIntroEvidence, validateBoboMidplayEvidence } from './preview-evidence.mjs';
 
 const option = (key, fallback) => {
   const at = process.argv.indexOf('--' + key);
@@ -28,8 +28,8 @@ const cases = [
     screenshot: 'escape-quality-chromium/iphone-portrait/falling-syringe-lane.png',
     story: 'Actual falling syringe in the three-lane chase (not a natural ending)' },
   { dir: '13ui1k', report: 'bobo-controls-chromium/report.json',
-    screenshot: 'bobo-controls-chromium/before-short-tap.png',
-    story: 'Centered source-drawing bear at live gameplay start; movement verified in the same run (not an observed completion)' },
+    screenshot: 'bobo-controls-chromium/midplay-restored-rainbow.png',
+    story: 'Actual 4+ heart gameplay with two restored rainbow bands and centered source crayon art (not a completed game)' },
 ];
 
 mkdirSync(out, { recursive: true });
@@ -60,15 +60,11 @@ for (const item of cases) {
     validatePenguinIntroEvidence(phone);
   }
   if (item.dir === '13ui1k') {
-    // The former after-tap poster captured Bobo at the extreme right
-    // boundary, clipping most of the original crayon bear. Screenshots
-    // reviewed alongside the source art show the before-tap gameplay
-    // frame is centered while the same report still proves real tapping.
-    assert.ok(Number.isFinite(report.before?.x) &&
-      report.before.x >= png.width * 0.25 &&
-      report.before.x <= png.width * 0.75 &&
-      report.after?.x > report.before.x + 40,
-    'Bobo poster must show a centered hero in a verified real-tap playtest');
+    // The untouched 0/12-heart start has a mostly empty sky and little
+    // rainbow. Require a real progress capture instead. The Bobo controls
+    // evaluator proves live touchscreen catches, the first two restored
+    // bands, and an uncropped centered original crayon character.
+    validateBoboMidplayEvidence(report);
   }
   // A solid-color/blank capture is NOT convincing gameplay evidence.
   const colors = new Set();
@@ -97,6 +93,15 @@ for (const item of cases) {
         screenshot_session: phone.introEvidence.session,
         screenshot_simulated_seconds: phone.introEvidence.runtimeSeconds,
         screenshot_objective_progress: phone.introEvidence.objectiveProgress,
+      };
+    })() : {}),
+    ...(item.dir === '13ui1k' ? (() => {
+      const observed = validateBoboMidplayEvidence(report);
+      return {
+        screenshot_input_method: 'real-touch',
+        screenshot_objective_progress: observed.progress,
+        screenshot_score: observed.score,
+        centered_original_art: true,
       };
     })() : {}),
     note: item.story + '. Candidate only: requires screenshot review before publishing.',
