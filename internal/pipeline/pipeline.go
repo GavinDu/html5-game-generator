@@ -303,6 +303,15 @@ func (r *Runner) runRemaining(jobID string) {
 			r.store.PutArtifact(job.GameID, "sprites/"+spriteID+".png",
 				media.SpritePNG(el.Label), "image/png")
 		}
+		// A creator can confirm a questionnaire with no extracted elements.
+		// CODEGEN supplies a fallback player asset reference in that case;
+		// ART must emit its real PNG bytes before the package is published.
+		if len(doc.Elements) == 0 {
+			if game, ok := r.store.GetGame(job.GameID); ok && game.ParentGameID == "" {
+				r.store.PutArtifact(job.GameID, "sprites/el_1.png",
+					media.SpritePNG("friendly player"), "image/png")
+			}
+		}
 		r.store.PutArtifact(job.GameID, "sprites/star.png", media.StarPNG(), "image/png")
 		if game, ok := r.store.GetGame(job.GameID); !ok || game.ParentGameID == "" {
 			r.store.PutArtifact(job.GameID, "audio/theme.wav", media.MusicWAV(doc.MusicMood), "audio/wav")
@@ -403,6 +412,14 @@ func (r *Runner) runRemaining(jobID string) {
 					Src:    "sprites/" + spriteID + ".png",
 					Source: "kid-drawing",
 					Label:  el.Label,
+				})
+			}
+			// Mirror CODEGEN's fallback asset in the bundle manifest so the
+			// player's image URI resolves even when the confirmed source
+			// questionnaire contained no identified elements.
+			if len(doc.Elements) == 0 {
+				m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
+					ID: "player", Src: "sprites/el_1.png", Source: "generated", Label: "friendly player",
 				})
 			}
 			m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
