@@ -27,8 +27,8 @@ const cases = [
     screenshot: 'escape-quality-chromium/iphone-portrait/falling-syringe-lane.png',
     story: 'Actual falling syringe in the three-lane chase (not a natural ending)' },
   { dir: '13ui1k', report: 'bobo-controls-chromium/report.json',
-    screenshot: 'bobo-controls-chromium/after-short-tap.png',
-    story: 'Real touchscreen-controlled movement (not an observed completion)' },
+    screenshot: 'bobo-controls-chromium/before-short-tap.png',
+    story: 'Centered source-drawing bear at live gameplay start; movement verified in the same run (not an observed completion)' },
 ];
 
 mkdirSync(out, { recursive: true });
@@ -47,6 +47,17 @@ for (const item of cases) {
   const png = PNG.sync.read(poster);
   assert.ok(png.width >= 240 && png.height >= 240 && png.width <= 4096 && png.height <= 4096,
     item.dir + ': preview image dimensions are out of bounds');
+  if (item.dir === '13ui1k') {
+    // The former after-tap poster captured Bobo at the extreme right
+    // boundary, clipping most of the original crayon bear. Screenshots
+    // reviewed alongside the source art show the before-tap gameplay
+    // frame is centered while the same report still proves real tapping.
+    assert.ok(Number.isFinite(report.before?.x) &&
+      report.before.x >= png.width * 0.25 &&
+      report.before.x <= png.width * 0.75 &&
+      report.after?.x > report.before.x + 40,
+    'Bobo poster must show a centered hero in a verified real-tap playtest');
+  }
   // A solid-color/blank capture is NOT convincing gameplay evidence.
   const colors = new Set();
   const stride = Math.max(1, Math.floor(png.width * png.height / 4096));
