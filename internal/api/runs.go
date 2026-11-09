@@ -459,18 +459,35 @@ func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GET /v1/runs/{id} — the full run, trace included (the replay fetch).
+// GET /v1/runs/{id} — a full input trace is sensitive gameplay data.
+// Authorize it using the SAME game-delivery policy as the package before
+// returning the seed/input history. Never let intermediaries cache traces.
 func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Vary", "Authorization, X-User-ID")
 	rid := r.PathValue("id")
+	var found *RunRecord
 	s.runsMu.Lock()
-	defer s.runsMu.Unlock()
 	for _, rec := range s.runs {
 		if rec.ID == rid {
-			writeJSON(w, http.StatusOK, rec)
-			return
+			copy := rec
+			found = &copy
+			break
 		}
 	}
-	writeErr(w, http.StatusNotFound, "run not found")
+	s.runsMu.Unlock()
+	if found == nil {
+		writeErr(w, http.StatusNotFound, "run not found")
+		return
+	}
+	game, ok := s.store.GetGame(found.GameID)
+	if !ok || !s.canDeliver(game, userID(r)) {
+		// Do not reveal the existence of a private, moderated, removed or
+		// blocked creator's recording to an unauthorized viewer.
+		writeErr(w, http.StatusNotFound, "run not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, found)
 }
 
 // POST /v1/runs/{id}/verification — a replay's verdict. First
