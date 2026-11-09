@@ -45,3 +45,19 @@ essential for landscape and tablet games and prevents a false "preview
 cannot render" signal from a portrait-only test harness. A successful
 hash match is still only a technical repeatability result, not proof that
 the clip represents an approved playtest or is ready for distribution.
+
+## Gameplay-first capture windows (2026-11-09)
+
+A six-second clip beginning at simulation step zero can be dominated by an introductory story panel, even if a later gameplay screenshot is an acceptable poster. The renderer now accepts `--capture-start-ms N` (integer, 0–30,000; default 0) to begin the **recorded replay's deterministic 60 Hz simulation** at the reviewed offset. It does not modify the underlying Game IR, alter the recording, or trust a wall-clock sleep as a gameplay clock.
+
+For a reviewed story intro that genuinely clears at seven simulated seconds, use:
+
+```sh
+node tools/playtest/render-preview.mjs --base http://localhost:8080 \\
+  --game GAME_ID --run RECORDED_RUN_ID --capture-start-ms 7000 \\
+  --out /tmp/gameplay.mp4 --poster /tmp/gameplay.png
+node tools/playtest/verify-preview-determinism.mjs --base http://localhost:8080 \\
+  --game GAME_ID --run RECORDED_RUN_ID --capture-start-ms 7000
+```
+
+The output includes `capture_start_ms` and the actual `capture_start_step` alongside ordered frame hashes. A failed replay, inaccessible game, or unreachable requested simulation step must fail rather than fabricate footage. Choosing a capture offset is **not** automatic authorization to publish: the candidate still requires inspection of actual screenshot frames, game-version/IR-hash matching, source rights, playtest completion where required, safety review, and independent delivery verification. An offset that skips a legitimate outcome can still be an unhelpful or misleading clip and must be rejected in review.
