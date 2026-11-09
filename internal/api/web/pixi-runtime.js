@@ -2509,15 +2509,22 @@ async function run(id) {
           Math.floor((state.elapsed - dt) / 40) !== Math.floor(state.elapsed / 40)) updateHUD();
     }
 
-    // Timer rules.
+    // Timer rules: emit each due interval only once per simulation step.
+    // A shared interval can drive multiple conditional rules (e.g. Escape's
+    // 40s route stages). Emitting once per rule replays every matching
+    // effect N times when N rules subscribe to the same interval.
+    const emittedIntervals = new Set();
     for (const rule of ir.rules) {
       if (rule.when?.event !== 'timer_elapsed') continue;
       const interval = Number(rule.when.value) || 1;
       const t = (state.timers.get(rule.id) || 0) + dt;
       if (t >= interval) {
         state.timers.set(rule.id, 0);
-        emit('timer_elapsed', undefined, undefined, interval);
-        if (state.ended) return;
+        if (!emittedIntervals.has(interval)) {
+          emittedIntervals.add(interval);
+          emit('timer_elapsed', undefined, undefined, interval);
+          if (state.ended) return;
+        }
       } else {
         state.timers.set(rule.id, t);
       }
