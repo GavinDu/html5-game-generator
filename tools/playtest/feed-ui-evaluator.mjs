@@ -30,7 +30,18 @@ try {
           const r = el.getBoundingClientRect();
           return { name: el.getAttribute('aria-label') || el.textContent, x: r.x, y: r.y, width: r.width, height: r.height };
         });
-        return { feedHeight: a.height, cardHeight: b.height, viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.body.scrollWidth, targets };
+        const actionRail = card.querySelector('.social-actions')?.getBoundingClientRect();
+        const playLink = card.querySelector('a.play-link')?.getBoundingClientRect();
+        const overlaps = (x, y) => x && y && x.left < y.right && x.right > y.left && x.top < y.bottom && x.bottom > y.top;
+        return {
+          feedHeight: a.height, cardHeight: b.height,
+          viewport: { width: innerWidth, height: innerHeight },
+          scrollWidth: document.body.scrollWidth, targets,
+          rightRail: actionRail ? { left: actionRail.left, right: actionRail.right, top: actionRail.top, bottom: actionRail.bottom } : null,
+          railRightOfCenter: !!actionRail && actionRail.left > b.left + b.width / 2,
+          railInsideCard: !!actionRail && actionRail.right <= b.right + 1 && actionRail.top >= b.top - 1,
+          railDoesNotCoverPlay: !!actionRail && !!playLink && !overlaps(actionRail, playLink),
+        };
       });
       // A card must show either real, successfully loaded gameplay artwork
       // or an explicit no-preview placeholder. An empty gradient is failure.
@@ -87,6 +98,7 @@ try {
         onePostPerViewport: Math.abs(metrics.feedHeight - metrics.cardHeight) <= 2,
         noHorizontalOverflow: metrics.scrollWidth <= width + 1,
         touchTargets: metrics.targets.length >= 4 && metrics.targets.every(t => t.width >= 44 && t.height >= 44 && t.x >= 0 && t.x + t.width <= width + 1 && t.y >= 0 && t.y + t.height <= height + 1),
+        socialActionRail: metrics.railRightOfCenter && metrics.railInsideCard && metrics.railDoesNotCoverPlay,
         pagingAdvances: !!afterID && firstID !== afterID,
         screenshotChanged: changedPixelRatio > 0.005,
         noErrors: errors.length === 0,
