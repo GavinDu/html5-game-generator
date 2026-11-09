@@ -19,9 +19,9 @@ func TestCapTitlePreservesUTF8WhenByteBudgetEndsInsideChineseCharacter(t *testin
 
 func TestCapTitleEmojiAndInvalidBytes(t *testing.T) {
 	for _, tc := range []struct {
-		input string
+		input  string
 		budget int
-		want string
+		want   string
 	}{
 		{input: "🎮", budget: 3, want: ""},
 		{input: "🎮", budget: 4, want: "🎮"},
