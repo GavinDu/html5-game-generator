@@ -78,6 +78,7 @@
     "Verify the six rainbow bands reveal only after 2, 4, 6, 8, 10, and 12 regular hearts; the game wins only at 12 regular hearts, regardless of golden-heart bonus score.",
     "Verify that one short tap moves Bobo horizontally without a held gesture, and leaves its catcher lane unchanged.",
     "Deliberately miss a blue heart and verify it recycles from the floor despite horizontal sway; a missed pickup must not exhaust the regular-heart supply.",
-    "Check the 12-heart victory plays the authored jingle before the result-card stops the game; no sound or effect may follow end_game in the rule."
+    "Check the 12-heart victory plays the authored jingle before the result-card stops the game; no sound or effect may follow end_game in the rule.",
+    "From real iPhone and iPad after-tap screenshots, verify that the pale `halo-bear` ellipse remains aligned with the moving source crayon bear instead of leaving a phantom circle at spawn x=195. Its `follow` behavior must be visual-only: no collider, damage, change to 92x104 hitbox, heart timing or false game ending."
   ]
 }
