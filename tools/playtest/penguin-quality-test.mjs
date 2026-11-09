@@ -191,10 +191,40 @@ try {
         });
         try {
           await introPage.goto(base + '/player?game=penguin-heartlight-rescue&presentation=play&probe=1');
+          // A hands-off supplemental capture may finish early when falling
+          // hearts land on the starting catcher. Steer with a real touchscreen
+          // tap into the edge lane so the seven-second overlay can clear in
+          // an independently running session, without mocking state or time.
+          await introPage.waitForFunction(() =>
+            window.__dqTest?.snapshot?.()?.t > .1, null, { timeout: 20000 });
+          const introRect = await introPage.locator('#stage canvas').boundingBox();
+          assert.ok(introRect && introRect.width > 100,
+            'supplemental intro capture requires a real rendered stage');
+          await introPage.touchscreen.tap(
+            introRect.x + introRect.width * .03,
+            introRect.y + introRect.height * .7
+          );
           await introPage.waitForFunction(() => {
             const state = window.__dqTest?.snapshot?.();
-            return state && state.t >= 7.2;
-          }, null, { timeout: 20000 });
+            return state && state.player?.x < 110;
+          }, null, { timeout: 4000 });
+          try {
+            await introPage.waitForFunction(() => {
+              const state = window.__dqTest?.snapshot?.();
+              return state && (state.t >= 7.2 || state.ended);
+            }, null, { timeout: 20000 });
+          } catch (error) {
+            // Keep a real screenshot and runtime state when a retry still
+            // fails. Never accept a missing overlay-clear screenshot.
+            await introPage.screenshot({
+              path: dir + '/intro-capture-failed.png'
+            }).catch(() => {});
+            const state = await introPage.evaluate(() =>
+              window.__dqTest?.snapshot?.()).catch(() => null);
+            throw new Error('real supplemental intro capture timed out: ' +
+              JSON.stringify({ runtime: state?.t, ended: state?.ended,
+                progress: state?.objectiveProgress, cause: String(error) }));
+          }
           const activeIntro = await introPage.evaluate(() => window.__dqTest.snapshot());
           assert.equal(activeIntro.ended, false,
             'intro evidence must come from a running game, not its end screen');
