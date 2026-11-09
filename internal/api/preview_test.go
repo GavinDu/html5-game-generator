@@ -153,8 +153,8 @@ func TestFailedPreviewNeverServesStaleRecordedClipURL(t *testing.T) {
 	game.ModerationStatus = "approved"
 	game.Preview = &model.PreviewMetadata{
 		Version: 2, Status: "failed",
-		PosterURL: "/v1/games/stale-clip-game/previews/2/poster.png",
-		ClipURL: "/v1/games/stale-clip-game/previews/2/clip.mp4",
+		PosterURL:  "/v1/games/stale-clip-game/previews/2/poster.png",
+		ClipURL:    "/v1/games/stale-clip-game/previews/2/clip.mp4",
 		DurationMS: 6000,
 	}
 	st.CreateGame(game)
