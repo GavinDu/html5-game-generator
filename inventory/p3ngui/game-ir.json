@@ -1890,9 +1890,7 @@
             360,
             143
           ],
-          "components": [
-            "renderable"
-          ],
+          "components": [],
           "render": {
             "alpha": 0.95,
             "shape": {
