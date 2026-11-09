@@ -34,7 +34,12 @@ try {
       hasTouch: true, deviceScaleFactor: 1,
     });
     const errors = [];
+    const routeRuleLogs = [];
     page.on('pageerror', e => errors.push(String(e)));
+    page.on('console', m => {
+      const line = m.text();
+      if (line.includes("rule 'progress-")) routeRuleLogs.push(line);
+    });
     const out = shots + '/' + profile.name;
     mkdirSync(out, { recursive: true });
     try {
@@ -71,16 +76,48 @@ try {
       assert.ok(tenSeconds.score >= 0 && tenSeconds.won === false);
       await page.screenshot({ path: out + '/ten-seconds-real-gameplay.png' });
 
-      // If hazards caught the idle player in the first ten seconds, that's
-      // a valid NATURAL physical ending; it is NOT an observed full run.
-      if (!tenSeconds.ended) {
-        assert.equal(await page.evaluate(step => window.__dqTest.advanceToStep(step), finalStep),
-          true, 'fixed-step capture must accept the real full-duration target');
-        await page.waitForFunction(target => {
-          const s = window.__dqTest?.snapshot?.();
-          return s?.ended || (s?.capturePaused && s.simStep === target);
-        }, finalStep, { timeout: 120000 });
-      }
+      // The canonical chase must remain alive long enough to show both
+      // 40-second route transitions. This uses unmodified IR and real
+      // Pixi/Rapier fixed steps, not shortened timer fixtures.
+      assert.equal(tenSeconds.ended, false,
+        'unmodified runner must remain alive through the first ten seconds');
+      const advanceAndInspect = async (target) => {
+        assert.equal(await page.evaluate(step => window.__dqTest.advanceToStep(step), target),
+          true, 'fixed-step capture must accept the route milestone');
+        await page.waitForFunction(step => {
+          const snap = window.__dqTest?.snapshot?.();
+          return snap?.ended || (snap?.capturePaused && snap.simStep === step);
+        }, target, { timeout: 45000 });
+        const snap = await page.evaluate(() => window.__dqTest.snapshot());
+        assert.equal(snap.ended, false, 'route milestones must occur before a natural caught ending');
+        return snap;
+      };
+      const firstRoute = await advanceAndInspect(2460); // 41 simulated seconds
+      const firstMid = firstRoute.entities.find(e => e.def === 'hall-mid');
+      const firstFar = firstRoute.entities.find(e => e.def === 'hall-far');
+      assert.ok(firstMid?.alpha > 0.9 && firstFar?.alpha < 0.1,
+        'at 41s only the first authored hallway route should be active');
+      assert.equal(routeRuleLogs.filter(m => m.includes("rule 'progress-40'")).length, 1,
+        'shared 40s timer must fire the first route once, not once per subscribing rule');
+      assert.equal(routeRuleLogs.filter(m => m.includes("rule 'progress-80'")).length, 0);
+      await page.screenshot({ path: out + '/route-after-40s.png' });
+
+      const secondRoute = await advanceAndInspect(4860); // 81 simulated seconds
+      const secondMid = secondRoute.entities.find(e => e.def === 'hall-mid');
+      const secondFar = secondRoute.entities.find(e => e.def === 'hall-far');
+      assert.ok(secondMid?.alpha < 0.1 && secondFar?.alpha > 0.9,
+        'at 81s the second route must replace the first rather than overlay it');
+      assert.equal(routeRuleLogs.filter(m => m.includes("rule 'progress-40'")).length, 1);
+      assert.equal(routeRuleLogs.filter(m => m.includes("rule 'progress-80'")).length, 1,
+        'shared 40s timer must fire the second route exactly once at 80s');
+      await page.screenshot({ path: out + '/route-after-80s.png' });
+
+      assert.equal(await page.evaluate(step => window.__dqTest.advanceToStep(step), finalStep),
+        true, 'fixed-step capture must accept the real full-duration target');
+      await page.waitForFunction(target => {
+        const s = window.__dqTest?.snapshot?.();
+        return s?.ended || (s?.capturePaused && s.simStep === target);
+      }, finalStep, { timeout: 120000 });
       const ending = await page.evaluate(() => window.__dqTest.snapshot());
       assert.equal(ending.ended, true,
         'canonical, unmodified Escape must reach its caught terminal by 20 minutes');
@@ -99,9 +136,12 @@ try {
         endingStep: ending.simStep, endingScore: ending.score,
         endingGap: ending.variables.chaser_gap, won: ending.won,
         naturallyCaught: true, canonicalTimerUnchanged: true,
+        route40FiredExactlyOnce: true, route80FiredExactlyOnce: true,
+        routeScreenshots: ['route-after-40s.png', 'route-after-80s.png'],
         fullDurationReached: ending.t >= 1199,
         provesSkilledFifteenToTwentyMinuteSurvival: false,
-        screenshots: ['ten-seconds-real-gameplay.png', 'natural-caught-result.png'],
+        screenshots: ['ten-seconds-real-gameplay.png', 'route-after-40s.png',
+          'route-after-80s.png', 'natural-caught-result.png'],
       });
     } catch (e) {
       await page.screenshot({ path: out + '/failed.png' }).catch(() => {});
