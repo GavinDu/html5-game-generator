@@ -48,6 +48,30 @@ function paleHaloPixelsAtSpawn(bytes) {
   return n;
 }
 
+// Evaluate ACTUAL decoded gameplay pixels instead of assuming that IR
+// geometry makes a legible arch. Test both left/right halves so a tiny
+// upper-left red arc cannot pass as a completed rainbow composition.
+function rainbowBandCoverage(bytes) {
+  const p = PNG.sync.read(bytes);
+  assert.equal(p.width, 390, 'rainbow screenshot coverage uses logical iPhone pixels');
+  let red = 0, orange = 0, left = 0, right = 0;
+  for (let y = 158; y < Math.min(355, p.height); y++) {
+    for (let x = 20; x < 370; x++) {
+      const i = (y * p.width + x) * 4;
+      const r = p.data[i], g = p.data[i + 1], b = p.data[i + 2];
+      const isRed = r >= 195 && g >= 45 && g <= 110 && b < 115;
+      const isOrange = r >= 195 && g >= 110 && g <= 175 && b < 115 && r > g + 40;
+      if (isRed) red++;
+      if (isOrange) orange++;
+      if (isRed || isOrange) {
+        if (x <= 165) left++;
+        if (x >= 225) right++;
+      }
+    }
+  }
+  return { red, orange, left, right };
+}
+
 const browser = await engine.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -63,6 +87,16 @@ try {
   assert.ok(playerIR, 'canonical Bobo must exist');
   assert.deepEqual(playerIR.size, [92, 104], 'keep authored collision footprint');
   assert.deepEqual(playerIR.render?.scale, [1.28, 1.28], 'increase only visible crayon art scale');
+  // Procedural RainbowBandPNG is already a full 380x230 arc. Rendering
+  // that sprite as a 76x26 segment produced an isolated tiny red fragment
+  // in the actual 4/12-heart screenshot despite correct game progression.
+  // Keep six concentric layers aligned with unchanged milestone semantics.
+  for (let i = 0; i < 6; i++) {
+    const band = pkg.ir.scenes.flatMap(s => s.entities).find(e => e.id === 'band' + i);
+    assert.ok(band, 'rainbow band ' + i + ' missing from canonical IR');
+    assert.deepEqual(band.position, [195, 232], 'rainbow layers must share one arch center');
+    assert.deepEqual(band.size, [380, 230], 'do not compress a full PNG into tiny disconnected segments');
+  }
   const haloIR = pkg.ir.scenes.flatMap(s => s.entities).find(e => e.id === 'halo-bear');
   assert.deepEqual(haloIR?.behavior, { type: 'follow', target: 'player' },
     'the bear ground halo must follow the author\'s real player sprite as visual-only decoration');
@@ -145,7 +179,13 @@ try {
       const shot = await page.screenshot({ path: shots + '/midplay-restored-rainbow.png' });
       assert.ok(brownPixelsAtRightEdge(shot) <= 3,
         'centered Bobo poster must not clip the original source crayon bear');
+      const rainbowCoverage = rainbowBandCoverage(shot);
+      assert.ok(rainbowCoverage.red > 3500 && rainbowCoverage.orange > 3000 &&
+        rainbowCoverage.left > 1200 && rainbowCoverage.right > 1200,
+        'real 4/12 screenshot must show two readable full-width rainbow layers: ' +
+        JSON.stringify(rainbowCoverage));
       midplayEvidence = {
+        rainbowCoverage,
         progress: progress.objectiveProgress,
         score: progress.score,
         playerX: progress.player.x,
