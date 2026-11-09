@@ -46,6 +46,25 @@ try {
       assert.deepEqual(playerDef.size, [112, 134], 'catcher collision footprint must not be inflated');
       assert.deepEqual(playerDef.render?.scale, [1.5, 1.5],
         'hero must be visibly readable at phone/tablet scale without changing physics');
+      // Screenshot-backed readability: hearts pass through the title area while
+      // falling. Protect authored text without moving pickups or changing
+      // collision physics; the panel is rendered above hearts, below labels.
+      const allEntities = pkg.ir.scenes.flatMap(scene => scene.entities);
+      const panel = allEntities.find(entity => entity.id === 'instructions-panel');
+      const title = allEntities.find(entity => entity.id === 'title');
+      const hint = allEntities.find(entity => entity.id === 'controls-hint');
+      const pickups = allEntities.filter(entity => entity.kind === 'pickup');
+      assert.ok(panel && title && hint && pickups.length >= 12,
+        'a visible instruction panel, title, and tap hint must coexist with pickups');
+      assert.equal(panel.kind, 'decoration', 'the instruction panel has no collision behavior');
+      assert.deepEqual(panel.components, [], 'the instruction panel must remain visual-only');
+      assert.equal(panel.render?.shape?.type, 'polygon');
+      assert.ok(panel.render.alpha >= .9 && panel.zIndex > Math.max(...pickups.map(entity => entity.zIndex || 0)),
+        'the panel must visually separate moving hearts from the title');
+      assert.ok(title.zIndex > panel.zIndex && hint.zIndex > panel.zIndex,
+        'title and hint must be legible above the panel in screenshots');
+      assert.equal(pkg.game?.version ?? pkg.version, 3,
+        'a changed visual package must not reuse old version 2 screenshot provenance');
       const first = await snap();
       const variants = new Set([first.entities.find(e => e.id === 'penguin')?.assetId]);
       assert.equal(first.objectiveProgress, 0, 'the 12-heart counter must start at zero');
