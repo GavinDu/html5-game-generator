@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium, webkit } from 'playwright';
 import { PNG } from 'pngjs';
-import { evaluateFeedPreviewReadiness } from './feed-media-readiness.mjs';
+import { evaluateFeedPreviewReadiness, hasCompleteViewportCoverage } from './feed-media-readiness.mjs';
 
 const arg = (key, fallback) => { const i = process.argv.indexOf('--' + key); return i >= 0 ? (process.argv[i + 1] || fallback) : fallback; };
 const base = arg('base', '').replace(/\/$/, '');
@@ -96,6 +96,9 @@ try {
       }
       const changedPixelRatio = changed / (a.width * a.height);
       const checks = {
+        // A rotated or mislabeled screenshot cannot certify this profile.
+        screenshotDimensions: a.width === width && a.height === height &&
+          b.width === width && b.height === height,
         onePostPerViewport: Math.abs(metrics.feedHeight - metrics.cardHeight) <= 2,
         noHorizontalOverflow: metrics.scrollWidth <= width + 1,
         touchTargets: metrics.targets.length >= 4 && metrics.targets.every(t => t.width >= 44 && t.height >= 44 && t.x >= 0 && t.x + t.width <= width + 1 && t.y >= 0 && t.y + t.height <= height + 1),
@@ -115,7 +118,7 @@ try {
     finally { await context.close(); }
   }
 } finally { await browser.close(); }
-const functionalPass = reports.length === 4 && reports.every(r => r.passed);
+const functionalPass = hasCompleteViewportCoverage(reports) && reports.every(r => r.passed);
 const mediaReadiness = evaluateFeedPreviewReadiness(reports);
 const report = { browser: browserName, passed: functionalPass, mediaReadiness, viewports: reports };
 console.log(JSON.stringify({ browser: browserName, functionalPass, mediaReadiness }));
