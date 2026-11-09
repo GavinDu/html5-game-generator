@@ -5,6 +5,7 @@ package pipeline
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -360,6 +361,13 @@ func (r *Runner) runRemaining(jobID string) {
 		if err := gameir.Validate(canonicalIR); err != nil {
 			return fmt.Errorf("invalid generated Game IR: %w", err)
 		}
+		// Static IR validation does not verify persisted artifact bytes.
+		// Fail the job before PUBLISH if a referenced hero, sound or other
+		// asset is absent/corrupt; a syntactically valid missing-hero game
+		// must never enter a playable feed.
+		if err := validateGeneratedAssets(r.store, job.GameID, canonicalIR); err != nil {
+			return fmt.Errorf("generated asset integrity: %w", err)
+		}
 		if game, ok := r.store.GetGame(job.GameID); ok && game.PlayableExpression != nil {
 			if err := expression.ValidateAgainstGameIR(game.PlayableExpression, canonicalIR); err != nil {
 				return fmt.Errorf("playable expression does not match generated Game IR: %w", err)
@@ -501,6 +509,35 @@ func (r *Runner) runStage(job *model.Job, name model.StageName, fn func() error)
 	}
 	job.UpdatedAt = end
 	r.store.UpdateJob(job)
+}
+
+// validateGeneratedAssets checks persisted bytes before a game can be
+// published. Canonical IR may validate even when a referenced file was
+// never written (or was replaced with different bytes after its hash was
+// declared); static schema checks alone cannot catch this.
+func validateGeneratedAssets(st store.Store, gameID string, ir *gameir.Document) error {
+	if ir == nil {
+		return fmt.Errorf("missing canonical Game IR")
+	}
+	for _, asset := range ir.Assets {
+		if strings.TrimSpace(asset.URI) == "" {
+			return fmt.Errorf("asset %q has no URI", asset.ID)
+		}
+		data, mimeType, ok := st.GetArtifact(gameID, asset.URI)
+		if !ok || len(data) == 0 {
+			return fmt.Errorf("asset %q (%s) has no stored bytes", asset.ID, asset.URI)
+		}
+		if asset.MIMEType != "" && mimeType != asset.MIMEType {
+			return fmt.Errorf("asset %q (%s) has MIME %q, expected %q", asset.ID, asset.URI, mimeType, asset.MIMEType)
+		}
+		if asset.SHA256 != "" {
+			sum := sha256.Sum256(data)
+			if !strings.EqualFold(asset.SHA256, hex.EncodeToString(sum[:])) {
+				return fmt.Errorf("asset %q (%s) SHA-256 mismatch", asset.ID, asset.URI)
+			}
+		}
+	}
+	return nil
 }
 
 // staticChecks enforces the shim hard rules that don't need a browser:
