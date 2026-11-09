@@ -40,7 +40,8 @@
       "restart from the result card and try to beat the previous escape distance",
       "The canonical end state is caught, not a score-triggered winning escape; a runner can earn points without escaping the authored ending.",
       "At 20 minutes the story always reaches the authored caught ending; score cannot produce a fabricated escape victory.",
-      "Two authored syringe hazards drop vertically down discrete lanes, respawning in seeded lane centers when missed, rather than tracking the player's position."
+      "Two authored syringe hazards drop vertically down discrete lanes, respawning in seeded lane centers when missed, rather than tracking the player's position.",
+      "The gameplay pacing target and the mandatory story ceiling are both 1200 seconds; speed grows at the original 40-second intervals until capped, then stays bounded rather than ending the chase at ten minutes."
     ],
     "fairness": [
       "lane changes are deterministic and respond to one tap without requiring a precision drag",
@@ -66,7 +67,7 @@
         "health": 1,
         "invulnerableMs": 750
       },
-      "targetSessionSec": 600,
+      "targetSessionSec": 1200,
       "firstRewardWithinSec": 8,
       "milestones": 3,
       "scenes": 1
@@ -79,6 +80,7 @@
     "Inspect changing locations, speed escalation, feedback, and replay affordance.",
     "Verify initial gap 220, clean regeneration +6/s capped 250, collision -45, star +12, and loss at <=55; inspect restart screenshots.",
     "Use screenshots to confirm the chaser visibly trails the runner by the same authoritative gap shown in the HUD; verify the caught result and Play Again using controlled collider fixture.",
-    "Use iPhone/iPad Chromium and WebKit screenshots of live falling and recycling syringes, not just the controlled caught/restart fixture, to prove an actual avoidable hazard loop."
+    "Use iPhone/iPad Chromium and WebKit screenshots of live falling and recycling syringes, not just the controlled caught/restart fixture, to prove an actual avoidable hazard loop.",
+    "Inspect canonical version 2: sessionTargetSeconds and experience.pacing.targetSessionSec must both be 1200 while level-ramp times remain exactly 0, 40, ... 600 seconds; the caught terminal remains at 1200 seconds or on naturally depleted chaser gap."
   ]
 }
