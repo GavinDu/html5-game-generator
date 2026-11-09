@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PNG } from 'pngjs';
+import { validatePenguinIntroEvidence } from './preview-evidence.mjs';
 
 const option = (key, fallback) => {
   const at = process.argv.indexOf('--' + key);
@@ -52,11 +53,11 @@ for (const item of cases) {
     // introduction and conceal the actual heart lanes. Only consider the
     // frame captured after the real browser observed its automatic clearing.
     const phone = report.results?.find(result => result.viewport === 'iphone-portrait');
-    assert.ok(phone?.introClearedAfterSevenSeconds === true &&
-      phone?.compactHintPersists === true &&
-      phone?.won === true &&
-      phone?.screenshots?.includes('intro-cleared'),
-      'Penguin poster requires verified unobstructed gameplay and completed playtest');
+    // The true intro snapshot may come from a second real browser session
+    // when the winning guided session ends before seven simulated seconds.
+    // Keep that distinction in review metadata rather than attributing the
+    // poster to a different, unobserved point in the winning replay.
+    validatePenguinIntroEvidence(phone);
   }
   if (item.dir === '13ui1k') {
     // The former after-tap poster captured Bobo at the extreme right
@@ -90,6 +91,14 @@ for (const item of cases) {
       : 'local browser quality run',
     source_commit: process.env.GITHUB_SHA || 'local',
     source_screenshot: item.screenshot,
+    ...(item.dir === 'p3ngui' ? (() => {
+      const phone = report.results.find(result => result.viewport === 'iphone-portrait');
+      return {
+        screenshot_session: phone.introEvidence.session,
+        screenshot_simulated_seconds: phone.introEvidence.runtimeSeconds,
+        screenshot_objective_progress: phone.introEvidence.objectiveProgress,
+      };
+    })() : {}),
     note: item.story + '. Candidate only: requires screenshot review before publishing.',
   };
   writeFileSync(join(dest, 'preview-fixture.json'), JSON.stringify(fixture, null, 2) + '\n');
