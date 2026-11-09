@@ -41,7 +41,8 @@
       "The canonical end state is caught, not a score-triggered winning escape; a runner can earn points without escaping the authored ending.",
       "At 20 minutes the story always reaches the authored caught ending; score cannot produce a fabricated escape victory.",
       "Two authored syringe hazards drop vertically down discrete lanes, respawning in seeded lane centers when missed, rather than tracking the player's position.",
-      "The gameplay pacing target and the mandatory story ceiling are both 1200 seconds; speed grows at the original 40-second intervals until capped, then stays bounded rather than ending the chase at ten minutes."
+      "The gameplay pacing target and the mandatory story ceiling are both 1200 seconds; speed grows at the original 40-second intervals until capped, then stays bounded rather than ending the chase at ten minutes.",
+      "The playable hero is the blob patient from the uploaded source drawing, not a generic orange runner; preserve the blob's sprite at every route transition."
     ],
     "fairness": [
       "lane changes are deterministic and respond to one tap without requiring a precision drag",
@@ -51,7 +52,8 @@
       "speed progression is capped and must preserve a readable reaction window",
       "the caught sequence is brief, non-graphic and the result state is clear",
       "Victory cannot be awarded from stars or timer score; the gap is clamped to 250, damage is cooldown-limited, and a visible caught ending is required.",
-      "At most two syringe hazards are active across three lanes; collision sensors must pass through and recycle so camping/homing cannot cause a softlock."
+      "At most two syringe hazards are active across three lanes; collision sensors must pass through and recycle so camping/homing cannot cause a softlock.",
+      "Only the two authored syringe hazards can damage the chaser gap; unrelated germ collisions are not an authored third hazard."
     ],
     "audience": "family; humorous cartoon chase",
     "generated": {
@@ -81,6 +83,7 @@
     "Verify initial gap 220, clean regeneration +6/s capped 250, collision -45, star +12, and loss at <=55; inspect restart screenshots.",
     "Use screenshots to confirm the chaser visibly trails the runner by the same authoritative gap shown in the HUD; verify the caught result and Play Again using controlled collider fixture.",
     "Use iPhone/iPad Chromium and WebKit screenshots of live falling and recycling syringes, not just the controlled caught/restart fixture, to prove an actual avoidable hazard loop.",
-    "Inspect canonical version 2: sessionTargetSeconds and experience.pacing.targetSessionSec must both be 1200 while level-ramp times remain exactly 0, 40, ... 600 seconds; the caught terminal remains at 1200 seconds or on naturally depleted chaser gap."
+    "Inspect canonical version 2: sessionTargetSeconds and experience.pacing.targetSessionSec must both be 1200 while level-ramp times remain exactly 0, 40, ... 600 seconds; the caught terminal remains at 1200 seconds or on naturally depleted chaser gap.",
+    "Check the actual screenshot and canonical package version 3 for the source-drawing blob hero, exactly two syringe threats, and absence of the old extra germ collider."
   ]
 }
