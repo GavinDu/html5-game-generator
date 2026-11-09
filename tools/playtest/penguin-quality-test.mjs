@@ -204,9 +204,10 @@ try {
             introRect.x + introRect.width * .03,
             introRect.y + introRect.height * .7
           );
-          const introMoved = await introPage.evaluate(() => window.__dqTest.snapshot());
-          assert.ok(introMoved.player.x < 110,
-            'real touch must move the catcher away from the automatic center pickups');
+          await introPage.waitForFunction(() => {
+            const state = window.__dqTest?.snapshot?.();
+            return state && state.player?.x < 110;
+          }, null, { timeout: 4000 });
           try {
             await introPage.waitForFunction(() => {
               const state = window.__dqTest?.snapshot?.();
