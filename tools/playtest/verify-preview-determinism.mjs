@@ -19,8 +19,10 @@ const run = arg('run');
 const browser = arg('browser', 'chromium');
 const durationMs = arg('duration-ms', '6000');
 const fps = arg('fps', '12');
-const width = arg('width', '420');
-const height = arg('height', '900');
+// Omitting both dimensions lets render-preview select the declared native
+// game orientation. A portrait-only default used to reject landscape runs.
+const width = arg('width');
+const height = arg('height');
 if (!base || !game || !run) {
   console.error('usage: node verify-preview-determinism.mjs --base URL --game ID --run RUN_ID [--browser chromium|webkit]');
   process.exit(2);
@@ -30,16 +32,26 @@ if (!['chromium', 'webkit'].includes(browser)) {
   process.exit(2);
 }
 
+if ((!!width !== !!height) ||
+    (width && (!Number.isInteger(Number(width)) || !Number.isInteger(Number(height)) ||
+      Number(width) < 240 || Number(height) < 240 ||
+      Number(width) > 4096 || Number(height) > 4096))) {
+  console.error('verify-preview-determinism: provide both --width and --height in [240,4096] or neither');
+  process.exit(2);
+}
+
 const temp = mkdtempSync(join(tmpdir(), 'dq-preview-determinism-'));
 const renderer = fileURLToPath(new URL('./render-preview.mjs', import.meta.url));
 function render(label) {
   const out = join(temp, label + '.mp4');
   const poster = join(temp, label + '.png');
-  const result = spawnSync(process.execPath, [
+  const renderArgs = [
     renderer, '--base', base, '--game', game, '--run', run, '--out', out,
     '--poster', poster, '--browser', browser, '--duration-ms', durationMs, '--fps', fps,
-    '--width', width, '--height', height,
-  ], { encoding: 'utf8', timeout: 180000, maxBuffer: 8 * 1024 * 1024 });
+  ];
+  if (width) renderArgs.push('--width', width, '--height', height);
+  const result = spawnSync(process.execPath, renderArgs,
+    { encoding: 'utf8', timeout: 180000, maxBuffer: 8 * 1024 * 1024 });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${label} render failed (exit ${result.status}): ${result.stderr.trim()}`);
   const line = result.stdout.trim().split(/\r?\n/).at(-1);
@@ -55,7 +67,7 @@ try {
   const second = render('second');
   const comparison = compareFrameHashes(first.frame_sha256, second.frame_sha256);
   const result = {
-    game, run, browser, width: Number(width), height: Number(height),
+    game, run, browser, width: first.width, height: first.height,
     aspect: first.aspect, orientation: first.orientation, deterministic: comparison.match,
     frame_count: comparison.frame_count,
     first_mismatch_index: comparison.first_mismatch_index,

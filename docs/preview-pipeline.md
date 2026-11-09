@@ -32,3 +32,16 @@ Exit code is `0` for identical ordered frame hashes, `1` for a visual/frame-coun
 ## Repeat-render determinism check
 
 Run `node tools/playtest/verify-preview-determinism.mjs --base URL --game GAME_ID --run RECORDED_RUN_ID` against the same recorded run twice. The command fails closed if either render falls back to poster-only output, omits frame hashes, or any frame hash differs; temporary media is removed after the check.
+
+## Native-orientation determinism (2026-11-09)
+
+`verify-preview-determinism.mjs` no longer forces a portrait `420×900`
+viewport when the caller supplies neither dimension. It allows
+`render-preview.mjs` to select the canonical Game IR orientation and
+records the actual render dimensions. Callers can still explicitly set **both**
+`--width` and `--height` to exercise a specific device profile; passing
+only one dimension or an invalid size fails before rendering. This is
+essential for landscape and tablet games and prevents a false "preview
+cannot render" signal from a portrait-only test harness. A successful
+hash match is still only a technical repeatability result, not proof that
+the clip represents an approved playtest or is ready for distribution.
