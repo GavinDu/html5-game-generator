@@ -52,6 +52,21 @@ try {
       await page.waitForFunction(() => window.__dqTest?.snapshot?.()?.t > 0.25, null, { timeout: 20000 });
       const before = await capture('before');
       const initial = await snap();
+      // Source drawing & questionnaire: the patient is the white blob, not
+      // the later generic orange-hoodie runner. Only syringes hurt the gap.
+      // Inspect the served canonical package as well as the real screenshots.
+      const response = await page.request.get(base + '/v1/games/escape-from-injection/package');
+      assert.equal(response.status(), 200);
+      const canonical = (await response.json()).ir;
+      const authoredEntities = canonical.scenes.flatMap(scene => scene.entities);
+      assert.equal(authoredEntities.find(e => e.id === 'player')?.assetId, 'blob',
+        'the playable character must use the original blob patient artwork');
+      assert.equal(authoredEntities.some(e => e.id === 'germ'), false,
+        'the questionnaire did not authorize an extra 45-gap germ threat');
+      assert.equal(canonical.rules.some(rule => /germ-(hit|respawn)/.test(rule.id)), false,
+        'removed extra damage hazards must not retain live rules');
+      assert.equal(initial.entities.some(e => e.def === 'germ'), false,
+        'the unmodified running scene must not spawn the extra germ collider');
       assert.equal(initial.world.w, 390);
       assert.equal(initial.player?.laneIndex, 1, 'Escape must start in middle lane');
       const startY = initial.player.y;
@@ -122,6 +137,7 @@ try {
       const report = {
         browser: browserName, viewport: profile.name, passed: true,
         fallingSyringeVerified: true, recycledSyringeVerified: true,
+        authoredBlobHeroVerified: true, unexpectedGermAbsent: true,
         startingGap: initial.variables.chaser_gap, endingGap: progressed.variables.chaser_gap,
         initialLane: 1, finalLane: progressed.player.laneIndex,
         initialRunnerY: startY, score: progressed.score,
