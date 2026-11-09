@@ -48,6 +48,36 @@ function paleHaloPixelsAtSpawn(bytes) {
   return n;
 }
 
+// Evaluate ACTUAL decoded gameplay pixels instead of assuming that IR
+// geometry makes a legible arch. Test both left/right halves so a tiny
+// upper-left red arc cannot pass as a completed rainbow composition.
+function rainbowBandCoverage(bytes) {
+  const p = PNG.sync.read(bytes);
+  // iPhone: 390x844; iPad centered stage: 546x1180.
+  // Sample identical logical game coordinates on both devices.
+  assert.ok(p.width >= 390 && p.height >= 844 &&
+    Math.abs(p.width / p.height - 390 / 844) < .015,
+    'rainbow evidence must be a portrait game stage, not iPad chrome');
+  let red = 0, orange = 0, left = 0, right = 0;
+  for (let y = 158; y < 355; y++) {
+    for (let x = 20; x < 370; x++) {
+      const sx = Math.min(p.width - 1, Math.floor(x * p.width / 390));
+      const sy = Math.min(p.height - 1, Math.floor(y * p.height / 844));
+      const i = (sy * p.width + sx) * 4;
+      const r = p.data[i], g = p.data[i + 1], b = p.data[i + 2];
+      const isRed = r >= 195 && g >= 45 && g <= 110 && b < 115;
+      const isOrange = r >= 195 && g >= 110 && g <= 175 && b < 115 && r > g + 40;
+      if (isRed) red++;
+      if (isOrange) orange++;
+      if (isRed || isOrange) {
+        if (x <= 165) left++;
+        if (x >= 225) right++;
+      }
+    }
+  }
+  return { red, orange, left, right };
+}
+
 const browser = await engine.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -63,6 +93,16 @@ try {
   assert.ok(playerIR, 'canonical Bobo must exist');
   assert.deepEqual(playerIR.size, [92, 104], 'keep authored collision footprint');
   assert.deepEqual(playerIR.render?.scale, [1.28, 1.28], 'increase only visible crayon art scale');
+  // Procedural RainbowBandPNG is already a full 380x230 arc. Rendering
+  // that sprite as a 76x26 segment produced an isolated tiny red fragment
+  // in the actual 4/12-heart screenshot despite correct game progression.
+  // Keep six concentric layers aligned with unchanged milestone semantics.
+  for (let i = 0; i < 6; i++) {
+    const band = pkg.ir.scenes.flatMap(s => s.entities).find(e => e.id === 'band' + i);
+    assert.ok(band, 'rainbow band ' + i + ' missing from canonical IR');
+    assert.deepEqual(band.position, [195, 232], 'rainbow layers must share one arch center');
+    assert.deepEqual(band.size, [380, 230], 'do not compress a full PNG into tiny disconnected segments');
+  }
   const haloIR = pkg.ir.scenes.flatMap(s => s.entities).find(e => e.id === 'halo-bear');
   assert.deepEqual(haloIR?.behavior, { type: 'follow', target: 'player' },
     'the bear ground halo must follow the author\'s real player sprite as visual-only decoration');
@@ -143,10 +183,21 @@ try {
           'first two rainbow bands must be visibly restored in the real mid-play screenshot');
       }
       const shot = await page.screenshot({ path: shots + '/midplay-restored-rainbow.png' });
+      const phoneAfterCapture = await page.evaluate(() => window.__dqTest.snapshot());
+      assert.ok(phoneAfterCapture.objectiveProgress >= progress.objectiveProgress &&
+        phoneAfterCapture.objectiveProgress < 12,
+        'phone midplay screenshot cannot be attributed to an already-finished run');
       assert.ok(brownPixelsAtRightEdge(shot) <= 3,
         'centered Bobo poster must not clip the original source crayon bear');
+      const rainbowCoverage = rainbowBandCoverage(shot);
+      assert.ok(rainbowCoverage.red > 3500 && rainbowCoverage.orange > 3000 &&
+        rainbowCoverage.left > 1200 && rainbowCoverage.right > 1200,
+        'real 4/12 screenshot must show two readable full-width rainbow layers: ' +
+        JSON.stringify(rainbowCoverage));
       midplayEvidence = {
+        rainbowCoverage,
         progress: progress.objectiveProgress,
+        progressAfterCapture: phoneAfterCapture.objectiveProgress,
         score: progress.score,
         playerX: progress.player.x,
         source: 'guided real touch input',
@@ -173,6 +224,7 @@ try {
   // or absorb touches in the tablet's centered portrait game stage.
   const tablet = await browser.newPage({ viewport: { width: 820, height: 1180 }, hasTouch: true });
   let tabletDelta;
+  let tabletMidplayEvidence;
   try {
     await tablet.goto(base + '/player?game=sample-rainbow-bear&presentation=play&probe=1');
     await tablet.waitForFunction(() => window.__dqTest?.snapshot?.().t > 0.2);
@@ -196,6 +248,59 @@ try {
       'iPad logical game stage must keep the original crayon bear fully inside its right boundary');
     tabletDelta = changed(tabletBeforePNG, tabletAfterPNG);
     assert.ok(tabletDelta > 0.005, 'iPad gameplay screenshots must visibly change after real tap');
+
+    // Independently capture 4/12 hearts on a real tablet touch session.
+    // This rejects a phone-only fix that still leaves iPad's arch broken.
+    const tabletDeadline = Date.now() + 60000;
+    while (Date.now() < tabletDeadline) {
+      const state = await tablet.evaluate(() => window.__dqTest.snapshot());
+      if (state.ended) break;
+      if (state.objectiveProgress >= 4) {
+        await tablet.touchscreen.tap(tabletRect.x + tabletRect.width * 0.5,
+          tabletRect.y + tabletRect.height * 0.6);
+        await tablet.waitForFunction(() => {
+          const s = window.__dqTest.snapshot();
+          return !s.ended && Math.abs(s.player.x - 195) <= 28;
+        }, null, { timeout: 4000 });
+        const progressed = await tablet.evaluate(() => window.__dqTest.snapshot());
+        assert.ok(progressed.objectiveProgress >= 4 && progressed.objectiveProgress < 12,
+          'tablet capture must be real mid-play');
+        const stagePixels = await tablet.locator('#stage canvas').screenshot({
+          path: shots + '/ipad-midplay-restored-rainbow-stage.png',
+        });
+        await tablet.screenshot({ path: shots + '/ipad-midplay-restored-rainbow.png' });
+        const tabletAfterCapture = await tablet.evaluate(() => window.__dqTest.snapshot());
+        assert.ok(tabletAfterCapture.objectiveProgress >= progressed.objectiveProgress &&
+          tabletAfterCapture.objectiveProgress < 12,
+          'tablet capture must occur before the terminal win card');
+        const coverage = rainbowBandCoverage(stagePixels);
+        assert.ok(coverage.red > 3500 && coverage.orange > 3000 &&
+          coverage.left > 1200 && coverage.right > 1200,
+          'real iPad screenshot needs a two-layer complete-width arch: ' +
+          JSON.stringify(coverage));
+        tabletMidplayEvidence = {
+          progress: progressed.objectiveProgress,
+          progressAfterCapture: tabletAfterCapture.objectiveProgress,
+          score: progressed.score,
+          source: 'real tablet touchscreen input', rainbowCoverage: coverage,
+          screenshots: ['ipad-midplay-restored-rainbow.png',
+            'ipad-midplay-restored-rainbow-stage.png'],
+        };
+        break;
+      }
+      const targets = state.entities
+        .filter(e => e.kind === 'pickup' &&
+          (e.id === 'heart' || e.id === 'heart_blue') &&
+          e.visible && Number.isFinite(e.x) && Number.isFinite(e.y) &&
+          e.y < state.player.y + 20)
+        .sort((a, b) => b.y - a.y);
+      if (targets[0]) {
+        await tablet.touchscreen.tap(tabletRect.x + targets[0].x / 390 * tabletRect.width,
+          tabletRect.y + tabletRect.height * 0.6);
+      }
+      await tablet.waitForTimeout(110);
+    }
+    assert.ok(tabletMidplayEvidence, 'real iPad play must reach four caught regular hearts');
   } finally {
     await tablet.close();
   }
@@ -208,12 +313,14 @@ try {
     croppedBrownPixels, visualArtScale: playerIR.render.scale,
     haloFollowsPlayer: true,
     midplayEvidence,
+    tabletMidplayEvidence,
     screenshotOldSpawnPalePixelsBefore: oldSpawnPaleBefore,
     screenshotOldSpawnPalePixelsAfter: oldSpawnPaleAfter,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
       'ipad-after-short-tap-stage.png', 'midplay-restored-rainbow.png',
+      'ipad-midplay-restored-rainbow.png', 'ipad-midplay-restored-rainbow-stage.png',
       'missed-heart-before-recycle.png', 'missed-heart-after-recycle.png']
   };
   writeFileSync(shots + '/report.json', JSON.stringify(report, null, 2));
