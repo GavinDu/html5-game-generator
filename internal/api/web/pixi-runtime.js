@@ -2497,8 +2497,11 @@ async function run(id) {
       }
     }
   });
+  // Reuse this set per fixed step to avoid allocating on each mobile frame.
+  const emittedTimerIntervals = new Set();
   function tickFrame(dtMs) {
     if (state.ended) return;
+    emittedTimerIntervals.clear();
     const dt = Math.min(dtMs / 1000, 0.05);
     state.elapsed += dt;
     if (play.shell?.chaserGap) {
@@ -2513,15 +2516,14 @@ async function run(id) {
     // A shared interval can drive multiple conditional rules (e.g. Escape's
     // 40s route stages). Emitting once per rule replays every matching
     // effect N times when N rules subscribe to the same interval.
-    const emittedIntervals = new Set();
     for (const rule of ir.rules) {
       if (rule.when?.event !== 'timer_elapsed') continue;
       const interval = Number(rule.when.value) || 1;
       const t = (state.timers.get(rule.id) || 0) + dt;
       if (t >= interval) {
         state.timers.set(rule.id, 0);
-        if (!emittedIntervals.has(interval)) {
-          emittedIntervals.add(interval);
+        if (!emittedTimerIntervals.has(interval)) {
+          emittedTimerIntervals.add(interval);
           emit('timer_elapsed', undefined, undefined, interval);
           if (state.ended) return;
         }
