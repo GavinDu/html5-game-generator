@@ -47,6 +47,12 @@ func Run() {
 	if err := inventory.Load(st, invDir); err != nil {
 		log.Fatalf("inventory: %v", err)
 	}
+	// Persisted goroutines cannot resume across restarts. Retire orphaned
+	// queued/running work before accepting creator requests; awaiting-confirm
+	// questionnaires and completed releases remain intact.
+	if interrupted := pipeline.RecoverInterruptedJobs(st); interrupted > 0 {
+		log.Printf("recovered %d interrupted generation job(s) as failed", interrupted)
+	}
 	runner := pipeline.NewRunner(st)
 	srv := api.New(st, runner)
 
