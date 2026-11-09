@@ -10,10 +10,10 @@ func TestFeedPreviewFailsClosedOnUnapprovedAndIncompleteMedia(t *testing.T) {
 	const poster = "/v1/games/game/previews/2/poster.png"
 	const clip = "/v1/games/game/previews/2/clip.mp4"
 	tests := []struct {
-		name string
-		media *model.PreviewMetadata
+		name                             string
+		media                            *model.PreviewMetadata
 		wantStatus, wantPoster, wantClip string
-		wantDuration int
+		wantDuration                     int
 	}{
 		{"missing", nil, "pending", "", "", 0},
 		{"pending retains draft URLs", &model.PreviewMetadata{Version: 2, Status: "pending", PosterURL: poster, ClipURL: clip, DurationMS: 6000}, "pending", "", "", 0},
