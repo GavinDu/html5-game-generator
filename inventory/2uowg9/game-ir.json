@@ -111,7 +111,7 @@
     "entryScene": "chase",
     "id": "escape-from-injection",
     "orientation": "portrait",
-    "sessionTargetSeconds": 600,
+    "sessionTargetSeconds": 1200,
     "title": "Escape from the Injection"
   },
   "inputBindings": [
@@ -939,7 +939,7 @@
       "invulnerableMs": 750
     },
     "pacing": {
-      "targetSessionSec": 600,
+      "targetSessionSec": 1200,
       "firstRewardWithinSec": 8,
       "expectedCatchRate": 0.2,
       "ramp": [
@@ -948,63 +948,63 @@
           "speedMul": 1
         },
         {
-          "at": 0.06666666666666667,
+          "at": 0.03333333333333333,
           "speedMul": 1.12
         },
         {
-          "at": 0.13333333333333333,
+          "at": 0.06666666666666667,
           "speedMul": 1.254
         },
         {
-          "at": 0.2,
+          "at": 0.1,
           "speedMul": 1.405
         },
         {
-          "at": 0.26666666666666666,
+          "at": 0.13333333333333333,
           "speedMul": 1.574
         },
         {
-          "at": 0.3333333333333333,
+          "at": 0.16666666666666666,
           "speedMul": 1.762
         },
         {
-          "at": 0.4,
+          "at": 0.2,
           "speedMul": 1.974
         },
         {
-          "at": 0.4666666666666667,
+          "at": 0.23333333333333334,
           "speedMul": 2.211
         },
         {
-          "at": 0.5333333333333333,
+          "at": 0.26666666666666666,
           "speedMul": 2.476
         },
         {
-          "at": 0.6,
+          "at": 0.3,
           "speedMul": 2.773
         },
         {
-          "at": 0.6666666666666666,
+          "at": 0.3333333333333333,
           "speedMul": 3.106
         },
         {
-          "at": 0.7333333333333333,
+          "at": 0.36666666666666664,
           "speedMul": 3.2
         },
         {
-          "at": 0.8,
+          "at": 0.4,
           "speedMul": 3.2
         },
         {
-          "at": 0.8666666666666667,
+          "at": 0.43333333333333335,
           "speedMul": 3.2
         },
         {
-          "at": 0.9333333333333333,
+          "at": 0.4666666666666667,
           "speedMul": 3.2
         },
         {
-          "at": 1,
+          "at": 0.5,
           "speedMul": 3.2
         }
       ]

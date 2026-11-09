@@ -187,8 +187,8 @@ func validateExperience(d *Document) error {
 		return fmt.Errorf("experience.failure.invulnerableMs must be between 0 and 5000")
 	}
 	p := exp.Pacing
-	if p.TargetSessionSec != 0 && (p.TargetSessionSec < 10 || p.TargetSessionSec > 600) {
-		return fmt.Errorf("experience.pacing.targetSessionSec must be between 10 and 600")
+	if p.TargetSessionSec != 0 && (p.TargetSessionSec < 10 || p.TargetSessionSec > 1200) {
+		return fmt.Errorf("experience.pacing.targetSessionSec must be between 10 and 1200")
 	}
 	if p.FirstRewardWithinSec != 0 && (p.FirstRewardWithinSec < 1 || p.FirstRewardWithinSec > 60) {
 		return fmt.Errorf("experience.pacing.firstRewardWithinSec must be between 1 and 60")
