@@ -61,3 +61,22 @@ node tools/playtest/verify-preview-determinism.mjs --base http://localhost:8080 
 ```
 
 The output includes `capture_start_ms` and the actual `capture_start_step` alongside ordered frame hashes. A failed replay, inaccessible game, or unreachable requested simulation step must fail rather than fabricate footage. Choosing a capture offset is **not** automatic authorization to publish: the candidate still requires inspection of actual screenshot frames, game-version/IR-hash matching, source rights, playtest completion where required, safety review, and independent delivery verification. An offset that skips a legitimate outcome can still be an unhelpful or misleading clip and must be rejected in review.
+
+## Screenshot candidate session provenance (2026-11-09)
+
+A screenshot captured after an introductory animation is not necessarily a
+frame from the *winning* recorded playthrough. In Penguin, a guided player can
+reach twelve hearts before the seven-second introduction clears. The quality
+worker therefore captures `intro-cleared.png` in a second, independent **real
+browser game session** if the initial session already ended.
+
+`prepare-preview-fixtures.mjs` requires the successful guided win, a
+legitimate still-running seven-second clearance, and the screenshot in the
+quality artifact. Its candidate `preview-fixture.json` now records
+`screenshot_session` (`guided-play` or `independent-real-browser`),
+`screenshot_simulated_seconds`, and `screenshot_objective_progress`.
+Reviewers must preserve that distinction; a supplemental screenshot must
+**not** be labeled as a frame from the deterministic winning run. No
+candidate may be automatically approved or published from the test verdict
+alone. Version/IR hash, rights, moderation, actual clip replay and native
+delivery checks remain independent gates.
