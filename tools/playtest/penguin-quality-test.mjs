@@ -95,20 +95,10 @@ try {
       await page.waitForFunction(() => window.__dqTest.snapshot().entities
         .some(e => e.id === 'heart03' && e.y < 100), null, { timeout: 15000 });
       await page.screenshot({ path: dir + '/recycled-heart.png' });
-      // The screenshot review found the large story panel still blocking
-      // floating hearts at 10/12 catches. Clear the noninteractive title
-      // after the opening teaching window, but leave the compact tap hint.
-      await page.waitForFunction(() => window.__dqTest.snapshot().t >= 7.2,
-        null, { timeout: 15000 });
-      const introCleared = await snap();
-      assert.ok(introCleared.entities.find(e => e.id === 'instructions-panel')?.alpha <= .01,
-        'large intro panel must not hide falling hearts after seven seconds');
-      assert.ok(introCleared.entities.find(e => e.id === 'title')?.alpha <= .01,
-        'large intro title must clear with its background');
-      assert.ok(introCleared.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
-        'compact tap hint should remain usable after clearing the story title');
-      assert.equal(introCleared.ended, false, 'the intro cannot change game progress');
-      await page.screenshot({ path: dir + '/intro-cleared.png' });
+      // Do not idle the bot while observing the seven-second intro:
+      // missed catches can skip the source variant milestones and alter
+      // the report. Capture from the normal actively guided gameplay loop.
+      let capturedIntroCleared = false;
       const observedHeartCounts = [];
       let capturedMidway = false;
       let capturedHolidayScarf = false;
@@ -116,6 +106,18 @@ try {
       const deadline = Date.now() + 70000;
       while (Date.now() < deadline) {
         const state = await snap();
+        // The story board must clear during *actual ongoing guided play*,
+        // without a synthetic pause or modification to heart physics.
+        if (!capturedIntroCleared && state.t >= 7.2 && !state.ended) {
+          assert.ok(state.entities.find(e => e.id === 'instructions-panel')?.alpha <= .01,
+            'large story board must stop hiding falling hearts after seven seconds');
+          assert.ok(state.entities.find(e => e.id === 'title')?.alpha <= .01,
+            'large title text must clear with its background');
+          assert.ok(state.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
+            'compact tap guidance should persist over the unobstructed playfield');
+          await page.screenshot({ path: dir + '/intro-cleared.png' });
+          capturedIntroCleared = true;
+        }
         variants.add(state.entities.find(e => e.id === 'penguin')?.assetId);
         for (let i = 0; i < 6; i++) {
           if (state.objectiveProgress >= (i + 1) * 2) {
@@ -169,6 +171,8 @@ try {
         ['penguin_classic', 'penguin_holiday', 'penguin_rainbow']);
       assert.ok(capturedHolidayScarf && capturedClassicScarf,
         'both scarf milestone screenshots must be captured during real gameplay');
+      assert.equal(capturedIntroCleared, true,
+        'screen capture must prove the story overlay cleared during active play');
       await page.screenshot({ path: dir + '/win.png' });
       await page.evaluate(() => { window.__penguinReloadMarker = 'kept'; });
       await page.locator('#shell-again-btn').click();
