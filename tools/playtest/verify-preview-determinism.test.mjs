@@ -10,7 +10,7 @@ test('determinism verifier renders the same recorded run twice with the same opt
   assert.match(source, /render\('second'\)/);
   assert.match(source, /'--run', run/);
   assert.match(source, /'--duration-ms', durationMs, '--fps', fps/);
-  assert.match(source, /'--width', width, '--height', height/);
+  assert.match(source, /if \\(width\\) renderArgs\\.push\\('--width', width, '--height', height\\)/);
 });
 
 test('determinism verifier rejects fallback clips and incomplete frame reports', () => {
@@ -33,5 +33,14 @@ test('determinism verifier cleans temporary render artifacts on both success and
 test('determinism verifier reports the viewport and native orientation used for both renders', () => {
   assert.match(source, /const width = arg\('width', '420'\)/);
   assert.match(source, /const height = arg\('height', '900'\)/);
+  assert.match(source, /width: first.width, height: first.height/);
   assert.match(source, /aspect: first.aspect, orientation: first.orientation/);
+  assert.doesNotMatch(source, /const width = arg\\('width', '420'\\)/);
+});
+
+test('determinism verifier fails early for single-dimension or invalid viewport', () => {
+  assert.match(source, /!!width !== !!height/);
+  assert.match(source, /Number.isInteger\\(Number\\(width\\)\\)/);
+  assert.match(source, /provide both --width and --height/);
+  assert.match(source, /process.exit\\(2\\)/);
 });
