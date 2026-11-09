@@ -219,6 +219,7 @@ try {
   // or absorb touches in the tablet's centered portrait game stage.
   const tablet = await browser.newPage({ viewport: { width: 820, height: 1180 }, hasTouch: true });
   let tabletDelta;
+  let tabletMidplayEvidence;
   try {
     await tablet.goto(base + '/player?game=sample-rainbow-bear&presentation=play&probe=1');
     await tablet.waitForFunction(() => window.__dqTest?.snapshot?.().t > 0.2);
@@ -242,6 +243,53 @@ try {
       'iPad logical game stage must keep the original crayon bear fully inside its right boundary');
     tabletDelta = changed(tabletBeforePNG, tabletAfterPNG);
     assert.ok(tabletDelta > 0.005, 'iPad gameplay screenshots must visibly change after real tap');
+
+    // Independently capture 4/12 hearts on a real tablet touch session.
+    // This rejects a phone-only fix that still leaves iPad's arch broken.
+    const tabletDeadline = Date.now() + 60000;
+    while (Date.now() < tabletDeadline) {
+      const state = await tablet.evaluate(() => window.__dqTest.snapshot());
+      if (state.ended) break;
+      if (state.objectiveProgress >= 4) {
+        await tablet.touchscreen.tap(tabletRect.x + tabletRect.width * 0.5,
+          tabletRect.y + tabletRect.height * 0.6);
+        await tablet.waitForFunction(() => {
+          const s = window.__dqTest.snapshot();
+          return !s.ended && Math.abs(s.player.x - 195) <= 28;
+        }, null, { timeout: 4000 });
+        const progressed = await tablet.evaluate(() => window.__dqTest.snapshot());
+        assert.ok(progressed.objectiveProgress >= 4 && progressed.objectiveProgress < 12,
+          'tablet capture must be real mid-play');
+        const stagePixels = await tablet.locator('#stage canvas').screenshot({
+          path: shots + '/ipad-midplay-restored-rainbow-stage.png',
+        });
+        await tablet.screenshot({ path: shots + '/ipad-midplay-restored-rainbow.png' });
+        const coverage = rainbowBandCoverage(stagePixels);
+        assert.ok(coverage.red > 3500 && coverage.orange > 3000 &&
+          coverage.left > 1200 && coverage.right > 1200,
+          'real iPad screenshot needs a two-layer complete-width arch: ' +
+          JSON.stringify(coverage));
+        tabletMidplayEvidence = {
+          progress: progressed.objectiveProgress, score: progressed.score,
+          source: 'real tablet touchscreen input', rainbowCoverage: coverage,
+          screenshots: ['ipad-midplay-restored-rainbow.png',
+            'ipad-midplay-restored-rainbow-stage.png'],
+        };
+        break;
+      }
+      const targets = state.entities
+        .filter(e => e.kind === 'pickup' &&
+          (e.id === 'heart' || e.id === 'heart_blue') &&
+          e.visible && Number.isFinite(e.x) && Number.isFinite(e.y) &&
+          e.y < state.player.y + 20)
+        .sort((a, b) => b.y - a.y);
+      if (targets[0]) {
+        await tablet.touchscreen.tap(tabletRect.x + targets[0].x / 390 * tabletRect.width,
+          tabletRect.y + tabletRect.height * 0.6);
+      }
+      await tablet.waitForTimeout(110);
+    }
+    assert.ok(tabletMidplayEvidence, 'real iPad play must reach four caught regular hearts');
   } finally {
     await tablet.close();
   }
@@ -254,12 +302,14 @@ try {
     croppedBrownPixels, visualArtScale: playerIR.render.scale,
     haloFollowsPlayer: true,
     midplayEvidence,
+    tabletMidplayEvidence,
     screenshotOldSpawnPalePixelsBefore: oldSpawnPaleBefore,
     screenshotOldSpawnPalePixelsAfter: oldSpawnPaleAfter,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
       'ipad-after-short-tap-stage.png', 'midplay-restored-rainbow.png',
+      'ipad-midplay-restored-rainbow.png', 'ipad-midplay-restored-rainbow-stage.png',
       'missed-heart-before-recycle.png', 'missed-heart-after-recycle.png']
   };
   writeFileSync(shots + '/report.json', JSON.stringify(report, null, 2));
