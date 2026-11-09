@@ -2,6 +2,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,20 +15,30 @@ import (
 )
 
 // Run starts the HTTP server on $PORT (default 8080).
-func Run() {
+// openPersistentStore is deliberately all-or-nothing: if a snapshot is
+// unreadable or corrupt, serving with a fresh in-memory state would let
+// creators publish into a state that will disappear on restart. Operators
+// must restore the snapshot (or explicitly relocate it after backing it up)
+// before accepting writes again.
+func openPersistentStore(path string) (*store.MemoryStore, error) {
 	st := store.NewMemoryStore()
-	// Durable store snapshot (games, jobs, groups, ingests, artifacts):
-	// without it a restart lost every user-generated game while the
-	// social state and run records on disk survived (architecture
-	// review 2026-10-23). Inventory loads after the snapshot and
-	// re-seeds authoritatively (see inventory.seedGame), so shipped
-	// content on disk wins over a stale snapshot copy.
+	if err := st.EnablePersistence(path); err != nil {
+		return nil, fmt.Errorf("load durable game store: %w", err)
+	}
+	return st, nil
+}
+
+func Run() {
+	// Inventory loads after the durable snapshot and re-seeds authoritatively.
+	// Never silently replace an unreadable/corrupt creator store with empty
+	// memory; /healthz alone cannot prove creations remain durable.
 	storePath := os.Getenv("DQ_STORE_FILE")
 	if storePath == "" {
 		storePath = filepath.Join("telemetry", "store-state.json")
 	}
-	if err := st.EnablePersistence(storePath); err != nil {
-		log.Printf("store persistence unavailable (%v); continuing in-memory", err)
+	st, err := openPersistentStore(storePath)
+	if err != nil {
+		log.Fatalf("refusing to serve without durable game store: %v", err)
 	}
 	invDir := os.Getenv("INVENTORY_DIR")
 	if invDir == "" {
