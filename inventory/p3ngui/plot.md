@@ -105,3 +105,14 @@ classic must keep its dark crown, transparent paper-free borders and an opaque
 readable face. CI must also capture the three **actual gameplay** milestone
 screenshots on iPhone/iPad in Chromium and WebKit and retain them for human
 comparison. Bump manifest 3→4; do not attach old preview posters to new IR/art.
+
+### Texture footprint corrected after screenshot evidence
+
+The first Chromium iPhone/iPad v4 screenshot candidates showed the rainbow and
+holiday variants noticeably smaller than the unchanged classic variant even
+though gameplay collision remained the same. Their first generated PNGs used a
+smaller 128×148 natural texture. The player renderer's asset swap retained that
+natural image-size difference. Regenerated both colorful variants at the
+classic source sprite's 160×190 pixel footprint without changing IR/physics;
+a new automated PNG dimension equality check prevents a silent size mismatch.
+Fresh screenshot evidence from the corrected exact commit is required.
