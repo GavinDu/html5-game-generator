@@ -837,12 +837,12 @@
           "kind": "decoration",
           "assetId": "band0",
           "position": [
-            62,
-            150
+            195,
+            232
           ],
           "size": [
-            76,
-            26
+            380,
+            230
           ],
           "zIndex": -1,
           "components": [],
@@ -855,12 +855,12 @@
           "kind": "decoration",
           "assetId": "band1",
           "position": [
-            117,
-            122
+            195,
+            232
           ],
           "size": [
-            76,
-            26
+            380,
+            230
           ],
           "zIndex": -1,
           "components": [],
@@ -873,12 +873,12 @@
           "kind": "decoration",
           "assetId": "band2",
           "position": [
-            172,
-            110
+            195,
+            232
           ],
           "size": [
-            76,
-            26
+            380,
+            230
           ],
           "zIndex": -1,
           "components": [],
@@ -891,12 +891,12 @@
           "kind": "decoration",
           "assetId": "band3",
           "position": [
-            227,
-            110
+            195,
+            232
           ],
           "size": [
-            76,
-            26
+            380,
+            230
           ],
           "zIndex": -1,
           "components": [],
@@ -909,12 +909,12 @@
           "kind": "decoration",
           "assetId": "band4",
           "position": [
-            282,
-            122
+            195,
+            232
           ],
           "size": [
-            76,
-            26
+            380,
+            230
           ],
           "zIndex": -1,
           "components": [],
@@ -927,12 +927,12 @@
           "kind": "decoration",
           "assetId": "band5",
           "position": [
-            337,
-            150
+            195,
+            232
           ],
           "size": [
-            76,
-            26
+            380,
+            230
           ],
           "zIndex": -1,
           "components": [],
