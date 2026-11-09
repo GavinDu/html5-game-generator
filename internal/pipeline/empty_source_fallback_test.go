@@ -14,8 +14,8 @@ import (
 func TestEmptyConfirmedQuestionnairePublishesResolvableFallbackPlayer(t *testing.T) {
 	st := store.NewMemoryStore()
 	game := &model.Game{
-		ID: "empty-source-creator",
-		Title: "Before confirmation",
+		ID:     "empty-source-creator",
+		Title:  "Before confirmation",
 		Status: model.GameGenerating,
 		Intent: "Make a gentle game from this story",
 	}
