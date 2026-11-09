@@ -57,6 +57,7 @@ type Store interface {
 
 	CreateJob(j *model.Job)
 	GetJob(id string) (*model.Job, bool)
+	ListJobs() []*model.Job
 	UpdateJob(j *model.Job)
 	GetJobByGame(gameID string) (*model.Job, bool)
 
@@ -384,6 +385,19 @@ func (s *MemoryStore) GetJob(id string) (*model.Job, bool) {
 	defer s.mu.RUnlock()
 	j, ok := s.jobs[id]
 	return clone(j), ok
+}
+
+// ListJobs returns detached, ID-ordered snapshots for startup recovery.
+// Callers cannot modify the backing store without UpdateJob.
+func (s *MemoryStore) ListJobs() []*model.Job {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*model.Job, 0, len(s.jobs))
+	for _, job := range s.jobs {
+		out = append(out, clone(job))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
 
 func (s *MemoryStore) UpdateJob(j *model.Job) {

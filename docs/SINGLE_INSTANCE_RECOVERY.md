@@ -55,3 +55,20 @@ The telemetry directory may contain `events.jsonl`, `runtime-errors.jsonl`, `mod
 ## Multi-instance gate
 
 Do not scale the service to multiple replicas until shared storage/database semantics, schema migration and rollback, uniqueness/idempotency, operator authentication, rate limiting, and a real restore/load test are implemented. The current JSON snapshot design intentionally favors simplicity for the small user base.
+## Interrupted generation jobs after process restart
+
+The generation worker runs in a Go goroutine. A process crash or deployment
+restart cannot resume that goroutine, even when its job and generated artifacts
+were persisted. At startup the backend now reconciles each persisted
+`queued` or `running` job to a creator-visible failed state with the reason
+`Generation interrupted by backend restart; start a new generation.` Running
+stages are marked failed, and unpublished draft/generating games are marked
+failed rather than being left in an endless spinner. Completed jobs, validated
+published game versions, and `awaiting_confirm` questionnaires are preserved;
+the creator may still confirm a questionnaire after the restart.
+
+This is **not** automatic replay of interrupted generation work. The safe
+path is to start a new generation, since replaying partial art/IR/publish
+writes could produce mismatched package versions or duplicate remixes.
+`go test ./internal/pipeline -run TestRecoverInterruptedJobsAfterSnapshotRestore`
+exercises durable restart, idempotence and preserved confirmation state.
