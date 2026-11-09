@@ -70,3 +70,14 @@ The original three penguin variants remain. The scene now uses a moonlit winter 
 ## Collection-score fidelity repair — 2026-11-07
 
 The heart count is independent of bonus score. Every real caught heart increments `hearts_collected` once; regular pink hearts award 10 points, and two yellow-tinted golden hearts in the twelve-heart field award 30 points. The same 2/4/6/8/10/12 heart thresholds unlock aurora bands and source-inspired scarf variants regardless of point bonuses. The win still requires twelve catches, not a score threshold. No penalty is imposed for misses.
+
+## v3 screenshot readability correction — 2026-11-09
+
+Real iPhone and iPad screenshot review found multiple floating hearts crossing
+the introductory title and tap instructions. Version 3 adds a high-contrast,
+chamfered *visual-only* instruction panel above the moving pickups and below
+the title/hint painter order. It never changes the authored 112×134 penguin
+collision area, heart paths, score, timers, or six aurora milestones.
+Chromium/WebKit phone/tablet screenshots and package-z-index assertions
+are required before this is accepted. The prior v2 poster remains explicitly
+version-bound; no media is silently rebound to v3.
