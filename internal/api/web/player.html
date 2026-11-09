@@ -320,6 +320,26 @@
   body.dq-feed .game-card { min-height: 100%; height: 100%; position: relative; isolation: isolate; scroll-snap-align: start; scroll-snap-stop: always; border-radius: 0; padding: 0; display: flex; align-items: stretch; justify-content: flex-end; background: linear-gradient(155deg, #403877, #214355 60%, #101729); overflow: hidden; }
   body.dq-feed .game-card:nth-child(even) { background: linear-gradient(155deg, #834252, #35406b 60%, #101729); }
   .feed-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: -2; }
+  /* This is explicitly NOT a gameplay screenshot. It keeps an unreviewed
+     game inviting without inventing poster content or blocking swipe/tap. */
+  .feed-preview-absent {
+    position: absolute; inset: 14% 9% 30%; z-index: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    align-items: center; gap: 10px; text-align: center; pointer-events: none;
+    color: #f6f8ff; text-shadow: 0 2px 12px rgba(0, 0, 0, .25);
+  }
+  .feed-preview-symbol {
+    display: grid; place-items: center;
+    width: clamp(60px, 14vmin, 86px); height: clamp(60px, 14vmin, 86px);
+    background: rgba(255, 255, 255, .13); border: 2px solid rgba(255, 255, 255, .48);
+    border-radius: 24px; box-shadow: 0 14px 45px rgba(0, 0, 0, .22);
+    font-size: clamp(26px, 6vmin, 38px); padding-left: 5px;
+  }
+  .feed-preview-absent strong {
+    font-size: clamp(16px, 3.2vmin, 24px);
+    font-weight: 800; line-height: 1.2;
+  }
+  .feed-preview-absent span { font-size: clamp(12px, 2vmin, 15px); color: #dce6ff; }
   .card-content { width: 100%; padding: 70px 20px max(20px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(5,9,20,.94)); }
   body.dq-feed .game-title { font-size: clamp(22px, 4vw, 32px); line-height: 1.15; display: block; margin: 8px 0; }
   .card-caption { line-height: 1.4; margin: 10px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
