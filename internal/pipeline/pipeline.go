@@ -418,9 +418,8 @@ func (r *Runner) runRemaining(jobID string) {
 				m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
 					ID:     spriteID,
 					Src:    "sprites/" + spriteID + ".png",
-					// The stub renderer creates a synthetic image from the label,
-// not the pixels of an uploaded drawing.
-                    Source: "generated",
+					// The stub renderer uses a synthetic PNG, not uploaded drawing pixels.
+					Source: "generated",
 					Label:  el.Label,
 				})
 			}
