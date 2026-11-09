@@ -81,3 +81,27 @@ collision area, heart paths, score, timers, or six aurora milestones.
 Chromium/WebKit phone/tablet screenshots and package-z-index assertions
 are required before this is accepted. The prior v2 poster remains explicitly
 version-bound; no media is silently rebound to v3.
+
+## Version 4 — three source-character variants (2026-11-09)
+
+Comparison of the three submitted penguin drawings against the successful
+iPhone/iPad Chromium screenshot evidence showed that the rainbow and holiday
+skins were almost indistinguishable except for scarf stripes. The first drawing
+has a striped multicolor head and patchwork body, the second has a festive
+purple/green/yellow/pink crown with cooler-toned flippers, and the third is
+the classic dark-head penguin with a blue scarf and warm feet.
+
+Version 4 replaces only the **rainbow and holiday** sprite PNGs with cleaned
+original interpretations of those supplied color patterns. The classic skin
+already preserved its source treatment and is retained. Photographed paper,
+handwritten labels and watermarks are excluded. The canonical hero collider
+remains 112×134, horizontal tap movement and 1.5× render scale are unchanged.
+The 4- and 8-heart skin transitions, aurora thresholds and score still follow
+the existing questionnaire exactly.
+
+The per-variant palette/shape test is a *hard source-fidelity regression*:
+rainbow and holiday must have colorful crowns distinct from one another,
+classic must keep its dark crown, transparent paper-free borders and an opaque
+readable face. CI must also capture the three **actual gameplay** milestone
+screenshots on iPhone/iPad in Chromium and WebKit and retain them for human
+comparison. Bump manifest 3→4; do not attach old preview posters to new IR/art.
