@@ -64,8 +64,8 @@ try {
       assert.ok(title.zIndex > panel.zIndex && hint.zIndex > panel.zIndex,
         'title and hint must be legible above the panel in screenshots');
       const manifest = JSON.parse(readFileSync(new URL('../../inventory/p3ngui/manifest.json', import.meta.url), 'utf8'));
-      assert.equal(manifest.version, 3,
-        'a changed visual package must not reuse old version 2 screenshot provenance');
+      assert.equal(manifest.version, 4,
+        'a changed visual package must not reuse stale poster provenance');
       const first = await snap();
       const variants = new Set([first.entities.find(e => e.id === 'penguin')?.assetId]);
       assert.equal(first.objectiveProgress, 0, 'the 12-heart counter must start at zero');
