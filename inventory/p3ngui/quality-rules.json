@@ -84,6 +84,7 @@
     "Preserve all three supplied scarf variants while keeping snowy scenery behind pickups and outside the instruction area.",
     "Compare source-drawing scarf variants against before/mid/win images, and verify score can exceed twelve while progress remains twelve hearts.",
     "Version 4 source-fidelity: verify real phone/tablet milestone screenshots show a multicolor striped crown and patchwork body for the rainbow penguin, purple/green/yellow/pink festive crown and blue flippers for holiday, and the classic dark crown with blue scarf. Reject a scarf-only skin swap even when game logic passes.",
-    "Run the PNG crown-color and transparency regression against the three canonical source-inspired sprites; preserve the 112×134 collider, one-tap controls, 1.5× visual scale and 4/8-heart transitions. No photographed paper, watermark, or handwritten labels may appear."
+    "Run the PNG crown-color and transparency regression against the three canonical source-inspired sprites; preserve the 112×134 collider, one-tap controls, 1.5× visual scale and 4/8-heart transitions. No photographed paper, watermark, or handwritten labels may appear.",
+    "Version 5 screenshot acceptance: show the readable large intro panel for the first seven seconds, then remove the opaque story panel and title while preserving a short persistent tap hint, heart visibility, score, game progression and the 4/8 heart artwork variants. Restart must restore the intro without changing collision geometry."
   ]
 }
