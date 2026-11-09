@@ -159,7 +159,23 @@ try {
         const picks = state.entities
           .filter(e => e.kind === 'pickup' && e.visible && e.y < state.player.y + 20)
           .sort((a, b) => b.y - a.y);
-        if (picks[0]) await tap(picks[0].x);
+        // On a fast tablet run, the guided catcher can finish all 12 hearts
+        // before the seven-second story timer. Reserve the last two catches
+        // until the real running game has cleared its intro, so the required
+        // screenshot is an actual active-play state rather than an arbitrary
+        // pause, modified simulation clock, or post-win recreation.
+        // Continue to move via touch and let missed hearts recycle normally.
+        if (!capturedIntroCleared && state.t < 7.2 &&
+            state.objectiveProgress >= 10) {
+          const closeHearts = picks.filter(e => e.y > state.player.y - 220);
+          const clearance = lane => closeHearts.length
+            ? Math.min(...closeHearts.map(e => Math.abs(e.x - lane)))
+            : Infinity;
+          const saferLane = clearance(135) >= clearance(260) ? 135 : 260;
+          await tap(saferLane);
+        } else if (picks[0]) {
+          await tap(picks[0].x);
+        }
         await page.waitForTimeout(90);
       }
       const end = await snap();
