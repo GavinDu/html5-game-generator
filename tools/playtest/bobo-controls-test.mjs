@@ -24,13 +24,26 @@ try {
   assert.ok(playerIR, 'canonical Bobo must exist');
   assert.deepEqual(playerIR.size, [92, 104], 'keep authored collision footprint');
   assert.deepEqual(playerIR.render?.scale, [1.28, 1.28], 'increase only visible crayon art scale');
+  const haloIR = pkg.ir.scenes.flatMap(s => s.entities).find(e => e.id === 'halo-bear');
+  assert.deepEqual(haloIR?.behavior, { type: 'follow', target: 'player' },
+    'the bear ground halo must follow the author\'s real player sprite as visual-only decoration');
+  const assertHaloAttached = (snap, name) => {
+    const halo = snap.entities.find(e => e.id === 'halo-bear');
+    assert.ok(halo, name + ': halo decoration missing');
+    assert.ok(Math.abs(halo.x - snap.player.x) <= 2,
+      name + ': original ground halo must not stay behind while player moves');
+    assert.ok(Math.abs(halo.y - snap.player.y) <= 2,
+      name + ': halo must remain vertically aligned with the original bear');
+  };
   const before = await page.evaluate(() => window.__dqTest.snapshot());
+  assertHaloAttached(before, 'iPhone initial');
   const beforePNG = await page.screenshot({ path: shots + '/before-short-tap.png' });
   const rect = await page.locator('#stage canvas').boundingBox();
   // A single short tap, with no held-contact fallback or runtime state writes.
   await page.touchscreen.tap(rect.x + rect.width * 0.85, rect.y + rect.height * 0.6);
   await page.waitForFunction(x => window.__dqTest.snapshot().player.x > x + 40, before.player.x, { timeout: 3000 });
   const moved = await page.evaluate(() => window.__dqTest.snapshot());
+  assertHaloAttached(moved, 'iPhone real right tap');
   assert.ok(Math.abs(moved.player.y - before.player.y) < 2, 'catcher must stay in the horizontal lane');
   const afterPNG = await page.screenshot({ path: shots + '/after-short-tap.png' });
   const changed = (a, b) => {
@@ -72,6 +85,7 @@ try {
     await tablet.waitForFunction(x => window.__dqTest.snapshot().player.x > x + 40,
       tabletBefore.player.x, { timeout: 4000 });
     const tabletAfter = await tablet.evaluate(() => window.__dqTest.snapshot());
+    assertHaloAttached(tabletAfter, 'iPad real right tap');
     assert.ok(Math.abs(tabletAfter.player.y - tabletBefore.player.y) < 2,
       'iPad Bobo must stay in the authored catcher lane');
     const tabletAfterPNG = await tablet.screenshot({ path: shots + '/ipad-after-short-tap.png' });
@@ -87,6 +101,7 @@ try {
     phoneVisualDelta: visualDelta,
     tabletVisualDelta: tabletDelta,
     visualArtScale: playerIR.render.scale,
+    haloFollowsPlayer: true,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
