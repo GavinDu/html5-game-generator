@@ -18,8 +18,8 @@ const inventoryRoot = resolve(option('inventory', 'inventory'));
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const cases = [
   { dir: 'p3ngui', report: 'penguin-quality-chromium/report.json',
-    screenshot: 'penguin-quality-chromium/iphone-portrait/restoring-aurora.png',
-    story: 'Six-heart aurora progress (not a win or recorded clip)' },
+    screenshot: 'penguin-quality-chromium/iphone-portrait/intro-cleared.png',
+    story: 'Unobstructed real gameplay after the seven-second story intro cleared (not a recorded clip)' },
   { dir: 'u46ex5', report: 'ribbon-quality-chromium/report.json',
     screenshot: 'ribbon-quality-chromium/iphone-portrait/hole3-stitched.png',
     story: 'Gameplay after a real sky-hole repair (not a win)' },
@@ -47,6 +47,17 @@ for (const item of cases) {
   const png = PNG.sync.read(poster);
   assert.ok(png.width >= 240 && png.height >= 240 && png.width <= 4096 && png.height <= 4096,
     item.dir + ': preview image dimensions are out of bounds');
+  if (item.dir === 'p3ngui') {
+    // A screenshot from mid-play can still contain the full opaque story
+    // introduction and conceal the actual heart lanes. Only consider the
+    // frame captured after the real browser observed its automatic clearing.
+    const phone = report.results?.find(result => result.viewport === 'iphone-portrait');
+    assert.ok(phone?.introClearedAfterSevenSeconds === true &&
+      phone?.compactHintPersists === true &&
+      phone?.won === true &&
+      phone?.screenshots?.includes('intro-cleared'),
+      'Penguin poster requires verified unobstructed gameplay and completed playtest');
+  }
   if (item.dir === '13ui1k') {
     // The former after-tap poster captured Bobo at the extreme right
     // boundary, clipping most of the original crayon bear. Screenshots
