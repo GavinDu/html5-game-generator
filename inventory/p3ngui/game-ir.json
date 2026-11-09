@@ -1880,6 +1880,61 @@
           "zIndex": -10
         },
         {
+          "id": "instructions-panel",
+          "kind": "decoration",
+          "position": [
+            195,
+            142
+          ],
+          "size": [
+            360,
+            143
+          ],
+          "components": [],
+          "render": {
+            "alpha": 0.95,
+            "shape": {
+              "type": "polygon",
+              "fill": "#132C45",
+              "points": [
+                [
+                  -167,
+                  -71
+                ],
+                [
+                  167,
+                  -71
+                ],
+                [
+                  180,
+                  -58
+                ],
+                [
+                  180,
+                  56
+                ],
+                [
+                  167,
+                  71
+                ],
+                [
+                  -167,
+                  71
+                ],
+                [
+                  -180,
+                  56
+                ],
+                [
+                  -180,
+                  -58
+                ]
+              ]
+            }
+          },
+          "zIndex": 12
+        },
+        {
           "id": "title",
           "kind": "text",
           "position": [
@@ -1905,7 +1960,7 @@
               "strokeWidth": 3
             }
           },
-          "zIndex": 20
+          "zIndex": 13
         },
         {
           "id": "controls-hint",
@@ -1933,7 +1988,7 @@
               "strokeWidth": 3
             }
           },
-          "zIndex": 20
+          "zIndex": 13
         }
       ]
     }
