@@ -4,7 +4,7 @@
   "owner": "doodlequest",
   "intent": "Guide a cheerful penguin to catch floating hearts and relight the six colors of the winter aurora.",
   "visibility": "public",
-  "version": 3,
+  "version": 4,
   "shim": "gameshim/v1",
   "entry": "game.js",
   "controls": [
@@ -56,7 +56,7 @@
   "sprites": [
     {
       "id": "penguin_rainbow",
-      "label": "penguin with rainbow scarf",
+      "label": "round penguin with multicolor head stripes, patchwork belly and rainbow scarf",
       "mime": "image/png",
       "source": "generated",
       "file": "assets/penguin-rainbow.png.b64",
@@ -64,7 +64,7 @@
     },
     {
       "id": "penguin_holiday",
-      "label": "penguin with festive scarf",
+      "label": "round penguin with festive colorful crown, cool blue wings and striped scarf",
       "mime": "image/png",
       "source": "generated",
       "file": "assets/penguin-holiday.png.b64",
