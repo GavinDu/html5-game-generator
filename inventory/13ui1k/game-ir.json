@@ -526,6 +526,10 @@
               "type": "ellipse",
               "fill": "#fff7d6"
             }
+          },
+          "behavior": {
+            "type": "follow",
+            "target": "player"
           }
         },
         {

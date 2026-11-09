@@ -100,3 +100,21 @@ optional bonus rewards and never replace a regular restoration heart.
 ## v7 correction (2026-11-08) — audible completion payoff
 
 The authored 12-heart win previously placed `play_sound(jingle)` **after** `end_game`, but the runtime intentionally stops rule actions immediately at the ending. The celebration was therefore unreachable. Move the jingle immediately before the terminal action and stop restarting the calm background theme on victory. The six colored bands and no-failure story remain unchanged. The Game IR validator now rejects all actions after an `end_game` to prevent this class of silent ending regression in future generated games.
+
+## v8 correction (2026-11-09) — Bobo's ground halo is part of the moving character
+
+A real screenshot review after a right-edge touchscreen tap found that the
+large pale `halo-bear` ellipse stayed at the **original spawn x=195** after
+Bobo moved right, leaving a distracting ghost ring in the gameplay field.
+The source drawing and physical 92×104 catcher are unchanged.
+
+The decorative ellipse now has `behavior: {type:"follow", target:"player"}`
+so the 1.2 engine draws it at the bear's current center each fixed step.
+This behavior is restricted to physics-free decorations with valid live
+targets in the same scene; it cannot move colliders or award points. Real
+iPhone/iPad touchscreen screenshots must prove that the halo follows
+and that pink/blue hearts still recycle and the 12-heart win remains intact.
+
+Package version increases from 4 to 5, intentionally invalidating any
+previous version-bound poster until refreshed review. This visual fix
+does not alter the no-fail story, golden-heart scoring, or original crayon art.

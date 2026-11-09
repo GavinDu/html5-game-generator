@@ -26,6 +26,28 @@ function brownPixelsAtRightEdge(bytes) {
   return clipped;
 }
 
+// Gameplay screenshot regression: halo is a pale scene decoration behind
+// Bobo. The separate white kitten to the RIGHT is part of the creator's
+// original artwork and must not be mistaken for the halo. The earlier
+// screenshot-only visual audit accidentally shifted the halo away from Bobo.
+// After an actual right tap, the old spawn region must lose its pale fill.
+function paleHaloPixelsAtSpawn(bytes) {
+  const p = PNG.sync.read(bytes);
+  assert.equal(p.width, 390, 'iPhone visual spawn guard assumes 390px capture');
+  let n = 0;
+  for (let y = 650; y < Math.min(p.height, 780); y++) {
+    for (let x = 135; x < 235; x++) {
+      const i = (y * p.width + x) * 4;
+      const r = p.data[i], g = p.data[i + 1], b = p.data[i + 2];
+      // Opaque pale ellipse over the authored sky blue; deliberately
+      // excludes brown bear pixels and the kitten's separate circle.
+      if (r >= 151 && r <= 158 && g >= 202 && g <= 208 &&
+          b >= 226 && b <= 232) n++;
+    }
+  }
+  return n;
+}
+
 const browser = await engine.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -41,15 +63,35 @@ try {
   assert.ok(playerIR, 'canonical Bobo must exist');
   assert.deepEqual(playerIR.size, [92, 104], 'keep authored collision footprint');
   assert.deepEqual(playerIR.render?.scale, [1.28, 1.28], 'increase only visible crayon art scale');
+  const haloIR = pkg.ir.scenes.flatMap(s => s.entities).find(e => e.id === 'halo-bear');
+  assert.deepEqual(haloIR?.behavior, { type: 'follow', target: 'player' },
+    'the bear ground halo must follow the author\'s real player sprite as visual-only decoration');
+  const assertHaloAttached = (snap, name) => {
+    const halo = snap.entities.find(e => e.id === 'halo-bear');
+    assert.ok(halo, name + ': halo decoration missing');
+    assert.ok(Math.abs(halo.x - snap.player.x) <= 2,
+      name + ': original ground halo must not stay behind while player moves');
+    assert.ok(Math.abs(halo.y - snap.player.y) <= 2,
+      name + ': halo must remain vertically aligned with the original bear');
+  };
   const before = await page.evaluate(() => window.__dqTest.snapshot());
+  assertHaloAttached(before, 'iPhone initial');
   const beforePNG = await page.screenshot({ path: shots + '/before-short-tap.png' });
   const rect = await page.locator('#stage canvas').boundingBox();
   // A single short tap, with no held-contact fallback or runtime state writes.
   await page.touchscreen.tap(rect.x + rect.width * 0.85, rect.y + rect.height * 0.6);
   await page.waitForFunction(x => window.__dqTest.snapshot().player.x > x + 40, before.player.x, { timeout: 3000 });
   const moved = await page.evaluate(() => window.__dqTest.snapshot());
+  assertHaloAttached(moved, 'iPhone real right tap');
   assert.ok(Math.abs(moved.player.y - before.player.y) < 2, 'catcher must stay in the horizontal lane');
   const afterPNG = await page.screenshot({ path: shots + '/after-short-tap.png' });
+  const oldSpawnPaleBefore = paleHaloPixelsAtSpawn(beforePNG);
+  const oldSpawnPaleAfter = paleHaloPixelsAtSpawn(afterPNG);
+  assert.ok(oldSpawnPaleBefore > 300,
+    'before tap screenshot must actually show the pale halo at the original spawn');
+  assert.ok(oldSpawnPaleAfter <= Math.max(25, oldSpawnPaleBefore * 0.15),
+    'after real tap halo must not remain as a ghost at original spawn: ' +
+    oldSpawnPaleBefore + ' before, ' + oldSpawnPaleAfter + ' after');
   const croppedBrownPixels = brownPixelsAtRightEdge(afterPNG);
   assert.ok(croppedBrownPixels <= 3,
     'real right-edge tap must not crop original brown source artwork (edge pixels=' + croppedBrownPixels + ')');
@@ -92,6 +134,7 @@ try {
     await tablet.waitForFunction(x => window.__dqTest.snapshot().player.x > x + 40,
       tabletBefore.player.x, { timeout: 4000 });
     const tabletAfter = await tablet.evaluate(() => window.__dqTest.snapshot());
+    assertHaloAttached(tabletAfter, 'iPad real right tap');
     assert.ok(Math.abs(tabletAfter.player.y - tabletBefore.player.y) < 2,
       'iPad Bobo must stay in the authored catcher lane');
     const tabletAfterPNG = await tablet.screenshot({ path: shots + '/ipad-after-short-tap.png' });
@@ -112,6 +155,9 @@ try {
     phoneVisualDelta: visualDelta,
     tabletVisualDelta: tabletDelta,
     croppedBrownPixels, visualArtScale: playerIR.render.scale,
+    haloFollowsPlayer: true,
+    screenshotOldSpawnPalePixelsBefore: oldSpawnPaleBefore,
+    screenshotOldSpawnPalePixelsAfter: oldSpawnPaleAfter,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
