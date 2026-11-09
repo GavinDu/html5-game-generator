@@ -9,6 +9,23 @@ const base = arg('base', 'http://localhost:18099');
 const shots = arg('shots', '/tmp/bobo-controls');
 const engine = arg('browser', 'chromium') === 'webkit' ? webkit : chromium;
 mkdirSync(shots, { recursive: true });
+// Screenshot-based visual regression: a brown crayon pixel touching the
+// right canvas edge means the enlarged Bear Prince was visibly cropped.
+// The original child's PNG is not recolored or replaced for this check.
+function brownPixelsAtRightEdge(bytes) {
+  const p = PNG.sync.read(bytes);
+  let clipped = 0;
+  for (let y = Math.floor(p.height * 0.72); y < Math.floor(p.height * 0.94); y++) {
+    for (let x = p.width - 3; x < p.width; x++) {
+      const i = (y * p.width + x) * 4;
+      const [r, g, b] = [p.data[i], p.data[i + 1], p.data[i + 2]];
+      if (r >= 55 && r <= 190 && g >= 25 && g <= 150 &&
+          b >= 15 && b <= 125 && r > g * 1.22 && g > b * 1.10) clipped++;
+    }
+  }
+  return clipped;
+}
+
 const browser = await engine.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -33,6 +50,9 @@ try {
   const moved = await page.evaluate(() => window.__dqTest.snapshot());
   assert.ok(Math.abs(moved.player.y - before.player.y) < 2, 'catcher must stay in the horizontal lane');
   const afterPNG = await page.screenshot({ path: shots + '/after-short-tap.png' });
+  const croppedBrownPixels = brownPixelsAtRightEdge(afterPNG);
+  assert.ok(croppedBrownPixels <= 3,
+    'real right-edge tap must not crop original brown source artwork (edge pixels=' + croppedBrownPixels + ')');
   const changed = (a, b) => {
     const p = PNG.sync.read(a), q = PNG.sync.read(b);
     assert.equal(p.width, q.width);
@@ -75,6 +95,11 @@ try {
     assert.ok(Math.abs(tabletAfter.player.y - tabletBefore.player.y) < 2,
       'iPad Bobo must stay in the authored catcher lane');
     const tabletAfterPNG = await tablet.screenshot({ path: shots + '/ipad-after-short-tap.png' });
+    const tabletCanvas = await tablet.locator('#stage canvas').screenshot({
+      path: shots + '/ipad-after-short-tap-stage.png',
+    });
+    assert.ok(brownPixelsAtRightEdge(tabletCanvas) <= 3,
+      'iPad logical game stage must keep the original crayon bear fully inside its right boundary');
     tabletDelta = changed(tabletBeforePNG, tabletAfterPNG);
     assert.ok(tabletDelta > 0.005, 'iPad gameplay screenshots must visibly change after real tap');
   } finally {
@@ -86,10 +111,11 @@ try {
     before: before.player, after: moved.player, low, recycled,
     phoneVisualDelta: visualDelta,
     tabletVisualDelta: tabletDelta,
-    visualArtScale: playerIR.render.scale,
+    croppedBrownPixels, visualArtScale: playerIR.render.scale,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
+      'ipad-after-short-tap-stage.png',
       'missed-heart-before-recycle.png', 'missed-heart-after-recycle.png']
   };
   writeFileSync(shots + '/report.json', JSON.stringify(report, null, 2));
