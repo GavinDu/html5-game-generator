@@ -99,6 +99,11 @@ try {
       // missed catches can skip the source variant milestones and alter
       // the report. Capture from the normal actively guided gameplay loop.
       let capturedIntroCleared = false;
+      // The intro may be captured in the winning session or in a separate
+      // real browser session if the game completes before its seven-second timer.
+      // Record which one produced the screenshot, rather than implying that
+      // a supplemental screenshot belongs to the guided win trace.
+      let introEvidence = null;
       const observedHeartCounts = [];
       let capturedMidway = false;
       let capturedHolidayScarf = false;
@@ -116,6 +121,8 @@ try {
           assert.ok(state.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
             'compact tap guidance should persist over the unobstructed playfield');
           await page.screenshot({ path: dir + '/intro-cleared.png' });
+          introEvidence = { session: 'guided-play', runtimeSeconds: state.t,
+            objectiveProgress: state.objectiveProgress };
           capturedIntroCleared = true;
         }
         variants.add(state.entities.find(e => e.id === 'penguin')?.assetId);
@@ -198,6 +205,8 @@ try {
           assert.ok(activeIntro.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
             'compact tap guidance must remain after the story board clears');
           await introPage.screenshot({ path: dir + '/intro-cleared.png' });
+          introEvidence = { session: 'independent-real-browser', runtimeSeconds: activeIntro.t,
+            objectiveProgress: activeIntro.objectiveProgress };
           capturedIntroCleared = true;
         } finally {
           await introPage.close();
@@ -205,6 +214,10 @@ try {
       }
       assert.equal(capturedIntroCleared, true,
         'screen capture must prove the story overlay cleared during active play');
+      assert.ok(introEvidence && introEvidence.runtimeSeconds >= 7.2 &&
+        ['guided-play', 'independent-real-browser'].includes(introEvidence.session) &&
+        Number.isFinite(introEvidence.objectiveProgress),
+        'the intro screenshot must carry real-session runtime provenance');
       await page.screenshot({ path: dir + '/win.png' });
       await page.evaluate(() => { window.__penguinReloadMarker = 'kept'; });
       await page.locator('#shell-again-btn').click();
@@ -228,6 +241,7 @@ try {
         brightBands: end.entities.filter(e => e.id.startsWith('band'))
           .map(e => ({ id: e.id, alpha: e.alpha })),
         restartInPlace: true, introClearedAfterSevenSeconds: true,
+        introEvidence,
         introRestoredOnRestart: true, compactHintPersists: true,
         scarfMilestoneScreenshots: {
           rainbow: 'before.png', holiday: 'holiday-scarf.png', classic: 'classic-scarf.png'
