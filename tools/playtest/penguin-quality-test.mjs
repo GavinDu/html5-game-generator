@@ -64,9 +64,20 @@ try {
       assert.ok(title.zIndex > panel.zIndex && hint.zIndex > panel.zIndex,
         'title and hint must be legible above the panel in screenshots');
       const manifest = JSON.parse(readFileSync(new URL('../../inventory/p3ngui/manifest.json', import.meta.url), 'utf8'));
-      assert.equal(manifest.version, 4,
+      assert.equal(manifest.version, 5,
         'a changed visual package must not reuse stale poster provenance');
       const first = await snap();
+      assert.ok(first.entities.find(e => e.id === 'instructions-panel')?.alpha >= .9 &&
+        first.entities.find(e => e.id === 'title')?.alpha >= .9,
+        'the original story title must remain visible at the start of the game');
+      const introRule = pkg.ir.rules.find(rule =>
+        rule.id === 'intro-overlay-clear-after-seven-seconds');
+      assert.equal(introRule?.when?.event, 'timer_elapsed');
+      assert.equal(introRule?.when?.value, 7);
+      assert.ok(introRule.actions.some(a => a.type === 'set_alpha' &&
+        a.target === 'instructions-panel' && a.value === 0));
+      assert.ok(introRule.actions.some(a => a.type === 'set_alpha' &&
+        a.target === 'title' && a.value === 0));
       const variants = new Set([first.entities.find(e => e.id === 'penguin')?.assetId]);
       assert.equal(first.objectiveProgress, 0, 'the 12-heart counter must start at zero');
       const rect = await page.locator('#stage canvas').boundingBox();
@@ -84,6 +95,20 @@ try {
       await page.waitForFunction(() => window.__dqTest.snapshot().entities
         .some(e => e.id === 'heart03' && e.y < 100), null, { timeout: 15000 });
       await page.screenshot({ path: dir + '/recycled-heart.png' });
+      // The screenshot review found the large story panel still blocking
+      // floating hearts at 10/12 catches. Clear the noninteractive title
+      // after the opening teaching window, but leave the compact tap hint.
+      await page.waitForFunction(() => window.__dqTest.snapshot().t >= 7.2,
+        null, { timeout: 15000 });
+      const introCleared = await snap();
+      assert.ok(introCleared.entities.find(e => e.id === 'instructions-panel')?.alpha <= .01,
+        'large intro panel must not hide falling hearts after seven seconds');
+      assert.ok(introCleared.entities.find(e => e.id === 'title')?.alpha <= .01,
+        'large intro title must clear with its background');
+      assert.ok(introCleared.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
+        'compact tap hint should remain usable after clearing the story title');
+      assert.equal(introCleared.ended, false, 'the intro cannot change game progress');
+      await page.screenshot({ path: dir + '/intro-cleared.png' });
       const observedHeartCounts = [];
       let capturedMidway = false;
       let capturedHolidayScarf = false;
@@ -152,6 +177,10 @@ try {
         return state && !state.ended && state.objectiveProgress === 0 && state.score === 0;
       }, null, { timeout: 15000 });
       assert.equal(await page.evaluate(() => window.__penguinReloadMarker), 'kept');
+      const restarted = await snap();
+      assert.ok(restarted.entities.find(e => e.id === 'instructions-panel')?.alpha >= .9 &&
+        restarted.entities.find(e => e.id === 'title')?.alpha >= .9,
+        'a fresh round must restore the source-story introduction');
       await page.screenshot({ path: dir + '/restarted.png' });
       assert.deepEqual(errors, [], 'runtime must not emit uncaught page errors');
       const report = {
@@ -162,11 +191,12 @@ try {
         goldenHeartCatches: (end.score - 120) / 20,
         brightBands: end.entities.filter(e => e.id.startsWith('band'))
           .map(e => ({ id: e.id, alpha: e.alpha })),
-        restartInPlace: true,
+        restartInPlace: true, introClearedAfterSevenSeconds: true,
+        introRestoredOnRestart: true, compactHintPersists: true,
         scarfMilestoneScreenshots: {
           rainbow: 'before.png', holiday: 'holiday-scarf.png', classic: 'classic-scarf.png'
         },
-        screenshots: ['before', 'missed-heart', 'recycled-heart', 'holiday-scarf',
+        screenshots: ['before', 'missed-heart', 'recycled-heart', 'intro-cleared', 'holiday-scarf',
           'restoring-aurora', 'classic-scarf', 'win', 'restarted'],
       };
       reports.push(report);
