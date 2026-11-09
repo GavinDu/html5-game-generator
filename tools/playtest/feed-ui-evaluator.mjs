@@ -70,18 +70,44 @@ try {
       const before = await page.screenshot({ path: shots + '/' + name + '-before.png' });
       const firstID = await cards.first().getAttribute('data-game-id');
       const feed = page.locator('#list');
-      // Wheel and keyboard use the same native scrolling/snap surface as touch.
-      const inputMethod = browserName === 'webkit' && name.startsWith('iphone') ? 'keyboard' : 'wheel';
-      if (inputMethod === 'keyboard') {
-        // Playwright has no swipe API for mobile WebKit. Exercise the real
-        // keyboard paging alternative, and identify that limitation in evidence.
+      // Chromium's CDP dispatches trusted touchscreen input, rather than
+      // treating mouse wheel/keyboard paging as evidence of a mobile swipe.
+      // Playwright WebKit does not expose native swipe injection; keep its
+      // accessible alternatives explicit in the report, not mislabeled.
+      const inputMethod = browserName === 'chromium' ? 'native-touch-swipe'
+        : name.startsWith('iphone') ? 'keyboard-alternative' : 'wheel-alternative';
+      if (inputMethod === 'native-touch-swipe') {
+        const bounds = await feed.boundingBox();
+        if (!bounds || bounds.height < 100) throw new Error('touch swipe requires a visible feed');
+        const x = bounds.x + bounds.width * .5;
+        const startY = bounds.y + bounds.height * .79;
+        const endY = bounds.y + bounds.height * .17;
+        const cdp = await context.newCDPSession(page);
+        try {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchStart', touchPoints: [{ x, y: startY, id: 1 }]
+          });
+          for (let step = 1; step <= 12; step++) {
+            const y = startY + (endY - startY) * (step / 12);
+            await cdp.send('Input.dispatchTouchEvent', {
+              type: 'touchMove', touchPoints: [{ x, y, id: 1 }]
+            });
+            await page.waitForTimeout(18);
+          }
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchEnd', touchPoints: []
+          });
+        } finally {
+          await cdp.detach();
+        }
+      } else if (inputMethod === 'keyboard-alternative') {
         await feed.focus();
         await page.keyboard.press('ArrowDown');
       } else {
         await feed.hover();
         await page.mouse.wheel(0, metrics.feedHeight);
       }
-      await page.waitForTimeout(900);
+      await page.waitForTimeout(1200);
       const afterID = await page.evaluate(() => {
         const feed = document.getElementById('list');
         const mid = feed.getBoundingClientRect().top + feed.clientHeight / 2;
