@@ -71,3 +71,11 @@ test('preview rendering refuses missing or stale recorded runs before capturing 
   assert.match(runtime, /deterministic capture requires the exact recorded run/);
   assert.match(runtime, /recorded replay IR hash differs from the current package/);
 });
+
+test('preview clips can begin after a reviewed intro without unverified wall-clock drift', () => {
+  assert.match(source, /capture-start-ms/);
+  assert.match(source, /previewCaptureStep\(index, fps, captureStartMs\)/);
+  assert.match(source, /if \(targetStep > 0\)/);
+  assert.match(source, /capture_start_step: captureStartStep/);
+  assert.match(source, /capture_start_ms: captureStartMs/);
+});

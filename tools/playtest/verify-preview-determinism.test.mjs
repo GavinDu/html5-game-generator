@@ -36,3 +36,11 @@ test('invalid one-sided viewport arguments fail before creating temp captures', 
   assert.ok(source.includes('provide both --width and --height'));
   assert.ok(source.includes('process.exit(2)'));
 });
+
+test('preview replay determinism forwards and checks the same simulated start offset', () => {
+  assert.ok(source.includes("const captureStartMs = arg('capture-start-ms', '0')"));
+  assert.ok(source.includes("'--capture-start-ms', captureStartMs"));
+  assert.ok(source.includes("first.capture_start_step !== second.capture_start_step"));
+  assert.ok(source.includes("capture_start_ms: first.capture_start_ms"));
+  assert.ok(source.includes("capture_start_step: first.capture_start_step"));
+});

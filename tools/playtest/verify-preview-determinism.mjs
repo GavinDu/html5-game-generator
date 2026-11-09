@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { compareFrameHashes } from './frame-hash-comparison.mjs';
+import { MAX_CAPTURE_START_MS } from './capture-window.mjs';
 
 function arg(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -19,6 +20,7 @@ const run = arg('run');
 const browser = arg('browser', 'chromium');
 const durationMs = arg('duration-ms', '6000');
 const fps = arg('fps', '12');
+const captureStartMs = arg('capture-start-ms', '0');
 // Omitting both dimensions lets render-preview select the declared native
 // game orientation. A portrait-only default used to reject landscape runs.
 const width = arg('width');
@@ -40,6 +42,14 @@ if ((!!width !== !!height) ||
   process.exit(2);
 }
 
+// Both replay renders must select the same approved simulated gameplay window.
+// Wall-clock waits cannot stand in for advancing a deterministic trace.
+if (!Number.isSafeInteger(Number(captureStartMs)) ||
+    Number(captureStartMs) < 0 || Number(captureStartMs) > MAX_CAPTURE_START_MS) {
+  console.error('verify-preview-determinism: --capture-start-ms must be an integer in [0,30000]');
+  process.exit(2);
+}
+
 const temp = mkdtempSync(join(tmpdir(), 'dq-preview-determinism-'));
 const renderer = fileURLToPath(new URL('./render-preview.mjs', import.meta.url));
 function render(label) {
@@ -48,6 +58,7 @@ function render(label) {
   const renderArgs = [
     renderer, '--base', base, '--game', game, '--run', run, '--out', out,
     '--poster', poster, '--browser', browser, '--duration-ms', durationMs, '--fps', fps,
+    '--capture-start-ms', captureStartMs,
   ];
   if (width) renderArgs.push('--width', width, '--height', height);
   const result = spawnSync(process.execPath, renderArgs,
@@ -65,9 +76,16 @@ function render(label) {
 try {
   const first = render('first');
   const second = render('second');
+  if (first.capture_start_step !== second.capture_start_step ||
+      first.capture_start_ms !== second.capture_start_ms ||
+      first.capture_start_ms !== Number(captureStartMs)) {
+    throw new Error('recorded preview capture offsets differed between renders');
+  }
   const comparison = compareFrameHashes(first.frame_sha256, second.frame_sha256);
   const result = {
-    game, run, browser, width: first.width, height: first.height,
+    game, run, browser, capture_start_ms: first.capture_start_ms,
+    capture_start_step: first.capture_start_step,
+    width: first.width, height: first.height,
     aspect: first.aspect, orientation: first.orientation, deterministic: comparison.match,
     frame_count: comparison.frame_count,
     first_mismatch_index: comparison.first_mismatch_index,
