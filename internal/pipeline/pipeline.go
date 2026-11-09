@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode/utf8"
 	"time"
+	"unicode/utf8"
 
 	"doodlequest/internal/expression"
 	"doodlequest/internal/gameir"
