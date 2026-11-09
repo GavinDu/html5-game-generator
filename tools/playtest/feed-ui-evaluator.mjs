@@ -32,6 +32,29 @@ try {
         });
         return { feedHeight: a.height, cardHeight: b.height, viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.body.scrollWidth, targets };
       });
+      // A card must show either real, successfully loaded gameplay artwork
+      // or an explicit no-preview placeholder. An empty gradient is failure.
+      const previewSurface = () => page.evaluate(() => {
+        const feed = document.getElementById('list');
+        const mid = feed.getBoundingClientRect().top + feed.clientHeight / 2;
+        const card = [...feed.querySelectorAll('.game-card')].find(el => {
+          const r = el.getBoundingClientRect();
+          return r.top <= mid && r.bottom > mid;
+        });
+        if (!card) return { valid: false, type: 'missing-card' };
+        const img = card.querySelector('img.feed-poster');
+        if (img && img.complete && img.naturalWidth > 0) {
+          return { valid: true, type: 'verified-poster' };
+        }
+        const fallback = card.querySelector('.feed-preview-absent');
+        return {
+          valid: !!fallback &&
+            fallback.textContent.includes('Gameplay preview coming soon') &&
+            fallback.textContent.includes('Play now'),
+          type: fallback ? 'honest-placeholder' : 'unexplained-blank',
+        };
+      });
+      const beforePreview = await previewSurface();
       const before = await page.screenshot({ path: shots + '/' + name + '-before.png' });
       const firstID = await cards.first().getAttribute('data-game-id');
       const feed = page.locator('#list');
@@ -52,6 +75,7 @@ try {
         const mid = feed.getBoundingClientRect().top + feed.clientHeight / 2;
         return [...feed.querySelectorAll('.game-card')].find(card => { const r = card.getBoundingClientRect(); return r.top <= mid && r.bottom > mid; })?.dataset.gameId;
       });
+      const afterPreview = await previewSurface();
       const after = await page.screenshot({ path: shots + '/' + name + '-after.png' });
       const a = PNG.sync.read(before), b = PNG.sync.read(after);
       let changed = 0;
@@ -66,13 +90,14 @@ try {
         pagingAdvances: !!afterID && firstID !== afterID,
         screenshotChanged: changedPixelRatio > 0.005,
         noErrors: errors.length === 0,
+        previewSurfaceLabeled: beforePreview.valid && afterPreview.valid,
       };
       // The browser player has a feed exit; the native host keeps its own
       // controls because it never sends entry=feed.
       const visibleCard = page.locator(`.game-card[data-game-id="${afterID}"]`);
       const playURL = new URL(await visibleCard.locator('.play-link').getAttribute('href'), base);
       checks.immersivePlayLink = playURL.searchParams.get('presentation') === 'play' && playURL.searchParams.get('entry') === 'feed';
-      reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, changedPixelRatio, inputMethod, errors });
+      reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, beforePreview, afterPreview, changedPixelRatio, inputMethod, errors });
     } catch (error) { reports.push({ viewport: name, passed: false, error: error.message, errors }); }
     finally { await context.close(); }
   }
