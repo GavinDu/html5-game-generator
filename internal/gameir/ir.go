@@ -297,11 +297,13 @@ type Tween struct {
 // pickups are renewable); chase = move toward the player at Speed px/s;
 // patrol = oscillate horizontally around the authored position
 // (Range px amplitude, Speed = angular speed); oscillate = the same
-// vertically. A nil Behavior means the entity is static.
+// vertically. follow = visually attach a physics-free decoration to another
+// entity in the same scene (Target). A nil Behavior means static.
 type Behavior struct {
-	Type  string   `json:"type"`
-	Speed *float64 `json:"speed,omitempty"`
-	Range *float64 `json:"range,omitempty"`
+	Type   string   `json:"type"`
+	Target string   `json:"target,omitempty"`
+	Speed  *float64 `json:"speed,omitempty"`
+	Range  *float64 `json:"range,omitempty"`
 }
 
 type InputBinding struct {
@@ -367,7 +369,7 @@ var (
 	actionKinds = enum("add_score", "add_variable", "set_variable", "move_entity", "destroy_entity", "spawn_entity", "play_sound", "show_text", "change_scene", "set_health", "end_game", "change_health", "apply_impulse", "set_velocity", "set_angular_velocity", "add_force", "set_gravity", "teleport_entity", "set_alpha", "set_tint", "set_visible", "set_asset", "emit_particles", "camera_shake", "camera_follow")
 	operators   = enum("eq", "neq", "gt", "gte", "lt", "lte")
 
-	behaviorKinds     = enum("fall", "chase", "patrol", "oscillate", "spin", "pulse", "drift", "orbit")
+	behaviorKinds     = enum("fall", "chase", "patrol", "oscillate", "spin", "pulse", "drift", "orbit", "follow")
 	capabilityKinds   = enum("render.sprite", "render.animation", "render.shape", "render.text", "render.filters", "render.particles", "render.parallax", "physics.bodies", "physics.colliders", "physics.joints", "physics.character_controller", "physics.queries", "fx.tween", "fx.camera", "fx.emitters", "audio", "input.keyboard", "input.pointer", "shell.v1")
 	blendModes        = enum("normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "none", "subtract", "erase", "linear-burn", "linear-dodge", "vivid-light", "linear-light", "pin-light", "hard-mix")
 	physicsBodyKinds  = enum("dynamic", "fixed", "kinematic_position", "kinematic_velocity")
@@ -552,6 +554,14 @@ func Validate(d *Document) error {
 				return err
 			}
 			sceneEntities[entity.ID] = struct{}{}
+		}
+		// Only scene-local runtime entities can be follow targets. Templates
+		// are not necessarily instantiated and must never be followed.
+		for _, entity := range scene.Entities {
+			if b := entity.Behavior; b != nil && b.Type == "follow" &&
+				!has(sceneEntities, b.Target) {
+				return fmt.Errorf("scene %q entity %q follows missing entity %q", scene.ID, entity.ID, b.Target)
+			}
 		}
 		for _, tpl := range scene.Templates {
 			if err := validateEntity(tpl, assets, entities); err != nil {
@@ -804,6 +814,14 @@ func validateEntity(entity Entity, assets map[string]struct{}, entities map[stri
 		b := entity.Behavior
 		if !has(behaviorKinds, b.Type) {
 			return fmt.Errorf("entity %q has unsupported behavior type %q", entity.ID, b.Type)
+		}
+		if b.Type == "follow" {
+			if entity.Kind != "decoration" || entity.Physics != nil ||
+				!validID(b.Target) || b.Target == entity.ID {
+				return fmt.Errorf("entity %q follow behavior needs a different valid target and a physics-free decoration", entity.ID)
+			}
+		} else if b.Target != "" {
+			return fmt.Errorf("entity %q target is only supported for follow behavior", entity.ID)
 		}
 		if b.Speed != nil && (!finite(*b.Speed) || *b.Speed < 0 || *b.Speed > 100000) {
 			return fmt.Errorf("entity %q behavior speed out of range", entity.ID)
