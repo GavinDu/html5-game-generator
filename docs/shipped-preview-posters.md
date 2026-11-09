@@ -38,3 +38,15 @@ Never auto-commit generated images from Actions. A pending or failed preview
 does not imply a published clip; genuine video capture and replay verification
 remain tracked in #100. If a screenshot does not honestly depict the current
 IR, reject it and keep the fallback rather than inventing media.
+
+## Screenshot review correction — 2026-11-09
+
+The automated Penguin candidate had used the mid-play `restoring-aurora.png`
+frame. Reviewing the actual iPhone screenshot revealed that its opaque story
+board still covered the heart lanes, so it was not a useful social-feed cover.
+Version 5 now selects the separately captured `intro-cleared.png` frame and
+requires the browser's screenshot-backed report to prove the seven-second intro
+cleared, the compact tap hint persisted, and gameplay reached the legitimate
+12-heart win. The poster remains a **candidate**, not automatically published
+media. This rejects an obstructed screenshot without editing the game's art or
+pretending a video exists.
