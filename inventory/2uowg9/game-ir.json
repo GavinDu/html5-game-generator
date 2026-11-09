@@ -270,58 +270,6 @@
       ]
     },
     {
-      "id": "germ-hit",
-      "when": {
-        "event": "collision",
-        "source": "player",
-        "target": "germ"
-      },
-      "actions": [
-        {
-          "type": "add_variable",
-          "variable": "chaser_gap",
-          "value": -45
-        },
-        {
-          "type": "camera_shake",
-          "value": 5
-        },
-        {
-          "type": "show_text",
-          "value": "A germ bounced you!"
-        },
-        {
-          "type": "play_sound",
-          "assetId": "boing"
-        }
-      ]
-    },
-    {
-      "id": "germ-respawn",
-      "when": {
-        "event": "timer_elapsed",
-        "value": 9
-      },
-      "actions": [
-        {
-          "type": "teleport_entity",
-          "target": "germ",
-          "value": [
-            60,
-            790
-          ]
-        },
-        {
-          "type": "set_velocity",
-          "target": "germ",
-          "value": [
-            130,
-            0
-          ]
-        }
-      ]
-    },
-    {
       "id": "running-score",
       "when": {
         "event": "timer_elapsed",
@@ -474,7 +422,7 @@
         {
           "id": "player",
           "kind": "player",
-          "assetId": "runner",
+          "assetId": "blob",
           "position": [
             195,
             660
@@ -788,47 +736,6 @@
                 0
               ]
             }
-          }
-        },
-        {
-          "id": "germ",
-          "kind": "obstacle",
-          "assetId": "blob",
-          "position": [
-            60,
-            790
-          ],
-          "size": [
-            44,
-            44
-          ],
-          "components": [
-            "collider",
-            "physics_body"
-          ],
-          "physics": {
-            "body": "dynamic",
-            "shape": "ball",
-            "density": 1.1,
-            "friction": 0.4,
-            "restitution": 0.82,
-            "initialVelocity": [
-              130,
-              0
-            ],
-            "angularVelocity": 3,
-            "collisionGroups": {
-              "memberships": [
-                2
-              ],
-              "filter": [
-                0,
-                3
-              ]
-            }
-          },
-          "render": {
-            "tint": "#84cc16"
           }
         },
         {
