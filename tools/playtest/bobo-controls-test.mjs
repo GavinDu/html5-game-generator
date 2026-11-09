@@ -117,6 +117,57 @@ try {
   await page.waitForFunction(() => window.__dqTest.snapshot().entities.some(e => e.id === 'heart_blue' && e.y < 100), null, { timeout: 12000 });
   const recycled = await page.evaluate(() => window.__dqTest.snapshot().entities.find(e => e.id === 'heart_blue'));
   await page.screenshot({ path: shots + '/missed-heart-after-recycle.png' });
+  // A feed cover selected from the first frame shows a mostly empty blue sky,
+  // even though the real game progressively restores six rainbow bands.
+  // Capture a *real* four-heart gameplay state as a candidate for later human
+  // poster review; do not fake progress or automatically publish this image.
+  let midplayEvidence = null;
+  const midplayDeadline = Date.now() + 60000;
+  while (Date.now() < midplayDeadline) {
+    const state = await page.evaluate(() => window.__dqTest.snapshot());
+    if (state.ended) break;
+    if (state.objectiveProgress >= 4) {
+      // Center the source crayon bear with another genuine touchscreen tap.
+      // The screenshot should display both bear and kitten, not clip the bear.
+      await page.touchscreen.tap(rect.x + rect.width * 0.5,
+        rect.y + rect.height * 0.6);
+      await page.waitForFunction(() => {
+        const s = window.__dqTest.snapshot();
+        return !s.ended && Math.abs(s.player.x - 195) <= 28;
+      }, null, { timeout: 4000 });
+      const progress = await page.evaluate(() => window.__dqTest.snapshot());
+      assert.ok(progress.objectiveProgress >= 4 && progress.objectiveProgress < 12,
+        'Bobo poster candidate must show mid-play, not an untouched start or end screen');
+      for (const id of ['band0', 'band1']) {
+        assert.ok(progress.entities.find(e => e.id === id)?.alpha > .9,
+          'first two rainbow bands must be visibly restored in the real mid-play screenshot');
+      }
+      const shot = await page.screenshot({ path: shots + '/midplay-restored-rainbow.png' });
+      assert.ok(brownPixelsAtRightEdge(shot) <= 3,
+        'centered Bobo poster must not clip the original source crayon bear');
+      midplayEvidence = {
+        progress: progress.objectiveProgress,
+        score: progress.score,
+        playerX: progress.player.x,
+        source: 'guided real touch input',
+        screenshot: 'midplay-restored-rainbow.png',
+      };
+      break;
+    }
+    const targets = state.entities
+      .filter(e => e.kind === 'pickup' &&
+        (e.id === 'heart' || e.id === 'heart_blue') &&
+        e.visible && Number.isFinite(e.x) && Number.isFinite(e.y) &&
+        e.y < state.player.y + 20)
+      .sort((a, b) => b.y - a.y);
+    if (targets[0]) {
+      await page.touchscreen.tap(rect.x + (targets[0].x / 390) * rect.width,
+        rect.y + rect.height * 0.6);
+    }
+    await page.waitForTimeout(110);
+  }
+  assert.ok(midplayEvidence, 'four real regular-heart catches must produce reviewable mid-play poster evidence');
+
   // The responsive web player also runs on an iPad viewport. Keep the
   // proof screenshot: a 1.28x visual scale must not produce a cut-off hero
   // or absorb touches in the tablet's centered portrait game stage.
@@ -156,12 +207,13 @@ try {
     tabletVisualDelta: tabletDelta,
     croppedBrownPixels, visualArtScale: playerIR.render.scale,
     haloFollowsPlayer: true,
+    midplayEvidence,
     screenshotOldSpawnPalePixelsBefore: oldSpawnPaleBefore,
     screenshotOldSpawnPalePixelsAfter: oldSpawnPaleAfter,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
-      'ipad-after-short-tap-stage.png',
+      'ipad-after-short-tap-stage.png', 'midplay-restored-rainbow.png',
       'missed-heart-before-recycle.png', 'missed-heart-after-recycle.png']
   };
   writeFileSync(shots + '/report.json', JSON.stringify(report, null, 2));
