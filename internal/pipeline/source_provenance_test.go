@@ -12,10 +12,10 @@ import (
 func TestSyntheticElementSpriteHasTruthfulSourceProvenance(t *testing.T) {
 	st := store.NewMemoryStore()
 	game := &model.Game{
-		ID: "provenance-generated-sprite",
-		Status: model.GameDraft,
+		ID:       "provenance-generated-sprite",
+		Status:   model.GameDraft,
 		Elements: []model.Element{{ID: "el_1", Label: "penguin", Kind: "character"}},
-		Intent: "Collect hearts",
+		Intent:   "Collect hearts",
 	}
 	st.CreateGame(game)
 	runner := NewRunner(st)
