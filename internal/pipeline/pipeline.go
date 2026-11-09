@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"doodlequest/internal/expression"
 	"doodlequest/internal/gameir"
@@ -105,12 +106,22 @@ func joinLabels(els []model.Element) string {
 	return strings.Join(ls, ", ")
 }
 
+// capTitle preserves the existing byte budget without cutting a UTF-8
+// character in half. Remix parents can have bilingual or emoji titles; raw
+// s[:n] produced invalid UTF-8 when the boundary landed inside a code point.
 func capTitle(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) > n {
-		s = s[:n]
+	if n <= 0 {
+		return ""
 	}
-	return s
+	s = strings.ToValidUTF8(strings.TrimSpace(s), "")
+	if len(s) <= n {
+		return s
+	}
+	cut := n
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return strings.TrimSpace(s[:cut])
 }
 
 // buildDesignDoc is the stub SPEC stage: elements + intent -> design doc.
