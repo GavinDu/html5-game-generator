@@ -53,11 +53,17 @@ function paleHaloPixelsAtSpawn(bytes) {
 // upper-left red arc cannot pass as a completed rainbow composition.
 function rainbowBandCoverage(bytes) {
   const p = PNG.sync.read(bytes);
-  assert.equal(p.width, 390, 'rainbow screenshot coverage uses logical iPhone pixels');
+  // iPhone: 390x844; iPad centered stage: 546x1180.
+  // Sample identical logical game coordinates on both devices.
+  assert.ok(p.width >= 390 && p.height >= 844 &&
+    Math.abs(p.width / p.height - 390 / 844) < .015,
+    'rainbow evidence must be a portrait game stage, not iPad chrome');
   let red = 0, orange = 0, left = 0, right = 0;
-  for (let y = 158; y < Math.min(355, p.height); y++) {
+  for (let y = 158; y < 355; y++) {
     for (let x = 20; x < 370; x++) {
-      const i = (y * p.width + x) * 4;
+      const sx = Math.min(p.width - 1, Math.floor(x * p.width / 390));
+      const sy = Math.min(p.height - 1, Math.floor(y * p.height / 844));
+      const i = (sy * p.width + sx) * 4;
       const r = p.data[i], g = p.data[i + 1], b = p.data[i + 2];
       const isRed = r >= 195 && g >= 45 && g <= 110 && b < 115;
       const isOrange = r >= 195 && g >= 110 && g <= 175 && b < 115 && r > g + 40;
