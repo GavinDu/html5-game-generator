@@ -603,13 +603,40 @@ async function listGames() {
     const metadata = cards.get(g.game_id);
     const content = document.createElement('div');
     content.className = 'card-content';
+    // Only server-verified, version-bound poster URLs can be labeled as
+    // gameplay previews. Without one, show an explicit playable fallback,
+    // not an unexplained full-screen gradient pretending to be artwork.
+    const unavailablePreview = () => {
+      if (card.querySelector('.feed-preview-absent')) return;
+      const fallback = document.createElement('div');
+      fallback.className = 'feed-preview-absent';
+      fallback.setAttribute('role', 'note');
+      fallback.setAttribute('aria-label',
+        'Gameplay preview unavailable for ' + (g.title || 'this game'));
+      const symbol = document.createElement('div');
+      symbol.className = 'feed-preview-symbol';
+      symbol.setAttribute('aria-hidden', 'true');
+      symbol.textContent = '▶';
+      const headline = document.createElement('strong');
+      headline.textContent = 'Gameplay preview coming soon';
+      const detail = document.createElement('span');
+      detail.textContent = 'Tap Play now to see the real game';
+      fallback.append(symbol, headline, detail);
+      card.append(fallback);
+    };
     if (metadata?.preview?.poster_url) {
       const poster = document.createElement('img');
       poster.className = 'feed-poster';
-      poster.src = metadata.preview.poster_url;
       poster.alt = 'Gameplay preview of ' + (g.title || 'this game');
       poster.loading = 'lazy';
+      poster.addEventListener('error', () => {
+        poster.remove();
+        unavailablePreview();
+      }, { once: true });
+      poster.src = metadata.preview.poster_url;
       card.append(poster);
+    } else {
+      unavailablePreview();
     }
     const cue = document.createElement('span');
     cue.className = 'swipe-cue';
