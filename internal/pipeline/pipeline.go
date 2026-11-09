@@ -415,10 +415,11 @@ func (r *Runner) runRemaining(jobID string) {
 					break
 				}
 				spriteID := fmt.Sprintf("el_%d", i+1)
+				// The stub renderer uses synthetic PNGs, not uploaded drawing pixels.
 				m.Assets.Sprites = append(m.Assets.Sprites, model.SpriteAsset{
 					ID:     spriteID,
 					Src:    "sprites/" + spriteID + ".png",
-					Source: "kid-drawing",
+					Source: "generated",
 					Label:  el.Label,
 				})
 			}

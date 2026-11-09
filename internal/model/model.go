@@ -132,7 +132,7 @@ const (
 type SpriteAsset struct {
 	ID     string `json:"id"`
 	Src    string `json:"src"`
-	Source string `json:"source"` // kid-drawing | procedural
+	Source string `json:"source"` // kid-drawing | generated | procedural
 	Label  string `json:"label"`
 }
 
