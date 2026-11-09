@@ -3,7 +3,7 @@
 // Real touch input, recycling, aurora bands, all scarf variants and restart
 // are verified separately at iPhone/iPad viewports with screenshot artifacts.
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium, webkit } from 'playwright';
 
 const arg = (name, fallback) => {
@@ -63,7 +63,8 @@ try {
         'the panel must visually separate moving hearts from the title');
       assert.ok(title.zIndex > panel.zIndex && hint.zIndex > panel.zIndex,
         'title and hint must be legible above the panel in screenshots');
-      assert.equal(pkg.game?.version ?? pkg.version, 3,
+      const manifest = JSON.parse(readFileSync(new URL('../../inventory/p3ngui/manifest.json', import.meta.url), 'utf8'));
+      assert.equal(manifest.version, 3,
         'a changed visual package must not reuse old version 2 screenshot provenance');
       const first = await snap();
       const variants = new Set([first.entities.find(e => e.id === 'penguin')?.assetId]);
