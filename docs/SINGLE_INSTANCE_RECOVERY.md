@@ -39,13 +39,14 @@ The telemetry directory may contain `events.jsonl`, `runtime-errors.jsonl`, `mod
 1. Stop the service and preserve a copy of the current files before replacing anything.
 2. From the project root, verify the backup checksum (`sha256sum -c backups/SHA256SUMS`) and inspect the archive listing before extraction.
 3. Restore files to their configured paths, retaining restrictive permissions (state snapshots should be readable/writable only by the service account). Do not restore a snapshot while the service is writing.
-4. Start one backend instance and inspect logs for persistence/load errors. The service currently logs and continues in memory if the store snapshot cannot be loaded, so a healthy HTTP response alone does not prove state was restored.
+4. Start one backend instance and inspect logs for persistence/load errors. The service now **refuses to start** when its game store snapshot is corrupt or unreadable rather than exposing an empty in-memory store. Restore a known-good snapshot or safely recover the original file before restarting. A missing snapshot path is treated as a first-start empty store; verify the expected creator records before exposing traffic. A healthy HTTP response alone does not prove every separate social/telemetry state source was restored.
 5. Validate `GET /healthz`, fetch a known published game's package and asset, verify expected inventory games, inspect the feed/social state, and verify the most recent expected run and moderation audit record. Do not use real user content in test fixtures.
 6. If validation fails, stop the service and restore the preserved pre-restore copy. Do not overwrite a good backup with a failed recovery attempt.
 
 ## Automated coverage and limits
 
 - `go test ./internal/store` includes `TestPersistentStoreSurvivesRestart`, which exercises reload of games, jobs, groups, and artifacts from a fresh store using the same snapshot.
+- `go test ./internal/app` verifies that an existing creator game survives a restart and that a corrupt or unreadable snapshot prevents startup rather than silently falling back to volatile memory.
 - API tests cover social-state persistence/restart, telemetry retention, and moderation/audit behavior. Run `go test ./...` before deployment.
 - These tests are not a production-volume backup restore drill and do not prove that the deployment's persistent disk survives a platform-level loss. Schedule a manual restore exercise before broad public launch.
 - The store and social JSON files are write-through single-instance persistence, not shared transactional storage. Rate limits, verified identity, cross-replica deduplication, and multi-instance consistency remain separate work; do not infer these protections from this runbook.
