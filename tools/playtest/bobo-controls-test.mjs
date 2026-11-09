@@ -183,6 +183,10 @@ try {
           'first two rainbow bands must be visibly restored in the real mid-play screenshot');
       }
       const shot = await page.screenshot({ path: shots + '/midplay-restored-rainbow.png' });
+      const phoneAfterCapture = await page.evaluate(() => window.__dqTest.snapshot());
+      assert.ok(phoneAfterCapture.objectiveProgress >= progress.objectiveProgress &&
+        phoneAfterCapture.objectiveProgress < 12,
+        'phone midplay screenshot cannot be attributed to an already-finished run');
       assert.ok(brownPixelsAtRightEdge(shot) <= 3,
         'centered Bobo poster must not clip the original source crayon bear');
       const rainbowCoverage = rainbowBandCoverage(shot);
@@ -193,6 +197,7 @@ try {
       midplayEvidence = {
         rainbowCoverage,
         progress: progress.objectiveProgress,
+        progressAfterCapture: phoneAfterCapture.objectiveProgress,
         score: progress.score,
         playerX: progress.player.x,
         source: 'guided real touch input',
@@ -264,13 +269,19 @@ try {
           path: shots + '/ipad-midplay-restored-rainbow-stage.png',
         });
         await tablet.screenshot({ path: shots + '/ipad-midplay-restored-rainbow.png' });
+        const tabletAfterCapture = await tablet.evaluate(() => window.__dqTest.snapshot());
+        assert.ok(tabletAfterCapture.objectiveProgress >= progressed.objectiveProgress &&
+          tabletAfterCapture.objectiveProgress < 12,
+          'tablet capture must occur before the terminal win card');
         const coverage = rainbowBandCoverage(stagePixels);
         assert.ok(coverage.red > 3500 && coverage.orange > 3000 &&
           coverage.left > 1200 && coverage.right > 1200,
           'real iPad screenshot needs a two-layer complete-width arch: ' +
           JSON.stringify(coverage));
         tabletMidplayEvidence = {
-          progress: progressed.objectiveProgress, score: progressed.score,
+          progress: progressed.objectiveProgress,
+          progressAfterCapture: tabletAfterCapture.objectiveProgress,
+          score: progressed.score,
           source: 'real tablet touchscreen input', rainbowCoverage: coverage,
           screenshots: ['ipad-midplay-restored-rainbow.png',
             'ipad-midplay-restored-rainbow-stage.png'],
