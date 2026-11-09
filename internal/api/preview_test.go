@@ -173,3 +173,57 @@ func TestFailedPreviewNeverServesStaleRecordedClipURL(t *testing.T) {
 		t.Fatalf("rejected stale clip must not be cached: %q", cache)
 	}
 }
+
+// A guessed versioned asset URL must not bypass the same completeness gate
+// used by the public feed. Recreate stale stored bytes and inconsistent
+// metadata without relying on the API's normal upload validator.
+func TestIncompleteReadyPreviewCannotServeDirectAssets(t *testing.T) {
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
+	cases := []struct {
+		name       string
+		duration   int
+		withPoster bool
+		withClip   bool
+	}{
+		{"missing-duration", 0, true, true},
+		{"oversized-duration", 10001, true, true},
+		{"missing-poster", 6000, false, true},
+		{"missing-clip", 6000, true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := store.NewMemoryStore()
+			id := "incomplete-" + tc.name
+			game := feedFixtureGame(id, "creator-1", time.Now().UTC())
+			game.PublishedVersion = 2
+			game.ModerationStatus = "approved"
+			meta := &model.PreviewMetadata{
+				Version: 2, Status: "ready", DurationMS: tc.duration,
+			}
+			if tc.withPoster {
+				meta.PosterURL = "/v1/games/" + id + "/previews/2/poster.png"
+			}
+			if tc.withClip {
+				meta.ClipURL = "/v1/games/" + id + "/previews/2/clip.mp4"
+			}
+			game.Preview = meta
+			st.CreateGame(game)
+			st.PutArtifact(id, "preview/v2/poster.png", []byte("stale poster"), "image/png")
+			st.PutArtifact(id, "preview/v2/clip.mp4", []byte("stale clip"), "video/mp4")
+			srv := New(st, pipeline.NewRunner(st))
+			for _, asset := range []string{"poster.png", "clip.mp4"} {
+				req := httptest.NewRequest(http.MethodGet,
+					"/v1/games/"+id+"/previews/2/"+asset, nil)
+				rec := httptest.NewRecorder()
+				srv.Routes().ServeHTTP(rec, req)
+				if rec.Code != http.StatusNotFound {
+					t.Fatalf("%s from incomplete ready preview returned %d: %q",
+						asset, rec.Code, rec.Body.String())
+				}
+				if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
+					t.Fatalf("%s denied result must not be cached: %q", asset, got)
+				}
+			}
+		})
+	}
+}

@@ -370,8 +370,11 @@ func (s *Server) handleGetPreviewAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	version, err := strconv.Atoi(r.PathValue("version"))
-	if err != nil || version != publishedGameVersion(game) || game.Preview == nil ||
-		game.Preview.Version != version || (game.Preview.Status != "ready" && game.Preview.Status != "failed") {
+	// The same fail-closed approval policy applies to direct/guessed asset URLs
+	// as to feed cards. A historical "ready" record missing its poster, clip
+	// or valid duration must not make a stale asset publicly retrievable.
+	if err != nil || version != publishedGameVersion(game) ||
+		safeFeedPreview(game, version).Status == "pending" {
 		w.Header().Set("Cache-Control", "private, no-store")
 		writeErr(w, http.StatusNotFound, "preview asset not found")
 		return
