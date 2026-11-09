@@ -2194,6 +2194,17 @@ async function run(id) {
           ent.y += (dy / dist) * step;
         }
         break;
+      case 'follow': {
+        // Visual-only attachment: no collider, no physics impulse, and no
+        // hidden motion toward the player. The IR validator requires a
+        // scene-local target and a physics-free decoration.
+        const target = findEnt(b.target);
+        if (target && !target.destroyed) {
+          ent.x = target.x;
+          ent.y = target.y;
+        }
+        break;
+      }
       case 'patrol':
         ent.x = ent.anchorX + Math.sin(state.elapsed * (b.speed ?? 1)) * (b.range ?? 60);
         break;
