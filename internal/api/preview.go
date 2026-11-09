@@ -388,6 +388,13 @@ func (s *Server) handleGetPreviewAsset(w http.ResponseWriter, r *http.Request) {
 			contentType = "image/jpeg"
 		}
 	case "clip.mp4":
+		// A failed preview is poster-only. Even if stale metadata retained
+		// an old clip URL, guessing that URL must not deliver unapproved media.
+		if game.Preview.Status != "ready" {
+			w.Header().Set("Cache-Control", "private, no-store")
+			writeErr(w, http.StatusNotFound, "preview asset not found")
+			return
+		}
 		expectedURL = game.Preview.ClipURL
 		contentType = "video/mp4"
 	case "source.png", "source.jpg":
