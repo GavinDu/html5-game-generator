@@ -89,3 +89,17 @@ the seeded idle-run or collision-fixture CI tests.
 The IR changed, so the shipped version is incremented to 2. Old poster
 fixtures are deliberately not silently rebound to this new gameplay version:
 a fresh version-bound screenshot review is required before promoting a poster.
+
+## v3 source-character fidelity — 2026-11-09
+
+The canonical Game IR had quietly substituted an orange-hoodie runner for the
+kid's large white **blob patient** and repurposed the blob artwork as an
+unmentioned bouncing `germ` obstacle. That broke the submitted character story
+and introduced a third 45-gap damage source not in the three-lane questionnaire.
+Version 3 renders `blob` as the steerable player again and removes the extra
+germ and its respawn/damage rules. The two distinct falling syringes, star
+rewards, three-lane one-tap movement, chaser-gap numbers, 40-second routes and
+caught-only terminal remain the authored mechanics. Real-touch phone/tablet
+screenshots and both browser engine regressions must verify the change.
+This change does not claim to prove skilled 15–20-minute survival; that
+endurance requirement remains open for a separate, unmodified skilled replay.
