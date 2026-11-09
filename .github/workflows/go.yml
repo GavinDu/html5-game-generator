@@ -112,6 +112,8 @@ jobs:
         with:
           name: orientation-policy-${{ matrix.browser }}
           path: /tmp/orientation-policy-${{ matrix.browser }}/
+      - name: Reject unrecorded preview captures before emitting screenshots
+        run: node tools/playtest/preview-replay-guard-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }}
       - name: Verify Penguin portrait play, missed hearts, aurora and scarf progression
         run: node tools/playtest/penguin-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/penguin-quality-${{ matrix.browser }}
       - name: Upload Penguin gameplay evidence

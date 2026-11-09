@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { preferredViewport, supportsViewport } from './game-orientation.mjs';
+import { validateRecordedRun } from './preview-run-contract.mjs';
 
 function arg(name, fallback = '') {
   const index = process.argv.indexOf(`--${name}`);
@@ -69,7 +70,20 @@ function runFFmpeg(args) {
 }
 
 try {
-  const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(game)}/package`)).json();
+  const packageResponse = await fetch(`${base}/v1/games/${encodeURIComponent(game)}/package`);
+  if (!packageResponse.ok) throw new Error(`game package unavailable: HTTP ${packageResponse.status}`);
+  const envelope = await packageResponse.json();
+  if (envelope.gameId !== game || !envelope.ir || !envelope.irHash) {
+    throw new Error('game package identity or IR hash is missing');
+  }
+  // The URL ?replay= is only a request. A missing run previously caused
+  // the runtime to use a random seed while the renderer attributed the
+  // resulting clip to the requested recording. Fail closed instead.
+  const runResponse = await fetch(`${base}/v1/runs/${encodeURIComponent(run)}`);
+  if (!runResponse.ok) throw new Error(`recorded replay unavailable: HTTP ${runResponse.status}`);
+  const sourceRun = validateRecordedRun(await runResponse.json(), {
+    game, run, irHash: envelope.irHash,
+  });
   if (!arg('width') && !arg('height')) ({ width, height } = preferredViewport(envelope.ir, 420, 900));
   if (!supportsViewport(envelope.ir.game.orientation, width, height)) throw new Error('Preview viewport conflicts with the declared game orientation');
   const launch = browserName === 'webkit' ? webkit : chromium;
@@ -78,6 +92,9 @@ try {
   const url = `${base}/player?game=${encodeURIComponent(game)}&presentation=play&probe=1&capture=1&replay=${encodeURIComponent(run)}`;
   await page.goto(url, { waitUntil: 'load', timeout: 30000 });
   await page.waitForFunction(() => window.__dqProbe?.booted === true && typeof window.__dqTest?.advanceToStep === 'function', null, { timeout: 30000 });
+  if (await page.evaluate(() => window.__dqTest.snapshot().replayRunId) !== sourceRun.id) {
+    throw new Error('capture runtime did not load the requested recorded input trace');
+  }
   if (startDelayMs) await page.waitForTimeout(startDelayMs);
 
   // The probe's capture mode holds simulation at step zero until this worker

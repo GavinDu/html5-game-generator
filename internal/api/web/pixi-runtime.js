@@ -801,7 +801,18 @@ async function run(id) {
         replayTrace = await rr.json();
         if (Number.isFinite(replayTrace.seed)) sessionSeed = replayTrace.seed >>> 0;
       }
-    } catch { /* verdict will report the missing trace */ }
+    } catch {
+      // A missing run must never become an apparently valid recorded
+      // preview. Ordinary gameplay keeps its existing fallback behavior.
+      if (deterministicCapture) {
+        throw new Error('recorded replay unavailable for deterministic capture');
+      }
+    }
+  }
+  if (deterministicCapture && replayRunId &&
+      (!replayTrace || replayTrace.id !== replayRunId ||
+       replayTrace.gameId !== id || !Number.isSafeInteger(replayTrace.seed))) {
+    throw new Error('deterministic capture requires the exact recorded run');
   }
   srand(sessionSeed);
 
@@ -889,6 +900,9 @@ async function run(id) {
   }
   if (pkg.gameId !== id) {
     throw new Error(`invalid game package: requested game ${id}, received ${String(pkg.gameId)}`);
+  }
+  if (deterministicCapture && replayTrace && replayTrace.irHash !== pkg.irHash) {
+    throw new Error('recorded replay IR hash differs from the current package');
   }
   if (!pkg.ir || typeof pkg.ir !== 'object' || Array.isArray(pkg.ir)) {
     throw new Error('invalid game package: canonical Game IR is missing');
@@ -2735,6 +2749,7 @@ async function run(id) {
         objectiveProgress: objectiveProgress(), variables: { ...state.variables },
         ended: state.ended, won: state.won, frames: totalFrames,
         simStep: play.simStep, capturePaused,
+        replayRunId: replayTrace?.id || null,
         started: play.shellStarted,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({

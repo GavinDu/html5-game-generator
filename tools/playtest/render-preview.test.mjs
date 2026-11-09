@@ -62,3 +62,12 @@ test('preview renderer supports bounded native portrait, landscape, and tablet v
   assert.match(source, /orientation: width === height \? 'square' : width > height \? 'landscape' : 'portrait'/);
   assert.match(source, /width < 240 \|\| height < 240 \|\| width > 4096 \|\| height > 4096/);
 });
+
+test('preview rendering refuses missing or stale recorded runs before capturing pixels', () => {
+  assert.match(source, /validateRecordedRun\(await runResponse\.json\(\)/);
+  assert.match(source, /recorded replay unavailable: HTTP/);
+  assert.match(source, /sourceRun\.id/);
+  assert.match(source, /capture runtime did not load the requested recorded input trace/);
+  assert.match(runtime, /deterministic capture requires the exact recorded run/);
+  assert.match(runtime, /recorded replay IR hash differs from the current package/);
+});
