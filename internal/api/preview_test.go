@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"doodlequest/internal/model"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
 )
@@ -141,5 +142,34 @@ func TestFailedPreviewCanExposePosterFallbackWithoutClip(t *testing.T) {
 	game, _ = st.GetGame("poster-only-game")
 	if game.Preview == nil || game.Preview.Status != "failed" || game.Preview.PosterURL == "" || game.Preview.ClipURL != "" {
 		t.Fatalf("poster-only fallback metadata = %#v", game.Preview)
+	}
+}
+
+func TestFailedPreviewNeverServesStaleRecordedClipURL(t *testing.T) {
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
+	st := store.NewMemoryStore()
+	game := feedFixtureGame("stale-clip-game", "creator-1", time.Now().UTC())
+	game.PublishedVersion = 2
+	game.ModerationStatus = "approved"
+	game.Preview = &model.PreviewMetadata{
+		Version: 2, Status: "failed",
+		PosterURL:  "/v1/games/stale-clip-game/previews/2/poster.png",
+		ClipURL:    "/v1/games/stale-clip-game/previews/2/clip.mp4",
+		DurationMS: 6000,
+	}
+	st.CreateGame(game)
+	st.PutArtifact(game.ID, "preview/v2/clip.mp4",
+		[]byte{0, 0, 0, 16, 'f', 't', 'y', 'p', 'i', 's', 'o', 'm', 0, 0, 0, 0},
+		"video/mp4")
+	srv := New(st, pipeline.NewRunner(st))
+	req := httptest.NewRequest(http.MethodGet,
+		"/v1/games/stale-clip-game/previews/2/clip.mp4", nil)
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("failed preview leaked stale clip: HTTP %d body %q", rec.Code, rec.Body.String())
+	}
+	if cache := rec.Header().Get("Cache-Control"); cache != "private, no-store" {
+		t.Fatalf("rejected stale clip must not be cached: %q", cache)
 	}
 }
