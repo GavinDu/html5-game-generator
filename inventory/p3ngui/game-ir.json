@@ -2001,6 +2001,25 @@
   ],
   "rules": [
     {
+      "id": "intro-overlay-clear-after-seven-seconds",
+      "when": {
+        "event": "timer_elapsed",
+        "value": 7
+      },
+      "actions": [
+        {
+          "type": "set_alpha",
+          "target": "instructions-panel",
+          "value": 0
+        },
+        {
+          "type": "set_alpha",
+          "target": "title",
+          "value": 0
+        }
+      ]
+    },
+    {
       "id": "start-theme",
       "when": {
         "event": "game_start"
