@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"doodlequest/internal/expression"
@@ -25,6 +26,33 @@ type feedPreview struct {
 	DurationMS    int     `json:"duration_ms,omitempty"`
 	DominantColor string  `json:"dominant_color,omitempty"`
 	Status        string  `json:"status"`
+}
+
+// safeFeedPreview publishes only version-matched, approved media metadata.
+// Unapproved, stale or incomplete records must not leak preview URLs in cards.
+func safeFeedPreview(game *model.Game, version int) feedPreview {
+	pending := feedPreview{Status: "pending"}
+	if game == nil || version < 1 || game.Preview == nil || game.Preview.Version != version {
+		return pending
+	}
+	m := game.Preview
+	switch m.Status {
+	case "ready":
+		if strings.TrimSpace(m.PosterURL) == "" || strings.TrimSpace(m.ClipURL) == "" ||
+			m.DurationMS <= 0 || m.DurationMS > 10000 {
+			return pending
+		}
+		return feedPreview{Status: "ready", PosterURL: m.PosterURL, ClipURL: m.ClipURL,
+			Aspect: m.Aspect, DurationMS: m.DurationMS, DominantColor: m.DominantColor}
+	case "failed":
+		if strings.TrimSpace(m.PosterURL) == "" {
+			return pending
+		}
+		return feedPreview{Status: "failed", PosterURL: m.PosterURL,
+			Aspect: m.Aspect, DominantColor: m.DominantColor}
+	default:
+		return pending
+	}
 }
 
 type feedCardStats struct {
@@ -194,14 +222,7 @@ func (s *Server) buildFeedCards(ctx context.Context, games []*model.Game, viewer
 		if stats.Likes > 0 || stats.PlayStarts > 0 || stats.Completions > 0 || stats.Replays > 0 || stats.Shares > 0 {
 			statsPtr = &stats
 		}
-		preview := feedPreview{Status: "pending"}
-		if game.Preview != nil && game.Preview.Version == publishedGameVersion(game) {
-			preview = feedPreview{
-				PosterURL: game.Preview.PosterURL, ClipURL: game.Preview.ClipURL,
-				Aspect: game.Preview.Aspect, DurationMS: game.Preview.DurationMS,
-				DominantColor: game.Preview.DominantColor, Status: game.Preview.Status,
-			}
-		}
+		preview := safeFeedPreview(game, publishedGameVersion(game))
 		cards = append(cards, feedCard{
 			GameID:             game.ID,
 			PlayableExpression: publicFeedExpression(game.PlayableExpression, game.OwnerID),
