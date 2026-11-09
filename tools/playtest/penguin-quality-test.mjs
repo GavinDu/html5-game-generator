@@ -171,6 +171,38 @@ try {
         ['penguin_classic', 'penguin_holiday', 'penguin_rainbow']);
       assert.ok(capturedHolidayScarf && capturedClassicScarf,
         'both scarf milestone screenshots must be captured during real gameplay');
+      // Some fast, valid runs finish twelve hearts before the seven-second
+      // story timer. Preserve the guided playtest and its win assertions, but
+      // verify the intro in an independent real browser session instead of
+      // failing solely because the first session ended too quickly.
+      // The probe advances the actual runtime clock, never a mocked snapshot.
+      if (!capturedIntroCleared) {
+        const introPage = await browser.newPage({
+          viewport: { width: profile.width, height: profile.height },
+          hasTouch: true,
+          deviceScaleFactor: 1,
+        });
+        try {
+          await introPage.goto(base + '/player?game=penguin-heartlight-rescue&presentation=play&probe=1');
+          await introPage.waitForFunction(() => {
+            const state = window.__dqTest?.snapshot?.();
+            return state && state.t >= 7.2;
+          }, null, { timeout: 20000 });
+          const activeIntro = await introPage.evaluate(() => window.__dqTest.snapshot());
+          assert.equal(activeIntro.ended, false,
+            'intro evidence must come from a running game, not its end screen');
+          assert.ok(activeIntro.entities.find(e => e.id === 'instructions-panel')?.alpha <= .01,
+            'story panel must clear after seven seconds in a real running game');
+          assert.ok(activeIntro.entities.find(e => e.id === 'title')?.alpha <= .01,
+            'title must clear together with the seven-second story panel');
+          assert.ok(activeIntro.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
+            'compact tap guidance must remain after the story board clears');
+          await introPage.screenshot({ path: dir + '/intro-cleared.png' });
+          capturedIntroCleared = true;
+        } finally {
+          await introPage.close();
+        }
+      }
       assert.equal(capturedIntroCleared, true,
         'screen capture must prove the story overlay cleared during active play');
       await page.screenshot({ path: dir + '/win.png' });
