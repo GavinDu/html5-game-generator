@@ -26,6 +26,28 @@ function brownPixelsAtRightEdge(bytes) {
   return clipped;
 }
 
+// Gameplay screenshot regression: halo is a pale scene decoration behind
+// Bobo. The separate white kitten to the RIGHT is part of the creator's
+// original artwork and must not be mistaken for the halo. The earlier
+// screenshot-only visual audit accidentally shifted the halo away from Bobo.
+// After an actual right tap, the old spawn region must lose its pale fill.
+function paleHaloPixelsAtSpawn(bytes) {
+  const p = PNG.sync.read(bytes);
+  assert.equal(p.width, 390, 'iPhone visual spawn guard assumes 390px capture');
+  let n = 0;
+  for (let y = 650; y < Math.min(p.height, 780); y++) {
+    for (let x = 135; x < 235; x++) {
+      const i = (y * p.width + x) * 4;
+      const r = p.data[i], g = p.data[i + 1], b = p.data[i + 2];
+      // Opaque pale ellipse over the authored sky blue; deliberately
+      // excludes brown bear pixels and the kitten's separate circle.
+      if (r >= 151 && r <= 158 && g >= 202 && g <= 208 &&
+          b >= 226 && b <= 232) n++;
+    }
+  }
+  return n;
+}
+
 const browser = await engine.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
@@ -63,6 +85,13 @@ try {
   assertHaloAttached(moved, 'iPhone real right tap');
   assert.ok(Math.abs(moved.player.y - before.player.y) < 2, 'catcher must stay in the horizontal lane');
   const afterPNG = await page.screenshot({ path: shots + '/after-short-tap.png' });
+  const oldSpawnPaleBefore = paleHaloPixelsAtSpawn(beforePNG);
+  const oldSpawnPaleAfter = paleHaloPixelsAtSpawn(afterPNG);
+  assert.ok(oldSpawnPaleBefore > 300,
+    'before tap screenshot must actually show the pale halo at the original spawn');
+  assert.ok(oldSpawnPaleAfter <= Math.max(25, oldSpawnPaleBefore * 0.15),
+    'after real tap halo must not remain as a ghost at original spawn: ' +
+    oldSpawnPaleBefore + ' before, ' + oldSpawnPaleAfter + ' after');
   const croppedBrownPixels = brownPixelsAtRightEdge(afterPNG);
   assert.ok(croppedBrownPixels <= 3,
     'real right-edge tap must not crop original brown source artwork (edge pixels=' + croppedBrownPixels + ')');
@@ -127,6 +156,8 @@ try {
     tabletVisualDelta: tabletDelta,
     croppedBrownPixels, visualArtScale: playerIR.render.scale,
     haloFollowsPlayer: true,
+    screenshotOldSpawnPalePixelsBefore: oldSpawnPaleBefore,
+    screenshotOldSpawnPalePixelsAfter: oldSpawnPaleAfter,
     physicalSize: playerIR.size,
     screenshots: ['before-short-tap.png', 'after-short-tap.png',
       'ipad-before-short-tap.png', 'ipad-after-short-tap.png',
