@@ -8,7 +8,8 @@ import { PNG } from 'pngjs';
 function sprite(variant) {
   const file = new URL('../../inventory/p3ngui/assets/penguin-' + variant + '.png.b64', import.meta.url);
   const image = PNG.sync.read(Buffer.from(readFileSync(file, 'utf8').trim(), 'base64'));
-  assert.ok(image.width >= 112 && image.height >= 130, variant + ': source character too small');
+  assert.equal(image.width, 160, variant + ': texture width must match classic source skin');
+  assert.equal(image.height, 190, variant + ': texture height must match classic source skin');
   return image;
 }
 function pixel(image,x,y) {
