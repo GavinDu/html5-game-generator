@@ -39,3 +39,7 @@ node score-report.mjs playtest-report.json ai-review.json scored-report.json
 ``
 
 For live playability claims, run the browser worker against a reachable game URL. Reading source or a manifest is not equivalent to playing the game.
+
+## Source fidelity and media provenance (2026-11-09)
+
+A browser screenshot can establish that a sprite rendered, but it does not establish that the original drawing's pixels were used. The stub `media.SpritePNG(label)` creates generated artwork. Mark those emitted sprite assets `source: generated`, not `kid-drawing`; reserve `kid-drawing` for assets that actually preserve the creator's drawing with recorded rights and source provenance. Do not inflate character-design or source-fidelity scores based on a generated sprite's title alone. Review actual screenshots against the approved questionnaire and source reference.
