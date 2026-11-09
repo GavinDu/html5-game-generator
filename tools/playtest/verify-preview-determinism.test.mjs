@@ -1,46 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
-const source = await readFile(fileURLToPath(new URL('./verify-preview-determinism.mjs', import.meta.url)), 'utf8');
+const source = readFileSync(new URL('./verify-preview-determinism.mjs', import.meta.url), 'utf8');
 
-test('determinism verifier renders the same recorded run twice with the same options', () => {
-  assert.match(source, /render\('first'\)/);
-  assert.match(source, /render\('second'\)/);
-  assert.match(source, /'--run', run/);
-  assert.match(source, /'--duration-ms', durationMs, '--fps', fps/);
-  assert.match(source, /if \\(width\\) renderArgs\\.push\\('--width', width, '--height', height\\)/);
+test('verifier always renders same recorded run twice and checks frame hashes', () => {
+  assert.ok(source.includes("render('first')"));
+  assert.ok(source.includes("render('second')"));
+  assert.ok(source.includes("'--run', run"));
+  assert.ok(source.includes("compareFrameHashes(first.frame_sha256, second.frame_sha256)"));
+  assert.ok(source.includes("if (!comparison.match) process.exitCode = 1"));
 });
 
-test('determinism verifier rejects fallback clips and incomplete frame reports', () => {
-  assert.match(source, /!report\.clip \|\| report\.clip_fallback/);
-  assert.match(source, /!Array\.isArray\(report\.frame_sha256\)/);
-  assert.match(source, /did not produce a complete clip with frame hashes/);
+test('verifier rejects fallback, missing frame hashes and removes temp output', () => {
+  assert.ok(source.includes('!report.clip || report.clip_fallback'));
+  assert.ok(source.includes('!Array.isArray(report.frame_sha256)'));
+  assert.ok(source.includes("rmSync(temp, { recursive: true, force: true })"));
 });
 
-test('determinism verifier exits unsuccessfully when any frame hash differs', () => {
-  assert.match(source, /compareFrameHashes\(first\.frame_sha256, second\.frame_sha256\)/);
-  assert.match(source, /if \(!comparison\.match\) process\.exitCode = 1/);
+test('native aspect selection requires paired explicit viewport overrides', () => {
+  assert.ok(source.includes("const width = arg('width');"));
+  assert.ok(source.includes("const height = arg('height');"));
+  assert.ok(source.includes("if (width) renderArgs.push('--width', width, '--height', height)"));
+  assert.ok(!source.includes("const width = arg('width', '420')"));
+  assert.ok(source.includes("width: first.width, height: first.height"));
+  assert.ok(source.includes("aspect: first.aspect, orientation: first.orientation"));
 });
 
-test('determinism verifier cleans temporary render artifacts on both success and failure', () => {
-  assert.match(source, /finally \{/);
-  assert.match(source, /rmSync\(temp, \{ recursive: true, force: true \}\)/);
-});
-
- 
-test('determinism verifier reports the viewport and native orientation used for both renders', () => {
-  assert.match(source, /const width = arg\('width', '420'\)/);
-  assert.match(source, /const height = arg\('height', '900'\)/);
-  assert.match(source, /width: first.width, height: first.height/);
-  assert.match(source, /aspect: first.aspect, orientation: first.orientation/);
-  assert.doesNotMatch(source, /const width = arg\\('width', '420'\\)/);
-});
-
-test('determinism verifier fails early for single-dimension or invalid viewport', () => {
-  assert.match(source, /!!width !== !!height/);
-  assert.match(source, /Number.isInteger\\(Number\\(width\\)\\)/);
-  assert.match(source, /provide both --width and --height/);
-  assert.match(source, /process.exit\\(2\\)/);
+test('invalid one-sided viewport arguments fail before creating temp captures', () => {
+  const guard=source.indexOf('if ((!!width !== !!height)');
+  const temp=source.indexOf("mkdtempSync(join(tmpdir()");
+  assert.ok(guard >= 0 && temp > guard);
+  assert.ok(source.includes('Number.isInteger(Number(width))'));
+  assert.ok(source.includes('Number.isInteger(Number(height))'));
+  assert.ok(source.includes('provide both --width and --height'));
+  assert.ok(source.includes('process.exit(2)'));
 });
