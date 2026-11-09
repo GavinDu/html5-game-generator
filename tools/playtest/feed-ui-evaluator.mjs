@@ -2,6 +2,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium, webkit } from 'playwright';
 import { PNG } from 'pngjs';
+import { evaluateFeedPreviewReadiness } from './feed-media-readiness.mjs';
 
 const arg = (key, fallback) => { const i = process.argv.indexOf('--' + key); return i >= 0 ? (process.argv[i + 1] || fallback) : fallback; };
 const base = arg('base', '').replace(/\/$/, '');
@@ -114,7 +115,10 @@ try {
     finally { await context.close(); }
   }
 } finally { await browser.close(); }
-const report = { browser: browserName, passed: reports.length === 4 && reports.every(r => r.passed), viewports: reports };
+const functionalPass = reports.length === 4 && reports.every(r => r.passed);
+const mediaReadiness = evaluateFeedPreviewReadiness(reports);
+const report = { browser: browserName, passed: functionalPass, mediaReadiness, viewports: reports };
+console.log(JSON.stringify({ browser: browserName, functionalPass, mediaReadiness }));
 writeFileSync(shots + '/report.json', JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report));
 if (!report.passed) process.exitCode = 1;
