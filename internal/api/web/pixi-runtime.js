@@ -2507,7 +2507,16 @@ async function run(id) {
         playerTarget.x = pointer.x;
         if (!dragXOnly) playerTarget.y = pointer.y;
       }
-      playerTarget.x = clamp(playerTarget.x, playerEnt.w / 2, worldW - playerEnt.w / 2);
+      // The physics body remains the authored width, but user artwork can
+      // be visibly wider via render.scale (e.g. Bobo's 1.28x crayon bear).
+      // Clamping only by the collision body allowed a normal right-edge
+      // tap to cut off the character. Reserve its visible half-width plus
+      // a small safe margin without enlarging the physical hitbox.
+      const artScaleX = Math.abs(playerEnt.def.render?.scale?.[0] ?? 1);
+      const visualHalfWidth = artScaleX > 1
+        ? Math.min(worldW / 2 - 1, playerEnt.w * artScaleX / 2 + 12)
+        : playerEnt.w / 2;
+      playerTarget.x = clamp(playerTarget.x, visualHalfWidth, worldW - visualHalfWidth);
       playerTarget.y = clamp(playerTarget.y, playerEnt.h / 2, worldH - playerEnt.h / 2);
       if (playerEnt.bodyKind === 'kinematic_velocity' || playerEnt.bodyKind === 'dynamic') {
         const vx = clamp((playerTarget.x - playerEnt.x) * 8, -650, 650);
