@@ -48,3 +48,35 @@ test('duplicate, reversed, or after-win stage timings never become creative PASS
   const afterWin = base.milestoneSeconds.map(m => m.hearts === 12 ? {...m, runtimeSeconds: 40} : m);
   assert.equal(evaluatePenguinPacing({...base, milestoneSeconds: afterWin}).status, 'unmeasured');
 });
+
+test('verified v6 first reward prevents stale seven-second occlusion advisory', () => {
+  const rapidMilestones = [2, 4, 6, 8, 10, 12]
+    .map((hearts, i) => ({ hearts, runtimeSeconds: (i + 1) * 1.2 }));
+  const earlyRevealEvidence = {
+    session: 'guided-play', runtimeSeconds: 4.8, hearts: 4,
+    screenshot: 'first-reward-reveal.png'
+  };
+  const r = evaluatePenguinPacing({ ...base, progressAtIntroClear: 11,
+    winAtSec: 7.6, milestoneSeconds: rapidMilestones, earlyRevealEvidence });
+  assert.deepEqual(r.reasons, ['guided-win-much-faster-than-session-target']);
+  assert.equal(r.earlyRevealVerified, true);
+  assert.equal(r.earlyRevealEvidence.runtimeSeconds, 4.8);
+  assert.equal(r.needsCreativeReview, true,
+    'fast scripted completion still requires an independent human pacing review');
+});
+test('independent or impossible early reveal cannot suppress real occlusion', () => {
+  const rapidMilestones = [2, 4, 6, 8, 10, 12]
+    .map((hearts, i) => ({ hearts, runtimeSeconds: (i + 1) * 1.2 }));
+  const item = { ...base, progressAtIntroClear: 11, winAtSec: 7.6,
+    milestoneSeconds: rapidMilestones };
+  for (const earlyRevealEvidence of [
+    { session: 'independent-real-browser', runtimeSeconds: 4.8, hearts: 4 },
+    { session: 'guided-play', runtimeSeconds: 8.1, hearts: 4 },
+    { session: 'guided-play', runtimeSeconds: 4.8, hearts: 0 },
+    { session: 'guided-play', runtimeSeconds: 4.8, hearts: 13 }
+  ]) {
+    const r = evaluatePenguinPacing({ ...item, earlyRevealEvidence });
+    assert.equal(r.earlyRevealVerified, false);
+    assert.ok(r.reasons.includes('intro-cleared-near-completion'));
+  }
+});
