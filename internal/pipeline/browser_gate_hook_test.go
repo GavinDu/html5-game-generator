@@ -97,6 +97,24 @@ func TestBrowserGateMustFinishSuccessfullyBeforePublish(t *testing.T) {
 	}
 }
 
+func TestBrowserGateDeadlineFailsClosedEvenWhenAdapterIgnoresContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	release := make(chan struct{})
+	defer close(release)
+	started := time.Now()
+	err := runBrowserGate(ctx, func(_ context.Context, _ string, _ *gameir.Document) error {
+		<-release // simulate a broken browser worker that ignores cancellation
+		return nil
+	}, "slow-game", &gameir.Document{})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("an uncooperative browser worker must time out, got %v", err)
+	}
+	if time.Since(started) > 2*time.Second {
+		t.Fatal("blocked browser worker prevented bounded validation return")
+	}
+}
+
 func checkPublishNeverRan(t *testing.T, st store.Store, failed *model.Job) {
 	t.Helper()
 	for _, stage := range failed.Stages {
