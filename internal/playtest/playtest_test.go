@@ -71,6 +71,32 @@ func TestRunAcceptsSkippedInformationalInputTiming(t *testing.T) {
 	}
 }
 
+func TestRunRejectsExitOneWithStalePassingJSON(t *testing.T) {
+	// A crashed worker can print a structurally valid prior PASS report.
+	// Exit 1 may only be used with a real FAIL verdict for the same run.
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	worker := writeFakeWorker(t, body, 1)
+	if _, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{"g1"}); err == nil ||
+		!strings.Contains(err.Error(), "exited 1 but all reported verdicts were PASS") {
+		t.Fatalf("stale worker PASS after failure must fail closed, got %v", err)
+	}
+}
+
+func TestRunRejectsZeroExitWithReportedFailure(t *testing.T) {
+	// Likewise, a broken runner cannot send an explicit FAIL and return
+	// success to an outer publish gate.
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"FAIL","checks":[
+		{"checkId":"playtest.boot_clean","status":"fail","evidence":"boot failed"}]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	if _, err := Run(context.Background(), Config{WorkerCmd: []string{worker}, BaseURL: "http://x"}, []string{"g1"}); err == nil ||
+		!strings.Contains(err.Error(), "exited 0 despite a FAIL verdict") {
+		t.Fatalf("false zero-exit must fail closed, got %v", err)
+	}
+}
+
 func TestRunWorkerErrorIsError(t *testing.T) {
 	worker := writeFakeWorker(t, "not json", 2)
 	if _, err := Run(context.Background(), Config{

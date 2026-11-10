@@ -206,10 +206,12 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	c.Stdout = &stdout
 	c.Stderr = &stderr
 	err := c.Run()
+	// Exit 1 is reserved for an actual, measured FAIL report. Never
+	// silently accept a worker that emits stale PASS JSON before crashing.
+	workerExitedWithGateFailure := false
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 && stdout.Len() > 0 {
-			// Gate failure with a valid report: fall through and parse.
-			err = nil
+			workerExitedWithGateFailure = true
 		} else {
 			return nil, fmt.Errorf("playtest: worker failed: %v: %s", err, stderr.String())
 		}
@@ -220,6 +222,15 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	}
 	if err := validateReport(&report); err != nil {
 		return nil, fmt.Errorf("playtest: invalid worker report: %w", err)
+	}
+	// The worker exit status and structured verdict must agree. Otherwise a
+	// crash printing stale/success-shaped JSON (or a false zero exit after a
+	// measured FAIL) can be accidentally treated as an authoritative gate.
+	if workerExitedWithGateFailure && !report.Failed() {
+		return nil, fmt.Errorf("playtest: worker exited 1 but all reported verdicts were PASS")
+	}
+	if !workerExitedWithGateFailure && report.Failed() {
+		return nil, fmt.Errorf("playtest: worker exited 0 despite a FAIL verdict")
 	}
 	if cfg.Browser != "" && report.Browser != cfg.Browser {
 		return nil, fmt.Errorf("playtest: worker reported browser %q, want %q", report.Browser, cfg.Browser)
