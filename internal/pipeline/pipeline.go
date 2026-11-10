@@ -64,6 +64,23 @@ func (r *Runner) ConfigureBrowserGate(gate BrowserGate, required bool) {
 	r.browserGateRequired = required
 }
 
+// runBrowserGate enforces the deadline even if a faulty adapter ignores
+// context cancellation. The adapter must still cooperate with cancellation
+// to release its browser and staging resources.
+func runBrowserGate(ctx context.Context, gate BrowserGate, gameID string, ir *gameir.Document) error {
+	done := make(chan error, 1)
+	go func() { done <- gate(ctx, gameID, ir) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+		return ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func NewRunner(st store.Store) *Runner { return &Runner{store: st} }
 
 func newID() string {
@@ -419,11 +436,8 @@ func (r *Runner) runRemaining(jobID string) {
 		if gate != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
-			if err := gate(ctx, job.GameID, canonicalIR); err != nil {
+			if err := runBrowserGate(ctx, gate, job.GameID, canonicalIR); err != nil {
 				return fmt.Errorf("browser playtest gate: %w", err)
-			}
-			if err := ctx.Err(); err != nil {
-				return fmt.Errorf("browser playtest gate deadline: %w", err)
 			}
 		}
 		// No quality number is recorded here: the validate stage used
