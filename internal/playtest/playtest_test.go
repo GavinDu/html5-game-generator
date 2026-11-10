@@ -140,7 +140,7 @@ func TestRunRejectsStalePassReportForAnotherServer(t *testing.T) {
 	worker := writeFakeWorker(t, body, 0)
 	_, err := Run(context.Background(), Config{
 		WorkerCmd: []string{worker},
-		BaseURL: "https://new.example.test:8443/games",
+		BaseURL:   "https://new.example.test:8443/games",
 	}, []string{"g1"})
 	if err == nil || !strings.Contains(err.Error(), `worker reported base "https://old.example.test:8443/games"`) {
 		t.Fatalf("a stale PASS for a different server must be rejected, got %v", err)
