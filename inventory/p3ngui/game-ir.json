@@ -2583,6 +2583,16 @@
           "value": 1
         },
         {
+          "type": "set_alpha",
+          "target": "instructions-panel",
+          "value": 0
+        },
+        {
+          "type": "set_alpha",
+          "target": "title",
+          "value": 0
+        },
+        {
           "type": "show_text",
           "value": "Ruby aurora restored!"
         }

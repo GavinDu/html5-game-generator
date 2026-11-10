@@ -65,7 +65,7 @@ try {
       assert.ok(title.zIndex > panel.zIndex && hint.zIndex > panel.zIndex,
         'title and hint must be legible above the panel in screenshots');
       const manifest = JSON.parse(readFileSync(new URL('../../inventory/p3ngui/manifest.json', import.meta.url), 'utf8'));
-      assert.equal(manifest.version, 5,
+      assert.equal(manifest.version, 6,
         'a changed visual package must not reuse stale poster provenance');
       const first = await snap();
       assert.ok(first.entities.find(e => e.id === 'instructions-panel')?.alpha >= .9 &&
@@ -79,6 +79,16 @@ try {
         a.target === 'instructions-panel' && a.value === 0));
       assert.ok(introRule.actions.some(a => a.type === 'set_alpha' &&
         a.target === 'title' && a.value === 0));
+      const firstRewardRule = pkg.ir.rules.find(rule => rule.id === 'aurora-band-1');
+      assert.equal(firstRewardRule?.when?.event, 'variable_changed',
+        'the first reward must clear the story in the canonical IR');
+      assert.ok(firstRewardRule?.conditions?.some(c => c.variable === 'hearts_collected' &&
+        c.operator === 'eq' && c.value === 2));
+      for (const target of ['instructions-panel', 'title']) {
+        assert.ok(firstRewardRule.actions.some(a => a.type === 'set_alpha' &&
+          a.target === target && a.value === 0),
+          'first two-heart reward must reveal the live game, not only the seven-second timer');
+      }
       const variants = new Set([first.entities.find(e => e.id === 'penguin')?.assetId]);
       assert.equal(first.objectiveProgress, 0, 'the 12-heart counter must start at zero');
       const rect = await page.locator('#stage canvas').boundingBox();
@@ -105,6 +115,7 @@ try {
       // Record which one produced the screenshot, rather than implying that
       // a supplemental screenshot belongs to the guided win trace.
       let introEvidence = null;
+      let earlyRevealEvidence = null;
       const observedHeartCounts = [];
       const milestoneSeconds = [];
       let capturedMidway = false;
@@ -126,6 +137,21 @@ try {
           introEvidence = { session: 'guided-play', runtimeSeconds: state.t,
             objectiveProgress: state.objectiveProgress };
           capturedIntroCleared = true;
+        }
+        // First reward should uncover gameplay immediately, without making
+        // a fast guided session play nearly to completion behind an opaque
+        // panel. This assertion and screenshot use *actual* browser frames.
+        if (!earlyRevealEvidence && state.objectiveProgress >= 2 && state.t < 7) {
+          assert.ok(state.entities.find(e => e.id === 'instructions-panel')?.alpha <= .01,
+            'story panel must clear on the first two-heart aurora milestone');
+          assert.ok(state.entities.find(e => e.id === 'title')?.alpha <= .01,
+            'title must clear together with the early reward panel');
+          assert.ok(state.entities.find(e => e.id === 'controls-hint')?.alpha >= .9,
+            'persistent tap hint must remain readable after early reveal');
+          await page.screenshot({ path: dir + '/first-reward-reveal.png' });
+          earlyRevealEvidence = { session: 'guided-play',
+            runtimeSeconds: state.t, hearts: state.objectiveProgress,
+            screenshot: 'first-reward-reveal.png' };
         }
         variants.add(state.entities.find(e => e.id === 'penguin')?.assetId);
         for (let i = 0; i < 6; i++) {
@@ -180,6 +206,8 @@ try {
         await page.waitForTimeout(90);
       }
       const end = await snap();
+      assert.ok(earlyRevealEvidence && earlyRevealEvidence.runtimeSeconds < 7,
+        'guided phone/tablet screenshot must prove first aurora reveals the playfield before the seven-second fallback');
       // The terminal snapshot is a real observation of twelve hearts, but
       // does NOT establish timestamps for any skipped intermediate stages.
       // Leave those absent so the advisory reports incomplete coverage.
@@ -297,12 +325,12 @@ try {
         brightBands: end.entities.filter(e => e.id.startsWith('band'))
           .map(e => ({ id: e.id, alpha: e.alpha })),
         restartInPlace: true, introClearedAfterSevenSeconds: true,
-        introEvidence, pacingReview,
+        introEvidence, earlyRevealEvidence, pacingReview,
         introRestoredOnRestart: true, compactHintPersists: true,
         scarfMilestoneScreenshots: {
           rainbow: 'before.png', holiday: 'holiday-scarf.png', classic: 'classic-scarf.png'
         },
-        screenshots: ['before', 'missed-heart', 'recycled-heart', 'intro-cleared', 'holiday-scarf',
+        screenshots: ['before', 'missed-heart', 'recycled-heart', 'first-reward-reveal', 'intro-cleared', 'holiday-scarf',
           'restoring-aurora', 'classic-scarf', 'win', 'restarted'],
       };
       reports.push(report);

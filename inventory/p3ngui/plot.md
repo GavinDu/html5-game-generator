@@ -116,3 +116,27 @@ natural image-size difference. Regenerated both colorful variants at the
 classic source sprite's 160×190 pixel footprint without changing IR/physics;
 a new automated PNG dimension equality check prevents a silent size mismatch.
 Fresh screenshot evidence from the corrected exact commit is required.
+
+## Version 6 — reveal gameplay on first reward (2026-11-09)
+
+The exact-head Chromium and WebKit quality screenshots for v5 showed the
+full-size seven-second story card still covering the catcher's visual playfield
+when an automated guided session had collected 11 of the required 12 hearts.
+That scripted trace is NOT a measurement of a child's typical 55-second round.
+
+Version 6 keeps the welcoming introduction at game start, plus the original
+**seven-second timer** as a fallback when a child takes longer to catch
+anything. At the first two-heart aurora milestone, the same event now makes
+the opaque title panel and its large title transparent, before displaying the
+Ruby aurora reward. The small persistent tap-to-glide hint remains. This
+reveals real gameplay as soon as the first reward matters, without altering
+spawn physics, target score, win conditions, source-inspired sprites, or
+authored character collider/scale. Restart resets the introduction.
+
+Acceptance requires unmodified **real browser screenshots** (Chromium and
+WebKit, iPhone and iPad portrait) before first catch, immediately after the
+two-heart reward before the fallback timer, at scarf changes, at win, and
+after restart. Continue to flag rapid guided completion as an advisory and
+do not silently alter the source questionnaire's 55-second target without
+unscripted human play evidence. Package manifest version 6 is intentional;
+old poster/preview files are not automatically approved for this new version.

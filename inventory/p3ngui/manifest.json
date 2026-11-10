@@ -4,7 +4,7 @@
   "owner": "doodlequest",
   "intent": "Guide a cheerful penguin to catch floating hearts and relight the six colors of the winter aurora.",
   "visibility": "public",
-  "version": 5,
+  "version": 6,
   "shim": "gameshim/v1",
   "entry": "game.js",
   "controls": [
