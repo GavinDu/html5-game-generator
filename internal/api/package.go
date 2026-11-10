@@ -75,6 +75,9 @@ type GamePackage struct {
 	// IRHash identifies this exact IR content; leaderboard boards are
 	// keyed by it, so any IR change starts a fresh board (Phase C).
 	IRHash string `json:"irHash"`
+	// Complete digest for version-bound playtest and publication evidence;
+	// do not replace the 12-hex hash used by existing run/leaderboard IDs.
+	IRSHA256 string `json:"irSha256"`
 }
 
 // canDeliver reports whether viewer may load and play g through the
@@ -206,6 +209,7 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		IR:                   game.GameIR,
 		Assets:               make([]GamePackageAsset, 0, len(game.GameIR.Assets)),
 		IRHash:               irHashOf(game.GameIR),
+		IRSHA256:             irSHA256Of(game.GameIR),
 	}
 	for _, asset := range game.GameIR.Assets {
 		data, _, found := s.store.GetArtifact(game.ID, asset.URI)
