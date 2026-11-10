@@ -100,7 +100,7 @@ async function playGame(browser, gameId) {
   // A worker's PASS must refer to the actual delivered IR, never merely
   // the game slug. The Go publish-gate adapter can reject an old version
   // by comparing this digest against the requested pending version.
-  if (envelope.gameId !== gameId || !/^[a-f0-9]{64}$/.test(envelope.irHash || '')) {
+  if (envelope.gameId !== gameId || !/^[a-f0-9]{64}$/.test(envelope.irSha256 || '')) {
     throw new Error(`invalid package identity for requested game ${gameId}`);
   }
   const page = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900), hasTouch: true });
@@ -125,7 +125,7 @@ async function playGame(browser, gameId) {
     push('playtest.boot_clean', 'fail', 'page load failed: ' + e.message, null);
     push('playtest.render_nonblank', 'skip', 'page never loaded', null);
     await page.close().catch(() => {});
-    return { gameId, irHash: envelope.irHash, verdict: 'FAIL', checks, probe };
+    return { gameId, irSha256: envelope.irSha256, verdict: 'FAIL', checks, probe };
   }
   const coldStartMs = Date.now() - navStart;
 
@@ -661,7 +661,7 @@ async function playGame(browser, gameId) {
   // broken runtime/playability invariant. Informational timing misses
   // above are marked skip with the measured value and do not gate.
   const failed = checks.some((c) => c.status === 'fail');
-  return { gameId, irHash: envelope.irHash, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
+  return { gameId, irSha256: envelope.irSha256, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 
 async function main() {
