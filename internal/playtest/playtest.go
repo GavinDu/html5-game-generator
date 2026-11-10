@@ -30,19 +30,19 @@ type Config struct {
 	Browser   string // chromium (default) | webkit
 	ShotsDir  string // when set, the worker writes screenshots + its report there
 	Timeout   time.Duration
-	// ExpectedIRHashes binds a requested batch to the exact canonical Game IR.
+	// ExpectedIRSHA256 binds a requested batch to the exact canonical Game IR.
 	// When nonempty it must contain one 64-hex hash per requested game;
 	// a successful report for a different version is not publish evidence.
-	ExpectedIRHashes map[string]string
+	ExpectedIRSHA256 map[string]string
 }
 
 // GameResult is the worker's per-game report.
 type GameResult struct {
-	GameID  string                    `json:"gameId"`
-	Verdict string                    `json:"verdict"` // PASS | FAIL (gate checks only)
-	Checks  []validator.PlaytestCheck `json:"checks"`
-	Probe   json.RawMessage           `json:"probe,omitempty"`
-	IRHash  string                    `json:"irHash,omitempty"`
+	GameID   string                    `json:"gameId"`
+	Verdict  string                    `json:"verdict"` // PASS | FAIL (gate checks only)
+	Checks   []validator.PlaytestCheck `json:"checks"`
+	Probe    json.RawMessage           `json:"probe,omitempty"`
+	IRSHA256 string                    `json:"irSha256,omitempty"`
 }
 
 // Report is one full worker run.
@@ -94,8 +94,8 @@ func validateReport(report *Report) error {
 			return fmt.Errorf("duplicate gameId %q", id)
 		}
 		seen[id] = struct{}{}
-		if game.IRHash != "" && !isCanonicalIRHash(game.IRHash) {
-			return fmt.Errorf("game %q has invalid irHash %q", id, game.IRHash)
+		if game.IRSHA256 != "" && !isCanonicalIRSHA256(game.IRSHA256) {
+			return fmt.Errorf("game %q has invalid irSha256 %q", id, game.IRSHA256)
 		}
 		if game.Verdict != "PASS" && game.Verdict != "FAIL" {
 			return fmt.Errorf("game %q has invalid verdict %q", id, game.Verdict)
@@ -152,8 +152,8 @@ func validateReport(report *Report) error {
 	return nil
 }
 
-// isCanonicalIRHash checks the lowercase SHA-256 digest exposed by /package.
-func isCanonicalIRHash(hash string) bool {
+// isCanonicalIRSHA256 checks the 64-hex full SHA-256 digest exposed by /package.
+func isCanonicalIRSHA256(hash string) bool {
 	if len(hash) != 64 {
 		return false
 	}
@@ -194,14 +194,14 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 		}
 		gameIDs = normalized
 	}
-	if len(cfg.ExpectedIRHashes) > 0 {
-		if len(gameIDs) == 0 || len(cfg.ExpectedIRHashes) != len(gameIDs) {
-			return nil, fmt.Errorf("playtest: version-bound report requires one expected IR hash per explicitly requested game")
+	if len(cfg.ExpectedIRSHA256) > 0 {
+		if len(gameIDs) == 0 || len(cfg.ExpectedIRSHA256) != len(gameIDs) {
+			return nil, fmt.Errorf("playtest: version-bound report requires one expected IR SHA256 per explicitly requested game")
 		}
 		for _, gameID := range gameIDs {
-			hash, ok := cfg.ExpectedIRHashes[gameID]
-			if !ok || !isCanonicalIRHash(hash) {
-				return nil, fmt.Errorf("playtest: missing or invalid expected IR hash for game %q", gameID)
+			hash, ok := cfg.ExpectedIRSHA256[gameID]
+			if !ok || !isCanonicalIRSHA256(hash) {
+				return nil, fmt.Errorf("playtest: missing or invalid expected IR SHA256 for game %q", gameID)
 			}
 		}
 	}
@@ -264,14 +264,14 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	if !workerExitedWithGateFailure && report.Failed() {
 		return nil, fmt.Errorf("playtest: worker exited 0 despite a FAIL verdict")
 	}
-	if len(cfg.ExpectedIRHashes) > 0 {
+	if len(cfg.ExpectedIRSHA256) > 0 {
 		for _, game := range report.Games {
-			want, ok := cfg.ExpectedIRHashes[game.GameID]
+			want, ok := cfg.ExpectedIRSHA256[game.GameID]
 			if !ok {
-				return nil, fmt.Errorf("playtest: report for unexpected game %q has no expected IR hash", game.GameID)
+				return nil, fmt.Errorf("playtest: report for unexpected game %q has no expected IR SHA256", game.GameID)
 			}
-			if game.IRHash != want {
-				return nil, fmt.Errorf("playtest: game %q reported IR hash %q, want %q", game.GameID, game.IRHash, want)
+			if game.IRSHA256 != want {
+				return nil, fmt.Errorf("playtest: game %q reported IR SHA256 %q, want %q", game.GameID, game.IRSHA256, want)
 			}
 		}
 	}
