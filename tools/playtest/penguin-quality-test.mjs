@@ -314,6 +314,7 @@ try {
         winAtSec: end.t,
         progressAtIntroClear: introEvidence.objectiveProgress,
         introSession: introEvidence.session,
+        earlyRevealEvidence,
         milestoneSeconds
       });
       const report = {
