@@ -102,6 +102,10 @@ func requiresUserAuth(r *http.Request) bool {
 	if r.URL.Path == "/v1/auth/apple" {
 		return false // issuance is how a client obtains a session
 	}
+	// Eligibility may reveal private source rights: require a verified viewer.
+	if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/remix-eligibility") {
+		return true
+	}
 	if strings.HasPrefix(r.URL.Path, "/v1/telemetry/") ||
 		r.URL.Path == "/v1/moderation/contact" ||
 		r.URL.Path == "/v1/moderation/reports" ||
