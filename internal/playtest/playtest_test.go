@@ -132,6 +132,34 @@ func TestRunRejectsIncompleteReports(t *testing.T) {
 	}
 }
 
+func TestRunRejectsStalePassReportForAnotherServer(t *testing.T) {
+	body := `{"base":"https://old.example.test:8443/games","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	_, err := Run(context.Background(), Config{
+		WorkerCmd: []string{worker},
+		BaseURL: "https://new.example.test:8443/games",
+	}, []string{"g1"})
+	if err == nil || !strings.Contains(err.Error(), `worker reported base "https://old.example.test:8443/games"`) {
+		t.Fatalf("a stale PASS for a different server must be rejected, got %v", err)
+	}
+}
+
+func TestRunAcceptsWorkerCanonicalTrailingSlashInRequestedBase(t *testing.T) {
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	if _, err := Run(context.Background(), Config{
+		WorkerCmd: []string{worker}, BaseURL: "http://x/",
+	}, []string{"g1"}); err != nil {
+		t.Fatalf("worker strips one trailing slash; equivalent base must pass: %v", err)
+	}
+}
+
 func TestRunRejectsReportForDifferentBrowser(t *testing.T) {
 	worker := writeFakeWorker(t, cannedReport, 1)
 	_, err := Run(context.Background(), Config{
