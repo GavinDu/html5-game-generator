@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium, webkit } from 'playwright';
 import { PNG } from 'pngjs';
 import { evaluateFeedPreviewReadiness, hasCompleteViewportCoverage } from './feed-media-readiness.mjs';
+import { evaluateSettledPager } from './feed-pager-geometry.mjs';
 
 const arg = (key, fallback) => { const i = process.argv.indexOf('--' + key); return i >= 0 ? (process.argv[i + 1] || fallback) : fallback; };
 const base = arg('base', '').replace(/\/$/, '');
@@ -66,6 +67,24 @@ try {
           type: fallback ? 'honest-placeholder' : 'unexplained-blank',
         };
       });
+      // Regressions can retain the correct card height and still reveal a
+      // neighboring title below the settled page. Inspect the real scrollport
+      // before and after the swipe, not the outer app/window geometry.
+      const pagerGeometry = async () => {
+        const rects = await page.evaluate(() => {
+          const feed = document.getElementById('list');
+          const view = feed.getBoundingClientRect();
+          return {
+            viewport: { top: view.top, bottom: view.bottom },
+            cards: [...feed.querySelectorAll('.game-card')].map(el => {
+              const r = el.getBoundingClientRect();
+              return { gameID: el.dataset.gameId, top: r.top, bottom: r.bottom };
+            }),
+          };
+        });
+        return evaluateSettledPager(rects.viewport, rects.cards);
+      };
+      const beforeGeometry = await pagerGeometry();
       const beforePreview = await previewSurface();
       const before = await page.screenshot({ path: shots + '/' + name + '-before.png' });
       const firstID = await cards.first().getAttribute('data-game-id');
@@ -108,11 +127,8 @@ try {
         await page.mouse.wheel(0, metrics.feedHeight);
       }
       await page.waitForTimeout(1200);
-      const afterID = await page.evaluate(() => {
-        const feed = document.getElementById('list');
-        const mid = feed.getBoundingClientRect().top + feed.clientHeight / 2;
-        return [...feed.querySelectorAll('.game-card')].find(card => { const r = card.getBoundingClientRect(); return r.top <= mid && r.bottom > mid; })?.dataset.gameId;
-      });
+      const afterGeometry = await pagerGeometry();
+      const afterID = afterGeometry.visibleCount === 1 ? afterGeometry.visibleGameIDs[0] : null;
       const afterPreview = await previewSurface();
       const after = await page.screenshot({ path: shots + '/' + name + '-after.png' });
       const a = PNG.sync.read(before), b = PNG.sync.read(after);
@@ -126,6 +142,7 @@ try {
         screenshotDimensions: a.width === width && a.height === height &&
           b.width === width && b.height === height,
         onePostPerViewport: Math.abs(metrics.feedHeight - metrics.cardHeight) <= 2,
+        oneSettledPostPerPager: beforeGeometry.aligned && afterGeometry.aligned,
         noHorizontalOverflow: metrics.scrollWidth <= width + 1,
         touchTargets: metrics.targets.length >= 4 && metrics.targets.every(t => t.width >= 44 && t.height >= 44 && t.x >= 0 && t.x + t.width <= width + 1 && t.y >= 0 && t.y + t.height <= height + 1),
         socialActionRail: metrics.railRightOfCenter && metrics.railInsideCard && metrics.railDoesNotCoverPlay,
@@ -139,7 +156,7 @@ try {
       const visibleCard = page.locator(`.game-card[data-game-id="${afterID}"]`);
       const playURL = new URL(await visibleCard.locator('.play-link').getAttribute('href'), base);
       checks.immersivePlayLink = playURL.searchParams.get('presentation') === 'play' && playURL.searchParams.get('entry') === 'feed';
-      reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, beforePreview, afterPreview, changedPixelRatio, inputMethod, errors });
+      reports.push({ viewport: name, passed: Object.values(checks).every(Boolean), checks, metrics, firstID, afterID, beforeGeometry, afterGeometry, beforePreview, afterPreview, changedPixelRatio, inputMethod, errors });
     } catch (error) { reports.push({ viewport: name, passed: false, error: error.message, errors }); }
     finally { await context.close(); }
   }
