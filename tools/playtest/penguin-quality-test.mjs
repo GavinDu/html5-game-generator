@@ -180,10 +180,12 @@ try {
         await page.waitForTimeout(90);
       }
       const end = await snap();
-      for (const hearts of [2, 4, 6, 8, 10, 12]) {
-        if (!milestoneSeconds.some(m => m.hearts === hearts)) {
-          milestoneSeconds.push({ hearts, runtimeSeconds: end.t });
-        }
+      // The terminal snapshot is a real observation of twelve hearts, but
+      // does NOT establish timestamps for any skipped intermediate stages.
+      // Leave those absent so the advisory reports incomplete coverage.
+      if (end.objectiveProgress === 12 && Number.isFinite(end.t) &&
+          !milestoneSeconds.some(m => m.hearts === 12)) {
+        milestoneSeconds.push({ hearts: 12, runtimeSeconds: end.t });
       }
       milestoneSeconds.sort((a, b) => a.hearts - b.hearts);
       assert.equal(end.won, true, 'twelve catches must restore the whole aurora');
