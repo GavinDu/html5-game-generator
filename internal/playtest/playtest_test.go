@@ -168,8 +168,8 @@ func TestRunAcceptsMatchingVersionBoundIRReport(t *testing.T) {
 		{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
 	worker := writeFakeWorker(t, body, 0)
 	_, err := Run(context.Background(), Config{
-		WorkerCmd:       []string{worker},
-		BaseURL:         "http://x",
+		WorkerCmd:        []string{worker},
+		BaseURL:          "http://x",
 		ExpectedIRHashes: map[string]string{"g1": hash},
 	}, []string{"g1"})
 	if err != nil {
@@ -190,14 +190,14 @@ func TestRunRejectsStaleOrMissingGameIRHash(t *testing.T) {
 		want string
 	}{
 		{"stale exact-version report", body, "reported IR hash"},
-		{"missing IR hash", strings.Replace(body, `"irHash":"` + actualHash + `",`, "", 1), "reported IR hash"},
+		{"missing IR hash", strings.Replace(body, `"irHash":"`+actualHash+`",`, "", 1), "reported IR hash"},
 		{"malformed hash", strings.Replace(body, actualHash, "not-a-digest", 1), "invalid irHash"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			worker := writeFakeWorker(t, tc.body, 0)
 			_, err := Run(context.Background(), Config{
-				WorkerCmd:       []string{worker},
-				BaseURL:         "http://x",
+				WorkerCmd:        []string{worker},
+				BaseURL:          "http://x",
 				ExpectedIRHashes: map[string]string{"g1": expectedHash},
 			}, []string{"g1"})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
