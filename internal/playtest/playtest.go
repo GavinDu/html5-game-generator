@@ -42,23 +42,23 @@ type Config struct {
 // WorkerInput is an actual browser action attempted by the playtest bot.
 // It is NOT the server's fixed-tick input replay trace.
 type WorkerInput struct {
-	AtMS int `json:"atMs"`
-	Type string `json:"type"`
-	Key string `json:"key,omitempty"`
-	X *float64 `json:"x,omitempty"`
-	Y *float64 `json:"y,omitempty"`
+	AtMS int      `json:"atMs"`
+	Type string   `json:"type"`
+	Key  string   `json:"key,omitempty"`
+	X    *float64 `json:"x,omitempty"`
+	Y    *float64 `json:"y,omitempty"`
 }
 
 // GameResult is the worker's per-game report.
 type GameResult struct {
-	GameID   string                    `json:"gameId"`
-	Verdict  string                    `json:"verdict"` // PASS | FAIL (gate checks only)
-	Checks   []validator.PlaytestCheck `json:"checks"`
-	Probe    json.RawMessage           `json:"probe,omitempty"`
-	IRSHA256 string                    `json:"irSha256,omitempty"`
-	InputTrace []WorkerInput `json:"inputTrace,omitempty"`
-	InputTraceSource string `json:"inputTraceSource,omitempty"`
-	InputTraceIsReplay bool `json:"inputTraceIsReplay,omitempty"`
+	GameID             string                    `json:"gameId"`
+	Verdict            string                    `json:"verdict"` // PASS | FAIL (gate checks only)
+	Checks             []validator.PlaytestCheck `json:"checks"`
+	Probe              json.RawMessage           `json:"probe,omitempty"`
+	IRSHA256           string                    `json:"irSha256,omitempty"`
+	InputTrace         []WorkerInput             `json:"inputTrace,omitempty"`
+	InputTraceSource   string                    `json:"inputTraceSource,omitempty"`
+	InputTraceIsReplay bool                      `json:"inputTraceIsReplay,omitempty"`
 }
 
 // Report is one full worker run.
