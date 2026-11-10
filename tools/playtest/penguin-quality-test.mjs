@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { chromium, webkit } from 'playwright';
+import { evaluatePenguinPacing } from './penguin-pacing-review.mjs';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf('--' + name);
@@ -105,6 +106,7 @@ try {
       // a supplemental screenshot belongs to the guided win trace.
       let introEvidence = null;
       const observedHeartCounts = [];
+      const milestoneSeconds = [];
       let capturedMidway = false;
       let capturedHolidayScarf = false;
       let capturedClassicScarf = false;
@@ -142,6 +144,14 @@ try {
         if (observedHeartCounts.at(-1) !== state.objectiveProgress) {
           observedHeartCounts.push(state.objectiveProgress);
         }
+        // Record when the ACTUAL runtime reached each two-heart milestone,
+        // rather than inferring pacing from wall time or synthetic scores.
+        for (const hearts of [2, 4, 6, 8, 10, 12]) {
+          if (state.objectiveProgress >= hearts &&
+              !milestoneSeconds.some(m => m.hearts === hearts)) {
+            milestoneSeconds.push({ hearts, runtimeSeconds: state.t });
+          }
+        }
         const penguinAsset = state.entities.find(e => e.id === 'penguin')?.assetId;
         const expectedAsset = state.objectiveProgress >= 8 ? 'penguin_classic'
           : state.objectiveProgress >= 4 ? 'penguin_holiday' : 'penguin_rainbow';
@@ -170,6 +180,12 @@ try {
         await page.waitForTimeout(90);
       }
       const end = await snap();
+      for (const hearts of [2, 4, 6, 8, 10, 12]) {
+        if (!milestoneSeconds.some(m => m.hearts === hearts)) {
+          milestoneSeconds.push({ hearts, runtimeSeconds: end.t });
+        }
+      }
+      milestoneSeconds.sort((a, b) => a.hearts - b.hearts);
       assert.equal(end.won, true, 'twelve catches must restore the whole aurora');
       assert.equal(end.objectiveProgress, 12);
       assert.ok(end.score >= 120 && (end.score - 120) % 20 === 0,
@@ -262,6 +278,14 @@ try {
         'a fresh round must restore the source-story introduction');
       await page.screenshot({ path: dir + '/restarted.png' });
       assert.deepEqual(errors, [], 'runtime must not emit uncaught page errors');
+      const pacingReview = evaluatePenguinPacing({
+        sessionTargetSec: pkg.ir.game.sessionTargetSeconds,
+        introDeadlineSec: introRule.when.value,
+        winAtSec: end.t,
+        progressAtIntroClear: introEvidence.objectiveProgress,
+        introSession: introEvidence.session,
+        milestoneSeconds
+      });
       const report = {
         passed: true, browser: browserName, viewport: profile.name,
         missedHeartRecycled: true, shortTapMovesHorizontally: true,
@@ -271,7 +295,7 @@ try {
         brightBands: end.entities.filter(e => e.id.startsWith('band'))
           .map(e => ({ id: e.id, alpha: e.alpha })),
         restartInPlace: true, introClearedAfterSevenSeconds: true,
-        introEvidence,
+        introEvidence, pacingReview,
         introRestoredOnRestart: true, compactHintPersists: true,
         scarfMilestoneScreenshots: {
           rainbow: 'before.png', holiday: 'holiday-scarf.png', classic: 'classic-scarf.png'
