@@ -15,6 +15,8 @@ func TestCreateRemixUnsupportedParentReturnsConflictBeforeQueueing(t *testing.T)
 	srv.store.CreateGame(&model.Game{
 		ID:       "sample-ribbon-sky",
 		Title:    "Ribbon Sky",
+		OwnerID:  "doodlequest",
+		Visibility: model.VisibilityPublic,
 		Status:   model.GameReady,
 		Manifest: &model.BundleManifest{GameID: "sample-ribbon-sky"},
 		Elements: []model.Element{{ID: "el_1", Label: "ribbon", Kind: "character"}},
