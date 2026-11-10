@@ -3,7 +3,7 @@
 // The bot drives real touchscreen taps, and uses screenshots as both inputs
 // (measurable visual differences) and retained review evidence.
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import { chromium, webkit } from 'playwright';
 
@@ -55,6 +55,20 @@ try {
   assert.ok(packageResponse.ok, 'canonical Ribbon package must be available');
   const pkg = await packageResponse.json();
   assert.equal(pkg.ir.experience.objective.progressVariable, 'holes_stitched');
+  const authoredManifest = JSON.parse(readFileSync(
+    new URL('../../inventory/u46ex5/manifest.json', import.meta.url), 'utf8'));
+  assert.equal(authoredManifest.version, 5, 'visual package must be versioned');
+  const heroIR = pkg.ir.scenes[0].entities.find(e => e.id === 'player');
+  const haloIR = pkg.ir.scenes[0].entities.find(e => e.id === 'halo-hero');
+  assert.deepEqual(heroIR?.size, [108, 122],
+    'render-only scale must preserve authored 108x122 hero collider');
+  assert.deepEqual(heroIR?.render?.scale, [1.25, 1.25],
+    'source photo cutout must be more readable without changing physics');
+  assert.equal(haloIR?.kind, 'decoration');
+  assert.deepEqual(haloIR?.components, [],
+    'glow must have no collider or physics behavior');
+  assert.deepEqual(haloIR?.behavior, { type: 'follow', target: 'player' },
+    'glow must not be stranded at the spawn while the hero flies');
   const allHoles = pkg.ir.scenes[0].entities.filter(e => HOLE_IDS.includes(e.id));
   assert.equal(allHoles.length, 6, 'exactly six unique holes must be authored');
   assert.ok(allHoles.every(e => e.kind === 'pickup' && e.physics?.sensor && e.properties?.closeOnCollect));
@@ -81,6 +95,11 @@ try {
       const initial = await snap();
       assert.equal(initial.world.w, 390);
       assert.equal(initial.world.h, 844);
+      const initialGlow = initial.entities.find(e => e.id === 'halo-hero');
+      assert.ok(initialGlow &&
+        Math.abs(initialGlow.x - initial.player.x) <= 4 &&
+        Math.abs(initialGlow.y - initial.player.y) <= 4,
+        'glow must align with hero at the real initial game state');
 
       // Collect ordinary falling shards without steering into the six holes.
       // A high bonus score must never substitute for repairing the sky.
@@ -131,6 +150,11 @@ try {
         assert.equal(stitched(current), repaired(current).length,
           'objective progress must count unique closed patches, not score');
         assert.ok(stitched(current) >= oldProgress + 1, 'a new hole should increase progress');
+        const glow = current.entities.find(e => e.id === 'halo-hero');
+        assert.ok(glow &&
+          Math.abs(glow.x - current.player.x) <= 4 &&
+          Math.abs(glow.y - current.player.y) <= 4,
+          'glow must follow the moved hero after real touchscreen contact');
         individuallyRepaired.push(id);
         await capture(id + '-stitched');
 
@@ -174,6 +198,7 @@ try {
         individuallyRepaired, finalProgress: stitched(completed),
         closedPatches: repaired(completed), won: completed.won,
         duplicateChecked, visualDelta, restartInPlace: true,
+        heroVisualScale: 1.25, haloFollowsHero: true,
         screenshots: ['before-play', 'bonus-score-cannot-win',
           ...individuallyRepaired.map(id => id + '-stitched'), 'six-unique-holes-win', 'restart'],
       };

@@ -502,6 +502,10 @@
             }
           },
           "render": {
+            "scale": [
+              1.25,
+              1.25
+            ],
             "particles": {
               "rate": 26,
               "tint": "#ffd94d",
@@ -537,20 +541,24 @@
           "kind": "decoration",
           "position": [
             195,
-            650
+            640
           ],
           "size": [
-            320,
-            210
+            164,
+            128
           ],
           "zIndex": -2,
           "components": [],
           "render": {
-            "alpha": 0.16,
+            "alpha": 0.2,
             "shape": {
               "type": "ellipse",
               "fill": "#ffffff"
             }
+          },
+          "behavior": {
+            "type": "follow",
+            "target": "player"
           }
         },
         {
