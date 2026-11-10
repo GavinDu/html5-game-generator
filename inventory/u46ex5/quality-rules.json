@@ -74,6 +74,7 @@
     "Evaluate tap-to-move precision, collision readability, invulnerability feedback, and whether the staff/bonk mechanic is discoverable.",
     "Check Chinese text legibility, edge clipping, HUD safe areas, win payoff, and difficulty progression.",
     "Verify that exactly six distinct hole contacts increment holes_stitched once each; optional shard score must not close holes or win the game.",
-    "Capture screenshots before and after each hole repair, and assert closed-patch appearance and restart reset on both Chromium and WebKit."
+    "Capture screenshots before and after each hole repair, and assert closed-patch appearance and restart reset on both Chromium and WebKit.",
+    "Screenshot-derived hero readability regression: source photo-cutout girl riding her cloud remains the authored 108×122 physical collider and tap-to-fly target, while the sprite is rendered at a modest 1.25× visual scale. A smaller, translucent, physics-free halo must follow the hero's current position during real phone/tablet touchscreen movement; do not leave a ghost white ellipse at spawn or let the glow hide holes/shards. Capture real iPhone/iPad before and each-hole-stitched screenshots in Chromium and WebKit before approving visual changes. Bundle manifest version 5 must not reuse outdated preview poster assets."
   ]
 }
