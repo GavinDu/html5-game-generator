@@ -21,6 +21,61 @@ func writeFakeWorker(t *testing.T, body string, exitCode int) string {
 	return p
 }
 
+// The browser action log is diagnostic provenance, not a fixed-tick replay.
+// A future publish gate can opt in to a mandatory real input trace without
+// changing the historical advisory worker behavior.
+func TestRunRequiresRealBrowserInputEvidenceWhenConfigured(t *testing.T) {
+	valid := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1",
+		"verdict":"PASS","inputTraceSource":"actual-browser-worker-dispatch",
+		"inputTraceIsReplay":false,
+		"inputTrace":[{"atMs":12,"type":"touch_tap","x":120,"y":250},
+		              {"atMs":180,"type":"mouse_drag","x":220,"y":390}],
+		"checks":[{"checkId":"playtest.boot_clean","status":"pass"},
+		          {"checkId":"playtest.render_nonblank","status":"pass"},
+		          {"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	worker := writeFakeWorker(t, valid, 0)
+	report, err := Run(context.Background(), Config{
+		WorkerCmd:         []string{worker},
+		BaseURL:           "http://x",
+		RequireInputTrace: true,
+	}, []string{"g1"})
+	if err != nil || len(report.Games[0].InputTrace) != 2 {
+		t.Fatalf("actual browser trace must be accepted: %+v %v", report, err)
+	}
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"no observed action", strings.Replace(valid, `"inputTrace":[{"atMs":12,"type":"touch_tap","x":120,"y":250},
+		              {"atMs":180,"type":"mouse_drag","x":220,"y":390}],`, `"inputTrace":[],`, 1),
+			"without actual browser input trace"},
+		{"misrepresented replay", strings.Replace(valid, `"inputTraceIsReplay":false`, `"inputTraceIsReplay":true`, 1),
+			"falsely labeled as replay"},
+		{"invented source", strings.Replace(valid, `"actual-browser-worker-dispatch"`, `"synthetic-test"`, 1),
+			"input trace source"},
+		{"negative time", strings.Replace(valid, `"atMs":12`, `"atMs":-1`, 1),
+			"inconsistent time"},
+		{"backwards timing", strings.Replace(valid, `"atMs":180`, `"atMs":1`, 1),
+			"inconsistent time"},
+		{"unknown action", strings.Replace(valid, `"touch_tap"`, `"instant_win"`, 1),
+			"invalid type"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := writeFakeWorker(t, tc.body, 0)
+			_, failure := Run(context.Background(), Config{
+				WorkerCmd:         []string{fake},
+				BaseURL:           "http://x",
+				RequireInputTrace: true,
+			}, []string{"g1"})
+			if failure == nil || !strings.Contains(failure.Error(), tc.want) {
+				t.Fatalf("%s: want fail-closed %q, got %v", tc.name, tc.want, failure)
+			}
+		})
+	}
+}
+
 const cannedReport = `{"base":"http://x","browser":"chromium","games":[
   {"gameId":"g1","verdict":"FAIL","checks":[
     {"checkId":"playtest.boot_clean","status":"fail","evidence":"boom"},

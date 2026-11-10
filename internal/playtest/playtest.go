@@ -34,15 +34,31 @@ type Config struct {
 	// When nonempty it must contain one 64-hex hash per requested game;
 	// a successful report for a different version is not publish evidence.
 	ExpectedIRSHA256 map[string]string
+	// RequireInputTrace rejects a PASS with no real browser-dispatched
+	// action evidence. Worker actions are not deterministic replay inputs.
+	RequireInputTrace bool
+}
+
+// WorkerInput is an actual browser action attempted by the playtest bot.
+// It is NOT the server's fixed-tick input replay trace.
+type WorkerInput struct {
+	AtMS int      `json:"atMs"`
+	Type string   `json:"type"`
+	Key  string   `json:"key,omitempty"`
+	X    *float64 `json:"x,omitempty"`
+	Y    *float64 `json:"y,omitempty"`
 }
 
 // GameResult is the worker's per-game report.
 type GameResult struct {
-	GameID   string                    `json:"gameId"`
-	Verdict  string                    `json:"verdict"` // PASS | FAIL (gate checks only)
-	Checks   []validator.PlaytestCheck `json:"checks"`
-	Probe    json.RawMessage           `json:"probe,omitempty"`
-	IRSHA256 string                    `json:"irSha256,omitempty"`
+	GameID             string                    `json:"gameId"`
+	Verdict            string                    `json:"verdict"` // PASS | FAIL (gate checks only)
+	Checks             []validator.PlaytestCheck `json:"checks"`
+	Probe              json.RawMessage           `json:"probe,omitempty"`
+	IRSHA256           string                    `json:"irSha256,omitempty"`
+	InputTrace         []WorkerInput             `json:"inputTrace,omitempty"`
+	InputTraceSource   string                    `json:"inputTraceSource,omitempty"`
+	InputTraceIsReplay bool                      `json:"inputTraceIsReplay,omitempty"`
 }
 
 // Report is one full worker run.
@@ -94,6 +110,26 @@ func validateReport(report *Report) error {
 			return fmt.Errorf("duplicate gameId %q", id)
 		}
 		seen[id] = struct{}{}
+		if len(game.InputTrace) > 1024 {
+			return fmt.Errorf("game %q has oversized browser input trace", id)
+		}
+		if len(game.InputTrace) > 0 {
+			if game.InputTraceSource != "actual-browser-worker-dispatch" || game.InputTraceIsReplay {
+				return fmt.Errorf("game %q input trace source is missing or falsely labeled as replay", id)
+			}
+			lastAt := -1
+			for i, event := range game.InputTrace {
+				if event.AtMS < 0 || event.AtMS < lastAt {
+					return fmt.Errorf("game %q input trace event %d has inconsistent time", id, i)
+				}
+				lastAt = event.AtMS
+				switch event.Type {
+				case "key", "touch_tap", "mouse_click", "mouse_drag", "synthetic_pointer_hold":
+				default:
+					return fmt.Errorf("game %q input trace event %d has invalid type %q", id, i, event.Type)
+				}
+			}
+		}
 		if game.IRSHA256 != "" && !isCanonicalIRSHA256(game.IRSHA256) {
 			return fmt.Errorf("game %q has invalid irSha256 %q", id, game.IRSHA256)
 		}
@@ -272,6 +308,13 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 			}
 			if game.IRSHA256 != want {
 				return nil, fmt.Errorf("playtest: game %q reported IR SHA256 %q, want %q", game.GameID, game.IRSHA256, want)
+			}
+		}
+	}
+	if cfg.RequireInputTrace {
+		for _, game := range report.Games {
+			if game.Verdict == "PASS" && len(game.InputTrace) == 0 {
+				return nil, fmt.Errorf("playtest: game %q reported PASS without actual browser input trace", game.GameID)
 			}
 		}
 	}

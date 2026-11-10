@@ -250,6 +250,15 @@ async function playGame(browser, gameId) {
   // Boot, census sampling, and input-prompt waits are measured separately and
   // otherwise inflate first-reward latency by several seconds.
   const playStart = Date.now();
+  // Actions actually dispatched by this browser worker, not the server's
+  // deterministic simulation-step replay trace. Never relabel this as a win
+  // replay or pretend missing input/screenshot provenance was observed.
+  const inputTrace = [];
+  const recordInput = (type, detail = {}) => {
+    if (inputTrace.length < 1024) {
+      inputTrace.push({ atMs: Math.max(0, Date.now() - playStart), type, ...detail });
+    }
+  };
   let firstRewardMs = null;
   let firstRewardSource = 'HUD score observation';
   let stateChanged = false;
@@ -271,9 +280,11 @@ async function playGame(browser, gameId) {
   let ki = 0;
   while (Date.now() < playDeadline) {
     if (!isCatcher && !isTapDodger) {
-      await page.keyboard.down(keys[ki % keys.length]).catch(() => {});
+      const key = keys[ki % keys.length];
+      await page.keyboard.down(key).catch(() => {});
       await sleep(450);
-      await page.keyboard.up(keys[ki % keys.length]).catch(() => {});
+      await page.keyboard.up(key).catch(() => {});
+      recordInput('key', { key });
     } else {
       await sleep(120);
     }
@@ -303,6 +314,7 @@ async function playGame(browser, gameId) {
           const beforeInputs = (await readProbe(page))?.inputs ?? 0;
           const beforePlayer = await page.evaluate(() => window.__dqTest?.snapshot?.().player ?? null).catch(() => null);
           await page.touchscreen.tap(target.x, target.y).catch(() => {});
+          recordInput('touch_tap', { x: target.x, y: target.y });
           await sleep(120);
           let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
           const afterPlayer = await page.evaluate(() => window.__dqTest?.snapshot?.().player ?? null).catch(() => null);
@@ -333,6 +345,7 @@ async function playGame(browser, gameId) {
                 button: 0, buttons: 0, bubbles: true, cancelable: true,
               }));
             }).catch(() => {});
+            recordInput('synthetic_pointer_hold', { x: target.x, y: target.y });
             afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
           }
           if (afterInputs <= beforeInputs) {
@@ -344,6 +357,7 @@ async function playGame(browser, gameId) {
         await page.mouse.down().catch(() => {});
         await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
         await page.mouse.up().catch(() => {});
+        recordInput('mouse_drag', { x: points.to.x, y: points.to.y });
       }
     } else if (isTapDodger) {
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
@@ -365,10 +379,12 @@ async function playGame(browser, gameId) {
           const tapY = canvas.top + canvas.height * 0.82;
           const beforeInputs = (await readProbe(page))?.inputs ?? 0;
           await page.touchscreen.tap(tapX, tapY).catch(() => {});
+          recordInput('touch_tap', { x: tapX, y: tapY });
           await sleep(80);
           let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
           if (afterInputs <= beforeInputs) {
             await page.mouse.click(tapX, tapY).catch(() => {});
+            recordInput('mouse_click', { x: tapX, y: tapY });
             await sleep(80);
             afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
           }
@@ -382,6 +398,7 @@ async function playGame(browser, gameId) {
       await page.mouse.down().catch(() => {});
       await page.mouse.move(300, 380, { steps: 8 }).catch(() => {});
       await page.mouse.up().catch(() => {});
+      recordInput('mouse_drag', { x: 300, y: 380 });
     }
     const live = await page.evaluate(() => ({
       hud: document.getElementById('score')?.textContent || '',
@@ -442,6 +459,7 @@ async function playGame(browser, gameId) {
       sweep++;
       const x = sweep % 2 === 0 ? 320 : 80;
       await page.mouse.move(x, 700, { steps: 10 }).catch(() => {});
+      recordInput('mouse_drag', { x, y: 700 });
       await sleep(650);
       const live = await page.evaluate(() => ({
         shellEnd: !!document.querySelector('#shell-result.on'),
@@ -661,7 +679,10 @@ async function playGame(browser, gameId) {
   // broken runtime/playability invariant. Informational timing misses
   // above are marked skip with the measured value and do not gate.
   const failed = checks.some((c) => c.status === 'fail');
-  return { gameId, irSha256: envelope.irSha256, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
+  return { gameId, irSha256: envelope.irSha256,
+    verdict: failed ? 'FAIL' : 'PASS', checks, probe,
+    inputTrace, inputTraceSource: 'actual-browser-worker-dispatch',
+    inputTraceIsReplay: false };
 }
 
 async function main() {
