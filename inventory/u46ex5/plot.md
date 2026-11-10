@@ -95,3 +95,22 @@ with everyone's 关. Play Again starts a fresh run at 第1关.
 ## v5 stability pass (2026-11-05)
 
 The endless meta-level multiplier now caps at 2.8x so demon movement and spawn cadence cannot overflow or become arbitrarily dense. Rainbow-shard chime frequency is also bounded to a safe audible range even when score accumulates over long runs. The six-hole round objective, three-life risk, and optional shard reward remain unchanged.
+
+## Visual readability correction (2026-11-09, package v5)
+
+Exact Chromium iPhone screenshots from the passing six-unique-hole QA showed
+that the original photo-cutout heroine is hard to distinguish against the
+detailed sunset clouds, while the pale halo is a static large ellipse near
+her spawn instead of following her sky-repair flight.
+
+This visual-only revision keeps the **original source-photo hero sprite**
+and the **108×122 collision footprint** but enlarges only its display to
+1.25×. The halo becomes a smaller, subtle no-collider decoration that follows
+the real player position. All six repair targets, demon risks, bonus shard
+score, win condition, controls, and original artwork remain unchanged.
+
+Review the unmodified real-game screenshots after each targeted touchscreen
+move on iPhone/iPad Chromium and WebKit before approving. Confirm that the
+halo moves with the hero, no static white ghost remains at spawn, and the
+larger display does not obscure the holes or HUD. The manifest is bumped to
+version 5; older poster candidates are not silently rebound to the new IR.
