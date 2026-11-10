@@ -92,7 +92,17 @@ async function playGame(browser, gameId) {
   const checks = [];
   const push = (checkId, status, evidence, actual) =>
     checks.push({ checkId, status, evidence, actual });
-  const envelope = await (await fetch(`${base}/v1/games/${encodeURIComponent(gameId)}/package`)).json();
+  const packageResponse = await fetch(`${base}/v1/games/${encodeURIComponent(gameId)}/package`);
+  if (!packageResponse.ok) {
+    throw new Error(`package request for ${gameId} failed HTTP ${packageResponse.status}`);
+  }
+  const envelope = await packageResponse.json();
+  // A worker's PASS must refer to the actual delivered IR, never merely
+  // the game slug. The Go publish-gate adapter can reject an old version
+  // by comparing this digest against the requested pending version.
+  if (envelope.gameId !== gameId || !/^[a-f0-9]{64}$/.test(envelope.irSha256 || '')) {
+    throw new Error(`invalid package identity for requested game ${gameId}`);
+  }
   const page = await browser.newPage({ viewport: preferredViewport(envelope.ir, 420, 900), hasTouch: true });
   const pageErrors = [];
   page.on('pageerror', (e) => pageErrors.push(String(e && e.message || e)));
@@ -115,7 +125,7 @@ async function playGame(browser, gameId) {
     push('playtest.boot_clean', 'fail', 'page load failed: ' + e.message, null);
     push('playtest.render_nonblank', 'skip', 'page never loaded', null);
     await page.close().catch(() => {});
-    return { gameId, verdict: 'FAIL', checks, probe };
+    return { gameId, irSha256: envelope.irSha256, verdict: 'FAIL', checks, probe };
   }
   const coldStartMs = Date.now() - navStart;
 
@@ -651,7 +661,7 @@ async function playGame(browser, gameId) {
   // broken runtime/playability invariant. Informational timing misses
   // above are marked skip with the measured value and do not gate.
   const failed = checks.some((c) => c.status === 'fail');
-  return { gameId, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
+  return { gameId, irSha256: envelope.irSha256, verdict: failed ? 'FAIL' : 'PASS', checks, probe };
 }
 
 async function main() {

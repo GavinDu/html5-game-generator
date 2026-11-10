@@ -30,14 +30,19 @@ type Config struct {
 	Browser   string // chromium (default) | webkit
 	ShotsDir  string // when set, the worker writes screenshots + its report there
 	Timeout   time.Duration
+	// ExpectedIRSHA256 binds a requested batch to the exact canonical Game IR.
+	// When nonempty it must contain one 64-hex hash per requested game;
+	// a successful report for a different version is not publish evidence.
+	ExpectedIRSHA256 map[string]string
 }
 
 // GameResult is the worker's per-game report.
 type GameResult struct {
-	GameID  string                    `json:"gameId"`
-	Verdict string                    `json:"verdict"` // PASS | FAIL (gate checks only)
-	Checks  []validator.PlaytestCheck `json:"checks"`
-	Probe   json.RawMessage           `json:"probe,omitempty"`
+	GameID   string                    `json:"gameId"`
+	Verdict  string                    `json:"verdict"` // PASS | FAIL (gate checks only)
+	Checks   []validator.PlaytestCheck `json:"checks"`
+	Probe    json.RawMessage           `json:"probe,omitempty"`
+	IRSHA256 string                    `json:"irSha256,omitempty"`
 }
 
 // Report is one full worker run.
@@ -89,6 +94,9 @@ func validateReport(report *Report) error {
 			return fmt.Errorf("duplicate gameId %q", id)
 		}
 		seen[id] = struct{}{}
+		if game.IRSHA256 != "" && !isCanonicalIRSHA256(game.IRSHA256) {
+			return fmt.Errorf("game %q has invalid irSha256 %q", id, game.IRSHA256)
+		}
 		if game.Verdict != "PASS" && game.Verdict != "FAIL" {
 			return fmt.Errorf("game %q has invalid verdict %q", id, game.Verdict)
 		}
@@ -144,6 +152,19 @@ func validateReport(report *Report) error {
 	return nil
 }
 
+// isCanonicalIRSHA256 checks the 64-hex full SHA-256 digest exposed by /package.
+func isCanonicalIRSHA256(hash string) bool {
+	if len(hash) != 64 {
+		return false
+	}
+	for _, c := range hash {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // Run executes the worker and parses its JSON report. The worker exits 1
 // when a game fails the gate — that is still a successful run with a real
 // report. Exit code 2 (worker failure) or unparseable output is an error.
@@ -172,6 +193,17 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 			normalized = append(normalized, id)
 		}
 		gameIDs = normalized
+	}
+	if len(cfg.ExpectedIRSHA256) > 0 {
+		if len(gameIDs) == 0 || len(cfg.ExpectedIRSHA256) != len(gameIDs) {
+			return nil, fmt.Errorf("playtest: version-bound report requires one expected IR SHA256 per explicitly requested game")
+		}
+		for _, gameID := range gameIDs {
+			hash, ok := cfg.ExpectedIRSHA256[gameID]
+			if !ok || !isCanonicalIRSHA256(hash) {
+				return nil, fmt.Errorf("playtest: missing or invalid expected IR SHA256 for game %q", gameID)
+			}
+		}
 	}
 	cmd := cfg.WorkerCmd
 	if len(cmd) == 0 {
@@ -231,6 +263,17 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	}
 	if !workerExitedWithGateFailure && report.Failed() {
 		return nil, fmt.Errorf("playtest: worker exited 0 despite a FAIL verdict")
+	}
+	if len(cfg.ExpectedIRSHA256) > 0 {
+		for _, game := range report.Games {
+			want, ok := cfg.ExpectedIRSHA256[game.GameID]
+			if !ok {
+				return nil, fmt.Errorf("playtest: report for unexpected game %q has no expected IR SHA256", game.GameID)
+			}
+			if game.IRSHA256 != want {
+				return nil, fmt.Errorf("playtest: game %q reported IR SHA256 %q, want %q", game.GameID, game.IRSHA256, want)
+			}
+		}
 	}
 	if cfg.Browser != "" && report.Browser != cfg.Browser {
 		return nil, fmt.Errorf("playtest: worker reported browser %q, want %q", report.Browser, cfg.Browser)

@@ -44,9 +44,10 @@ import (
 	"doodlequest/internal/gameir"
 )
 
-// irHashOf identifies one exact IR document (12 hex chars of sha256
-// over its canonical JSON encoding).
-func irHashOf(doc *gameir.Document) string {
+// irSHA256Of identifies the complete canonical IR content. Unlike the
+// historical 12-hex leaderboard key, this is suitable for strict version
+// attribution in a playtest/publishing evidence contract.
+func irSHA256Of(doc *gameir.Document) string {
 	if doc == nil {
 		return ""
 	}
@@ -55,7 +56,16 @@ func irHashOf(doc *gameir.Document) string {
 		return ""
 	}
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])[:12]
+	return hex.EncodeToString(sum[:])
+}
+
+// irHashOf retains the original short leaderboard/run key for compatibility.
+func irHashOf(doc *gameir.Document) string {
+	digest := irSHA256Of(doc)
+	if digest == "" {
+		return ""
+	}
+	return digest[:12]
 }
 
 type RunInput struct {

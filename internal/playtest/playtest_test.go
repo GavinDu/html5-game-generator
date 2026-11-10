@@ -160,6 +160,67 @@ func TestRunAcceptsWorkerCanonicalTrailingSlashInRequestedBase(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsMatchingVersionBoundIRReport(t *testing.T) {
+	hash := strings.Repeat("a", 64)
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","irSha256":"` + hash + `","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	worker := writeFakeWorker(t, body, 0)
+	_, err := Run(context.Background(), Config{
+		WorkerCmd:        []string{worker},
+		BaseURL:          "http://x",
+		ExpectedIRSHA256: map[string]string{"g1": hash},
+	}, []string{"g1"})
+	if err != nil {
+		t.Fatalf("matching version-bound real report must pass: %v", err)
+	}
+}
+
+func TestRunRejectsStaleOrMissingGameIRHash(t *testing.T) {
+	actualHash := strings.Repeat("a", 64)
+	expectedHash := strings.Repeat("b", 64)
+	body := `{"base":"http://x","browser":"chromium","games":[{"gameId":"g1","irSha256":"` + actualHash + `","verdict":"PASS","checks":[
+		{"checkId":"playtest.boot_clean","status":"pass"},
+		{"checkId":"playtest.render_nonblank","status":"pass"},
+		{"checkId":"simulation.no_softlock","status":"pass"}]}]}`
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{"stale exact-version report", body, "reported IR SHA256"},
+		{"missing IR hash", strings.Replace(body, `"irSha256":"`+actualHash+`",`, "", 1), "reported IR SHA256"},
+		{"malformed hash", strings.Replace(body, actualHash, "not-a-digest", 1), "invalid irSha256"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			worker := writeFakeWorker(t, tc.body, 0)
+			_, err := Run(context.Background(), Config{
+				WorkerCmd:        []string{worker},
+				BaseURL:          "http://x",
+				ExpectedIRSHA256: map[string]string{"g1": expectedHash},
+			}, []string{"g1"})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("untrusted version report should be rejected (%s): %v", tc.name, err)
+			}
+		})
+	}
+}
+
+func TestRunRequiresCompleteExpectedIRHashBindings(t *testing.T) {
+	// Reject missing/extra version pins before executing the worker.
+	for _, cfg := range []Config{
+		{WorkerCmd: []string{"missing-worker"}, BaseURL: "http://x", ExpectedIRSHA256: map[string]string{"g2": strings.Repeat("b", 64)}},
+		{WorkerCmd: []string{"missing-worker"}, BaseURL: "http://x", ExpectedIRSHA256: map[string]string{"g1": "invalid"}},
+		{WorkerCmd: []string{"missing-worker"}, BaseURL: "http://x", ExpectedIRSHA256: map[string]string{"g1": strings.Repeat("a", 64), "g2": strings.Repeat("b", 64)}},
+	} {
+		if _, err := Run(context.Background(), cfg, []string{"g1"}); err == nil ||
+			!strings.Contains(err.Error(), "expected IR SHA256") {
+			t.Fatalf("expected hash binding must reject missing/extra/invalid map before worker: %v", err)
+		}
+	}
+}
+
 func TestRunRejectsReportForDifferentBrowser(t *testing.T) {
 	worker := writeFakeWorker(t, cannedReport, 1)
 	_, err := Run(context.Background(), Config{

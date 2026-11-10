@@ -41,7 +41,13 @@ func TestPackageEnvelopeAdvertisesRuntimeCompatibilityContract(t *testing.T) {
 		t.Fatal("package envelope omitted IR")
 	}
 	if pkg.IRHash == "" || pkg.IRHash != irHashOf(pkg.IR) {
-		t.Errorf("irHash does not identify the exact delivered IR: got %q", pkg.IRHash)
+		t.Errorf("irHash does not identify the delivered IR's compatibility key: got %q", pkg.IRHash)
+	}
+	if len(pkg.IRSHA256) != 64 || pkg.IRSHA256 != irSHA256Of(pkg.IR) {
+		t.Errorf("irSha256 does not bind the complete delivered IR: got %q", pkg.IRSHA256)
+	}
+	if len(pkg.IRSHA256) == 64 && pkg.IRHash != pkg.IRSHA256[:12] {
+		t.Errorf("legacy short irHash must remain a prefix of full irSha256")
 	}
 	if pkg.Assets == nil {
 		t.Error("assets must be an array, not null, even when the package has no assets")
