@@ -37,7 +37,11 @@ test('custom collect progress is independent from score and increments through r
 test('tap catcher falls back to a held pointer when touch is recorded without movement', () => {
   assert.match(probeSource, /const needsHeldContact = afterInputs <= beforeInputs \|\| !points \|\| \(targetDelta > 12 && moved < 4\)/);
   assert.match(probeSource, /if \(needsHeldContact\)/);
-  assert.match(probeSource, /await sleep\(220\)/);
+  // The hold must still last 220ms across animation frames, but now
+  // the record is contingent on both real dispatch calls succeeding.
+  assert.match(probeSource, /\(\) => sleep\(220\)/);
+  assert.match(probeSource, /recordAfterGesture\(\[/);
+  assert.match(probeSource, /\(\) => recordInput\('synthetic_pointer_hold'/);
 });
 
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
