@@ -235,6 +235,15 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	if cfg.Browser != "" && report.Browser != cfg.Browser {
 		return nil, fmt.Errorf("playtest: worker reported browser %q, want %q", report.Browser, cfg.Browser)
 	}
+	// The worker removes exactly one trailing slash from --base before
+	// emitting its report. A syntactically valid PASS from a different
+	// deployment must never certify this generation's requested server.
+	// Keep comparison literal beyond that one worker-defined normalization:
+	// a changed host, port, scheme, or path identifies a different target.
+	expectedBase := strings.TrimSuffix(cfg.BaseURL, "/")
+	if report.Base != expectedBase {
+		return nil, fmt.Errorf("playtest: worker reported base %q, want %q", report.Base, expectedBase)
+	}
 	// A report is not a publish gate for the requested batch unless every
 	// requested game has an explicit result. Otherwise a worker that silently
 	// drops a game could make an incomplete batch look successful.
