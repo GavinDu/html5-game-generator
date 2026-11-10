@@ -71,7 +71,6 @@ func TestRunAcceptsSkippedInformationalInputTiming(t *testing.T) {
 	}
 }
 
-
 func TestRunRejectsExitOneWithStalePassingJSON(t *testing.T) {
 	// A crashed worker can print a structurally valid prior PASS report.
 	// Exit 1 may only be used with a real FAIL verdict for the same run.
