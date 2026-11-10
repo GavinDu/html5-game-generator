@@ -47,10 +47,10 @@ var stageOrder = []model.StageName{
 type BrowserGate func(ctx context.Context, gameID string, ir *gameir.Document) error
 
 type Runner struct {
-	store     store.Store
-	confirmMu sync.Mutex // serializes confirmation check + running transition
-	browserGateMu sync.RWMutex
-	browserGate BrowserGate
+	store               store.Store
+	confirmMu           sync.Mutex // serializes confirmation check + running transition
+	browserGateMu       sync.RWMutex
+	browserGate         BrowserGate
 	browserGateRequired bool
 }
 
