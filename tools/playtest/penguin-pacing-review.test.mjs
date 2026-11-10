@@ -16,7 +16,10 @@ test('normal guided completion stays advisory-free', () => {
   assert.equal(result.needsCreativeReview, false);
 });
 test('near-complete heart objective during the seven-second intro is flagged', () => {
-  const r = evaluatePenguinPacing({...base, progressAtIntroClear: 11, winAtSec: 8});
+  const rapidMilestones = [2, 4, 6, 8, 10, 12]
+    .map((hearts, i) => ({ hearts, runtimeSeconds: (i + 1) * 1.3 }));
+  const r = evaluatePenguinPacing({...base, progressAtIntroClear: 11, winAtSec: 8,
+    milestoneSeconds: rapidMilestones });
   assert.deepEqual(r.reasons, ['guided-win-much-faster-than-session-target','intro-cleared-near-completion']);
   assert.equal(r.needsCreativeReview, true);
 });
