@@ -35,8 +35,8 @@ func TestRunRequiresRealBrowserInputEvidenceWhenConfigured(t *testing.T) {
 		          {"checkId":"simulation.no_softlock","status":"pass"}]}]}`
 	worker := writeFakeWorker(t, valid, 0)
 	report, err := Run(context.Background(), Config{
-		WorkerCmd: []string{worker},
-		BaseURL: "http://x",
+		WorkerCmd:         []string{worker},
+		BaseURL:           "http://x",
 		RequireInputTrace: true,
 	}, []string{"g1"})
 	if err != nil || len(report.Games[0].InputTrace) != 2 {
@@ -65,8 +65,8 @@ func TestRunRequiresRealBrowserInputEvidenceWhenConfigured(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := writeFakeWorker(t, tc.body, 0)
 			_, failure := Run(context.Background(), Config{
-				WorkerCmd: []string{fake},
-				BaseURL: "http://x",
+				WorkerCmd:         []string{fake},
+				BaseURL:           "http://x",
 				RequireInputTrace: true,
 			}, []string{"g1"})
 			if failure == nil || !strings.Contains(failure.Error(), tc.want) {
