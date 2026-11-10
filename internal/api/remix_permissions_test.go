@@ -23,9 +23,9 @@ func TestRemixSourceRightsDenyPrivateCrossAccountAndRequirePublicOptIn(t *testin
 	source := &model.Game{
 		ID: "sample-rainbow-bear", OwnerID: "creator-one",
 		Title: "Owner-only game", Status: model.GameReady,
-		Visibility: model.VisibilityPrivate,
-		Elements: []model.Element{{ID: "hero", Label: "hero", Kind: "character"}},
-		Manifest: &model.BundleManifest{GameID: "sample-rainbow-bear", Version: 1},
+		Visibility:  model.VisibilityPrivate,
+		Elements:    []model.Element{{ID: "hero", Label: "hero", Kind: "character"}},
+		Manifest:    &model.BundleManifest{GameID: "sample-rainbow-bear", Version: 1},
 		PublishedAt: &now, PublishedVersion: 1, ModerationStatus: "approved",
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -88,8 +88,8 @@ func TestRemixEligibilityRequiresSignedBearerAndHidesPrivateSource(t *testing.T)
 		ID: "owner-secret-source", OwnerID: "creator-one",
 		Title: "Private drawing", Status: model.GameReady,
 		Visibility: model.VisibilityPrivate,
-		Manifest: &model.BundleManifest{GameID: "owner-secret-source", Version: 1},
-		CreatedAt: now, UpdatedAt: now,
+		Manifest:   &model.BundleManifest{GameID: "owner-secret-source", Version: 1},
+		CreatedAt:  now, UpdatedAt: now,
 	}
 	st.CreateGame(parent)
 	request := func(user, gameID string) *httptest.ResponseRecorder {
@@ -135,7 +135,7 @@ func TestPublishedRemixOptInIsPersistentAndNotAnApprovalShortcut(t *testing.T) {
 	game := &model.Game{
 		ID: "creator-opt-in", OwnerID: "creator-a", Title: "A game",
 		Status: model.GameReady, Visibility: model.VisibilityPrivate,
-		Manifest: &model.BundleManifest{GameID: "creator-opt-in", Version: 1},
+		Manifest:  &model.BundleManifest{GameID: "creator-opt-in", Version: 1},
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 	}
 	st.CreateGame(game)
