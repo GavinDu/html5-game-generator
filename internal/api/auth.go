@@ -102,6 +102,11 @@ func requiresUserAuth(r *http.Request) bool {
 	if r.URL.Path == "/v1/auth/apple" {
 		return false // issuance is how a client obtains a session
 	}
+	// Must precede the broad public /v1/users/{id} creator-profile read.
+	// Private draft/project enumeration is *never* a public profile route.
+	if r.URL.Path == "/v1/users/me/projects" {
+		return true
+	}
 	if strings.HasPrefix(r.URL.Path, "/v1/telemetry/") ||
 		r.URL.Path == "/v1/moderation/contact" ||
 		r.URL.Path == "/v1/moderation/reports" ||
