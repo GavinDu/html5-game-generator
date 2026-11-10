@@ -149,6 +149,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
 	mux.HandleFunc("POST /v1/auth/apple", s.handleAppleSignIn)
 	mux.HandleFunc("DELETE /v1/users/me", s.handleDeleteAccount)
+	mux.HandleFunc("GET /v1/users/me/projects", s.handleMyProjects)
 	mux.HandleFunc("POST /v1/telemetry/runtime-error", s.handleRuntimeError)
 	mux.HandleFunc("POST /v1/telemetry/events", s.handleTelemetryEvent)
 	mux.HandleFunc("GET /v1/telemetry/perf", s.handlePerfSummary)

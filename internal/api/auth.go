@@ -102,8 +102,9 @@ func requiresUserAuth(r *http.Request) bool {
 	if r.URL.Path == "/v1/auth/apple" {
 		return false // issuance is how a client obtains a session
 	}
-	// Eligibility may reveal private source rights: require a verified viewer.
-	if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/remix-eligibility") {
+	// Must precede the broad public /v1/users/{id} creator-profile read.
+	// Private draft/project enumeration is *never* a public profile route.
+	if r.URL.Path == "/v1/users/me/projects" {
 		return true
 	}
 	if strings.HasPrefix(r.URL.Path, "/v1/telemetry/") ||
@@ -115,6 +116,11 @@ func requiresUserAuth(r *http.Request) bool {
 		strings.HasSuffix(r.URL.Path, "/quarantine") ||
 		strings.HasSuffix(r.URL.Path, "/unquarantine") {
 		return false // these endpoints have their own trust model or are ingestion-only
+	}
+	// Eligibility can disclose private source permissions; it is not
+	// part of the public /v1/games read exemption.
+	if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/remix-eligibility") {
+		return true
 	}
 	if r.Method == http.MethodGet {
 		p := r.URL.Path
