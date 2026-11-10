@@ -273,6 +273,7 @@ jobs:
           path: |
             /tmp/dq-server.log
             /tmp/playtest-report.json
+            /tmp/scored-playtest-report.json
             /tmp/playtest-shots/
             /tmp/evidence-packs/
             /tmp/test-feedback-playtest.json
