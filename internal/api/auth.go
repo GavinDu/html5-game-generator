@@ -117,6 +117,11 @@ func requiresUserAuth(r *http.Request) bool {
 		strings.HasSuffix(r.URL.Path, "/unquarantine") {
 		return false // these endpoints have their own trust model or are ingestion-only
 	}
+	// Eligibility can disclose private source permissions; it is not
+	// part of the public /v1/games read exemption.
+	if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/remix-eligibility") {
+		return true
+	}
 	if r.Method == http.MethodGet {
 		p := r.URL.Path
 		if p == "/v1/feed" || p == "/v1/creators" ||

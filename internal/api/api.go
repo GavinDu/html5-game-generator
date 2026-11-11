@@ -168,6 +168,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/ingest", s.handleIngest)
 	mux.HandleFunc("POST /v1/games", s.handleCreateGame)
 	mux.HandleFunc("GET /v1/games/{id}", s.handleGetGame)
+	mux.HandleFunc("GET /v1/games/{id}/remix-eligibility", s.handleRemixEligibility)
 	mux.HandleFunc("PUT /v1/games/{id}/previews/{version}/{asset}", s.handleUploadPreviewAsset)
 	mux.HandleFunc("GET /v1/games/{id}/previews/{version}/{asset}", s.handleGetPreviewAsset)
 	mux.HandleFunc("PUT /v1/games/{id}/preview", s.handleSetPreviewMetadata)
@@ -407,6 +408,15 @@ func (s *Server) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 		parent, ok := s.store.GetGame(req.ParentGameID)
 		if !ok || parent.Status != model.GameReady || parent.Manifest == nil {
 			writeErr(w, http.StatusBadRequest, "parent_game_id must identify a ready inventory game")
+			return
+		}
+		if parent.OwnerID != userID(r) && parent.Visibility != model.VisibilityPublic {
+			writeErr(w, http.StatusNotFound, "parent game not found")
+			return
+		}
+		if !canRemixGame(parent, userID(r)) {
+			writeErrorCode(w, http.StatusForbidden, "remix_not_permitted",
+				"the creator has not allowed remixing this game")
 			return
 		}
 		// Bobo retains its legacy remix profile. Other parents are eligible

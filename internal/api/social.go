@@ -71,6 +71,7 @@ type publishPostRequest struct {
 	Caption       string   `json:"caption"`
 	Topics        []string `json:"topics"`
 	RemixParentID string   `json:"remix_parent_id,omitempty"`
+	AllowRemixes  bool     `json:"allow_remixes"`
 }
 type textRequest struct {
 	Body string `json:"body"`
@@ -683,6 +684,9 @@ func (s *Server) handlePublishPost(w http.ResponseWriter, r *http.Request) {
 	g.Caption = strings.TrimSpace(req.Caption)
 	g.Topics = topics
 	g.RemixParentID = strings.TrimSpace(req.RemixParentID)
+	// Immutable publish-time consent: public visibility alone is not a
+	// license for unrelated creators to copy the game IR or source assets.
+	g.RemixAllowed = req.AllowRemixes
 	g.PublishedAt = &now
 	g.PublishedVersion = 1
 	g.ModerationStatus = "pending"

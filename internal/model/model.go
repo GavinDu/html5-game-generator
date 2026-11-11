@@ -191,6 +191,7 @@ type Game struct {
 	PublishedAt        *time.Time           `json:"published_at,omitempty"`
 	PublishedVersion   int                  `json:"published_version,omitempty"`
 	RemixParentID      string               `json:"remix_parent_id,omitempty"`
+	RemixAllowed       bool                 `json:"remix_allowed,omitempty"`
 	ModerationStatus   string               `json:"moderation_status,omitempty"`
 	JobID              string               `json:"job_id"`
 	Manifest           *BundleManifest      `json:"manifest,omitempty"`

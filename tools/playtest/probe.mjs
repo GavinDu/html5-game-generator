@@ -704,8 +704,12 @@ async function main() {
       mkdirSync(shotsDir, { recursive: true });
       writeFileSync(`${shotsDir}/playtest-report.json`, out);
     }
-    console.log(out);
-    process.exit(games.some((g) => g.verdict === 'FAIL') ? 1 : 0);
+    // Do not call process.exit() after writing a potentially large report:
+    // Node may discard pending pipe writes (WebKit CI truncated stdout at
+    // exactly 65536 bytes), leaving the Go gate with incomplete JSON.
+    // Setting exitCode allows stdout to drain and the browser to close.
+    process.stdout.write(out + '\n');
+    process.exitCode = games.some((g) => g.verdict === 'FAIL') ? 1 : 0;
   } finally {
     await browser.close().catch(() => {});
   }
