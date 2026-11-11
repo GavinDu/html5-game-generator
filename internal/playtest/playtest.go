@@ -286,7 +286,19 @@ func Run(ctx context.Context, cfg Config, gameIDs []string) (*Report, error) {
 	}
 	var report Report
 	if jerr := json.Unmarshal(stdout.Bytes(), &report); jerr != nil {
-		return nil, fmt.Errorf("playtest: worker output is not a report: %v", jerr)
+		// Keep the gate failing, but surface the actual worker failure. A
+		// partial/empty stdout report alone hides WebKit crashes and makes
+		// the next CI run impossible to diagnose.
+		constMax := 4096
+		stderrTail := stderr.String()
+		if len(stderrTail) > constMax {
+			stderrTail = stderrTail[len(stderrTail)-constMax:]
+		}
+		stdoutTail := stdout.String()
+		if len(stdoutTail) > constMax {
+			stdoutTail = stdoutTail[len(stdoutTail)-constMax:]
+		}
+		return nil, fmt.Errorf("playtest: worker output is not a report: %v (exit=%v, stdout_bytes=%d, stderr_bytes=%d, stdout_tail=%q, stderr_tail=%q)", jerr, err, stdout.Len(), stderr.Len(), stdoutTail, stderrTail)
 	}
 	if err := validateReport(&report); err != nil {
 		return nil, fmt.Errorf("playtest: invalid worker report: %w", err)
