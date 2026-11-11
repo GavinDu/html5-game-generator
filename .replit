@@ -35,4 +35,7 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "vm"
-run = ["env", "CGO_ENABLED=0", "go", "run", "./cmd/server"]
+# Build-time module resolution; the deployed VM starts a compiled binary and
+# never needs to fetch a Go dependency on a request or cold startup.
+build = ["sh", "-c", "mkdir -p bin && CGO_ENABLED=0 go build -mod=readonly -trimpath -o bin/server ./cmd/server"]
+run = ["./bin/server"]

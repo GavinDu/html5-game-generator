@@ -26,6 +26,21 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Verify Replit deploy builds a binary before startup
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import tomllib
+          with open(".replit", "rb") as file:
+              deployment = tomllib.load(file)["deployment"]
+          assert deployment["run"] == ["./bin/server"], "production must run the compiled server"
+          command = deployment["build"]
+          assert command[:2] == ["sh", "-c"] and "go build" in command[2], "missing deployment build"
+          assert "-mod=readonly" in command[2], "module locks must be respected"
+          subprocess.run(command, check=True)
+          assert os.access("bin/server", os.X_OK), "Replit binary was not created"
+          PY
       - name: Verify formatting of new Go files
         run: |
           files="$(gofmt -l .)"
