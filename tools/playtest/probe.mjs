@@ -29,6 +29,7 @@ import { selectFirstRewardMeasurement } from './reward-timing.mjs';
 import { resolvePlayBudgetSeconds } from './play-budget.mjs';
 import { preferredViewport } from './game-orientation.mjs';
 import { outcomeCoverage, observedVictory } from './outcome-coverage.mjs';
+import { recordAfterDispatch, recordAfterGesture } from './input-dispatch-evidence.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -281,10 +282,11 @@ async function playGame(browser, gameId) {
   while (Date.now() < playDeadline) {
     if (!isCatcher && !isTapDodger) {
       const key = keys[ki % keys.length];
-      await page.keyboard.down(key).catch(() => {});
-      await sleep(450);
-      await page.keyboard.up(key).catch(() => {});
-      recordInput('key', { key });
+      await recordAfterGesture([
+        () => page.keyboard.down(key),
+        () => sleep(450),
+        () => page.keyboard.up(key)
+      ], () => recordInput('key', { key }));
     } else {
       await sleep(120);
     }
@@ -313,8 +315,10 @@ async function playGame(browser, gameId) {
           // dropping the event before it reaches Pixi's canvas listener.
           const beforeInputs = (await readProbe(page))?.inputs ?? 0;
           const beforePlayer = await page.evaluate(() => window.__dqTest?.snapshot?.().player ?? null).catch(() => null);
-          await page.touchscreen.tap(target.x, target.y).catch(() => {});
-          recordInput('touch_tap', { x: target.x, y: target.y });
+          await recordAfterDispatch(
+            () => page.touchscreen.tap(target.x, target.y),
+            () => recordInput('touch_tap', { x: target.x, y: target.y })
+          );
           await sleep(120);
           let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
           const afterPlayer = await page.evaluate(() => window.__dqTest?.snapshot?.().player ?? null).catch(() => null);
@@ -326,26 +330,29 @@ async function playGame(browser, gameId) {
           // across frames whenever the player has not started toward its target.
           const needsHeldContact = afterInputs <= beforeInputs || !points || (targetDelta > 12 && moved < 4);
           if (needsHeldContact) {
-            await page.evaluate(({ x, y }) => {
-              const canvas = document.querySelector('#stage canvas');
-              if (!canvas) return;
-              const base = {
-                pointerId: 1, pointerType: 'touch', isPrimary: true,
-                button: 0, buttons: 1, clientX: x, clientY: y,
-                bubbles: true, cancelable: true,
-              };
-              canvas.dispatchEvent(new PointerEvent('pointerdown', base));
-            }, target).catch(() => {});
-            await sleep(220);
-            await page.evaluate(() => {
-              const canvas = document.querySelector('#stage canvas');
-              if (!canvas) return;
-              canvas.dispatchEvent(new PointerEvent('pointerup', {
-                pointerId: 1, pointerType: 'touch', isPrimary: true,
-                button: 0, buttons: 0, bubbles: true, cancelable: true,
-              }));
-            }).catch(() => {});
-            recordInput('synthetic_pointer_hold', { x: target.x, y: target.y });
+            await recordAfterGesture([
+              () => page.evaluate(({ x, y }) => {
+                const canvas = document.querySelector('#stage canvas');
+                if (!canvas) return false;
+                const base = {
+                  pointerId: 1, pointerType: 'touch', isPrimary: true,
+                  button: 0, buttons: 1, clientX: x, clientY: y,
+                  bubbles: true, cancelable: true,
+                };
+                canvas.dispatchEvent(new PointerEvent('pointerdown', base));
+                return true;
+              }, target),
+              () => sleep(220),
+              () => page.evaluate(() => {
+                const canvas = document.querySelector('#stage canvas');
+                if (!canvas) return false;
+                canvas.dispatchEvent(new PointerEvent('pointerup', {
+                  pointerId: 1, pointerType: 'touch', isPrimary: true,
+                  button: 0, buttons: 0, bubbles: true, cancelable: true,
+                }));
+                return true;
+              })
+            ], () => recordInput('synthetic_pointer_hold', { x: target.x, y: target.y }));
             afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
           }
           if (afterInputs <= beforeInputs) {
@@ -353,11 +360,12 @@ async function playGame(browser, gameId) {
           }
         }
       } else if (points) {
-        await page.mouse.move(points.from.x, points.from.y).catch(() => {});
-        await page.mouse.down().catch(() => {});
-        await page.mouse.move(points.to.x, points.to.y, { steps: 8 }).catch(() => {});
-        await page.mouse.up().catch(() => {});
-        recordInput('mouse_drag', { x: points.to.x, y: points.to.y });
+        await recordAfterGesture([
+          () => page.mouse.move(points.from.x, points.from.y),
+          () => page.mouse.down(),
+          () => page.mouse.move(points.to.x, points.to.y, { steps: 8 }),
+          () => page.mouse.up()
+        ], () => recordInput('mouse_drag', { x: points.to.x, y: points.to.y }));
       }
     } else if (isTapDodger) {
       const points = await catcherPointerPoints(page, ki % 2 ? 0.8 : 0.2);
@@ -378,13 +386,17 @@ async function playGame(browser, gameId) {
             : canvas.left + canvas.width * 0.75;
           const tapY = canvas.top + canvas.height * 0.82;
           const beforeInputs = (await readProbe(page))?.inputs ?? 0;
-          await page.touchscreen.tap(tapX, tapY).catch(() => {});
-          recordInput('touch_tap', { x: tapX, y: tapY });
+          await recordAfterDispatch(
+            () => page.touchscreen.tap(tapX, tapY),
+            () => recordInput('touch_tap', { x: tapX, y: tapY })
+          );
           await sleep(80);
           let afterInputs = (await readProbe(page))?.inputs ?? beforeInputs;
           if (afterInputs <= beforeInputs) {
-            await page.mouse.click(tapX, tapY).catch(() => {});
-            recordInput('mouse_click', { x: tapX, y: tapY });
+            await recordAfterDispatch(
+              () => page.mouse.click(tapX, tapY),
+              () => recordInput('mouse_click', { x: tapX, y: tapY })
+            );
             await sleep(80);
             afterInputs = (await readProbe(page))?.inputs ?? afterInputs;
           }
@@ -394,11 +406,12 @@ async function playGame(browser, gameId) {
         }
       }
     } else if (ki % 4 === 0) {
-      await page.mouse.move(210, 450).catch(() => {});
-      await page.mouse.down().catch(() => {});
-      await page.mouse.move(300, 380, { steps: 8 }).catch(() => {});
-      await page.mouse.up().catch(() => {});
-      recordInput('mouse_drag', { x: 300, y: 380 });
+      await recordAfterGesture([
+        () => page.mouse.move(210, 450),
+        () => page.mouse.down(),
+        () => page.mouse.move(300, 380, { steps: 8 }),
+        () => page.mouse.up()
+      ], () => recordInput('mouse_drag', { x: 300, y: 380 }));
     }
     const live = await page.evaluate(() => ({
       hud: document.getElementById('score')?.textContent || '',
@@ -452,14 +465,17 @@ async function playGame(browser, gameId) {
   // one they skip honestly.
   if (isShell && !endSeen) {
     const extDeadline = Date.now() + Math.max(0, winSeconds - playBudgetSeconds) * 1000;
-    await page.mouse.move(90, 700).catch(() => {});
-    await page.mouse.down().catch(() => {});
+    const positioned = await page.mouse.move(90, 700).then(() => true, () => false);
+    const mouseHeld = positioned &&
+      await page.mouse.down().then(() => true, () => false);
     let sweep = 0;
     while (Date.now() < extDeadline && !endSeen) {
       sweep++;
       const x = sweep % 2 === 0 ? 320 : 80;
-      await page.mouse.move(x, 700, { steps: 10 }).catch(() => {});
-      recordInput('mouse_drag', { x, y: 700 });
+      await recordAfterDispatch(
+        () => page.mouse.move(x, 700, { steps: 10 }),
+        () => { if (mouseHeld) recordInput('mouse_drag', { x, y: 700 }); }
+      );
       await sleep(650);
       const live = await page.evaluate(() => ({
         shellEnd: !!document.querySelector('#shell-result.on'),
