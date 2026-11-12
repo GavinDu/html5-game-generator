@@ -27,6 +27,7 @@
 
 import * as PIXI from 'pixi.js';
 import { createSimulationWorkBudget, createSemanticInputQueue } from './runtime-work-budget.js';
+import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 
@@ -2362,14 +2363,10 @@ async function run(id) {
   const laneTap = ir.experience?.controls?.scheme === 'lane_tap';
   const laneCenters = [W * 0.25, W * 0.5, W * 0.75];
   let laneIndex = 1;
-  // New Game IR explicitly declares its movement plane, independent of
-  // objective identity. The legacy branch is frozen only for *unversioned*
-  // published games: switching it would reinterpret old run hashes.
-  const dragXOnly = explicitMovementAxes
-    ? explicitMovementAxes === 'x'
-    : (laneTap || ir.experience?.controls?.scheme === 'drag_x' ||
-      (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap' &&
-        ir.experience?.objective?.progressVariable !== 'holes_stitched'));
+  // Canonical control-plane dispatch is declarative. Legacy objective
+  // conventions are quarantined in a frozen compatibility adapter, not
+  // evaluated by the generic Game IR interpreter.
+  const dragXOnly = resolveHorizontalMovement(ir);
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
