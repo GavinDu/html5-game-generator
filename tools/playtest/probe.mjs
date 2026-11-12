@@ -23,6 +23,7 @@
 // Exit code: 0 when no game FAILs the gate checks, 1 otherwise, 2 on
 // worker-level failure (browser missing, server unreachable).
 
+import { flushReportJSON } from './report-output.mjs';
 import { chromium, webkit } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { selectFirstRewardMeasurement } from './reward-timing.mjs';
@@ -704,11 +705,10 @@ async function main() {
       mkdirSync(shotsDir, { recursive: true });
       writeFileSync(`${shotsDir}/playtest-report.json`, out);
     }
-    // Do not call process.exit() after writing a potentially large report:
-    // Node may discard pending pipe writes (WebKit CI truncated stdout at
-    // exactly 65536 bytes), leaving the Go gate with incomplete JSON.
-    // Setting exitCode allows stdout to drain and the browser to close.
-    process.stdout.write(out + '\n');
+    // Await the full callback for large per-game input traces. A queued
+    // stdout write is not proof that Go received a parseable JSON report.
+    // Keep exitCode rather than forcing early exit while the pipe drains.
+    await flushReportJSON(process.stdout, report);
     process.exitCode = games.some((g) => g.verdict === 'FAIL') ? 1 : 0;
   } finally {
     await browser.close().catch(() => {});
@@ -717,5 +717,5 @@ async function main() {
 
 main().catch((e) => {
   console.error('probe.mjs: worker failure: ' + (e && e.stack || e));
-  process.exit(2);
+  process.exitCode = 2;
 });
