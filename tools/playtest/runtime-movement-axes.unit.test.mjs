@@ -26,8 +26,9 @@ test('browser validates movement-plane contract before allocating a game scene',
 });
 
 test('new declarative movement axes override objective while legacy IR stays compatible', () => {
-  assert.match(runtime, /const dragXOnly = explicitMovementAxes\s*\? explicitMovementAxes === 'x'/);
-  assert.match(runtime, /ir\.experience\?\.objective\?\.progressVariable !== 'holes_stitched'/);
+  assert.match(runtime, /const dragXOnly = resolveHorizontalMovement\(ir\)/);
+  assert.match(runtime, /from '\.\/runtime-movement-plane\.mjs'/);
+  assert.doesNotMatch(runtime, /holes_stitched/);
   assert.match(runtime, /if \(!dragXOnly\) playerTarget\.y = p\.y/);
   assert.match(runtime, /if \(!dragXOnly && keysDown\.has\('move_up'\)\)/);
 });

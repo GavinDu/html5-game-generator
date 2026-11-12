@@ -290,3 +290,37 @@ replay baselines and new content-addressed versions, replace the legacy
 compatibility branch with an isolated version adapter, and add typed
 press/release/hold/swipe/gamepad commands. This PR alone does **not**
 close generator #318, #315 or Epic #202.
+
+
+## Isolated legacy movement adapter — interpreter no longer reads objectives (#315 / #317)
+
+The generic Pixi Game IR interpreter previously inspected a game's
+`experience.objective.progressVariable` to distinguish horizontal-only
+catcher tap movement from full XY movement. This is an unacceptable
+content-specific policy for a reusable engine. The interpreter now
+calls one bounded, side-effect-free `resolveHorizontalMovement(ir)`
+function in the pre-shipped `runtime-movement-plane.mjs` adapter.
+
+- **New capability:** Game IR 1.2 advertising
+  `input.movement_axes.v1` must declare `movementAxes: "x" | "xy"`;
+  the adapter selects the exact authored plane without inspecting the
+  objective and independently fail-closes invalid combinations.
+- **Immutable published packages:** IR 1.0–1.2 without the capability
+  invokes an explicitly quarantined, frozen legacy compatibility
+  resolver. It preserves the old Penguin/Bobo horizontal tap and Ribbon
+  Sky XY tap behavior **without any objective-name policy in the generic
+  interpreter**. The adapter's historical convention itself is not
+  claimed to be a general game design primitive.
+- **Verification:** direct Node tests cover legacy fixtures, new
+  objective-independent behavior, incompatible/missing capability,
+  illegal axis/scheme pairs and old-version manifests. Chromium,
+  WebKit, all-inventory seeded state replay, Playability Kit and
+  low/high visual-quality invariants are still mandatory on the
+  integrated branch before merge.
+
+The legacy adapter must remain until content-addressed republishing
+can migrate every historic package and its replay/leaderboard identity
+safely. This extraction is a small modularity improvement, not a full
+renderer/physics-independent semantic engine; #315 and #317 retain
+other acceptance criteria including three synthetic game genres,
+physics collision ordering and dedicated adapters.
