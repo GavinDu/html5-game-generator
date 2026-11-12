@@ -146,3 +146,37 @@ suite. These are hard safety ceilings, not measured optimum concurrent
 sprites for every iPhone/iPad. Dynamic spawn abuse, repeated recycle
 behavior, per-tick event/action costs, joint creation and GPU texture
 budgets still require profiling and typed preflight under #316.
+
+
+## Fixed-step semantic input queue (Epic #202 / #315 / #318)
+
+DOM pointer, entity-tap and keyboard callbacks must not execute Game IR
+rules at arbitrary renderer/browser event times. Each accepted input now
+enqueues a bounded FIFO command that is consumed at the start of the next
+canonical 60 Hz semantic tick, **after** the work-budget reset, in exactly
+its captured order. The same path handles scripted/replay pointer commands.
+Reentrant input commands wait for the following tick; interruption clears
+pending commands to avoid ghost input on app resume.
+
+- A maximum of **128 pending semantic input commands** is a hard resource
+  ceiling, not a benchmark-derived latency threshold. The 129th command
+  without a consuming simulation tick ends the game in an explicit,
+  nonwinning failure and stops the ticker; it does not silently drop rules.
+- The queue has no wall-clock timestamp, dynamic code evaluation or
+  platform-specific input execution privileges. Rule evaluation/actions
+  still consume the *same* bounded per-tick allowance as timer/physics rules.
+- Node unit tests verify stable FIFO ordering, off-by-one limits, reentrant
+  deferral and cancellation. Chromium/WebKit Playwright injects a synchronous
+  129-pointer flood on iPhone/iPad landscape browser profiles and retains
+  screenshots proving nonwinning failure and absence of uncaught errors.
+- This is a **semantic event-order improvement**, not a claim that *all*
+  state is renderer-independent: direct pointer-target sampling, animated
+  sprite completion events, physics contacts and seeded particle effects
+  still need full cross-engine state conformance and explicit ownership.
+  The senior engine-architecture challenger must reject closure of #315
+  or Epic #202 until those remaining temporal dependencies are addressed,
+  and until real iPhone/iPad benchmarks have been collected.
+
+Rollback: revert this input queue slice; IR/package schema and previously
+published games remain unchanged. Fixed tick semantics are versioned by
+the trusted interpreter and must be replay-checked before deployment.
