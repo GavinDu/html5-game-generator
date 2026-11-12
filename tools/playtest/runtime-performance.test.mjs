@@ -86,8 +86,10 @@ test('render submission is reported before the unique runtime player_ready event
     'duplicate runtime readiness report');
 });
 
-test('terminal state blocks late rule dispatch, execution and collision contacts', () => {
-  assert.match(source, /function emit\(event, source, target, value, inputAction\) \{[^]*?if \(state\.ended\) return;/);
-  assert.match(source, /function execute\(actions, sourceEnt, targetEnt\) \{\s*if \(state\.ended\) return;/);
-  assert.match(source, /function handleContact\(a, b, started\) \{\s*if \(state\.ended \|\| !playerEnt\) return;/);
+test('terminal and failed state block late rule dispatch, execution and collision contacts', () => {
+  // A budget failure must be as terminal as a legitimate result: no
+  // subsequent contact may restart work or mutate gameplay state.
+  assert.match(source, /function emit\(event, source, target, value, inputAction\) \{[^]*?if \(state\.ended \|\| state\.failed\) return;/);
+  assert.match(source, /function execute\(actions, sourceEnt, targetEnt\) \{\s*if \(state\.ended \|\| state\.failed\) return;/);
+  assert.match(source, /function handleContact\(a, b, started\) \{\s*if \(state\.ended \|\| state\.failed \|\| !playerEnt\) return;/);
 });
