@@ -72,3 +72,26 @@ test('one-shot pickup overlap recovery is game-independent and idempotent', () =
   assert.match(source, /if \(!state\.collectedPairs\.has\(key\)\)/);
   assert.match(source, /if \(other\.destroyed \|\| other\.closed\) return/);
 });
+
+test('runtime capability registry stays in exact lockstep with Go Game IR validator', async () => {
+  const goSource = await readFile(new URL('../../internal/gameir/ir.go', import.meta.url), 'utf8');
+  const goList = goSource.match(/capabilityKinds\s*=\s*enum\(([^)]*)\)/)?.[1];
+  assert.ok(goList, 'missing Go validator capability allowlist');
+  const webList = source.match(/const supportedCapabilities = new Set\(\[([^]*?)\]\);/)?.[1];
+  assert.ok(webList, 'missing fail-closed runtime capability registry');
+  const goCapabilities = [...goList.matchAll(/"([^"]+)"/g)].map(x => x[1]).sort();
+  const webCapabilities = [...webList.matchAll(/'([^']+)'/g)].map(x => x[1]).sort();
+  assert.deepEqual(webCapabilities, goCapabilities,
+    'backend validator and iOS/WebKit interpreter must agree before publishing AI games');
+});
+
+test('runtime preflight rejects unsupported or duplicate capabilities before scene allocation', () => {
+  const validate = source.indexOf("const supportedCapabilities = new Set([");
+  const scene = source.indexOf("const sceneKey = 'dq.scene.' + id;");
+  const appInit = source.indexOf('const app = new PIXI.Application();');
+  assert.ok(validate > 0 && scene > validate && appInit > scene, 'capabilities checked before scene and GPU init');
+  assert.match(source, /!supportedCapabilities\.has\(capability\)/);
+  assert.match(source, /checkedCapabilities\.has\(capability\)/);
+  assert.match(source, /declaredCapabilities\.length > 32/);
+  assert.match(source, /ir\.irVersion === '1\.2' && !checkedCapabilities\.has\('shell\.v1'\)/);
+});
