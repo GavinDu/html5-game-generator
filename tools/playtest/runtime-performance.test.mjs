@@ -56,3 +56,13 @@ test('discrete lane taps clamp to three x centers and never follow held pointer 
   assert.match(source, /if \(pointer\.down && !laneTap\)/);
   assert.match(source, /playerTarget\.y = playerEnt\.anchorY/);
 });
+
+test('first scene render telemetry follows actual explicit render submission', () => {
+  const index = source.indexOf('const firstSceneRenderSubmitMs =');
+  assert.ok(index > 0, 'missing first scene render timestamp');
+  const renderIndex = source.lastIndexOf('app.renderer.render(app.stage);', index);
+  assert.ok(renderIndex >= 0 && index > renderIndex, 'timestamp must be after rendering');
+  assert.match(source, /sendTelemetryEvent\('milestone', \{ milestone: 'first_scene_render_submit'/);
+  assert.match(source, /sendNativeMetric\('first_scene_render_submit', \{ ms: firstSceneRenderSubmitMs \}\)/);
+  assert.doesNotMatch(source.slice(index, index + 450), /player_ready/);
+});
