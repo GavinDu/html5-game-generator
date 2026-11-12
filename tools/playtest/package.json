@@ -9,6 +9,6 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "test": "node --test runtime-first-frame-failure.test.mjs compare-cross-browser-replay.test.mjs game-orientation.test.mjs runtime-performance.test.mjs play-budget.test.mjs quality-score.test.mjs score-report.test.mjs reward-timing.test.mjs player-shell.test.mjs capture-window.test.mjs render-preview.test.mjs preview-run-contract.test.mjs frame-hash-comparison.test.mjs verify-preview-determinism.test.mjs runtime-asset-auth.test.mjs ui-evaluator.test.mjs feed-media-readiness.test.mjs feed-pager-geometry.test.mjs penguin-sprite-fidelity.test.mjs penguin-pacing-review.test.mjs"
+    "test": "node --test runtime-capabilities.test.mjs runtime-first-frame-failure.test.mjs compare-cross-browser-replay.test.mjs game-orientation.test.mjs runtime-performance.test.mjs play-budget.test.mjs quality-score.test.mjs score-report.test.mjs reward-timing.test.mjs player-shell.test.mjs capture-window.test.mjs render-preview.test.mjs preview-run-contract.test.mjs frame-hash-comparison.test.mjs verify-preview-determinism.test.mjs runtime-asset-auth.test.mjs ui-evaluator.test.mjs feed-media-readiness.test.mjs feed-pager-geometry.test.mjs penguin-sprite-fidelity.test.mjs penguin-pacing-review.test.mjs"
   }
 }
