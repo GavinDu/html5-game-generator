@@ -91,12 +91,24 @@ test('WebAudio fetch, active sources and decoded buffers have finite budgets', (
   assert.match(source, /MAX_QUEUED_SOUND_JOBS = 32/);
   assert.match(source, /total > MAX_AUDIO_TRANSFER_BYTES/);
   assert.match(source, /this\.decodedBytes \+ decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES/);
-  assert.match(source, /apiFetch\(url, \{ signal \}\)/);
-  assert.match(source, /if \(signal\.aborted \|\| generation !== this\.generation\) return;/);
+  assert.match(source, /apiFetch\(url, \{ signal: request\.signal \}\)/);
+  assert.match(source, /request\.signal\.aborted \|\| generation !== this\.generation/);
 });
 
 test('audio uses an asset and URL scoped key, not a cross-game assetId only', () => {
   assert.ok(source.includes("const key = assetId + '|' + url"));
   assert.match(source, /this\.buffers\.set\(key, buffer\)/);
   assert.doesNotMatch(source, /this\.buffers\.set\(assetId, buffer\)/);
+});
+
+test('WebAudio caps concurrent decodes and deduplicates in-flight resource requests', () => {
+  assert.match(source, /MAX_CONCURRENT_AUDIO_DECODES = 4/);
+  assert.match(source, /AUDIO_FETCH_TIMEOUT_MS = 15_000/);
+  assert.match(source, /let pending = this\.inFlight\.get\(key\)/);
+  assert.match(source, /this\.inFlight\.size >= MAX_CONCURRENT_AUDIO_DECODES/);
+  assert.match(source, /this\.inFlight\.set\(key, pending\)/);
+  assert.match(source, /if \(this\.inFlight\.get\(key\) === pending\) this\.inFlight\.delete\(key\)/);
+  assert.match(source, /this\.inFlight\.clear\(\)/);
+  assert.match(source, /const timeout = setTimeout\(\(\) => request\.abort\(\), AUDIO_FETCH_TIMEOUT_MS\)/);
+  assert.match(source, /clearTimeout\(timeout\)/);
 });
