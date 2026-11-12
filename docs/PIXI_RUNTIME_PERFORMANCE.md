@@ -40,3 +40,27 @@ These values are initial **security/resource ceilings**, not evidence-backed iPh
 
 Verification: `tools/playtest/runtime-image-budget.test.mjs` checks the guard ordering and a Playwright negative fixture injects an oversized required image in Chromium and WebKit;  Go, Chromium/WebKit, Playability and physical-device checks remain required. Failures must not be treated as successful/partial gameplay.
 
+
+## All-inventory cross-browser semantic replay (Epic #202 / #315)
+
+The deterministic verification gate must cover **every shipped Game IR**
+under `inventory/*/manifest.json`, not only Escape's lane runner. The
+`inventory-semantic-replay-test.mjs` Playwright job discovers the canonical
+game IDs dynamically, launches each *unmodified* package in Chromium and
+WebKit at both iPhone and iPad portrait viewport sizes, seeds the trusted
+interpreter identically, and advances it to exact virtual step 240. It
+captures gameplay state and an unaltered screenshot; it does not compare
+pixel hashes across GPU/browser engines.
+
+The dependent `cross-browser-determinism` job downloads the independent
+browser artifacts, requires complete/unique game+viewport coverage and
+compares seeded tick, score, health, objective progress, variables, player
+position and nondecorative gameplay entity positions to 0.001 logical
+pixels. A missing game, duplicate profile, wrong tick, missing fixture or
+single semantic outcome difference fails the workflow instead of weakening
+tolerance. Local comparator unit tests explicitly reject these cases.
+
+This supplements existing Escape 600-tick replay and quality-invariance
+checks; it does **not** prove arbitrary touch/input traces, varied
+30/60/120 Hz render pacing, thermal interruption semantics or physical
+iOS/iPadOS WebKit conformance. All remain Epic #202 acceptance gates.
