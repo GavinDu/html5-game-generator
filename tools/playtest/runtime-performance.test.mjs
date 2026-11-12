@@ -41,9 +41,9 @@ test('tap catcher falls back to a held pointer when touch is recorded without mo
 });
 
 test('drag_x shell controls keep pointer and keyboard movement on the horizontal axis', () => {
-  assert.match(source, /const dragXOnly = explicitMovementAxes\s*\? explicitMovementAxes === 'x'/);
-  assert.match(source, /\(laneTap \|\| ir\.experience\?\.controls\?\.scheme === 'drag_x' \|\|/);
-  assert.match(source, /ir\.experience\?\.archetype === 'catcher' && ir\.experience\?\.controls\?\.scheme === 'tap'/);
+  assert.match(source, /const dragXOnly = resolveHorizontalMovement\(ir\)/);
+  assert.match(source, /from '\.\/runtime-movement-plane\.mjs'/);
+  assert.doesNotMatch(source, /holes_stitched/);
   assert.match(source, /pointer\.y = dragXOnly && playerEnt \? playerTarget\.y : p\.y/);
   assert.match(source, /if \(!dragXOnly && keysDown\.has\('move_up'\)\)/);
   assert.match(source, /if \(!dragXOnly && keysDown\.has\('move_down'\)\)/);
