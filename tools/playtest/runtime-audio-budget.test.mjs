@@ -35,6 +35,15 @@ test('audio fetch/decode concurrency is deduplicated and has a deadline', () => 
   assert.match(source, /const timeout = setTimeout\(\(\) => request\.abort\(\), AUDIO_FETCH_TIMEOUT_MS\)/);
 });
 
+test('audio URLs are validated before any authenticated fetch, including preloads', () => {
+  const play = source.indexOf('play(url, assetId, preloadOnly = false)');
+  const sameOrigin = source.indexOf('requested.origin !== location.origin', play);
+  const authFetch = source.indexOf('apiFetch(url, { signal: request.signal })', play);
+  assert.ok(play > 0 && sameOrigin > play && authFetch > sameOrigin,
+    'reject cross-origin audio before fetching it with application credentials');
+  assert.match(source, /throw new Error\('audio asset URL must be same-origin'\)/);
+});
+
 test('bounded high-use predecode is nonblocking and never starts playback', () => {
   assert.match(source, /MAX_SPECULATIVE_AUDIO_PREFETCH = 2/);
   assert.match(source, /\.slice\(0, MAX_SPECULATIVE_AUDIO_PREFETCH\)/);
