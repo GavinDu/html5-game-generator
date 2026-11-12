@@ -198,6 +198,15 @@ jobs:
           name: work-budget-${{ matrix.browser }}
           path: /tmp/work-budget-${{ matrix.browser }}/
           if-no-files-found: error
+      - name: Verify animation-completion rules are fixed-tick only on iPhone/iPad browser profiles
+        run: node tools/playtest/runtime-animation-clock-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/animation-clock-${{ matrix.browser }}
+      - name: Upload fixed-tick animation frame and rule-signal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: animation-clock-${{ matrix.browser }}
+          path: /tmp/animation-clock-${{ matrix.browser }}/
+          if-no-files-found: error
       - name: Verify Escape seeded replay physics and screenshots on phone/tablet
         run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
       - name: Upload Escape deterministic replay screenshot evidence
