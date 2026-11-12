@@ -3065,6 +3065,10 @@ async function run(id) {
         // Probe-only read-only input cancellation evidence, never exposed in
         // ordinary gameplay or as a mutable control channel.
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
+        // Read-only proof of required audio decoding for offline/lifecycle
+        // browser tests. No game or native control channel is exposed.
+        decodedSoundIds: [...sfx.buffers.keys()].map(key => key.split('|')[0]).sort(),
+        audioDecodeJobs: sfx.inFlight.size,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
           id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
