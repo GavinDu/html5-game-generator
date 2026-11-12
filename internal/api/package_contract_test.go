@@ -78,7 +78,6 @@ func TestPackageAssetSHA256ComputesLegacyDigestAndRejectsMismatch(t *testing.T) 
 	}
 }
 
-
 // TestExportCanonicalPackageForSwift is an opt-in bridge fixture producer for
 // GitHub Actions. The JSON is emitted by the actual Go HTTP handler, with the
 // real Go struct serialization and digest semantics, rather than being a
@@ -86,7 +85,7 @@ func TestPackageAssetSHA256ComputesLegacyDigestAndRejectsMismatch(t *testing.T) 
 func TestExportCanonicalPackageForSwift(t *testing.T) {
 	path := os.Getenv("EXPORT_SWIFT_PACKAGE_FIXTURE")
 	if path == "" {
-	    t.Skip("set EXPORT_SWIFT_PACKAGE_FIXTURE to validate Go->Swift delivery compatibility")
+		t.Skip("set EXPORT_SWIFT_PACKAGE_FIXTURE to validate Go->Swift delivery compatibility")
 	}
 	st := store.NewMemoryStore()
 	srv := New(st, pipeline.NewRunner(st))
@@ -96,9 +95,9 @@ func TestExportCanonicalPackageForSwift(t *testing.T) {
 
 	rec := getAs(t, srv, "/v1/games/runtime-contract-game/package", "")
 	if rec.Code != http.StatusOK {
-	    t.Fatalf("fixture package HTTP %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("fixture package HTTP %d: %s", rec.Code, rec.Body.String())
 	}
 	if err := os.WriteFile(path, rec.Body.Bytes(), 0600); err != nil {
-	    t.Fatalf("write Go-emitted package fixture: %v", err)
+		t.Fatalf("write Go-emitted package fixture: %v", err)
 	}
 }
