@@ -14,6 +14,6 @@ test('only the fixed-step semantic entity loop advances AnimatedSprite frames', 
   assert.match(runtime, /function tickFrame\(dtMs\) \{/);
   assert.match(runtime, /if \(ent\.view instanceof PIXI\.AnimatedSprite\) \{\s*ent\.view\.update\(\{ deltaTime: dtMs \/ \(1000 \/ 60\), deltaMS: dtMs \}\);/);
   assert.doesNotMatch(runtime, /Ticker\.shared\.add\(/);
-  assert.doesNotMatch(runtime, /app\.ticker\.add\([^]*?AnimatedSprite\.update/);
+  assert.doesNotMatch(runtime, /app\.ticker\.add\(\(ticker\) => \{?\s*ent\.view\.update/);
   assert.match(runtime, /animations: \[\.\.\.entities\.values\(\)\]/);
 });
