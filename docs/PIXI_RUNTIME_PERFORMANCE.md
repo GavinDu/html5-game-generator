@@ -31,3 +31,28 @@
 - Run the existing Playwright browser matrix and deterministic replay checks against the three inventory games.
 - Compare cold-start and repeat-start metrics before and after this change on Chromium and iOS WKWebView.
 - Confirm a missing or stalled image no longer blocks other image loads and that the game reaches its normal validation verdict.
+
+## Pure deterministic RNG module (Epic #202 / generator #317)
+
+The installed Game IR interpreter imports `/web/runtime-seeded-rng.mjs`, served by
+the trusted Go runtime with a strict JavaScript MIME type and `nosniff`.
+This isolated stateful Mulberry32 primitive has the **same exact bit/float
+sequence** as the former inline generator, including the original zero-seed
+normalization and 32-bit wrap. Existing gameplay seeding and legacy run
+replays are not reinterpreted just because code moved into a new module.
+
+The new `runtime-seeded-rng.test.mjs` checks 1,000 reference draws for each
+of seven boundary seeds and verifies isolated instances/reseed behavior.
+The ordinary Go/Node/Chromium/WebKit Playability and cross-browser replay
+checks remain mandatory for launch behavior. Adding one trusted module
+request may impact cold-start latency; compare device timings before
+adopting a broader micro-module strategy.
+
+**Not yet resolved:** visual particles/shake and semantic gameplay still
+consume a shared stream inside the interpreter. Their coupling is
+undesirable, but splitting streams *changes existing seeded outcomes* and
+must be introduced behind a new versioned replay/capability contract with
+fixture migration rather than silently reinterpreting prior leaderboard
+runs. Physics/event state, Pixi rendering and WebAudio remain in the main
+interpreter. This is a compatibility-safe **first extraction**, not completion
+of #317 or full #315 determinism.
