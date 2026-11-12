@@ -100,7 +100,7 @@ public struct PlayerContract: Sendable {
         "physics.bodies", "physics.colliders", "physics.joints",
         "physics.character_controller", "physics.queries",
         "fx.tween", "fx.camera", "fx.emitters", "audio",
-        "input.keyboard", "input.pointer", "shell.v1"
+        "input.keyboard", "input.pointer", "input.movement_axes.v1", "shell.v1"
     ]
 
     public let packageFormatVersion: String
