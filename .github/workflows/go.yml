@@ -216,6 +216,15 @@ jobs:
           name: animation-clock-${{ matrix.browser }}
           path: /tmp/animation-clock-${{ matrix.browser }}/
           if-no-files-found: error
+      - name: Verify versioned movement axes in phone/tablet browser profiles
+        run: node tools/playtest/runtime-movement-axes-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/movement-axes-${{ matrix.browser }}
+      - name: Upload declared X/XY movement gameplay and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: movement-axes-${{ matrix.browser }}
+          path: /tmp/movement-axes-${{ matrix.browser }}/
+          if-no-files-found: error
       - name: Verify Escape seeded replay physics and screenshots on phone/tablet
         run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
       - name: Upload Escape deterministic replay screenshot evidence
