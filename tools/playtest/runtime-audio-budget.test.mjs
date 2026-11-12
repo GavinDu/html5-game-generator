@@ -32,7 +32,7 @@ test('audio fetch/decode concurrency is deduplicated and has a deadline', () => 
   assert.match(source, /this\.inFlight\.size >= MAX_CONCURRENT_AUDIO_DECODES/);
   assert.match(source, /this\.inFlight\.set\(key, pending\)/);
   assert.match(source, /if \(this\.inFlight\.get\(key\) === pending\) this\.inFlight\.delete\(key\)/);
-  assert.match(source, /const timeout = setTimeout\(\(\) => request\.abort\(\), AUDIO_FETCH_TIMEOUT_MS\)/);
+  assert.match(source, /const timeout = setTimeout\(\(\) => \{ this\.trace\('timeout_abort', assetId\); request\.abort\(\); \}, AUDIO_FETCH_TIMEOUT_MS\)/);
 });
 
 test('audio URLs are validated before any authenticated fetch, including preloads', () => {
