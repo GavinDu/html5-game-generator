@@ -52,15 +52,16 @@ const PackageVersion = PackageFormatVersion // deprecated name for source compat
 const MinRuntimeVersion = "2026.10.23.2"
 
 type GamePackageAsset struct {
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`
-	URI      string `json:"uri"`
-	URL      string `json:"url"`
-	MIMEType string `json:"mimeType,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
-	ByteLength int `json:"byteLength"`
-	Source   string `json:"source,omitempty"`
-	AltText  string `json:"altText,omitempty"`
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	URI        string `json:"uri"`
+	URL        string `json:"url"`
+	MIMEType   string `json:"mimeType,omitempty"`
+	SHA256     string `json:"sha256,omitempty"`
+	ByteLength int    `json:"byteLength"`
+	Source     string `json:"source,omitempty"`
+	AltText    string `json:"altText,omitempty"`
+
 }
 
 // GamePackage is the canonical, engine-independent delivery envelope.
