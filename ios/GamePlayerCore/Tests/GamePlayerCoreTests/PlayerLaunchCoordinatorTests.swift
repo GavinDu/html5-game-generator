@@ -43,18 +43,25 @@ private actor StubRuntimeHost: PlayerInputRuntimeHost {
 }
 
 final class PlayerLaunchCoordinatorTests: XCTestCase {
+    private func digest(_ ir: String) -> String {
+        SHA256.hash(data: Data(ir.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
     private func fixturePackage(assetBytes: Data? = nil) -> (Data, [String: Data]) {
         let bytes = assetBytes ?? Data("sprite bytes".utf8)
         let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        let irJSONString = #"{"irVersion":"1.0","nodes":[]}"#
+        let irDigest = digest(irJSONString)
         let json = """
         {
           "packageFormatVersion":"2.0",
           "minRuntimeVersion":"2026.10.23.2",
           "irVersion":"1.0",
           "gameId":"game-123",
-          "ir":{"irVersion":"1.0","nodes":[]},
+          "ir":\(irJSONString),
           "assets":[{"id":"sprite","kind":"image","uri":"assets/sprite.png","url":"/v1/games/game-123/assets/sprite","mimeType":"image/png","sha256":"\(hash)"}],
-          "irHash":"\(String(repeating: "a", count: 64))"
+          "irHash":"\(String(irDigest.prefix(12)))",
+          "irSha256":"\(irDigest)"
         }
         """
         return (Data(json.utf8), ["sprite": bytes])
@@ -163,6 +170,7 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
 
     func testPrivateAssetWithoutHashFailsClosed() async {
         let bytes = Data("sprite bytes".utf8)
+        let irDigest = digest(#"{"irVersion":"1.0"}"#)
         let json = """
         {
           "packageFormatVersion":"2.0",
