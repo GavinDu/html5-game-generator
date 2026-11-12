@@ -30,8 +30,7 @@ jobs:
       - name: Produce canonical Game Package fixture from Go HTTP handler
         env:
           EXPORT_SWIFT_PACKAGE_FIXTURE: ${{ runner.temp }}/backend-game-package.json
-        run: go test ./internal/api -run '^TestExportCanonicalPackageForSwift
- -count=1
+        run: go test ./internal/api -run TestExportCanonicalPackageForSwift -count=1
       - name: Show Swift toolchain
         run: swift --version
       - name: Run player contract and lifecycle tests against Go fixture
