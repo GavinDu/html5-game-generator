@@ -335,6 +335,13 @@ const sfx = {
     for (const job of this.pendingMusic.splice(0)) job();
   },
   play(url, assetId, preloadOnly = false) {
+    // Even a tampered package must never send the stored bearer token to
+    // a remote audio host. Audio, like image content, is same-origin only.
+    const requested = new URL(url, location.href);
+    if (requested.origin !== location.origin) {
+      throw new Error('audio asset URL must be same-origin');
+    }
+    url = requested.href;
     const generation = this.generation;
     const key = assetId + '|' + url;
     const ctx = this.ensureCtx();
