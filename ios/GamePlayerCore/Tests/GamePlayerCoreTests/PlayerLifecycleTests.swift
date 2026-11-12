@@ -84,6 +84,21 @@ final class PlayerContractTests: XCTestCase {
         XCTAssertEqual(result.irHash, String(result.irSha256.prefix(12)))
     }
 
+    /// CI sets this path to a real JSON envelope emitted by the Go delivery
+    /// handler. Local Swift tests still exercise the exact-byte hashing unit
+    /// fixtures when Go is not available.
+    func testAcceptsBackendGeneratedCanonicalPackage() throws {
+        guard let fixturePath = ProcessInfo.processInfo.environment["GAME_PACKAGE_FIXTURE_PATH"] else {
+            return
+        }
+        let data = try Data(contentsOf: URL(fileURLWithPath: fixturePath))
+        let backendEnvelope = try JSONDecoder().decode(GamePackageEnvelope.self, from: data)
+        let accepted = try PlayerContract().validate(data, expectedGameID: backendEnvelope.gameId)
+        XCTAssertEqual(accepted.irHash.count, 12)
+        XCTAssertEqual(accepted.irSha256.count, 64)
+        XCTAssertEqual(accepted.irHash, String(accepted.irSha256.prefix(12)))
+    }
+
     func testRejectsUnsupportedPackageFormat() {
         XCTAssertThrowsError(try PlayerContract().validate(package(format: "99.0"), expectedGameID: "game-123")) { error in
             XCTAssertEqual(error as? PlayerFailure, .unsupportedPackageFormat("99.0"))
