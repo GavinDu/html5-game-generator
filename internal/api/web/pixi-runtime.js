@@ -58,6 +58,37 @@ function warnOnce(key, cat, msg) {
 // narrow post-verification run-result notification; it is not a control API.
 const RUNTIME_VERSION = '2026.10.23.2';
 
+// Versioned runtime capabilities supported by the shipped interpreter.
+// Keep this exact allowlist in sync with gameir.capabilityKinds in Go.
+// AI-authored packages are data; a declared future module must never
+// silently fall back to a different interpretation on an older player.
+const SUPPORTED_RUNTIME_CAPABILITIES = new Set([
+  'render.sprite', 'render.animation', 'render.shape', 'render.text',
+  'render.filters', 'render.particles', 'render.parallax',
+  'physics.bodies', 'physics.colliders', 'physics.joints',
+  'physics.character_controller', 'physics.queries',
+  'fx.tween', 'fx.camera', 'fx.emitters', 'audio',
+  'input.keyboard', 'input.pointer', 'shell.v1',
+]);
+
+function requireSupportedGameCapabilities(ir) {
+  // Legacy v1.0 documents omit capabilities. An explicitly malformed
+  // declaration is different and must fail before Pixi/physics init.
+  const caps = ir.capabilities === undefined ? [] : ir.capabilities;
+  if (!Array.isArray(caps) || caps.length > 32) {
+    throw new Error('invalid game package: capabilities must be an array of at most 32 entries');
+  }
+  const seen = new Set();
+  for (const cap of caps) {
+    if (typeof cap !== 'string' || !SUPPORTED_RUNTIME_CAPABILITIES.has(cap)) {
+      throw new Error('game requires unsupported runtime capability ' + String(cap));
+    }
+    if (seen.has(cap)) throw new Error('invalid game package: duplicate runtime capability ' + cap);
+    seen.add(cap);
+  }
+}
+
+
 function compareRuntimeVersions(current, minimum) {
   const parse = (value) => {
     if (typeof value !== 'string' || !/^\d+(?:\.\d+)*$/.test(value)) return null;
@@ -950,6 +981,7 @@ async function run(id) {
   if (!ir.game || typeof ir.game !== 'object' || !Array.isArray(ir.scenes) || !Array.isArray(ir.assets)) {
     throw new Error('invalid game package: Game IR is missing game, scenes, or assets');
   }
+  requireSupportedGameCapabilities(ir);
   play.irHash = pkg.irHash || ''; // leaderboard board key (Phase C)
 
   const sceneKey = 'dq.scene.' + id;
