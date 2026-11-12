@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createSimulationWorkBudget, SIMULATION_WORK_LIMITS } from '../../internal/api/web/runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue, SIMULATION_WORK_LIMITS, MAX_QUEUED_SEMANTIC_INPUTS } from '../../internal/api/web/runtime-work-budget.js';
 
 const runtime = await readFile(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url), 'utf8');
 
@@ -39,4 +39,42 @@ test('interpreter counts before rule matching and action execution, with termina
   assert.match(runtime, /function emitScoreThresholds\(\) \{\s*for \(const rule of ir\.rules\) \{\s*workBudget\.consumeCheck\(\)/);
   assert.match(runtime, /if \(rule\.when\?\.event !== 'timer_elapsed'\) continue;/);
   assert.match(runtime, /function endGame\(won\) \{\s*if \(state\.ended \|\| state\.failed\) return;/);
+});
+
+
+test('semantic inputs have bounded FIFO order, no silent drop, and fresh-tick replay', () => {
+  assert.equal(MAX_QUEUED_SEMANTIC_INPUTS, 128);
+  const q = createSemanticInputQueue(2);
+  q.enqueue({ action: 'tap-left' });
+  q.enqueue({ action: 'tap-right' });
+  assert.equal(q.size, 2);
+  assert.throws(() => q.enqueue({ action: 'extra' }), /semantic input queue budget exceeded/);
+  assert.equal(q.size, 2);
+  const delivered = [];
+  assert.equal(q.drain(input => {
+    delivered.push(input.action);
+    if (input.action === 'tap-left') q.enqueue({ action: 'next-tick' });
+  }), 2);
+  assert.deepEqual(delivered, ['tap-left', 'tap-right']);
+  assert.equal(q.size, 1, 'reentrant input must wait for the next virtual tick');
+  assert.equal(q.drain(input => delivered.push(input.action)), 1);
+  assert.deepEqual(delivered, ['tap-left', 'tap-right', 'next-tick']);
+  q.enqueue({ action: 'held' });
+  q.clear();
+  assert.equal(q.size, 0, 'background and canceled input must not survive resume');
+});
+
+test('queue capacity cannot be bypassed with malformed definitions', () => {
+  for (const invalid of [-1, 0, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => createSemanticInputQueue(invalid), RangeError);
+  }
+});
+
+test('all live and replay input rules run inside one fixed-step work budget', () => {
+  assert.match(runtime, /function tickFrame\(dtMs\) \{\s*if \(state\.ended \|\| state\.failed\) return;\s*workBudget\.reset\(\);\s*semanticInputQueue\.drain/);
+  assert.match(runtime, /semanticInputQueue\.drain\(\(\{ source, target, action \}\) => \{\s*emit\('input', source, target, undefined, action\);/);
+  assert.match(runtime, /function applyReplayInputs\(step\) \{[^]*?queueGameInput\(playerEnt, undefined, tapActionName\(\)\);/);
+  assert.match(runtime, /function queueGameInput\(source, target, action\) \{[^]*?semanticInputQueue\.enqueue/);
+  assert.match(runtime, /const releaseHeldInputs = \(\) => \{[^]*?semanticInputQueue\.clear\(\)/);
+  assert.match(runtime, /if \(state\.ended \|\| state\.failed\) return;\s*try \{\s*semanticInputQueue\.enqueue/);
 });

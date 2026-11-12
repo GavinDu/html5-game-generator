@@ -214,6 +214,14 @@ async function runGame(browser, id) {
     assets: seenPkg?.assets || [],
     texturesLine,
     base,
+    // Correlate to the exact browser request instance. A cached decoded
+    // sound or 200 response alone cannot excuse a later canceled transfer.
+    audioEvidence: {
+      network: [...audioRequests.values()],
+      events: s0?.audioDiagnosticEvents || [],
+      decodedSoundIds: s0?.decodedSoundIds || [],
+      activeDecodeJobs: s0?.audioDecodeJobs ?? null,
+    },
   });
   const provenRedundantAborts = classified.redundant;
   const failedRequiredRequests = classified.blocking;
@@ -230,6 +238,10 @@ async function runGame(browser, id) {
       audioEvents: s0?.audioDiagnosticEvents || [],
       soundNetwork: [...audioRequests.values()].slice(-16),
     }));
+  }
+  if (classified.decodedAudio.length) {
+    add('info.proven_completed_audio_decode', 'info',
+      `${classified.decodedAudio.length} uniquely traced sound transfer(s) were fully decoded despite a subsequent browser ERR_ABORTED report; request, HTTP 200, decoder receipt and same-session cache all verified`);
   }
   if (provenRedundantAborts.length) {
     add('info.proven_duplicate_image_abort', 'info',

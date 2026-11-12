@@ -148,6 +148,67 @@ behavior, per-tick event/action costs, joint creation and GPU texture
 budgets still require profiling and typed preflight under #316.
 
 
+## Fixed-step semantic input queue (Epic #202 / #315 / #318)
+
+DOM pointer, entity-tap and keyboard callbacks must not execute Game IR
+rules at arbitrary renderer/browser event times. Each accepted input now
+enqueues a bounded FIFO command that is consumed at the start of the next
+canonical 60 Hz semantic tick, **after** the work-budget reset, in exactly
+its captured order. The same path handles scripted/replay pointer commands.
+Reentrant input commands wait for the following tick; interruption clears
+pending commands to avoid ghost input on app resume.
+
+- A maximum of **128 pending semantic input commands** is a hard resource
+  ceiling, not a benchmark-derived latency threshold. The 129th command
+  without a consuming simulation tick ends the game in an explicit,
+  nonwinning failure and stops the ticker; it does not silently drop rules.
+- The queue has no wall-clock timestamp, dynamic code evaluation or
+  platform-specific input execution privileges. Rule evaluation/actions
+  still consume the *same* bounded per-tick allowance as timer/physics rules.
+- Node unit tests verify stable FIFO ordering, off-by-one limits, reentrant
+  deferral and cancellation. Chromium/WebKit Playwright injects a synchronous
+  129-pointer flood on iPhone/iPad landscape browser profiles and retains
+  screenshots proving nonwinning failure and absence of uncaught errors.
+- This is a **semantic event-order improvement**, not a claim that *all*
+  state is renderer-independent: direct pointer-target sampling, animated
+  sprite completion events, physics contacts and seeded particle effects
+  still need full cross-engine state conformance and explicit ownership.
+  The senior engine-architecture challenger must reject closure of #315
+  or Epic #202 until those remaining temporal dependencies are addressed,
+  and until real iPhone/iPad benchmarks have been collected.
+
+Rollback: revert this input queue slice; IR/package schema and previously
+published games remain unchanged. Fixed tick semantics are versioned by
+the trusted interpreter and must be replay-checked before deployment.
+
+
+## Playability audio request-instance proof (Epic #202 / #205)
+
+The live Playability Kit can receive `net::ERR_ABORTED` for a sound
+request even after the browser has delivered HTTP 200, the entire body
+has been consumed, and WebAudio `decodeAudioData` has produced a usable
+PCM buffer in the *same* runtime session. This occurs independently of
+gameplay and must not be confused with an actual broken required asset.
+
+The Kit can record this as an informational, fully decoded transfer
+**only** when all of the following are true:
+
+- Exactly one declared audio asset resolves to the failed request URL.
+- Exactly one browser fetch instance exists for that same URL, with an
+  `ERR_ABORTED` browser report. No other download/retry is excused.
+- The runtime session reports exactly one sound `request_started`,
+  `response_200`, `decode_ok` for that matching asset ID, in order.
+- The decoded sound ID is still cached and no decoding job is active;
+  no session reset, timeout, abort or decoder error appears in the trace.
+
+Every unverified asset, non-abort network error, duplicate fetch,
+unknown URL, missing decoder receipt or revoked session **remains
+blocking**. Unit tests explicitly cover those exclusions. This is
+request-provenance evidence, not a generic `ERR_ABORTED` waiver and
+not permission to skip audio validation. Physical iOS WebAudio and
+offline/foreground quality gates remain separate.
+
+
 ## Fixed-tick animation completion signals (Epic #202 / #315 / #317)
 
 Pixi AnimatedSprite instances previously subscribed to Ticker.shared:

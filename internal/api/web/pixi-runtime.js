@@ -26,7 +26,7 @@
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
 
 import * as PIXI from 'pixi.js';
-import { createSimulationWorkBudget } from './runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue } from './runtime-work-budget.js';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 
@@ -1450,9 +1450,7 @@ async function run(id) {
         frameNames = frameNames.concat(frameNames.slice(1, -1).reverse());
       }
       view = new PIXI.AnimatedSprite(frameNames.map((f) => textures.get(f)));
-      // Do not subscribe to Pixi's shared render ticker: gameplay can be
-      // conditional on animation_complete, so animation frames must advance
-      // on the authoritative 60Hz semantic clock, including capture/replay.
+      // Game-rule-bearing one-shot animations cannot advance on the render clock.
       view.autoUpdate = false;
       view.width = w; view.height = h;
       view.animationSpeed = (r.animation.fps ?? 8) / 60;
@@ -1685,8 +1683,7 @@ async function run(id) {
       ent.emitter.x = x; ent.emitter.y = y;
     }
     if (view instanceof PIXI.AnimatedSprite && !(def.render.animation.loop ?? true)) {
-      // Manual AnimatedSprite.update() runs inside tickFrame, and never on
-      // Ticker.shared; this rule is therefore emitted at a stable sim step.
+      // onComplete now runs inside the fixed-tick simulation budget.
       view.onComplete = () => emit('animation_complete', ent, ent);
     }
     view.eventMode = 'static';
@@ -1695,10 +1692,11 @@ async function run(id) {
       // Tap/drag shell controls are handled by the canvas-level pointer
       // listener so tapping a sprite still moves the catcher. Keep the
       // entity-target path for tap_target and legacy documents.
-      if (controlsScheme && controlsScheme !== 'tap_target') return;
+      if ((controlsScheme && controlsScheme !== 'tap_target') ||
+          replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
       ev.stopPropagation();
       noteInput('entity-pointer', ent.id);
-      emit('input', ent, ent, undefined, tapActionName());
+      queueGameInput(ent, ent, tapActionName());
     });
     register(ent);
     return ent;
@@ -1784,12 +1782,29 @@ async function run(id) {
   // Stable per-virtual-tick CPU ceiling: independent of frame pacing/quality.
   // Exceeding a budget is a terminal runtime error, never a dropped rule.
   const workBudget = createSimulationWorkBudget();
+  const semanticInputQueue = createSemanticInputQueue();
   const state = {
     score: 0, health: 3, ended: false, won: false, failed: false,
     variables: play.shell?.chaserGap ? { chaser_gap: Number(play.shell.chaserGap.start) } : {}, elapsed: 0, depth: 0,
     collectedPairs: new Set(), insideRegions: new Set(),
     firedThresholds: new Set(), timers: new Map(), shake: 0, follow: null,
   };
+
+  // UI gesture callbacks only enqueue intent. Semantic rule execution occurs
+  // on a single deterministic fixed tick, under its shared work budget.
+  function queueGameInput(source, target, action) {
+    if (state.ended || state.failed) return;
+    try {
+      semanticInputQueue.enqueue({ source, target, action });
+    } catch (error) {
+      // A malicious input flood must fail closed without an uncaught DOM
+      // event-handler exception or an unbounded backlog across tab pauses.
+      state.failed = true;
+      recordError('input_queue', error);
+      $('status').textContent = 'Game cannot continue safely. Return to the feed or retry.';
+      try { app.ticker.stop(); } catch { /* ticker already stopped */ }
+    }
+  }
 
   const matchesRef = (ref, ent) => ref === undefined || ref === '' || ref === ent.defId || ref === ent.def.kind || ref === ent.runtimeId;
 
@@ -2344,7 +2359,7 @@ async function run(id) {
     };
   };
   app.canvas.addEventListener('pointerdown', (ev) => {
-    if (replayTrace || orientationBlocked) return; // replay and rotation guidance cannot consume live input
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return; // no off-tick input before active play
     pointer.down = true;
     const p = toLogical(ev);
     pointer.x = p.x;
@@ -2364,7 +2379,7 @@ async function run(id) {
       if (!dragXOnly) playerTarget.y = p.y;
     }
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
-    emit('input', playerEnt, undefined, undefined, tapActionName());
+    queueGameInput(playerEnt, undefined, tapActionName());
   }, { signal: abort.signal });
   app.canvas.addEventListener('pointermove', (ev) => {
     if (!pointer.down) return;
@@ -2376,13 +2391,14 @@ async function run(id) {
   // Mobile OS gesture arbitration, WebView backgrounding and keyboard focus
   // changes can cancel the physical contact without emitting pointerup.
   // Never carry a synthetic held control into the next simulation step.
-  addEventListener('pointercancel', () => { pointer.down = false; }, { signal: abort.signal });
+  addEventListener('pointercancel', () => { pointer.down = false; semanticInputQueue.clear(); }, { signal: abort.signal });
   app.canvas.addEventListener('lostpointercapture', () => { pointer.down = false; }, { signal: abort.signal });
 
   const keysDown = new Set();
   const releaseHeldInputs = () => {
     pointer.down = false;
     keysDown.clear();
+    semanticInputQueue.clear();
   };
   addEventListener('blur', releaseHeldInputs, { signal: abort.signal });
   document.addEventListener('visibilitychange', () => {
@@ -2390,7 +2406,7 @@ async function run(id) {
   }, { signal: abort.signal });
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   addEventListener('keydown', (ev) => {
-    if (replayTrace || orientationBlocked) return;
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (!b) return;
     if (laneTap && playerEnt && !keysDown.has(b.action) &&
@@ -2401,7 +2417,7 @@ async function run(id) {
     }
     keysDown.add(b.action);
     noteInput('key', ev.key);
-    emit('input', playerEnt, undefined, undefined, b.action);
+    queueGameInput(playerEnt, undefined, b.action);
   }, { signal: abort.signal });
   addEventListener('keyup', (ev) => {
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
@@ -2633,7 +2649,7 @@ async function run(id) {
         const [x, y] = String(inp.detail || '').split(',').map(Number);
         if (Number.isFinite(x) && Number.isFinite(y)) {
           pointer.down = true; pointer.x = x; pointer.y = y;
-          emit('input', playerEnt, undefined, undefined, tapActionName());
+          queueGameInput(playerEnt, undefined, tapActionName());
         }
       } else if (inp.type === 'pointerup') {
         pointer.down = false;
@@ -2788,6 +2804,10 @@ async function run(id) {
   function tickFrame(dtMs) {
     if (state.ended || state.failed) return;
     workBudget.reset();
+    semanticInputQueue.drain(({ source, target, action }) => {
+      emit('input', source, target, undefined, action);
+    });
+    if (state.ended || state.failed) return;
     emittedTimerIntervals.clear();
     const dt = Math.min(dtMs / 1000, 0.05);
     state.elapsed += dt;
@@ -2959,10 +2979,7 @@ async function run(id) {
 
     for (const ent of entities.values()) {
       if (ent.destroyed) continue;
-      // Rendered frames and animation-complete semantic signals advance
-      // together at the fixed semantic tick, not at display refresh rate.
-      // Pixi computes elapsed frames from ticker.deltaTime; one 60Hz tick
-      // corresponds to deltaTime=1 even on 30/120Hz panels.
+      // Simulation clock owns game-rule animation frames, independent of 30/60/120Hz display.
       if (ent.view instanceof PIXI.AnimatedSprite) {
         ent.view.update({ deltaTime: dtMs / (1000 / 60), deltaMS: dtMs });
       }
@@ -3136,8 +3153,7 @@ async function run(id) {
         // Probe-only read-only input cancellation evidence, never exposed in
         // ordinary gameplay or as a mutable control channel.
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
-        // Read-only animation clock evidence in test/probe mode. Frames are
-        // advanced exclusively by tickFrame, never by Ticker.shared.
+        // Probe-only immutable animation snapshot; never a control channel.
         animations: [...entities.values()].filter(e => e.view instanceof PIXI.AnimatedSprite)
           .map(e => ({ id: e.defId, frame: e.view.currentFrame, playing: e.view.playing })),
         decodedSoundIds: [...sfx.buffers.keys()].map(key => key.split('|')[0]).sort(),
