@@ -298,8 +298,10 @@ const MAX_AUDIO_DECODED_BYTES = 24 * 1024 * 1024;
 const MAX_TOTAL_AUDIO_DECODED_BYTES = 32 * 1024 * 1024;
 const MAX_ACTIVE_SOUND_SOURCES = 32;
 const MAX_QUEUED_SOUND_JOBS = 32;
+const MAX_CONCURRENT_AUDIO_DECODES = 4;
+const AUDIO_FETCH_TIMEOUT_MS = 15_000;
 const sfx = {
-  ctx: null, buffers: new Map(), pendingMusic: [],
+  ctx: null, buffers: new Map(), inFlight: new Map(), pendingMusic: [],
   generation: 0, abort: new AbortController(), decodedBytes: 0,
   activeSources: new Set(),
   ensureCtx() {
@@ -321,6 +323,7 @@ const sfx = {
     }
     this.activeSources.clear();
     this.buffers.clear();
+    this.inFlight.clear();
     this.decodedBytes = 0;
     const previous = this.ctx;
     this.ctx = null;
@@ -352,52 +355,71 @@ const sfx = {
     const job = () => {
       if (generation !== this.generation) return;
       if (this.buffers.has(key)) { start(this.buffers.get(key)); return; }
-      const signal = this.abort.signal;
-      apiFetch(url, { signal }).then(async (response) => {
-        if (!response.ok) throw new Error('audio asset HTTP ' + response.status);
-        const declared = Number(response.headers.get('content-length'));
-        if (declared > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
-        if (!response.body || !response.body.getReader) {
-          const blob = await response.blob();
-          if (blob.size > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
-          return blob.arrayBuffer();
-        }
-        const reader = response.body.getReader();
-        const chunks = [];
-        let total = 0;
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            total += value.byteLength;
-            if (total > MAX_AUDIO_TRANSFER_BYTES) {
-              await reader.cancel().catch(() => {});
-              throw new Error('audio transfer budget exceeded');
-            }
-            chunks.push(value);
+      // Deduplicate *in-flight* fetch/decode, not only finished buffers.
+      // Otherwise a burst of the same AI-authored SFX can spawn unlimited
+      // concurrent 8 MiB fetches before the first result reaches the cache.
+      let pending = this.inFlight.get(key);
+      if (!pending) {
+        if (this.inFlight.size >= MAX_CONCURRENT_AUDIO_DECODES) return;
+        const sessionSignal = this.abort.signal;
+        const request = new AbortController();
+        const onAbort = () => request.abort();
+        sessionSignal.addEventListener('abort', onAbort, { once: true });
+        const timeout = setTimeout(() => request.abort(), AUDIO_FETCH_TIMEOUT_MS);
+        pending = apiFetch(url, { signal: request.signal }).then(async (response) => {
+          if (!response.ok) throw new Error('audio asset HTTP ' + response.status);
+          const declared = Number(response.headers.get('content-length'));
+          if (declared > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
+          if (!response.body || !response.body.getReader) {
+            const blob = await response.blob();
+            if (blob.size > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
+            return blob.arrayBuffer();
           }
-        } finally { reader.releaseLock(); }
-        return new Blob(chunks).arrayBuffer();
-      }).then((data) => {
-        if (signal.aborted || generation !== this.generation) return null;
-        return ctx.decodeAudioData(data);
-      }).then((buffer) => {
-        if (!buffer || signal.aborted || generation !== this.generation) return;
-        const decodedBytes = buffer.length * buffer.numberOfChannels * 4;
-        if (!Number.isSafeInteger(decodedBytes) ||
-            decodedBytes > MAX_AUDIO_DECODED_BYTES ||
-            this.decodedBytes + decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES) {
-          log('SFX', 'Audio decoded buffer exceeds memory budget: ' + assetId);
-          return;
-        }
-        this.buffers.set(key, buffer);
-        this.decodedBytes += decodedBytes;
-        start(buffer);
-      }).catch((error) => {
-        // Never bypass byte/memory/auth limits after a protected fetch fails.
-        if (signal.aborted || generation !== this.generation) return;
-        warnOnce('audio-' + assetId, 'SFX', 'Audio unavailable: ' + (error.message || error));
-      });
+          const reader = response.body.getReader();
+          const chunks = [];
+          let total = 0;
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              total += value.byteLength;
+              if (total > MAX_AUDIO_TRANSFER_BYTES) {
+                await reader.cancel().catch(() => {});
+                throw new Error('audio transfer budget exceeded');
+              }
+              chunks.push(value);
+            }
+          } finally { reader.releaseLock(); }
+          return new Blob(chunks).arrayBuffer();
+        }).then((data) => {
+          if (request.signal.aborted || generation !== this.generation) return null;
+          return ctx.decodeAudioData(data);
+        }).then((buffer) => {
+          if (!buffer || request.signal.aborted || generation !== this.generation) return null;
+          const decodedBytes = buffer.length * buffer.numberOfChannels * 4;
+          if (!Number.isSafeInteger(decodedBytes) ||
+              decodedBytes > MAX_AUDIO_DECODED_BYTES ||
+              this.decodedBytes + decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES) {
+            log('SFX', 'Audio decoded buffer exceeds memory budget: ' + assetId);
+            return null;
+          }
+          this.buffers.set(key, buffer);
+          this.decodedBytes += decodedBytes;
+          return buffer;
+        }).catch((error) => {
+          // Never bypass the protected API or resource budget via HTMLAudio.
+          if (!request.signal.aborted && generation === this.generation) {
+            warnOnce('audio-' + assetId, 'SFX', 'Audio unavailable: ' + (error.message || error));
+          }
+          return null;
+        }).finally(() => {
+          clearTimeout(timeout);
+          sessionSignal.removeEventListener('abort', onAbort);
+          if (this.inFlight.get(key) === pending) this.inFlight.delete(key);
+        });
+        this.inFlight.set(key, pending);
+      }
+      pending.then((buffer) => { if (buffer) start(buffer); });
     };
     if (ctx.state === 'suspended') {
       if (this.pendingMusic.length >= MAX_QUEUED_SOUND_JOBS) return;
