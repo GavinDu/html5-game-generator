@@ -40,6 +40,7 @@ import { heuristicBrain } from './brains/heuristic.mjs';
 import { outcomeContract } from './outcome-contract.mjs';
 import { verifyCaughtFixture } from './terminal-fixture.mjs';
 import { preferredViewport } from '../playtest/game-orientation.mjs';
+import { classifyAssetRequestFailures } from './asset-failure-classification.mjs';
 
 function resolveChromium() {
   // Explicit override wins; otherwise return undefined and let the
@@ -191,22 +192,14 @@ async function runGame(browser, id) {
   add('load.clean', errors.length === 0 ? 'pass' : 'fail',
     errors.length === 0 ? `running frame after ${ttp} ms, 0 errors` : `errors during load: ${errors.slice(0, 2).join(' | ')}`, { ttpMs: ttp });
   const texBad = texturesLine && texturesLine[0] < texturesLine[1];
-  const declaredImages = (seenPkg?.assets || []).filter(a => a.kind === 'image');
-  const allRequiredTexturesVerified = texturesLine &&
-    texturesLine[0] === texturesLine[1] && texturesLine[1] === declaredImages.length;
-  const requiredImageURLs = new Set(declaredImages
-    .map(a => a.url || a.uri).filter(Boolean)
-    .map(url => new URL(url, base).href));
-  // Browser preload/duplicate speculative requests can be canceled when
-  // the authoritative Pixi loader already fetched, hash-checked, decoded,
-  // and installed every required image. Do not mislabel those redundant
-  // cancellations as missing game assets. Only this *fully proven*
-  // subset is informational; all other failures remain release blockers.
-  const provenRedundantAborts = failedReqs.filter(r =>
-    r.reason === 'net::ERR_ABORTED' && r.kind === 'fetch' &&
-    allRequiredTexturesVerified && requiredImageURLs.has(r.url));
-  const failedRequiredRequests = failedReqs.filter(r => !provenRedundantAborts.includes(r))
-    .map(r => `${r.url} [${r.reason}]`);
+  const classified = classifyAssetRequestFailures({
+    requests: failedReqs,
+    assets: seenPkg?.assets || [],
+    texturesLine,
+    base,
+  });
+  const provenRedundantAborts = classified.redundant;
+  const failedRequiredRequests = classified.blocking;
   const assetProblems = [...badResponses.filter((u) => /\/assets\/|sprites|audio/.test(u)),
     ...failedRequiredRequests, ...warns.filter((w) => /asset/i.test(w))];
   if (provenRedundantAborts.length) {
