@@ -35,6 +35,9 @@ var pixiRuntimeJS string
 //go:embed web/runtime-seeded-rng.mjs
 var runtimeSeededRNGJS string
 
+//go:embed web/runtime-movement-plane.mjs
+var runtimeMovementPlaneJS string
+
 //go:embed web/runtime-work-budget.js
 var runtimeWorkBudgetJS string
 
@@ -152,6 +155,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
 	mux.HandleFunc("GET /web/runtime-seeded-rng.mjs", s.handleRuntimeSeededRNG)
+	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
 	mux.HandleFunc("GET /web/runtime-work-budget.js", s.handleRuntimeWorkBudget)
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
@@ -369,6 +373,16 @@ func (s *Server) handleRuntimeSeededRNG(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeSeededRNGJS))
+}
+
+// GET /web/runtime-movement-plane.mjs — bundled trusted, deterministic
+// movement-plane adapter. Historical Game IR compatibility lives here,
+// NEVER in user-supplied executable package code.
+func (s *Server) handleRuntimeMovementPlane(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeMovementPlaneJS))
 }
 
 // GET /web/runtime-work-budget.js — trusted deterministic semantic work guard.
