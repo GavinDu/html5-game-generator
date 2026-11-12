@@ -15,9 +15,13 @@ test('private image assets are fetched through the authenticated same-origin API
 test('image responses are checked before decoding and texture creation', () => {
   assert.match(source, /if \(!response\.ok\)/);
   assert.match(source, /image asset request failed \(HTTP/);
-  assert.match(source, /await response\.blob\(\)/);
+  // Both streaming and non-streaming readers enforce compressed-byte caps.
+  assert.match(source, /imageBlob = await readBoundedImageBlob\(response\)/);
+  assert.match(source, /const blob = await response\.blob\(\)/);
   assert.match(source, /URL\.createObjectURL\(imageBlob\)/);
-  assert.match(source, /return PIXI\.Texture\.from\(img\)/);
+  // A decoded-pixel preflight now precedes the Pixi texture upload.
+  assert.match(source, /const texture = PIXI\.Texture\.from\(img\)/);
+  assert.match(source, /return texture/);
 });
 
 test('failed required image assets fail the launch instead of silently dropping sprites', () => {
