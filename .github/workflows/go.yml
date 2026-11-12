@@ -153,6 +153,15 @@ jobs:
         with:
           name: escape-quality-${{ matrix.browser }}
           path: /tmp/escape-quality-${{ matrix.browser }}/
+      - name: Reject oversized image bytes before a playable scene on phone and tablet browsers
+        run: node tools/playtest/oversized-image-failure-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-image-budget-${{ matrix.browser }}
+      - name: Upload oversized required image rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-image-budget-${{ matrix.browser }}
+          path: /tmp/runtime-image-budget-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Verify Escape seeded replay physics and screenshots on phone/tablet
         run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
       - name: Upload Escape deterministic replay screenshot evidence
