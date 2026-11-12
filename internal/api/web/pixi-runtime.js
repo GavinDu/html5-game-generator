@@ -301,7 +301,7 @@ const MAX_QUEUED_SOUND_JOBS = 32;
 const sfx = {
   ctx: null, buffers: new Map(), pendingMusic: [],
   generation: 0, abort: new AbortController(), decodedBytes: 0,
-  activeSources: new Set(), fallbackAudio: new Set(),
+  activeSources: new Set(),
   ensureCtx() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -320,10 +320,6 @@ const sfx = {
       try { source.onended = null; source.stop(); source.disconnect(); } catch { /* already ended */ }
     }
     this.activeSources.clear();
-    for (const audio of this.fallbackAudio) {
-      try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch { /* already detached */ }
-    }
-    this.fallbackAudio.clear();
     this.buffers.clear();
     this.decodedBytes = 0;
     const previous = this.ctx;
@@ -337,15 +333,12 @@ const sfx = {
   play(url, assetId) {
     const generation = this.generation;
     const key = assetId + '|' + url;
-    const fallback = () => {
-      if (generation !== this.generation) return;
-      const audio = new Audio(url);
-      this.fallbackAudio.add(audio);
-      audio.onended = () => this.fallbackAudio.delete(audio);
-      audio.play().catch(() => this.fallbackAudio.delete(audio));
-    };
     const ctx = this.ensureCtx();
-    if (!ctx) { fallback(); return; }
+    if (!ctx) {
+      // No unchecked HTMLAudio URL fallback: that bypasses transfer limits.
+      warnOnce('web-audio-unsupported', 'SFX', 'WebAudio unavailable; sound disabled');
+      return;
+    }
     const start = (buffer) => {
       if (generation !== this.generation || ctx !== this.ctx) return;
       if (this.activeSources.size >= MAX_ACTIVE_SOUND_SOURCES) return;
@@ -401,8 +394,7 @@ const sfx = {
         this.decodedBytes += decodedBytes;
         start(buffer);
       }).catch((error) => {
-        // Never bypass byte/memory/auth limits by launching an unbounded
-        // HTMLAudioElement fallback after a failed protected fetch.
+        // Never bypass byte/memory/auth limits after a protected fetch fails.
         if (signal.aborted || generation !== this.generation) return;
         warnOnce('audio-' + assetId, 'SFX', 'Audio unavailable: ' + (error.message || error));
       });
