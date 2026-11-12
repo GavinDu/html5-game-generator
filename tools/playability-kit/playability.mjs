@@ -106,6 +106,23 @@ async function runGame(browser, id) {
 
   // ---- collectors -------------------------------------------------------
   const errors = [], warns = [], badResponses = [], failedReqs = []; const fired = new Set();
+  // Exact request-instance provenance: an HTTP 200+decoded buffer does not
+  // prove *another* fetch of the same URL completed. Distinguish them before
+  // classifying any canceled sound delivery as required-asset failure.
+  const audioRequests = new Map();
+  let nextAudioRequestID = 0;
+  const soundRequest = r => /\/assets\/[^/]+(?:[?#]|$)/.test(r.url()) && r.resourceType() === 'fetch';
+  page.on('request', r => {
+    if (soundRequest(r)) audioRequests.set(r, { id: ++nextAudioRequestID, url: r.url(), phase: 'sent' });
+  });
+  page.on('requestfinished', r => {
+    const state = audioRequests.get(r);
+    if (state) state.phase = 'finished';
+  });
+  page.on('requestfailed', r => {
+    const state = audioRequests.get(r);
+    if (state) { state.phase = 'failed'; state.reason = r.failure()?.errorText || 'unknown'; }
+  });
   let texturesLine = null; let seenPkg = null;
   page.on('pageerror', (e) => errors.push(String(e.message || e).split('\n')[0]));
   page.on('console', (m) => {
@@ -202,6 +219,18 @@ async function runGame(browser, id) {
   const failedRequiredRequests = classified.blocking;
   const assetProblems = [...badResponses.filter((u) => /\/assets\/|sprites|audio/.test(u)),
     ...failedRequiredRequests, ...warns.filter((w) => /asset/i.test(w))];
+  if (failedRequiredRequests.some(problem => /\/assets\//.test(problem))) {
+    // Preserve failed audio/image requests as BLOCKING; this additional
+    // evidence lets the architect distinguish an aborted network fetch from
+    // a successful decode or explicit session-reset cancellation.
+    add('info.asset_failure_audio_lifecycle', 'info', JSON.stringify({
+      failures: failedRequiredRequests.slice(0, 8),
+      decodedSoundIds: s0?.decodedSoundIds || [],
+      activeDecodeJobs: s0?.audioDecodeJobs ?? null,
+      audioEvents: s0?.audioDiagnosticEvents || [],
+      soundNetwork: [...audioRequests.values()].slice(-16),
+    }));
+  }
   if (provenRedundantAborts.length) {
     add('info.proven_duplicate_image_abort', 'info',
       `${provenRedundantAborts.length} canceled duplicate image fetch(es); ${texturesLine[0]}/${texturesLine[1]} required textures were independently hash-verified and decoded`);
