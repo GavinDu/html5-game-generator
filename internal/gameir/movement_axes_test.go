@@ -94,3 +94,14 @@ func TestMovementAxesLegacyPackagesRemainByteCompatibleWhenAbsent(t *testing.T) 
 		t.Fatal("optional movementAxes must be absent from existing canonical Game IR hashes")
 	}
 }
+
+func TestMovementAxesV1RejectsOldVersionWithoutExperience(t *testing.T) {
+	doc, err := DecodeAndValidate([]byte(v11Doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Capabilities = append(doc.Capabilities, "input.movement_axes.v1")
+	if err := Validate(doc); err == nil || !strings.Contains(err.Error(), "requires Game IR 1.2") {
+		t.Fatalf("orphaned movement capability must be rejected, got %v", err)
+	}
+}
