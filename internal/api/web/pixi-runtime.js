@@ -26,6 +26,7 @@
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
 
 import * as PIXI from 'pixi.js';
+import { createSimulationWorkBudget } from './runtime-work-budget.js';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 
@@ -1623,8 +1624,11 @@ async function run(id) {
   log('RT', `scene '${scene.id}': ${scene.entities.length} entities (${scene.entities.filter((e) => e.behavior).length} behavior, ${scene.entities.filter((e) => e.physics).length} physics), ${(scene.joints || []).length} joints, ${ir.rules.length} rules, ${textures.size} textures`);
 
   // --- Rule engine ----------------------------------------------------
+  // Stable per-virtual-tick CPU ceiling: independent of frame pacing/quality.
+  // Exceeding a budget is a terminal runtime error, never a dropped rule.
+  const workBudget = createSimulationWorkBudget();
   const state = {
-    score: 0, health: 3, ended: false, won: false,
+    score: 0, health: 3, ended: false, won: false, failed: false,
     variables: play.shell?.chaserGap ? { chaser_gap: Number(play.shell.chaserGap.start) } : {}, elapsed: 0, depth: 0,
     collectedPairs: new Set(), insideRegions: new Set(),
     firedThresholds: new Set(), timers: new Map(), shake: 0, follow: null,
@@ -1678,13 +1682,14 @@ async function run(id) {
   function emit(event, source, target, value, inputAction) {
     // Terminal game outcomes are immutable, even if late Rapier collision
     // events reach the same simulation step after a win or loss.
-    if (state.ended) return;
-    if (state.depth > 8) { warnOnce('depth', 'RULE', 'event cascade depth exceeded — dropped'); return; }
+    if (state.ended || state.failed) return;
+    if (state.depth > 8) throw new Error('rule event cascade depth budget exceeded');
     // Event stream for the probe / playtest worker / shell.
     if (event === 'collected') { recordEvent('collect', target?.defId || ''); noteActivity(); }
     state.depth++;
     try {
       for (const rule of ir.rules) {
+        workBudget.consumeCheck();
         if (!ruleMatches(rule, event, source, target, value, inputAction)) continue;
         if (!conditionsMet(rule)) continue;
         log('RULE', `rule '${rule.id}' fired by ${event}`);
@@ -1826,8 +1831,9 @@ async function run(id) {
   }
 
   function execute(actions, sourceEnt, targetEnt) {
-    if (state.ended) return;
+    if (state.ended || state.failed) return;
     for (const action of actions) {
+      workBudget.consumeAction();
       const ent = findEnt(action.target);
       switch (action.type) {
         case 'add_score': {
@@ -2571,6 +2577,7 @@ async function run(id) {
         tickErrLogged = true;
         log('RT', 'TICK ERROR frame ' + frameNo + ': ' + (err.stack || err.message));
         recordError('tick', err);
+        state.failed = true;
         $('status').textContent = 'Game cannot continue safely. Return to the feed or retry.';
       }
       // Fail closed on resource exhaustion or any semantic tick error:
@@ -2621,7 +2628,8 @@ async function run(id) {
   // Reuse this set per fixed step to avoid allocating on each mobile frame.
   const emittedTimerIntervals = new Set();
   function tickFrame(dtMs) {
-    if (state.ended) return;
+    if (state.ended || state.failed) return;
+    workBudget.reset();
     emittedTimerIntervals.clear();
     const dt = Math.min(dtMs / 1000, 0.05);
     state.elapsed += dt;
@@ -2852,8 +2860,16 @@ async function run(id) {
       try { app.ticker.start(); } catch { /* ignore */ }
     }
     recordEvent('start', fromProbe ? 'probe-auto' : 'tap');
-    emit('game_start', undefined, undefined);
-    emit('scene_entered', undefined, undefined);
+    workBudget.reset();
+    try {
+      emit('game_start', undefined, undefined);
+      emit('scene_entered', undefined, undefined);
+    } catch (error) {
+      state.failed = true;
+      recordError('start', error);
+      $('status').textContent = 'Game cannot continue safely. Return to the feed or retry.';
+      try { app.ticker.stop(); } catch { /* ticker may already be stopped */ }
+    }
   }
   play.beginPlay = beginPlay;
   // A Play-again restart may skip its own card once, but that flag must
@@ -2880,8 +2896,16 @@ async function run(id) {
   } else {
     play.shellStarted = true;
     $('status').textContent = play.shell?.controls?.hint || 'Drag, tap, or use the arrow keys';
-    emit('game_start', undefined, undefined);
-    emit('scene_entered', undefined, undefined);
+    workBudget.reset();
+    try {
+      emit('game_start', undefined, undefined);
+      emit('scene_entered', undefined, undefined);
+    } catch (error) {
+      state.failed = true;
+      recordError('start', error);
+      $('status').textContent = 'Game cannot continue safely. Return to the feed or retry.';
+      try { app.ticker.stop(); } catch { /* ticker may already be stopped */ }
+    }
   }
   log('RT', `start '${ir.game.id}' scene '${scene.id}'`);
   // Capture mode stops Pixi before the first animation frame; render the
