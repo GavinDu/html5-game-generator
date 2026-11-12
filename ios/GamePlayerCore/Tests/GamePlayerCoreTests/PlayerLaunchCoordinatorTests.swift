@@ -179,7 +179,8 @@ final class PlayerLaunchCoordinatorTests: XCTestCase {
           "gameId":"game-123",
           "ir":{"irVersion":"1.0"},
           "assets":[{"id":"sprite","kind":"image","uri":"sprite.png","url":"/asset"}],
-          "irHash":"\(String(repeating: "a", count: 64))"
+          "irHash":"\(String(irDigest.prefix(12)))",
+          "irSha256":"\(irDigest)"
         }
         """
         let runtime = StubRuntimeHost()
