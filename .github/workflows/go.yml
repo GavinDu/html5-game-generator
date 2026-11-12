@@ -171,6 +171,15 @@ jobs:
           name: runtime-image-budget-${{ matrix.browser }}
           path: /tmp/runtime-image-budget-${{ matrix.browser }}/
           if-no-files-found: ignore
+      - name: Verify frequent sound predecode survives offline stress on iPhone/iPad
+        run: node tools/playtest/runtime-audio-prefetch-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-audio-prefetch-${{ matrix.browser }}
+      - name: Upload audio decode state and offline stress screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-audio-prefetch-${{ matrix.browser }}
+          path: /tmp/runtime-audio-prefetch-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Verify Escape seeded replay physics and screenshots on phone/tablet
         run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
       - name: Upload Escape deterministic replay screenshot evidence
