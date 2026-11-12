@@ -41,6 +41,30 @@ These values are initial **security/resource ceilings**, not evidence-backed iPh
 Verification: `tools/playtest/runtime-image-budget.test.mjs` checks the guard ordering and a Playwright negative fixture injects an oversized required image in Chromium and WebKit;  Go, Chromium/WebKit, Playability and physical-device checks remain required. Failures must not be treated as successful/partial gameplay.
 
 
+## All-inventory cross-browser semantic replay (Epic #202 / #315)
+
+The deterministic verification gate must cover **every shipped Game IR**
+under `inventory/*/manifest.json`, not only Escape's lane runner. The
+`inventory-semantic-replay-test.mjs` Playwright job discovers the canonical
+game IDs dynamically, launches each *unmodified* package in Chromium and
+WebKit at both iPhone and iPad portrait viewport sizes, seeds the trusted
+interpreter identically, and advances it to exact virtual step 240. It
+captures gameplay state and an unaltered screenshot; it does not compare
+pixel hashes across GPU/browser engines.
+
+The dependent `cross-browser-determinism` job downloads the independent
+browser artifacts, requires complete/unique game+viewport coverage and
+compares seeded tick, score, health, objective progress, variables, player
+position and nondecorative gameplay entity positions to 0.001 logical
+pixels. A missing game, duplicate profile, wrong tick, missing fixture or
+single semantic outcome difference fails the workflow instead of weakening
+tolerance. Local comparator unit tests explicitly reject these cases.
+
+This supplements existing Escape 600-tick replay and quality-invariance
+checks; it does **not** prove arbitrary touch/input traces, varied
+30/60/120 Hz render pacing, thermal interruption semantics or physical
+iOS/iPadOS WebKit conformance. All remain Epic #202 acceptance gates.
+
 ## Pure deterministic RNG module (Epic #202 / generator #317)
 
 The installed Game IR interpreter imports `/web/runtime-seeded-rng.mjs`, served by
@@ -65,6 +89,42 @@ fixture migration rather than silently reinterpreting prior leaderboard
 runs. Physics/event state, Pixi rendering and WebAudio remain in the main
 interpreter. This is a compatibility-safe **first extraction**, not completion
 of #317 or full #315 determinism.
+
+## Session-owned sound decode and offline stress (Epic #202 / native #205)
+
+Playability Kit deliberately interrupts connectivity after a burst of
+interactions. In the prior bounded-audio candidate, Penguin's first chime
+request could be aborted inside this offline window, producing
+`net::ERR_ABORTED` and a **blocking** release failure. Do not hide this
+failure by weakening the asset-quality gate.
+
+The runtime now starts an *optional*, nonblocking predecode for at most the
+two most frequently referenced `play_sound` assets after package validation
+and image loading. It does not play them, block rendering or add new
+gameplay actions. The decoder retains an asset+URL scoped cache with up to
+four simultaneous protected same-origin fetches, 8 MiB compressed-byte
+transfer per sound, 24 MiB decoded PCM per buffer, 32 MiB decoded PCM total,
+32 concurrent active sound sources and 32 queued gestures. Every fetch
+has a 15-second transfer deadline. The same WebView cannot carry decoded
+sounds or stale asynchronous callbacks between games: restart and pagehide
+clear the cache, pending jobs, source playback, audio context and fetches.
+
+Read-only probe mode reports which sound IDs are successfully decoded.
+Both Chromium and WebKit iPhone/iPad viewport CI require Penguin `chime`
+to finish decoding **before** a simulated offline interval, stay cached
+during the offline interval, and have no failed chime requests. Screenshots
+and JSON evidence are uploaded. No audio permissions or arbitrary native
+bridge are added. Audio remains an optional presentation effect; a
+transient sound should never change authoritative game outcomes.
+
+**Pending device/architecture requirements:** Page background behavior,
+real iOS WebAudio unlocking, interruption/resume, decode overhead and
+50+ open-close cycles with WebContent memory and thermal baselines.
+Speculative predecode is a network/memory tradeoff, not a blanket startup
+optimization; if it harms physical cold-start cohorts, redesign to a
+user-gesture-triggered bounded decode that still survives offline play.
+
+Audio URLs are additionally required to be same-origin before any authenticated fetch. The negative browser fixture mutates the Penguin sound URL to an external host and proves no request escapes.
 
 ## Active runtime entity cap (Epic #202 / #316)
 
