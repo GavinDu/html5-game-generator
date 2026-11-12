@@ -84,21 +84,21 @@ func TestPackageAssetSHA256ComputesLegacyDigestAndRejectsMismatch(t *testing.T) 
 // real Go struct serialization and digest semantics, rather than being a
 // handcrafted Swift test package. Normal Go test runs do not modify files.
 func TestExportCanonicalPackageForSwift(t *testing.T) {
-    path := os.Getenv("EXPORT_SWIFT_PACKAGE_FIXTURE")
-    if path == "" {
-        t.Skip("set EXPORT_SWIFT_PACKAGE_FIXTURE to validate Go->Swift delivery compatibility")
-    }
-    st := store.NewMemoryStore()
-    srv := New(st, pipeline.NewRunner(st))
-    game := seedReadyGame(st, "runtime-contract-game")
-    game.ModerationStatus = "approved"
-    st.UpdateGame(game)
+	path := os.Getenv("EXPORT_SWIFT_PACKAGE_FIXTURE")
+	if path == "" {
+	    t.Skip("set EXPORT_SWIFT_PACKAGE_FIXTURE to validate Go->Swift delivery compatibility")
+	}
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	game := seedReadyGame(st, "runtime-contract-game")
+	game.ModerationStatus = "approved"
+	st.UpdateGame(game)
 
-    rec := getAs(t, srv, "/v1/games/runtime-contract-game/package", "")
-    if rec.Code != http.StatusOK {
-        t.Fatalf("fixture package HTTP %d: %s", rec.Code, rec.Body.String())
-    }
-    if err := os.WriteFile(path, rec.Body.Bytes(), 0600); err != nil {
-        t.Fatalf("write Go-emitted package fixture: %v", err)
-    }
+	rec := getAs(t, srv, "/v1/games/runtime-contract-game/package", "")
+	if rec.Code != http.StatusOK {
+	    t.Fatalf("fixture package HTTP %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := os.WriteFile(path, rec.Body.Bytes(), 0600); err != nil {
+	    t.Fatalf("write Go-emitted package fixture: %v", err)
+	}
 }
