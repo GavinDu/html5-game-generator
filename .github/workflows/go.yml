@@ -189,6 +189,15 @@ jobs:
           name: runtime-audio-prefetch-${{ matrix.browser }}
           path: /tmp/runtime-audio-prefetch-${{ matrix.browser }}/
           if-no-files-found: ignore
+      - name: Reject unbounded authored actions without a false winning run on phone/tablet
+        run: node tools/playtest/runtime-work-budget-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/work-budget-${{ matrix.browser }}
+      - name: Upload rule/action work budget rejection screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-budget-${{ matrix.browser }}
+          path: /tmp/work-budget-${{ matrix.browser }}/
+          if-no-files-found: error
       - name: Verify Escape seeded replay physics and screenshots on phone/tablet
         run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
       - name: Upload Escape deterministic replay screenshot evidence
