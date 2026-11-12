@@ -85,3 +85,9 @@ test('render submission is reported before the unique runtime player_ready event
   assert.equal(source.indexOf("sendSocialDiagnostic('player_ready', 'ready'", firstReady + 1), -1,
     'duplicate runtime readiness report');
 });
+
+test('terminal state blocks late rule dispatch, execution and collision contacts', () => {
+  assert.match(source, /function emit\(event, source, target, value, inputAction\) \{[^]*?if \(state\.ended\) return;/);
+  assert.match(source, /function execute\(actions, sourceEnt, targetEnt\) \{\s*if \(state\.ended\) return;/);
+  assert.match(source, /function handleContact\(a, b, started\) \{\s*if \(state\.ended \|\| !playerEnt\) return;/);
+});

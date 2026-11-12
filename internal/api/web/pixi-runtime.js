@@ -1616,6 +1616,9 @@ async function run(id) {
 
   let prevHealth = state.health;
   function emit(event, source, target, value, inputAction) {
+    // Terminal game outcomes are immutable, even if late Rapier collision
+    // events reach the same simulation step after a win or loss.
+    if (state.ended) return;
     if (state.depth > 8) { warnOnce('depth', 'RULE', 'event cascade depth exceeded — dropped'); return; }
     // Event stream for the probe / playtest worker / shell.
     if (event === 'collected') { recordEvent('collect', target?.defId || ''); noteActivity(); }
@@ -1763,6 +1766,7 @@ async function run(id) {
   }
 
   function execute(actions, sourceEnt, targetEnt) {
+    if (state.ended) return;
     for (const action of actions) {
       const ent = findEnt(action.target);
       switch (action.type) {
@@ -2182,7 +2186,7 @@ async function run(id) {
 
   // --- Contacts -------------------------------------------------------
   function handleContact(a, b, started) {
-    if (!playerEnt) return;
+    if (state.ended || !playerEnt) return;
     const other = a === playerEnt ? b : b === playerEnt ? a : null;
     if (!other) return;
     const key = playerEnt.runtimeId + ':' + other.runtimeId;
@@ -2842,6 +2846,11 @@ async function run(id) {
   // presentation or first accepted input, and navigation finish alone is
   // not a gameplay-readiness signal.
   app.renderer.render(app.stage);
+  // The Pixi renderer wrapper logs/traps a failed render and stops the
+  // ticker. It must not also report a successful frame/interactive state.
+  if (renderErrLogged) {
+    throw new Error('initial scene render failed; gameplay is not ready');
+  }
   const firstSceneRenderSubmitMs = Math.max(0, Math.min(3600000,
     Math.round(performance.now() - started)));
   recordEvent('first_scene_render_submit', String(firstSceneRenderSubmitMs));

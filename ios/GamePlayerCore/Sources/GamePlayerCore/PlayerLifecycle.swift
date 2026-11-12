@@ -30,6 +30,7 @@ public enum PlayerFailure: Error, Equatable, Sendable {
     case packageGameIDMismatch
     case missingIR
     case invalidIRHash
+    case unsupportedCapabilities
     case assetHashMissing
     case assetHashMismatch
     case assetTooLarge
@@ -90,6 +91,18 @@ public indirect enum JSONValue: Decodable, Sendable {
 }
 
 public struct PlayerContract: Sendable {
+    // Versioned modules shipped in the trusted Pixi/Rapier interpreter.
+    // This list must move together with the Go IR validator and browser
+    // runtime; unknown game-provided capabilities never execute code.
+    public static let supportedCapabilities: Set<String> = [
+        "render.sprite", "render.animation", "render.shape", "render.text",
+        "render.filters", "render.particles", "render.parallax",
+        "physics.bodies", "physics.colliders", "physics.joints",
+        "physics.character_controller", "physics.queries",
+        "fx.tween", "fx.camera", "fx.emitters", "audio",
+        "input.keyboard", "input.pointer", "shell.v1"
+    ]
+
     public let packageFormatVersion: String
     public let runtimeVersion: String
     public let supportedIRVersions: Set<String>
@@ -121,6 +134,33 @@ public struct PlayerContract: Sendable {
         if case .object(let irObject)? = envelope.ir {
             guard case .string(let embeddedIRVersion)? = irObject["irVersion"], embeddedIRVersion == envelope.irVersion else {
                 throw PlayerFailure.irVersionMismatch
+            }
+            var declared = Set<String>()
+            if let rawCapabilities = irObject["capabilities"] {
+                guard case .array(let values) = rawCapabilities, values.count <= 32 else {
+                    throw PlayerFailure.unsupportedCapabilities
+                }
+                for value in values {
+                    guard case .string(let capability) = value,
+                          Self.supportedCapabilities.contains(capability),
+                          declared.insert(capability).inserted else {
+                        throw PlayerFailure.unsupportedCapabilities
+                    }
+                }
+            }
+            let hasExperience: Bool
+            if let experience = irObject["experience"] {
+                if case .null = experience {
+                    hasExperience = false
+                } else {
+                    hasExperience = true
+                }
+            } else {
+                hasExperience = false
+            }
+            if (envelope.irVersion == "1.2" || hasExperience),
+               !declared.contains("shell.v1") {
+                throw PlayerFailure.unsupportedCapabilities
             }
         } else {
             throw PlayerFailure.missingIR
