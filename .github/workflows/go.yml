@@ -161,6 +161,15 @@ jobs:
         with:
           name: escape-seeded-replay-${{ matrix.browser }}
           path: /tmp/escape-seeded-replay-${{ matrix.browser }}/
+      - name: Verify OS touch cancellation and keyboard focus loss on phone/tablet
+        run: node tools/playtest/input-cancellation-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/input-cancellation-${{ matrix.browser }}
+      - name: Upload interruption-control screenshots and state evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: input-cancellation-${{ matrix.browser }}
+          path: /tmp/input-cancellation-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Verify Escape's unmodified natural caught ending and 20-minute ceiling
         run: node tools/playtest/escape-natural-ending-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-natural-end-${{ matrix.browser }}
       - name: Upload Escape natural terminal gameplay screenshots

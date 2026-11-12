@@ -2109,16 +2109,29 @@ async function run(id) {
     }
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
     emit('input', playerEnt, undefined, undefined, tapActionName());
-  });
+  }, { signal: abort.signal });
   app.canvas.addEventListener('pointermove', (ev) => {
     if (!pointer.down) return;
     const p = toLogical(ev);
     pointer.x = p.x;
     pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
-  });
+  }, { signal: abort.signal });
   addEventListener('pointerup', () => { pointer.down = false; }, { signal: abort.signal });
+  // Mobile OS gesture arbitration, WebView backgrounding and keyboard focus
+  // changes can cancel the physical contact without emitting pointerup.
+  // Never carry a synthetic held control into the next simulation step.
+  addEventListener('pointercancel', () => { pointer.down = false; }, { signal: abort.signal });
+  app.canvas.addEventListener('lostpointercapture', () => { pointer.down = false; }, { signal: abort.signal });
 
   const keysDown = new Set();
+  const releaseHeldInputs = () => {
+    pointer.down = false;
+    keysDown.clear();
+  };
+  addEventListener('blur', releaseHeldInputs, { signal: abort.signal });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) releaseHeldInputs();
+  }, { signal: abort.signal });
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   addEventListener('keydown', (ev) => {
     if (replayTrace || orientationBlocked) return;
@@ -2828,6 +2841,9 @@ async function run(id) {
         simStep: play.simStep, capturePaused,
         replayRunId: replayTrace?.id || null,
         started: play.shellStarted,
+        // Probe-only read-only input cancellation evidence, never exposed in
+        // ordinary gameplay or as a mutable control channel.
+        heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
           id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
