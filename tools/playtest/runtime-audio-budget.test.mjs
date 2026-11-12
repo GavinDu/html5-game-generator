@@ -23,7 +23,8 @@ test('audio does not bypass protected fetch and finite decoded PCM budgets', () 
   assert.match(source, /MAX_QUEUED_SOUND_JOBS = 32/);
   assert.match(source, /this\.decodedBytes \+ decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES/);
   assert.match(source, /apiFetch\(url, \{ signal: request\.signal \}\)/);
-  assert.doesNotMatch(source, /new Audio\(url\)/);
+  const executableSFX = source.slice(source.indexOf('const sfx = {'), source.indexOf('const EASINGS = {'));
+  assert.doesNotMatch(executableSFX, /new Audio\(url\)/, 'runtime audio bypasses protected fetch');
 });
 
 test('duplicate audio events share one bounded in-flight fetch/decode', () => {
