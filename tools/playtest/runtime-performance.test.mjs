@@ -56,3 +56,12 @@ test('discrete lane taps clamp to three x centers and never follow held pointer 
   assert.match(source, /if \(pointer\.down && !laneTap\)/);
   assert.match(source, /playerTarget\.y = playerEnt\.anchorY/);
 });
+
+test('terminal state blocks late rule dispatch, execution, and collision contact', () => {
+  assert.match(source, /function emit\(event, source, target, value, inputAction\) \{\s*\/\/[^]*?if \(state\.ended\) return;/);
+  assert.match(source, /function execute\(actions, sourceEnt, targetEnt\) \{\s*if \(state\.ended\) return;/);
+  assert.match(source, /function handleContact\(a, b, started\) \{\s*if \(state\.ended \|\| !playerEnt\) return;/);
+  // Keep the existing post-action end-state guard: the terminal action
+  // must also stop remaining effects in its own action array.
+  assert.match(source, /if \(state\.ended\) break;\s*\}\s*\}\s*\/\/ Shell result card/);
+});
