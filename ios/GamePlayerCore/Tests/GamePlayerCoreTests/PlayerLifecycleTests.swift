@@ -69,7 +69,8 @@ final class PlayerContractTests: XCTestCase {
           "gameId":"\(gameID)",
           "ir":\(ir),
           "assets":\(assets),
-          "irHash":"\(irHash)"
+          "irHash":"\(boardHash)",
+          "irSha256":"\(fullHash)"
         }
         """.utf8)
     }
@@ -145,7 +146,7 @@ final class PlayerContractTests: XCTestCase {
     }
 
     func testNestedJSONAndEscapedTextAreHashedAsReceived() throws {
-        let nested = #"{"irVersion":"1.0","game":{"title":"hello \\"game\\"","scenes":[{"id":"s","items":[1,2]}]}}"#
+        let nested = #"{"irVersion":"1.0","game":{"title":"hello \"game\"","scenes":[{"id":"s","items":[1,2]}]}}"#
         let result = try PlayerContract().validate(package(ir: nested), expectedGameID: "game-123")
         XCTAssertEqual(result.irHash.count, 12)
     }
