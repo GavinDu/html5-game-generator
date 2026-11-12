@@ -56,3 +56,23 @@ test('discrete lane taps clamp to three x centers and never follow held pointer 
   assert.match(source, /if \(pointer\.down && !laneTap\)/);
   assert.match(source, /playerTarget\.y = playerEnt\.anchorY/);
 });
+
+test('image workers cap bytes while streaming and keep fetch timeout until download finishes', () => {
+  assert.match(source, /const MAX_IMAGE_TRANSFER_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(source, /const reader = response\.body\.getReader\(\)/);
+  assert.match(source, /if \(totalBytes > MAX_IMAGE_TRANSFER_BYTES\)/);
+  assert.match(source, /await reader\.cancel\(\)\.catch/);
+  const fetch = source.indexOf('imageBlob = await readBoundedImageBlob(response)');
+  const timeout = source.indexOf('clearTimeout(requestTimeout)', fetch);
+  assert.ok(fetch > 0 && timeout > fetch, 'download must remain under 15s abort deadline');
+});
+
+test('decoded texture dimensions and aggregate pixel count are bounded before Pixi upload', () => {
+  assert.match(source, /const MAX_IMAGE_DIMENSION = 4096/);
+  assert.match(source, /const MAX_TOTAL_IMAGE_PIXELS = 32 \* 1024 \* 1024/);
+  assert.match(source, /pixels > MAX_IMAGE_PIXELS/);
+  assert.match(source, /decodedImagePixels \+ pixels > MAX_TOTAL_IMAGE_PIXELS/);
+  const bounds = source.indexOf('decodedImagePixels + pixels > MAX_TOTAL_IMAGE_PIXELS');
+  const upload = source.indexOf('const texture = PIXI.Texture.from(img)', bounds);
+  assert.ok(bounds >= 0 && upload > bounds, 'validate before creating GPU texture');
+});
