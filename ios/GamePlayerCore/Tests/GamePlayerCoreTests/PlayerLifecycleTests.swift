@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import GamePlayerCore
 
@@ -53,10 +54,14 @@ final class PlayerContractTests: XCTestCase {
         gameID: String = "game-123",
         irVersion: String = "1.0",
         ir: String = #"{"irVersion":"1.0"}"#,
-        irHash: String = String(repeating: "a", count: 64),
+        irHash: String? = nil,
+        irSha256: String? = nil,
         assets: String = "[]"
     ) -> Data {
-        Data("""
+        let calculatedDigest = SHA256.hash(data: Data(ir.utf8)).map { String(format: "%02x", $0) }.joined()
+        let fullHash = irSha256 ?? calculatedDigest
+        let boardHash = irHash ?? String(fullHash.prefix(12))
+        return Data("""
         {
           "packageFormatVersion":"\(format)",
           "minRuntimeVersion":"\(runtime)",
@@ -74,6 +79,8 @@ final class PlayerContractTests: XCTestCase {
         XCTAssertEqual(result.gameId, "game-123")
         XCTAssertEqual(result.irVersion, "1.0")
         XCTAssertEqual(result.assets.count, 0)
+        XCTAssertEqual(result.irHash.count, 12)
+        XCTAssertEqual(result.irHash, String(result.irSha256.prefix(12)))
     }
 
     func testRejectsUnsupportedPackageFormat() {
@@ -92,6 +99,55 @@ final class PlayerContractTests: XCTestCase {
         XCTAssertThrowsError(try PlayerContract().validate(package(), expectedGameID: "other"))
         XCTAssertThrowsError(try PlayerContract().validate(package(ir: "null"), expectedGameID: "game-123"))
         XCTAssertThrowsError(try PlayerContract().validate(package(irHash: "not-a-hash"), expectedGameID: "game-123"))
+    }
+
+    func testRejectsHashMismatchEvenWhenBothIdentifiersLookValid() {
+        let wrongFullDigest = String(repeating: "b", count: 64)
+        XCTAssertThrowsError(
+            try PlayerContract().validate(
+                package(irSha256: wrongFullDigest), expectedGameID: "game-123"
+            )
+        ) { error in
+            XCTAssertEqual(error as? PlayerFailure, .invalidIRHash)
+        }
+        XCTAssertThrowsError(
+            try PlayerContract().validate(
+                package(irHash: String(repeating: "f", count: 12)), expectedGameID: "game-123"
+            )
+        ) { error in
+            XCTAssertEqual(error as? PlayerFailure, .invalidIRHash)
+        }
+    }
+
+    func testRejectsTamperedIRPayloadWithoutRehashing() {
+        let original = package(ir: #"{"irVersion":"1.0","game":{"title":"A"}}"#)
+        let tampered = String(data: original, encoding: .utf8)!
+            .replacingOccurrences(of: #""title":"A""#, with: #""title":"B""#)
+        XCTAssertThrowsError(
+            try PlayerContract().validate(Data(tampered.utf8), expectedGameID: "game-123")
+        ) { error in
+            XCTAssertEqual(error as? PlayerFailure, .invalidIRHash)
+        }
+    }
+
+    func testRejectsDuplicateTopLevelIRField() {
+        let original = package()
+        let duplicate = String(data: original, encoding: .utf8)!
+            .replacingOccurrences(
+                of: #""ir":{"irVersion":"1.0"}"#,
+                with: #""ir":{"irVersion":"1.0"},"ir":{"irVersion":"1.0"}"#
+            )
+        XCTAssertThrowsError(
+            try PlayerContract().validate(Data(duplicate.utf8), expectedGameID: "game-123")
+        ) { error in
+            XCTAssertEqual(error as? PlayerFailure, .invalidIRHash)
+        }
+    }
+
+    func testNestedJSONAndEscapedTextAreHashedAsReceived() throws {
+        let nested = #"{"irVersion":"1.0","game":{"title":"hello \\"game\\"","scenes":[{"id":"s","items":[1,2]}]}}"#
+        let result = try PlayerContract().validate(package(ir: nested), expectedGameID: "game-123")
+        XCTAssertEqual(result.irHash.count, 12)
     }
 
     func testRejectsUnsupportedIRVersion() {
