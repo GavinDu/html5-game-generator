@@ -32,6 +32,15 @@
 - Compare cold-start and repeat-start metrics before and after this change on Chromium and iOS WKWebView.
 - Confirm a missing or stalled image no longer blocks other image loads and that the game reaches its normal validation verdict.
 
+## P0 asset-safety backstop (Epic #202 / generator #316)
+
+The browser runtime now caps image *transfer* at **8 MiB per asset**, including streamed responses without a trustworthy `Content-Length`, with its 15-second fetch timeout active until the response body is consumed. It also rejects images over **4096 pixels on either side**, **16 megapixels per texture**, or **32 megapixels aggregate** before calling `PIXI.Texture.from`. A rejected required image fails load, rather than silently disappearing or allocating an unbounded GPU texture.
+
+These values are initial **security/resource ceilings**, not evidence-backed iPhone/iPad performance budgets. The browser may already allocate decoded pixels to complete `Image.onload`; true pre-decode protection requires publish-time header/dimension inspection and target-device memory tests. Audio bytes/buffers and other scene resource classes are not covered by these image-only caps. The generator and iOS capability manifest must eventually enforce equivalent budgets before publishing, with explicit user-facing error categories.
+
+Verification: `tools/playtest/runtime-image-budget.test.mjs` checks the guard ordering and a Playwright negative fixture injects an oversized required image in Chromium and WebKit;  Go, Chromium/WebKit, Playability and physical-device checks remain required. Failures must not be treated as successful/partial gameplay.
+
+
 ## Pure deterministic RNG module (Epic #202 / generator #317)
 
 The installed Game IR interpreter imports `/web/runtime-seeded-rng.mjs`, served by
