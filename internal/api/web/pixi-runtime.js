@@ -3136,6 +3136,10 @@ async function run(id) {
         // Probe-only read-only input cancellation evidence, never exposed in
         // ordinary gameplay or as a mutable control channel.
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
+        // Read-only animation clock evidence in test/probe mode. Frames are
+        // advanced exclusively by tickFrame, never by Ticker.shared.
+        animations: [...entities.values()].filter(e => e.view instanceof PIXI.AnimatedSprite)
+          .map(e => ({ id: e.defId, frame: e.view.currentFrame, playing: e.view.playing })),
         decodedSoundIds: [...sfx.buffers.keys()].map(key => key.split('|')[0]).sort(),
         audioDecodeJobs: sfx.inFlight.size,
         audioDiagnosticEvents: sfx.diagnosticEvents.slice(-64),
