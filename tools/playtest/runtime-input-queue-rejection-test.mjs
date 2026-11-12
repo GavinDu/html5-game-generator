@@ -16,8 +16,8 @@ const browser = await (browserName === 'webkit' ? webkit : chromium).launch({ he
 const results = [];
 try {
   for (const device of [
-    { name: 'iphone-landscape', width: 844, height: 390 },
-    { name: 'ipad-landscape', width: 1180, height: 820 },
+    { name: 'iphone-portrait', width: 390, height: 844 },
+    { name: 'ipad-portrait', width: 820, height: 1180 },
   ]) {
     const page = await browser.newPage({
       viewport: { width: device.width, height: device.height }, hasTouch: true,
