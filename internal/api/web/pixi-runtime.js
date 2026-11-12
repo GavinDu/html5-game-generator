@@ -1450,6 +1450,10 @@ async function run(id) {
         frameNames = frameNames.concat(frameNames.slice(1, -1).reverse());
       }
       view = new PIXI.AnimatedSprite(frameNames.map((f) => textures.get(f)));
+      // Do not subscribe to Pixi's shared render ticker: gameplay can be
+      // conditional on animation_complete, so animation frames must advance
+      // on the authoritative 60Hz semantic clock, including capture/replay.
+      view.autoUpdate = false;
       view.width = w; view.height = h;
       view.animationSpeed = (r.animation.fps ?? 8) / 60;
       view.loop = r.animation.loop ?? true;
@@ -1681,6 +1685,8 @@ async function run(id) {
       ent.emitter.x = x; ent.emitter.y = y;
     }
     if (view instanceof PIXI.AnimatedSprite && !(def.render.animation.loop ?? true)) {
+      // Manual AnimatedSprite.update() runs inside tickFrame, and never on
+      // Ticker.shared; this rule is therefore emitted at a stable sim step.
       view.onComplete = () => emit('animation_complete', ent, ent);
     }
     view.eventMode = 'static';
@@ -2953,6 +2959,13 @@ async function run(id) {
 
     for (const ent of entities.values()) {
       if (ent.destroyed) continue;
+      // Rendered frames and animation-complete semantic signals advance
+      // together at the fixed semantic tick, not at display refresh rate.
+      // Pixi computes elapsed frames from ticker.deltaTime; one 60Hz tick
+      // corresponds to deltaTime=1 even on 30/120Hz panels.
+      if (ent.view instanceof PIXI.AnimatedSprite) {
+        ent.view.update({ deltaTime: dtMs / (1000 / 60), deltaMS: dtMs });
+      }
       if (ent.bodyKind === 'dynamic' || ent.bodyKind === 'kinematic_velocity') {
         const t = ent.body.translation();
         ent.x = t.x * PPM; ent.y = t.y * PPM;
