@@ -31,6 +31,11 @@ try {
         assert.equal(upstream.status(), 200);
         const pkg = await upstream.json();
         assert.equal(pkg.gameId, 'escape-from-injection');
+        // This synthetic package actually uses the declared animation
+        // module; fail-closed capability preflight must remain enabled.
+        if (!pkg.ir.capabilities.includes('render.animation')) {
+          pkg.ir.capabilities.push('render.animation');
+        }
         const entity = pkg.ir.scenes[0].entities.find(e => e.id === 'player');
         assert.ok(entity, 'real Escape Game IR must have a player');
         entity.render = {
