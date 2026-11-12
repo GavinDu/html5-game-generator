@@ -370,7 +370,7 @@ var (
 	operators   = enum("eq", "neq", "gt", "gte", "lt", "lte")
 
 	behaviorKinds     = enum("fall", "chase", "patrol", "oscillate", "spin", "pulse", "drift", "orbit", "follow")
-	capabilityKinds   = enum("render.sprite", "render.animation", "render.shape", "render.text", "render.filters", "render.particles", "render.parallax", "physics.bodies", "physics.colliders", "physics.joints", "physics.character_controller", "physics.queries", "fx.tween", "fx.camera", "fx.emitters", "audio", "input.keyboard", "input.pointer", "shell.v1")
+	capabilityKinds   = enum("render.sprite", "render.animation", "render.shape", "render.text", "render.filters", "render.particles", "render.parallax", "physics.bodies", "physics.colliders", "physics.joints", "physics.character_controller", "physics.queries", "fx.tween", "fx.camera", "fx.emitters", "audio", "input.keyboard", "input.pointer", "input.movement_axes.v1", "shell.v1")
 	blendModes        = enum("normal", "add", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "none", "subtract", "erase", "linear-burn", "linear-dodge", "vivid-light", "linear-light", "pin-light", "hard-mix")
 	physicsBodyKinds  = enum("dynamic", "fixed", "kinematic_position", "kinematic_velocity")
 	physicsShapeKinds = enum("cuboid", "ball", "capsule", "convex", "segment")
