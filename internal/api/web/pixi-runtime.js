@@ -2788,8 +2788,18 @@ async function run(id) {
   };
   addEventListener('resize', syncOrientation, { signal: abort.signal });
   syncOrientation();
-  // Even when rotation guidance pauses the ticker, show a real first frame.
+  // Even when rotation guidance pauses the ticker, submit the first scene
+  // frame explicitly. This timestamp means the renderer returned after
+  // submitting the scene; it does NOT prove the GPU/compositor displayed the
+  // image to the user. Do not call it tap-to-interactive or navigation-ready.
   app.renderer.render(app.stage);
+  const firstSceneRenderSubmitMs = Math.max(0, Math.min(3600000,
+    Math.round(performance.now() - started)));
+  recordEvent('first_scene_render_submit', String(firstSceneRenderSubmitMs));
+  sendTelemetryEvent('milestone', { milestone: 'first_scene_render_submit', ms: firstSceneRenderSubmitMs });
+  // Existing constrained native metrics channel; no new bridge or
+  // arbitrary game-to-native invocation capability.
+  sendNativeMetric('first_scene_render_submit', { ms: firstSceneRenderSubmitMs });
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
