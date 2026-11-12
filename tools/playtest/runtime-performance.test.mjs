@@ -56,3 +56,19 @@ test('discrete lane taps clamp to three x centers and never follow held pointer 
   assert.match(source, /if \(pointer\.down && !laneTap\)/);
   assert.match(source, /playerTarget\.y = playerEnt\.anchorY/);
 });
+
+test('all semantic updates run at fixed 60Hz independently of display frames', () => {
+  assert.match(source, /const STEP_MS = 1000 \/ 60/);
+  assert.match(source, /tickFrame\(STEP_MS\)/);
+  assert.match(source, /play\.simStep\+\+/);
+  assert.match(source, /world\.step\(eventQueue\)/);
+});
+
+test('one-shot pickup overlap recovery is game-independent and idempotent', () => {
+  assert.doesNotMatch(source, /progressVariable === 'holes_stitched'/);
+  assert.match(source, /collectible\.def\.properties\?\.closeOnCollect/);
+  assert.match(source, /collectible\.def\.kind === 'pickup'/);
+  assert.match(source, /handleContact\(playerEnt, collectible, true\)/);
+  assert.match(source, /if \(!state\.collectedPairs\.has\(key\)\)/);
+  assert.match(source, /if \(other\.destroyed \|\| other\.closed\) return/);
+});

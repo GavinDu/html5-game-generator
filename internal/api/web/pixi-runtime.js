@@ -2639,14 +2639,28 @@ async function run(id) {
     }
     drainEvents();
     if (state.ended) return;
-    // Authored sky-hole zones can be skipped by a Rapier collision-start
-    // event when a kinematic player teleports between substeps.
-    if (play.shell?.objective?.progressVariable === 'holes_stitched' && playerEnt) {
-      for (const hole of entities.values()) {
-        if (hole.closed || hole.destroyed || !hole.def.properties?.closeOnCollect) continue;
-        if (Math.abs(playerEnt.x - hole.x) <= (playerEnt.w + hole.w) * 0.35 &&
-            Math.abs(playerEnt.y - hole.y) <= (playerEnt.h + hole.h) * 0.35) {
-          handleContact(playerEnt, hole, true);
+    // Rapier's collision-start event can be missed when a kinematic
+    // controller teleports between substeps. Recover contacts for *any*
+    // authored one-shot collectible sensor, regardless of game or objective
+    // name. This is a conservative post-step overlap check, NOT a substitute
+    // for swept collision detection on arbitrarily fast-moving bodies.
+    //
+    // Keep the same authored proximity threshold as previous shipped games;
+    // the collectedPairs/closed gate in handleContact provides idempotency if
+    // Rapier also emits the collision event on this frame.
+    if (playerEnt && !playerEnt.destroyed) {
+      for (const collectible of entities.values()) {
+        if (collectible === playerEnt || collectible.closed || collectible.destroyed ||
+            !collectible.def.properties?.closeOnCollect) continue;
+        const isCollectible = collectible.def.kind === 'pickup' ||
+          (collectible.def.components || []).includes('collectible');
+        if (!isCollectible) continue;
+        const withinX = Math.abs(playerEnt.x - collectible.x) <=
+          (playerEnt.w + collectible.w) * 0.35;
+        const withinY = Math.abs(playerEnt.y - collectible.y) <=
+          (playerEnt.h + collectible.h) * 0.35;
+        if (withinX && withinY) {
+          handleContact(playerEnt, collectible, true);
           if (state.ended) break;
         }
       }
