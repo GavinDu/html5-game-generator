@@ -239,3 +239,54 @@ normalization or real iOS GPU frame presentation deterministic.
 `AnimatedSprite` API compatibility is tied to the trusted vendored Pixi
 build and must be rerun when that dependency is upgraded. No native
 bridge, Game IR version, or user-supplied script capability is introduced.
+
+
+## Versioned declarative movement plane (Epic #202 / generator #318)
+
+Authoring a `tap` control with either horizontal-only or full XY movement
+must **not** be inferred from a game title or objective variable. The trusted
+Game IR v1.2 interpreter now supports a new **opt-in**
+`input.movement_axes.v1` capability and an experience-level field:
+
+```json
+{
+  "irVersion": "1.2",
+  "capabilities": ["shell.v1", "input.movement_axes.v1"],
+  "experience": {
+    "archetype": "catcher",
+    "controls": { "scheme": "tap", "movementAxes": "xy" }
+  }
+}
+```
+
+This snippet shows only the relevant contract fields, not a complete game.
+An explicit value of `x` or `xy` controls the player's movement plane
+regardless of objective name; `drag_x` and `lane_tap` require `x`,
+`drag_free` requires `xy`, and `tap_target` cannot declare player
+movement. Go validates these combinations before publishing. Browser
+preflight rejects unsupported/missing capability or illegal combinations
+**before allocating a scene**. The standalone Swift GamePlayerCore
+capability vocabulary is updated for consistency, although shipping iOS
+uses the WebKit host and not that separate Swift package.
+
+**Immutable published Game IR v1.0–1.2 with no axis capability is not
+reinterpreted.** It retains the original compatibility branch, including
+the historical `holes_stitched` distinction, so existing replay hashes,
+scores and published packages do not silently change. That compatibility
+branch is a documented *migration debt*, not a generic design feature.
+
+The Playwright synthetic fixture injects explicit `xy` on Penguin and
+`x` on Ribbon Sky without changing their objective identifiers, then
+requires the opposite vertical-motion outcome from the legacy defaults.
+Both Chromium and WebKit run the fixture in iPhone/iPad portrait
+viewports and upload screenshots and measured movement, while the
+unmodified inventory replay and Playability checks guard old behavior.
+The Go and Node unit matrices reject missing capabilities, invalid
+axes, incompatible schemes and old-version advertisements.
+
+**Challenger remaining acceptance:** compile new AI-generated packages
+with explicit controls, migrate existing inventory through verified
+replay baselines and new content-addressed versions, replace the legacy
+compatibility branch with an isolated version adapter, and add typed
+press/release/hold/swipe/gamepad commands. This PR alone does **not**
+close generator #318, #315 or Epic #202.
