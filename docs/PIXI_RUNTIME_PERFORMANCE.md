@@ -40,3 +40,37 @@ These values are initial **security/resource ceilings**, not evidence-backed iPh
 
 Verification: `tools/playtest/runtime-image-budget.test.mjs` checks the guard ordering and a Playwright negative fixture injects an oversized required image in Chromium and WebKit;  Go, Chromium/WebKit, Playability and physical-device checks remain required. Failures must not be treated as successful/partial gameplay.
 
+
+## Session-owned sound decode and offline stress (Epic #202 / native #205)
+
+Playability Kit deliberately interrupts connectivity after a burst of
+interactions. In the prior bounded-audio candidate, Penguin's first chime
+request could be aborted inside this offline window, producing
+`net::ERR_ABORTED` and a **blocking** release failure. Do not hide this
+failure by weakening the asset-quality gate.
+
+The runtime now starts an *optional*, nonblocking predecode for at most the
+two most frequently referenced `play_sound` assets after package validation
+and image loading. It does not play them, block rendering or add new
+gameplay actions. The decoder retains an asset+URL scoped cache with up to
+four simultaneous protected same-origin fetches, 8 MiB compressed-byte
+transfer per sound, 24 MiB decoded PCM per buffer, 32 MiB decoded PCM total,
+32 concurrent active sound sources and 32 queued gestures. Every fetch
+has a 15-second transfer deadline. The same WebView cannot carry decoded
+sounds or stale asynchronous callbacks between games: restart and pagehide
+clear the cache, pending jobs, source playback, audio context and fetches.
+
+Read-only probe mode reports which sound IDs are successfully decoded.
+Both Chromium and WebKit iPhone/iPad viewport CI require Penguin `chime`
+to finish decoding **before** a simulated offline interval, stay cached
+during the offline interval, and have no failed chime requests. Screenshots
+and JSON evidence are uploaded. No audio permissions or arbitrary native
+bridge are added. Audio remains an optional presentation effect; a
+transient sound should never change authoritative game outcomes.
+
+**Pending device/architecture requirements:** Page background behavior,
+real iOS WebAudio unlocking, interruption/resume, decode overhead and
+50+ open-close cycles with WebContent memory and thermal baselines.
+Speculative predecode is a network/memory tradeoff, not a blanket startup
+optimization; if it harms physical cold-start cohorts, redesign to a
+user-gesture-triggered bounded decode that still survives offline play.
