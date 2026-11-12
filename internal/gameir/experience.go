@@ -29,8 +29,9 @@ type Experience struct {
 }
 
 type ExpControls struct {
-	Scheme string `json:"scheme"`
-	Hint   string `json:"hint,omitempty"`
+	Scheme       string `json:"scheme"`
+	Hint         string `json:"hint,omitempty"`
+	MovementAxes string `json:"movementAxes,omitempty"` // input.movement_axes.v1: x | xy
 }
 
 type ExpChaserGap struct {
@@ -122,6 +123,13 @@ func validateExperience(d *Document) error {
 		if d.IRVersion == Version12 {
 			return fmt.Errorf("irVersion 1.2 requires an experience block")
 		}
+		// A v1.0/v1.1 document cannot advertise the movement-plane
+		// capability without the experience it would configure.
+		for _, c := range d.Capabilities {
+			if c == "input.movement_axes.v1" {
+				return fmt.Errorf("input.movement_axes.v1 requires Game IR 1.2 and experience")
+			}
+		}
 		return nil
 	}
 	shellCap := false
@@ -141,6 +149,40 @@ func validateExperience(d *Document) error {
 	}
 	if len(exp.Controls.Hint) > 80 {
 		return fmt.Errorf("experience.controls.hint exceeds 80 characters")
+	}
+	// Versioned, declarative movement-axis semantics. Published 1.2 games
+	// without this capability retain their exact legacy movement/replay
+	// behavior; a newer compiler must explicitly declare an axis choice.
+	axesCap := false
+	for _, c := range d.Capabilities {
+		if c == "input.movement_axes.v1" {
+			axesCap = true
+			break
+		}
+	}
+	axes := exp.Controls.MovementAxes
+	if axes != "" && !axesCap {
+		return fmt.Errorf("experience.controls.movementAxes requires input.movement_axes.v1 capability")
+	}
+	if axesCap {
+		if d.IRVersion != Version12 {
+			return fmt.Errorf("input.movement_axes.v1 requires Game IR 1.2")
+		}
+		if axes != "x" && axes != "xy" {
+			return fmt.Errorf("experience.controls.movementAxes must be x or xy")
+		}
+		switch exp.Controls.Scheme {
+		case "lane_tap", "drag_x":
+			if axes != "x" {
+				return fmt.Errorf("experience.controls.movementAxes must be x for %s", exp.Controls.Scheme)
+			}
+		case "drag_free":
+			if axes != "xy" {
+				return fmt.Errorf("experience.controls.movementAxes must be xy for drag_free")
+			}
+		case "tap_target":
+			return fmt.Errorf("tap_target targets entities and cannot declare player movementAxes")
+		}
 	}
 	if gap := exp.ChaserGap; gap != nil {
 		if gap.Start <= 0 || gap.Max <= gap.Start || gap.CaughtAt < 0 || gap.CaughtAt >= gap.Start {

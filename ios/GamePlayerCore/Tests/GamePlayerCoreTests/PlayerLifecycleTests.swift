@@ -175,7 +175,19 @@ final class PlayerContractTests: XCTestCase {
             package(irVersion: "1.2", ir: ir), expectedGameID: "game-123"
         )
         XCTAssertEqual(result.irVersion, "1.2")
-        XCTAssertEqual(PlayerContract.supportedCapabilities.count, 19)
+        XCTAssertEqual(PlayerContract.supportedCapabilities.count, 20)
+        XCTAssertTrue(PlayerContract.supportedCapabilities.contains("input.movement_axes.v1"))
+    }
+
+    func testAcceptsVersionedMovementAxesCapabilityInDeclaredPackage() throws {
+        // Swift core only negotiates pre-shipped capabilities; canonical
+        // movementAxes scheme validation is Go + trusted Pixi preflight.
+        let ir = #"{"irVersion":"1.2","capabilities":["shell.v1","render.sprite","input.movement_axes.v1"],"experience":{"archetype":"catcher","controls":{"scheme":"tap","movementAxes":"xy"}}}"#
+        let result = try PlayerContract().validate(
+            package(irVersion: "1.2", ir: ir), expectedGameID: "game-123"
+        )
+        XCTAssertEqual(result.irVersion, "1.2")
+        XCTAssertTrue(PlayerContract.supportedCapabilities.contains("input.movement_axes.v1"))
     }
 
     func testCapabilityPreflightRejectsUnknownDuplicateOrUnboundedManifest() {

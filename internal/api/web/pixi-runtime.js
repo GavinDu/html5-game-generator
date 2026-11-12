@@ -1089,7 +1089,7 @@ async function run(id) {
     'physics.bodies', 'physics.colliders', 'physics.joints',
     'physics.character_controller', 'physics.queries',
     'fx.tween', 'fx.camera', 'fx.emitters', 'audio',
-    'input.keyboard', 'input.pointer', 'shell.v1',
+    'input.keyboard', 'input.pointer', 'input.movement_axes.v1', 'shell.v1',
   ]);
   const declaredCapabilities = ir.capabilities ?? [];
   if (!Array.isArray(declaredCapabilities) || declaredCapabilities.length > 32) {
@@ -1106,6 +1106,22 @@ async function run(id) {
   }
   if (ir.irVersion === '1.2' && !checkedCapabilities.has('shell.v1')) {
     throw new Error('Game IR 1.2 requires shell.v1 capability');
+  }
+  // Optional input.movement_axes.v1 is strict and versioned. Older
+  // published IR packages omit it and retain their original replay policy.
+  const explicitMovementAxes = ir.experience?.controls?.movementAxes;
+  if (checkedCapabilities.has('input.movement_axes.v1')) {
+    const scheme = ir.experience?.controls?.scheme;
+    if (ir.irVersion !== '1.2' || !['x', 'xy'].includes(explicitMovementAxes)) {
+      throw new Error('input.movement_axes.v1 requires Game IR 1.2 and movementAxes x or xy');
+    }
+    if (((scheme === 'drag_x' || scheme === 'lane_tap') && explicitMovementAxes !== 'x') ||
+        (scheme === 'drag_free' && explicitMovementAxes !== 'xy') ||
+        scheme === 'tap_target') {
+      throw new Error('movementAxes is incompatible with the authored control scheme');
+    }
+  } else if (explicitMovementAxes !== undefined && explicitMovementAxes !== '') {
+    throw new Error('movementAxes requires input.movement_axes.v1 capability');
   }
   if (!ir.game || typeof ir.game !== 'object' || !Array.isArray(ir.scenes) || !Array.isArray(ir.assets)) {
     throw new Error('invalid game package: Game IR is missing game, scenes, or assets');
@@ -2346,9 +2362,14 @@ async function run(id) {
   const laneTap = ir.experience?.controls?.scheme === 'lane_tap';
   const laneCenters = [W * 0.25, W * 0.5, W * 0.75];
   let laneIndex = 1;
-  const dragXOnly = laneTap || ir.experience?.controls?.scheme === 'drag_x' ||
-    (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap' &&
-      ir.experience?.objective?.progressVariable !== 'holes_stitched');
+  // New Game IR explicitly declares its movement plane, independent of
+  // objective identity. The legacy branch is frozen only for *unversioned*
+  // published games: switching it would reinterpret old run hashes.
+  const dragXOnly = explicitMovementAxes
+    ? explicitMovementAxes === 'x'
+    : (laneTap || ir.experience?.controls?.scheme === 'drag_x' ||
+      (ir.experience?.archetype === 'catcher' && ir.experience?.controls?.scheme === 'tap' &&
+        ir.experience?.objective?.progressVariable !== 'holes_stitched'));
   const pointer = { down: false, x: W / 2, y: H / 2 };
   const playerTarget = playerEnt ? { x: playerEnt.x, y: playerEnt.y } : { x: W / 2, y: H / 2 };
   const toLogical = (ev) => {
