@@ -1588,6 +1588,9 @@ async function run(id) {
 
   let prevHealth = state.health;
   function emit(event, source, target, value, inputAction) {
+    // Terminal outcomes are immutable. Late physics contacts in the same
+    // step must never award partial score after the objective has ended.
+    if (state.ended) return;
     if (state.depth > 8) { warnOnce('depth', 'RULE', 'event cascade depth exceeded — dropped'); return; }
     // Event stream for the probe / playtest worker / shell.
     if (event === 'collected') { recordEvent('collect', target?.defId || ''); noteActivity(); }
@@ -1735,6 +1738,7 @@ async function run(id) {
   }
 
   function execute(actions, sourceEnt, targetEnt) {
+    if (state.ended) return;
     for (const action of actions) {
       const ent = findEnt(action.target);
       switch (action.type) {
@@ -2141,7 +2145,7 @@ async function run(id) {
 
   // --- Contacts -------------------------------------------------------
   function handleContact(a, b, started) {
-    if (!playerEnt) return;
+    if (state.ended || !playerEnt) return;
     const other = a === playerEnt ? b : b === playerEnt ? a : null;
     if (!other) return;
     const key = playerEnt.runtimeId + ':' + other.runtimeId;
