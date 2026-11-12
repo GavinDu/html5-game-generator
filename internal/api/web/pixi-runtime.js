@@ -290,43 +290,121 @@ function frameP95Ms(buckets, total, longestMs) {
 // pointer event — which also ends the "audio play blocked" warning
 // every game used to log at boot (music started by a rule at game_start
 // now waits for the unlock and plays then if it was requested).
+// The WebAudio cache belongs to ONE game session, never to a process or
+// reusable WebView. Stable asset IDs (e.g. "chime") can have different bytes
+// across games/versions; a restarted game must not play stale SFX.
+const MAX_AUDIO_TRANSFER_BYTES = 8 * 1024 * 1024;
+const MAX_AUDIO_DECODED_BYTES = 24 * 1024 * 1024;
 const sfx = {
   ctx: null, buffers: new Map(), pendingMusic: [],
+  generation: 0, abort: new AbortController(),
+  activeSources: new Set(), fallbackAudio: new Set(),
   ensureCtx() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (AC) { try { this.ctx = new AC(); } catch { this.ctx = null; } }
     }
-    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    if (!document.hidden && this.ctx?.state === 'suspended') this.ctx.resume().catch(() => {});
     return this.ctx;
+  },
+  reset() {
+    // Invalidate every async fetch/decode callback before stopping audio.
+    this.generation++;
+    this.abort.abort();
+    this.abort = new AbortController();
+    this.pendingMusic.length = 0;
+    for (const source of this.activeSources) {
+      try { source.onended = null; source.stop(); source.disconnect(); } catch { /* already ended */ }
+    }
+    this.activeSources.clear();
+    for (const audio of this.fallbackAudio) {
+      try { audio.pause(); audio.removeAttribute('src'); audio.load(); } catch { /* already detached */ }
+    }
+    this.fallbackAudio.clear();
+    this.buffers.clear();
+    const previous = this.ctx;
+    this.ctx = null;
+    if (previous) previous.close().catch(() => {});
   },
   unlock() {
     if (!this.ensureCtx()) return;
     for (const job of this.pendingMusic.splice(0)) job();
   },
   play(url, assetId) {
+    const generation = this.generation;
+    const key = assetId + '|' + url;
+    const fallback = () => {
+      if (generation !== this.generation) return;
+      const audio = new Audio(url);
+      this.fallbackAudio.add(audio);
+      audio.onended = () => this.fallbackAudio.delete(audio);
+      audio.play().catch(() => this.fallbackAudio.delete(audio));
+    };
     const ctx = this.ensureCtx();
-    if (!ctx) { new Audio(url).play().catch(() => {}); return; }
+    if (!ctx) { fallback(); return; }
     const start = (buffer) => {
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(ctx.destination);
-      src.start();
+      if (generation !== this.generation || ctx !== this.ctx) return;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      this.activeSources.add(source);
+      source.onended = () => this.activeSources.delete(source);
+      source.start();
     };
     const job = () => {
-      if (this.buffers.has(assetId)) { start(this.buffers.get(assetId)); return; }
-      apiFetch(url).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab))
-        .then((buffer) => { this.buffers.set(assetId, buffer); start(buffer); })
-        .catch(() => { new Audio(url).play().catch(() => {}); });
+      if (generation !== this.generation) return;
+      if (this.buffers.has(key)) { start(this.buffers.get(key)); return; }
+      const signal = this.abort.signal;
+      apiFetch(url, { signal }).then(async (response) => {
+        if (!response.ok) throw new Error('audio asset HTTP ' + response.status);
+        const declared = Number(response.headers.get('content-length'));
+        if (declared > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
+        if (!response.body || !response.body.getReader) {
+          const blob = await response.blob();
+          if (blob.size > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
+          return blob.arrayBuffer();
+        }
+        const reader = response.body.getReader();
+        const chunks = [];
+        let total = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            total += value.byteLength;
+            if (total > MAX_AUDIO_TRANSFER_BYTES) {
+              await reader.cancel().catch(() => {});
+              throw new Error('audio transfer budget exceeded');
+            }
+            chunks.push(value);
+          }
+        } finally { reader.releaseLock(); }
+        return new Blob(chunks).arrayBuffer();
+      }).then((data) => {
+        if (signal.aborted || generation !== this.generation) return null;
+        return ctx.decodeAudioData(data);
+      }).then((buffer) => {
+        if (!buffer || signal.aborted || generation !== this.generation) return;
+        const decodedBytes = buffer.length * buffer.numberOfChannels * 4;
+        if (!Number.isSafeInteger(decodedBytes) || decodedBytes > MAX_AUDIO_DECODED_BYTES) {
+          log('SFX', 'Audio decoded buffer exceeds memory budget: ' + assetId);
+          return;
+        }
+        this.buffers.set(key, buffer);
+        start(buffer);
+      }).catch((error) => {
+        // Never bypass byte/memory/auth limits by launching an unbounded
+        // HTMLAudioElement fallback after a failed protected fetch.
+        if (signal.aborted || generation !== this.generation) return;
+        warnOnce('audio-' + assetId, 'SFX', 'Audio unavailable: ' + (error.message || error));
+      });
     };
-    // Autoplay policy: while the context is suspended (no user gesture
-    // yet) a started buffer would never be heard. Queue the play for
-    // the unlock instead of dropping it on the floor.
     if (ctx.state === 'suspended') { this.pendingMusic.push(job); return; }
     job();
   },
 };
-addEventListener('pointerdown', () => sfx.unlock(), { once: false });
+addEventListener('pointerdown', () => sfx.unlock());
+addEventListener('pagehide', () => sfx.reset());
 
 const EASINGS = {
   linear: (t) => t,
@@ -799,6 +877,9 @@ async function run(id) {
   const started = performance.now();
   // Tear down the previous session (in-place restart path).
   if (activeSession) {
+    // A new game/run must not retain sounds, pending decodes or playback
+    // from the previous game even when this same WebView stays alive.
+    sfx.reset();
     try { activeSession.abort.abort(); } catch { /* ignore */ }
     try { activeSession.app.destroy(true, { children: true, texture: false }); } catch { /* ignore */ }
     activeSession = null;
