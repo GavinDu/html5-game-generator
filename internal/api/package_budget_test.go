@@ -64,7 +64,9 @@ func TestPackageAdvertisesByteLengthAndRejectsOversizedStoredImage(t *testing.T)
 			}
 		}
 	}
-	if !found { t.Fatal("test asset missing from package delivery") }
+	if !found {
+		t.Fatal("test asset missing from package delivery")
+	}
 
 	st.PutArtifact(game.ID, uri, make([]byte, maxPackageAssetBytes+1), "image/png")
 	oversized := getAs(t, srv, "/v1/games/budget-fixture-game/package", "")
