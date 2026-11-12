@@ -26,7 +26,7 @@
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
 
 import * as PIXI from 'pixi.js';
-import { createSimulationWorkBudget } from './runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue } from './runtime-work-budget.js';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 
@@ -1692,7 +1692,7 @@ async function run(id) {
       if (controlsScheme && controlsScheme !== 'tap_target') return;
       ev.stopPropagation();
       noteInput('entity-pointer', ent.id);
-      emit('input', ent, ent, undefined, tapActionName());
+      queueGameInput(ent, ent, tapActionName());
     });
     register(ent);
     return ent;
@@ -1778,12 +1778,29 @@ async function run(id) {
   // Stable per-virtual-tick CPU ceiling: independent of frame pacing/quality.
   // Exceeding a budget is a terminal runtime error, never a dropped rule.
   const workBudget = createSimulationWorkBudget();
+  const semanticInputQueue = createSemanticInputQueue();
   const state = {
     score: 0, health: 3, ended: false, won: false, failed: false,
     variables: play.shell?.chaserGap ? { chaser_gap: Number(play.shell.chaserGap.start) } : {}, elapsed: 0, depth: 0,
     collectedPairs: new Set(), insideRegions: new Set(),
     firedThresholds: new Set(), timers: new Map(), shake: 0, follow: null,
   };
+
+  // UI gesture callbacks only enqueue intent. Semantic rule execution occurs
+  // on a single deterministic fixed tick, under its shared work budget.
+  function queueGameInput(source, target, action) {
+    if (state.ended || state.failed) return;
+    try {
+      semanticInputQueue.enqueue({ source, target, action });
+    } catch (error) {
+      // A malicious input flood must fail closed without an uncaught DOM
+      // event-handler exception or an unbounded backlog across tab pauses.
+      state.failed = true;
+      recordError('input_queue', error);
+      $('status').textContent = 'Game cannot continue safely. Return to the feed or retry.';
+      try { app.ticker.stop(); } catch { /* ticker already stopped */ }
+    }
+  }
 
   const matchesRef = (ref, ent) => ref === undefined || ref === '' || ref === ent.defId || ref === ent.def.kind || ref === ent.runtimeId;
 
@@ -2358,7 +2375,7 @@ async function run(id) {
       if (!dragXOnly) playerTarget.y = p.y;
     }
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
-    emit('input', playerEnt, undefined, undefined, tapActionName());
+    queueGameInput(playerEnt, undefined, tapActionName());
   }, { signal: abort.signal });
   app.canvas.addEventListener('pointermove', (ev) => {
     if (!pointer.down) return;
@@ -2370,13 +2387,14 @@ async function run(id) {
   // Mobile OS gesture arbitration, WebView backgrounding and keyboard focus
   // changes can cancel the physical contact without emitting pointerup.
   // Never carry a synthetic held control into the next simulation step.
-  addEventListener('pointercancel', () => { pointer.down = false; }, { signal: abort.signal });
+  addEventListener('pointercancel', () => { pointer.down = false; semanticInputQueue.clear(); }, { signal: abort.signal });
   app.canvas.addEventListener('lostpointercapture', () => { pointer.down = false; }, { signal: abort.signal });
 
   const keysDown = new Set();
   const releaseHeldInputs = () => {
     pointer.down = false;
     keysDown.clear();
+    semanticInputQueue.clear();
   };
   addEventListener('blur', releaseHeldInputs, { signal: abort.signal });
   document.addEventListener('visibilitychange', () => {
@@ -2395,7 +2413,7 @@ async function run(id) {
     }
     keysDown.add(b.action);
     noteInput('key', ev.key);
-    emit('input', playerEnt, undefined, undefined, b.action);
+    queueGameInput(playerEnt, undefined, b.action);
   }, { signal: abort.signal });
   addEventListener('keyup', (ev) => {
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
@@ -2627,7 +2645,7 @@ async function run(id) {
         const [x, y] = String(inp.detail || '').split(',').map(Number);
         if (Number.isFinite(x) && Number.isFinite(y)) {
           pointer.down = true; pointer.x = x; pointer.y = y;
-          emit('input', playerEnt, undefined, undefined, tapActionName());
+          queueGameInput(playerEnt, undefined, tapActionName());
         }
       } else if (inp.type === 'pointerup') {
         pointer.down = false;
@@ -2782,6 +2800,10 @@ async function run(id) {
   function tickFrame(dtMs) {
     if (state.ended || state.failed) return;
     workBudget.reset();
+    semanticInputQueue.drain(({ source, target, action }) => {
+      emit('input', source, target, undefined, action);
+    });
+    if (state.ended || state.failed) return;
     emittedTimerIntervals.clear();
     const dt = Math.min(dtMs / 1000, 0.05);
     state.elapsed += dt;
@@ -3116,7 +3138,7 @@ async function run(id) {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
         objectiveProgress: objectiveProgress(), variables: { ...state.variables },
-        ended: state.ended, won: state.won, frames: totalFrames,
+        ended: state.ended, won: state.won, failed: state.failed, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         replayRunId: replayTrace?.id || null,
         started: play.shellStarted,
