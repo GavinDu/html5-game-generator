@@ -2818,6 +2818,11 @@ async function run(id) {
   // presentation or first accepted input, and navigation finish alone is
   // not a gameplay-readiness signal.
   app.renderer.render(app.stage);
+  // The Pixi renderer wrapper logs/traps a failed render and stops the
+  // ticker. It must not also report a successful frame/interactive state.
+  if (renderErrLogged) {
+    throw new Error('initial scene render failed; gameplay is not ready');
+  }
   const firstSceneRenderSubmitMs = Math.max(0, Math.min(3600000,
     Math.round(performance.now() - started)));
   recordEvent('first_scene_render_submit', String(firstSceneRenderSubmitMs));
