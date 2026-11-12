@@ -188,6 +188,15 @@ jobs:
           name: input-cancellation-${{ matrix.browser }}
           path: /tmp/input-cancellation-${{ matrix.browser }}/
           if-no-files-found: ignore
+      - name: Verify low/high visual quality produce identical fixed-tick gameplay on iPhone/iPad
+        run: node tools/playtest/runtime-quality-semantics-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-quality-semantics-${{ matrix.browser }}
+      - name: Upload quality-invariant semantic state and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-quality-semantics-${{ matrix.browser }}
+          path: /tmp/runtime-quality-semantics-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Verify Escape's unmodified natural caught ending and 20-minute ceiling
         run: node tools/playtest/escape-natural-ending-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-natural-end-${{ matrix.browser }}
       - name: Upload Escape natural terminal gameplay screenshots
