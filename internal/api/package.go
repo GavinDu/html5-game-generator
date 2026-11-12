@@ -61,7 +61,6 @@ type GamePackageAsset struct {
 	ByteLength int    `json:"byteLength"`
 	Source     string `json:"source,omitempty"`
 	AltText    string `json:"altText,omitempty"`
-
 }
 
 // GamePackage is the canonical, engine-independent delivery envelope.
