@@ -1450,6 +1450,8 @@ async function run(id) {
         frameNames = frameNames.concat(frameNames.slice(1, -1).reverse());
       }
       view = new PIXI.AnimatedSprite(frameNames.map((f) => textures.get(f)));
+      // Game-rule-bearing one-shot animations cannot advance on the render clock.
+      view.autoUpdate = false;
       view.width = w; view.height = h;
       view.animationSpeed = (r.animation.fps ?? 8) / 60;
       view.loop = r.animation.loop ?? true;
@@ -1681,6 +1683,7 @@ async function run(id) {
       ent.emitter.x = x; ent.emitter.y = y;
     }
     if (view instanceof PIXI.AnimatedSprite && !(def.render.animation.loop ?? true)) {
+      // onComplete now runs inside the fixed-tick simulation budget.
       view.onComplete = () => emit('animation_complete', ent, ent);
     }
     view.eventMode = 'static';
@@ -2976,6 +2979,10 @@ async function run(id) {
 
     for (const ent of entities.values()) {
       if (ent.destroyed) continue;
+      // Simulation clock owns game-rule animation frames, independent of 30/60/120Hz display.
+      if (ent.view instanceof PIXI.AnimatedSprite) {
+        ent.view.update({ deltaTime: dtMs / (1000 / 60), deltaMS: dtMs });
+      }
       if (ent.bodyKind === 'dynamic' || ent.bodyKind === 'kinematic_velocity') {
         const t = ent.body.translation();
         ent.x = t.x * PPM; ent.y = t.y * PPM;
@@ -3146,6 +3153,9 @@ async function run(id) {
         // Probe-only read-only input cancellation evidence, never exposed in
         // ordinary gameplay or as a mutable control channel.
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
+        // Probe-only immutable animation snapshot; never a control channel.
+        animations: [...entities.values()].filter(e => e.view instanceof PIXI.AnimatedSprite)
+          .map(e => ({ id: e.defId, frame: e.view.currentFrame, playing: e.view.playing })),
         decodedSoundIds: [...sfx.buffers.keys()].map(key => key.split('|')[0]).sort(),
         audioDecodeJobs: sfx.inFlight.size,
         audioDiagnosticEvents: sfx.diagnosticEvents.slice(-64),

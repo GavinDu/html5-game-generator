@@ -207,3 +207,35 @@ blocking**. Unit tests explicitly cover those exclusions. This is
 request-provenance evidence, not a generic `ERR_ABORTED` waiver and
 not permission to skip audio validation. Physical iOS WebAudio and
 offline/foreground quality gates remain separate.
+
+
+## Fixed-tick animation completion signals (Epic #202 / #315 / #317)
+
+Pixi AnimatedSprite instances previously subscribed to Ticker.shared:
+their visual frames and `animation_complete` rule signals could advance
+while a deterministic capture's semantic simulation was frozen or at a
+different time on a 30/60/120 Hz renderer. A virtual clock alone does not
+make such off-tick callbacks deterministic.
+
+The trusted interpreter now sets `AnimatedSprite.autoUpdate=false` before
+calling `play()`. The only advancement is `AnimatedSprite.update`
+**inside `tickFrame(dtMs)`**, with exactly one Pixi logical frame of
+`deltaTime=1` per 1/60 s simulation tick. A one-shot's completion
+callback runs under the same fixed-tick rule/action budget; visual refresh
+cannot generate an extra rule or outcome. This also freezes animation
+during shell start, capture pause, hidden-page pause, and app interruption.
+
+A synthetic Playwright fixture (separate from the immutable shipped games)
+adds a two-frame, six-FPS one-shot to Escape's player and observes the
+read-only animation frame and `animation_complete` rule marker at fixed
+steps 0, 10, 19, 22 and 40. Chromium/WebKit test both iPhone/iPad
+**portrait browser viewports**, a real 450ms semantic pause, nonwinning
+behavior and per-case screenshots. Existing all-inventory seeded replay,
+quality invariance, natural playability and Go tests remain required.
+
+This addresses a specific renderer-driven semantic signal; it does not
+make collision ordering, renderer-owned particle effects, pointer
+normalization or real iOS GPU frame presentation deterministic.
+`AnimatedSprite` API compatibility is tied to the trusted vendored Pixi
+build and must be rerun when that dependency is upgraded. No native
+bridge, Game IR version, or user-supplied script capability is introduced.
