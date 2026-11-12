@@ -25,3 +25,31 @@ export function createSimulationWorkBudget(limits = SIMULATION_WORK_LIMITS) {
     snapshot() { return Object.freeze({ checks, actions }); },
   });
 }
+
+
+// Browser pointer/key events can arrive between render frames. Preserve their
+// arrival order while executing game-affecting rules only on the next fixed
+// simulation step, under the same CPU budget as physics/timers. Overrun is an
+// explicit error (never a silent dropped input or a fabricated winning run).
+export const MAX_QUEUED_SEMANTIC_INPUTS = 128;
+export function createSemanticInputQueue(capacity = MAX_QUEUED_SEMANTIC_INPUTS) {
+  if (!Number.isSafeInteger(capacity) || capacity < 1) {
+    throw new RangeError('semantic input queue capacity must be a positive safe integer');
+  }
+  const events = [];
+  return Object.freeze({
+    enqueue(event) {
+      if (events.length >= capacity) throw new Error('semantic input queue budget exceeded');
+      events.push(event);
+    },
+    drain(consumer) {
+      // Snapshot and clear first. Any reentrant input is reserved for the next
+      // tick, not inserted into a currently executing cascade.
+      const ordered = events.splice(0);
+      for (const event of ordered) consumer(event);
+      return ordered.length;
+    },
+    clear() { events.length = 0; },
+    get size() { return events.length; },
+  });
+}
