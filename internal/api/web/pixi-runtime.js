@@ -1689,7 +1689,8 @@ async function run(id) {
       // Tap/drag shell controls are handled by the canvas-level pointer
       // listener so tapping a sprite still moves the catcher. Keep the
       // entity-target path for tap_target and legacy documents.
-      if (controlsScheme && controlsScheme !== 'tap_target') return;
+      if ((controlsScheme && controlsScheme !== 'tap_target') ||
+          replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
       ev.stopPropagation();
       noteInput('entity-pointer', ent.id);
       queueGameInput(ent, ent, tapActionName());
@@ -2355,7 +2356,7 @@ async function run(id) {
     };
   };
   app.canvas.addEventListener('pointerdown', (ev) => {
-    if (replayTrace || orientationBlocked) return; // replay and rotation guidance cannot consume live input
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return; // no off-tick input before active play
     pointer.down = true;
     const p = toLogical(ev);
     pointer.x = p.x;
@@ -2402,7 +2403,7 @@ async function run(id) {
   }, { signal: abort.signal });
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   addEventListener('keydown', (ev) => {
-    if (replayTrace || orientationBlocked) return;
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (!b) return;
     if (laneTap && playerEnt && !keysDown.has(b.action) &&
