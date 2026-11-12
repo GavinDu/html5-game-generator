@@ -27,6 +27,7 @@
 
 import * as PIXI from 'pixi.js';
 import RAPIER from '@dimforge/rapier2d-compat';
+import { createSeededRandom } from './runtime-seeded-rng.mjs';
 
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
@@ -181,15 +182,9 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // on seed + input trace -> identical outcome. The seed comes from
 // ?seed= when present (tests, replays), else a per-session random seed
 // that is reported in telemetry and the probe verdict.
-let rngState = 0;
-function srand(seed) { rngState = seed >>> 0 || 1; }
-function rng() {
-  rngState = (rngState + 0x6D2B79F5) >>> 0;
-  let t = rngState;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-}
+const sessionRandom = createSeededRandom(1);
+function srand(seed) { sessionRandom.reseed(seed); }
+function rng() { return sessionRandom.next(); }
 const rand = (a, b) => a + rng() * (b - a);
 
 // --- Session event stream + telemetry v2 (Phase A) --------------------
@@ -917,7 +912,6 @@ async function run(id) {
   const started = performance.now();
   // Tear down the previous session (in-place restart path).
   if (activeSession) {
-    // Tear down game-scoped decoded buffers before any next-game work.
     sfx.reset();
     try { activeSession.abort.abort(); } catch { /* ignore */ }
     try { activeSession.app.destroy(true, { children: true, texture: false }); } catch { /* ignore */ }
@@ -1386,6 +1380,7 @@ async function run(id) {
   for (const assetId of preloadSoundIDs) {
     sfx.play(audio.get(assetId), assetId, true);
   }
+
 
   if (scene.backgroundAssetId && textures.has(scene.backgroundAssetId)) {
     const bg = new PIXI.Sprite(textures.get(scene.backgroundAssetId));
@@ -3072,8 +3067,6 @@ async function run(id) {
         // Probe-only read-only input cancellation evidence, never exposed in
         // ordinary gameplay or as a mutable control channel.
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
-        // Read-only proof of required audio decoding for offline/lifecycle
-        // browser tests. No game or native control channel is exposed.
         decodedSoundIds: [...sfx.buffers.keys()].map(key => key.split('|')[0]).sort(),
         audioDecodeJobs: sfx.inFlight.size,
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,

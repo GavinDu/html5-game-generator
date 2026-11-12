@@ -41,6 +41,31 @@ These values are initial **security/resource ceilings**, not evidence-backed iPh
 Verification: `tools/playtest/runtime-image-budget.test.mjs` checks the guard ordering and a Playwright negative fixture injects an oversized required image in Chromium and WebKit;  Go, Chromium/WebKit, Playability and physical-device checks remain required. Failures must not be treated as successful/partial gameplay.
 
 
+## Pure deterministic RNG module (Epic #202 / generator #317)
+
+The installed Game IR interpreter imports `/web/runtime-seeded-rng.mjs`, served by
+the trusted Go runtime with a strict JavaScript MIME type and `nosniff`.
+This isolated stateful Mulberry32 primitive has the **same exact bit/float
+sequence** as the former inline generator, including the original zero-seed
+normalization and 32-bit wrap. Existing gameplay seeding and legacy run
+replays are not reinterpreted just because code moved into a new module.
+
+The new `runtime-seeded-rng.test.mjs` checks 1,000 reference draws for each
+of seven boundary seeds and verifies isolated instances/reseed behavior.
+The ordinary Go/Node/Chromium/WebKit Playability and cross-browser replay
+checks remain mandatory for launch behavior. Adding one trusted module
+request may impact cold-start latency; compare device timings before
+adopting a broader micro-module strategy.
+
+**Not yet resolved:** visual particles/shake and semantic gameplay still
+consume a shared stream inside the interpreter. Their coupling is
+undesirable, but splitting streams *changes existing seeded outcomes* and
+must be introduced behind a new versioned replay/capability contract with
+fixture migration rather than silently reinterpreting prior leaderboard
+runs. Physics/event state, Pixi rendering and WebAudio remain in the main
+interpreter. This is a compatibility-safe **first extraction**, not completion
+of #317 or full #315 determinism.
+
 ## Session-owned sound decode and offline stress (Epic #202 / native #205)
 
 Playability Kit deliberately interrupts connectivity after a burst of
@@ -74,3 +99,5 @@ real iOS WebAudio unlocking, interruption/resume, decode overhead and
 Speculative predecode is a network/memory tradeoff, not a blanket startup
 optimization; if it harms physical cold-start cohorts, redesign to a
 user-gesture-triggered bounded decode that still survives offline play.
+
+Audio URLs are additionally required to be same-origin before any authenticated fetch. The negative browser fixture mutates the Penguin sound URL to an external host and proves no request escapes.
