@@ -2834,6 +2834,9 @@ async function run(id) {
         simStep: play.simStep, capturePaused,
         replayRunId: replayTrace?.id || null,
         started: play.shellStarted,
+        // Probe-only read-only input cancellation evidence, never exposed in
+        // ordinary gameplay or as a mutable control channel.
+        heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
           id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
