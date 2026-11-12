@@ -32,6 +32,9 @@ var playerHTML string
 //go:embed web/pixi-runtime.js
 var pixiRuntimeJS string
 
+//go:embed web/runtime-seeded-rng.mjs
+var runtimeSeededRNGJS string
+
 // Vendored engine builds (auto detect-and-fix flow, phase 0): the player
 // loads PixiJS and Rapier from this backend, never from a CDN re-bundle —
 // jsDelivr's +esm build of pixi.js drops side-effect init registrations
@@ -145,6 +148,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /", s.handleRoot)
 	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
+	mux.HandleFunc("GET /web/runtime-seeded-rng.mjs", s.handleRuntimeSeededRNG)
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
 	mux.HandleFunc("POST /v1/auth/apple", s.handleAppleSignIn)
@@ -352,6 +356,15 @@ func (s *Server) handlePixiRuntime(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(pixiRuntimeJS))
+}
+
+// GET /web/runtime-seeded-rng.mjs — trusted, deterministic runtime primitive.
+// This is never loaded from an AI-generated Game IR package.
+func (s *Server) handleRuntimeSeededRNG(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeSeededRNGJS))
 }
 
 // GET /web/vendor/pixi.min.mjs — vendored PixiJS 8.22.0 official dist build.
