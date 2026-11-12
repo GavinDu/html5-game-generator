@@ -64,5 +64,8 @@ test('first scene render telemetry follows actual explicit render submission', (
   assert.ok(renderIndex >= 0 && index > renderIndex, 'timestamp must be after rendering');
   assert.match(source, /sendTelemetryEvent\('milestone', \{ milestone: 'first_scene_render_submit'/);
   assert.match(source, /sendNativeMetric\('first_scene_render_submit', \{ ms: firstSceneRenderSubmitMs \}\)/);
-  assert.doesNotMatch(source.slice(index, index + 450), /player_ready/);
+  const readyIndex = source.indexOf("sendSocialDiagnostic('player_ready', 'ready'");
+  assert.ok(readyIndex > index, 'player_ready must follow the first scene render');
+  assert.equal(source.indexOf("sendSocialDiagnostic('player_ready', 'ready'", readyIndex + 1), -1,
+    'only one runtime player_ready should be emitted');
 });
