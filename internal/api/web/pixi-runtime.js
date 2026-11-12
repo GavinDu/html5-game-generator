@@ -2714,12 +2714,6 @@ async function run(id) {
     bootMs: play.bootMs,
     renderer: 'webgl', irVersion: ir.irVersion,
   });
-  // Time to interactive is known at boot; report it now so sessions that
-  // never reach a run end still contribute it (Hephaestus #61).
-  sendSocialDiagnostic('player_ready', 'ready', {
-    time_to_interactive_ms: Math.min(play.bootMs, 3600000),
-  });
-
   // --- Shell start gate (IR 1.2) ---------------------------------------
   // Shell games wait at a start card: the world is built but the ticker
   // is stopped and game_start hasn't fired, so nothing moves, no music
@@ -2800,6 +2794,13 @@ async function run(id) {
   // Existing constrained native metrics channel; no new bridge or
   // arbitrary game-to-native invocation capability.
   sendNativeMetric('first_scene_render_submit', { ms: firstSceneRenderSubmitMs });
+  // Only the runtime owns player_ready. Navigation completion (native
+  // didFinish) and semantic initialization before rendering do not prove
+  // readiness; a rendered start card is the earliest honest start gate.
+  // First *accepted gameplay input* remains a separate metric.
+  sendSocialDiagnostic('player_ready', 'ready', {
+    time_to_interactive_ms: firstSceneRenderSubmitMs,
+  });
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
