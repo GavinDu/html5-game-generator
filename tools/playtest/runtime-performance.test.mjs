@@ -72,3 +72,31 @@ test('one-shot pickup overlap recovery is game-independent and idempotent', () =
   assert.match(source, /if \(!state\.collectedPairs\.has\(key\)\)/);
   assert.match(source, /if \(other\.destroyed \|\| other\.closed\) return/);
 });
+
+test('WebAudio is isolated per game and canceled before runtime restart', () => {
+  assert.match(source, /function run\(id\)/);
+  assert.match(source, /if \(activeSession\) \{[^]*?sfx\.reset\(\);/);
+  assert.match(source, /addEventListener\('pagehide', \(\) => sfx\.reset\(\)\)/);
+  assert.match(source, /this\.generation\+\+/);
+  assert.match(source, /this\.abort\.abort\(\)/);
+  assert.match(source, /this\.buffers\.clear\(\)/);
+  assert.match(source, /previous\.close\(\)\.catch/);
+  assert.match(source, /generation !== this\.generation/);
+});
+
+test('WebAudio fetch, active sources and decoded buffers have finite budgets', () => {
+  assert.match(source, /MAX_AUDIO_TRANSFER_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(source, /MAX_TOTAL_AUDIO_DECODED_BYTES = 32 \* 1024 \* 1024/);
+  assert.match(source, /MAX_ACTIVE_SOUND_SOURCES = 32/);
+  assert.match(source, /MAX_QUEUED_SOUND_JOBS = 32/);
+  assert.match(source, /total > MAX_AUDIO_TRANSFER_BYTES/);
+  assert.match(source, /this\.decodedBytes \+ decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES/);
+  assert.match(source, /apiFetch\(url, \{ signal \}\)/);
+  assert.match(source, /if \(signal\.aborted \|\| generation !== this\.generation\) return;/);
+});
+
+test('audio uses an asset and URL scoped key, not a cross-game assetId only', () => {
+  assert.match(source, /const key = assetId \+ '\\|' \+ url/);
+  assert.match(source, /this\.buffers\.set\(key, buffer\)/);
+  assert.doesNotMatch(source, /this\.buffers\.set\(assetId, buffer\)/);
+});
