@@ -52,14 +52,15 @@ const PackageVersion = PackageFormatVersion // deprecated name for source compat
 const MinRuntimeVersion = "2026.10.23.2"
 
 type GamePackageAsset struct {
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`
-	URI      string `json:"uri"`
-	URL      string `json:"url"`
-	MIMEType string `json:"mimeType,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
-	Source   string `json:"source,omitempty"`
-	AltText  string `json:"altText,omitempty"`
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	URI        string `json:"uri"`
+	URL        string `json:"url"`
+	MIMEType   string `json:"mimeType,omitempty"`
+	SHA256     string `json:"sha256,omitempty"`
+	ByteLength int    `json:"byteLength"`
+	Source     string `json:"source,omitempty"`
+	AltText    string `json:"altText,omitempty"`
 }
 
 // GamePackage is the canonical, engine-independent delivery envelope.
@@ -178,6 +179,17 @@ func packageAssetSHA256(declared string, data []byte) (string, error) {
 	return actual, nil
 }
 
+// Runtime transfer ceilings. Deliberately independent of user-provided MIME
+// or Content-Length; use stored byte lengths before a deliverable package is
+// advertised. These are safety upper bounds, not measured mobile targets.
+const maxPackageAssetBytes = 8 << 20
+const maxPackageAggregateBytes = 40 << 20
+
+func packageAssetBudgetAllows(size int, total int64) bool {
+	return size >= 0 && size <= maxPackageAssetBytes &&
+		total >= 0 && total <= maxPackageAggregateBytes-int64(size)
+}
+
 func strongETag(data []byte) string {
 	sum := sha256.Sum256(data)
 	return "\"" + hex.EncodeToString(sum[:]) + "\""
@@ -211,6 +223,7 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		IRHash:               irHashOf(game.GameIR),
 		IRSHA256:             irSHA256Of(game.GameIR),
 	}
+	var deliveredAssetBytes int64
 	for _, asset := range game.GameIR.Assets {
 		data, _, found := s.store.GetArtifact(game.ID, asset.URI)
 		if !found {
@@ -218,6 +231,12 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusUnprocessableEntity, "published package asset is missing")
 			return
 		}
+		if !packageAssetBudgetAllows(len(data), deliveredAssetBytes) {
+			w.Header().Set("Cache-Control", "private, no-store")
+			writeErr(w, http.StatusUnprocessableEntity, "published package exceeds runtime asset byte budget")
+			return
+		}
+		deliveredAssetBytes += int64(len(data))
 		assetHash, hashErr := packageAssetSHA256(asset.SHA256, data)
 		if hashErr != nil {
 			w.Header().Set("Cache-Control", "private, no-store")
@@ -227,7 +246,7 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		pkg.Assets = append(pkg.Assets, GamePackageAsset{
 			ID: asset.ID, Kind: asset.Kind, URI: asset.URI,
 			URL:      "/v1/games/" + game.ID + "/assets/" + url.PathEscape(asset.ID),
-			MIMEType: asset.MIMEType, SHA256: assetHash,
+			MIMEType: asset.MIMEType, SHA256: assetHash, ByteLength: len(data),
 			Source: asset.Source, AltText: asset.AltText,
 		})
 	}
@@ -267,6 +286,11 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			w.Header().Set("Cache-Control", "private, no-store")
 			writeErr(w, http.StatusNotFound, "asset content not found")
+			return
+		}
+		if !packageAssetBudgetAllows(len(data), 0) {
+			w.Header().Set("Cache-Control", "private, no-store")
+			writeErr(w, http.StatusUnprocessableEntity, "asset exceeds runtime transfer byte budget")
 			return
 		}
 		if asset.SHA256 != "" {
