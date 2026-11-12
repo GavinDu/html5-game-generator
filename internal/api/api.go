@@ -347,6 +347,13 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 
 // GET / — send browsers straight to the player.
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	// Never redirect unknown executable-module URLs into player HTML.
+	// Missing /web/* assets must be explicit 404s; the browser cannot
+	// mistake a redirected document for an allowed trusted module.
+	if strings.HasPrefix(r.URL.Path, "/web/") {
+		http.NotFound(w, r)
+		return
+	}
 	http.Redirect(w, r, "/player", http.StatusFound)
 }
 
