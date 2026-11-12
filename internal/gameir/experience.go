@@ -123,6 +123,13 @@ func validateExperience(d *Document) error {
 		if d.IRVersion == Version12 {
 			return fmt.Errorf("irVersion 1.2 requires an experience block")
 		}
+		// A v1.0/v1.1 document cannot advertise the movement-plane
+		// capability without the experience it would configure.
+		for _, c := range d.Capabilities {
+			if c == "input.movement_axes.v1" {
+				return fmt.Errorf("input.movement_axes.v1 requires Game IR 1.2 and experience")
+			}
+		}
 		return nil
 	}
 	shellCap := false
