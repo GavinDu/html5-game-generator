@@ -179,6 +179,15 @@ jobs:
         with:
           name: escape-seeded-replay-${{ matrix.browser }}
           path: /tmp/escape-seeded-replay-${{ matrix.browser }}/
+      - name: Record fixed-step semantic state for every shipped Game IR on phone/tablet
+        run: node tools/playtest/inventory-semantic-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/inventory-semantic-replay-${{ matrix.browser }}
+      - name: Upload all-inventory seeded gameplay state and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-semantic-replay-${{ matrix.browser }}
+          path: /tmp/inventory-semantic-replay-${{ matrix.browser }}/
+          if-no-files-found: error
       - name: Verify OS touch cancellation and keyboard focus loss on phone/tablet
         run: node tools/playtest/input-cancellation-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/input-cancellation-${{ matrix.browser }}
       - name: Upload interruption-control screenshots and state evidence
@@ -359,6 +368,31 @@ jobs:
             /tmp/escape-cross-browser/webkit/report.json \
             > /tmp/escape-cross-browser/comparison.json
           cat /tmp/escape-cross-browser/comparison.json
+      - name: Download Chromium all-inventory semantic replay evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: inventory-semantic-replay-chromium
+          path: /tmp/inventory-cross-browser/chromium
+      - name: Download WebKit all-inventory semantic replay evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: inventory-semantic-replay-webkit
+          path: /tmp/inventory-cross-browser/webkit
+      - name: Prove every shipped game/profile has identical cross-engine semantic state
+        run: |
+          node --test tools/playtest/compare-inventory-replay.test.mjs
+          node tools/playtest/compare-inventory-replay.mjs \
+            /tmp/inventory-cross-browser/chromium/report.json \
+            /tmp/inventory-cross-browser/webkit/report.json \
+            > /tmp/inventory-cross-browser/comparison.json
+          cat /tmp/inventory-cross-browser/comparison.json
+      - name: Upload all-inventory cross-browser semantic comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-cross-browser-semantic-state
+          path: /tmp/inventory-cross-browser/comparison.json
+          if-no-files-found: ignore
       - name: Upload cross-browser deterministic-state comparison
         if: always()
         uses: actions/upload-artifact@v4
