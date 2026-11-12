@@ -73,6 +73,19 @@ test('one-shot pickup overlap recovery is game-independent and idempotent', () =
   assert.match(source, /if \(other\.destroyed \|\| other\.closed\) return/);
 });
 
+test('render submission is reported before the unique runtime player_ready event', () => {
+  const index = source.indexOf('const firstSceneRenderSubmitMs =');
+  assert.ok(index > 0, 'missing first render timestamp');
+  const rendered = source.lastIndexOf('app.renderer.render(app.stage);', index);
+  assert.ok(rendered >= 0 && rendered < index, 'timestamp cannot precede renderer submission');
+  assert.match(source, /sendTelemetryEvent\('milestone', \{ milestone: 'first_scene_render_submit'/);
+  assert.match(source, /sendNativeMetric\('first_scene_render_submit', \{ ms: firstSceneRenderSubmitMs \}\)/);
+  const firstReady = source.indexOf("sendSocialDiagnostic('player_ready', 'ready'");
+  assert.ok(firstReady > index, 'readiness may not precede first render');
+  assert.equal(source.indexOf("sendSocialDiagnostic('player_ready', 'ready'", firstReady + 1), -1,
+    'duplicate runtime readiness report');
+});
+
 test('terminal state blocks late rule dispatch, execution and collision contacts', () => {
   assert.match(source, /function emit\(event, source, target, value, inputAction\) \{[^]*?if \(state\.ended\) return;/);
   assert.match(source, /function execute\(actions, sourceEnt, targetEnt\) \{\s*if \(state\.ended\) return;/);
