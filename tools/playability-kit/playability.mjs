@@ -115,7 +115,7 @@ async function runGame(browser, id) {
     const f = /rule '([^']+)' fired/.exec(t); if (f) fired.add(f[1]);
     const tx = /textures loaded: (\d+)\/(\d+)/.exec(t); if (tx) texturesLine = [Number(tx[1]), Number(tx[2])];
   });
-  page.on('requestfailed', (r) => { if (!/favicon/.test(r.url())) failedReqs.push(r.url()); });
+  page.on('requestfailed', (r) => { if (!/favicon/.test(r.url())) failedReqs.push(`${r.url()} [${r.failure()?.errorText || 'unknown network failure'}]`); });
   page.on('response', (r) => { if (r.status() >= 400 && !/favicon/.test(r.url())) badResponses.push(`${r.status()} ${r.url().replace(base, '')}`); });
 
   await page.addInitScript(() => {
