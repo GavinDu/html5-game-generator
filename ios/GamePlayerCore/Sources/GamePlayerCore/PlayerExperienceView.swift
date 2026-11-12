@@ -226,7 +226,7 @@ public struct PlayerExperienceView<Renderer: View>: View {
             return "Check your connection, then try loading the game again."
         case .httpStatus(let code):
             return "The server couldn’t load this game (HTTP \(code)). You can retry or exit."
-        case .unsupportedPackageFormat, .unsupportedIRVersion, .unsupportedRuntime:
+        case .unsupportedPackageFormat, .unsupportedIRVersion, .unsupportedRuntime, .unsupportedCapabilities:
             return "This game needs a newer player version. Update the app and try again."
         case .packageGameIDMismatch, .missingIR, .invalidIRHash, .irVersionMismatch, .assetHashMissing, .assetHashMismatch, .assetTooLarge, .assetOriginMismatch, .malformedPackage:
             return "The game package could not be verified. It wasn’t started. Try again later."
