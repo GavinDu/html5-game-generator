@@ -1751,6 +1751,7 @@ async function run(id) {
 
   function emitScoreThresholds() {
     for (const rule of ir.rules) {
+      workBudget.consumeCheck();
       if (rule.when?.event !== 'score_reached') continue;
       if (state.firedThresholds.has(rule.id)) continue;
       if (!(state.score >= Number(rule.when.value))) continue;
@@ -2059,7 +2060,7 @@ async function run(id) {
   }
 
   function endGame(won) {
-    if (state.ended) return;
+    if (state.ended || state.failed) return;
     state.ended = true;
     state.won = won;
     log('RT', `game ended: ${won ? 'WIN' : 'LOSE'}, score ${state.score}`);
@@ -2646,6 +2647,7 @@ async function run(id) {
     // 40s route stages). Emitting once per rule replays every matching
     // effect N times when N rules subscribe to the same interval.
     for (const rule of ir.rules) {
+      workBudget.consumeCheck();
       if (rule.when?.event !== 'timer_elapsed') continue;
       const interval = Number(rule.when.value) || 1;
       const t = (state.timers.get(rule.id) || 0) + dt;
@@ -2926,7 +2928,7 @@ async function run(id) {
         ? (orientation === 'portrait' ? 'Portrait game · turn your device upright to play' : 'Landscape game · turn your device sideways to play') : '';
     }
     if (orientationBlocked) { pointer.down = false; keysDown.clear(); app.ticker.stop(); }
-    else if (play.shellStarted && !state.ended && !document.hidden && !deterministicCapture) app.ticker.start();
+    else if (play.shellStarted && !state.ended && !state.failed && !document.hidden && !deterministicCapture) app.ticker.start();
   };
   addEventListener('resize', syncOrientation, { signal: abort.signal });
   syncOrientation();
