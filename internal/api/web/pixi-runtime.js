@@ -2801,6 +2801,13 @@ async function run(id) {
   // presentation or first accepted input, and navigation finish alone is
   // not a gameplay-readiness signal.
   app.renderer.render(app.stage);
+  // The renderer wrapper intentionally traps Pixi exceptions and leaves the
+  // page alive for diagnostics, returning undefined on failure. That must
+  // NEVER be interpreted as a successfully submitted scene or player_ready:
+  // fail closed and let the existing runtime error UI explain the failure.
+  if (renderErrLogged) {
+    throw new Error('initial scene render failed; gameplay is not ready');
+  }
   const firstSceneRenderSubmitMs = Math.max(0, Math.min(3600000,
     Math.round(performance.now() - started)));
   recordEvent('first_scene_render_submit', String(firstSceneRenderSubmitMs));
