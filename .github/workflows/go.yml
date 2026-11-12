@@ -294,6 +294,43 @@ jobs:
             /tmp/test-feedback-playtest.json
           if-no-files-found: ignore
 
+  # Epic #202 / #315: separately repeated seeded replays are not enough.
+  # Require the *same semantic state* at the same fixed step in both browser
+  # engines using their actual uploaded replay reports, not fabricated data.
+  cross-browser-determinism:
+    needs: playtest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Download Chromium seeded replay state and screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: escape-seeded-replay-chromium
+          path: /tmp/escape-cross-browser/chromium
+      - name: Download WebKit seeded replay state and screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: escape-seeded-replay-webkit
+          path: /tmp/escape-cross-browser/webkit
+      - name: Prove seeded fixed-step gameplay state agrees across browsers
+        run: |
+          node --test tools/playtest/compare-cross-browser-replay.test.mjs
+          node tools/playtest/compare-cross-browser-replay.mjs \
+            /tmp/escape-cross-browser/chromium/report.json \
+            /tmp/escape-cross-browser/webkit/report.json \
+            > /tmp/escape-cross-browser/comparison.json
+          cat /tmp/escape-cross-browser/comparison.json
+      - name: Upload cross-browser deterministic-state comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-browser-semantic-state
+          path: /tmp/escape-cross-browser/comparison.json
+          if-no-files-found: ignore
+
   # Playability Kit (user-mimic gate): plays each shipped game like a
   # user in Chromium and returns PLAYABLE / NEEDS_REVIEW / BROKEN.
   # A BROKEN verdict fails the job. Complements the playtest worker
