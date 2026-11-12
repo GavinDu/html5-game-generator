@@ -202,6 +202,17 @@ async function runGame(browser, id) {
   const failedRequiredRequests = classified.blocking;
   const assetProblems = [...badResponses.filter((u) => /\/assets\/|sprites|audio/.test(u)),
     ...failedRequiredRequests, ...warns.filter((w) => /asset/i.test(w))];
+  if (failedRequiredRequests.some(problem => /\/assets\//.test(problem))) {
+    // Preserve failed audio/image requests as BLOCKING; this additional
+    // evidence lets the architect distinguish an aborted network fetch from
+    // a successful decode or explicit session-reset cancellation.
+    add('info.asset_failure_audio_lifecycle', 'info', JSON.stringify({
+      failures: failedRequiredRequests.slice(0, 8),
+      decodedSoundIds: s0?.decodedSoundIds || [],
+      activeDecodeJobs: s0?.audioDecodeJobs ?? null,
+      audioEvents: s0?.audioDiagnosticEvents || [],
+    }));
+  }
   if (provenRedundantAborts.length) {
     add('info.proven_duplicate_image_abort', 'info',
       `${provenRedundantAborts.length} canceled duplicate image fetch(es); ${texturesLine[0]}/${texturesLine[1]} required textures were independently hash-verified and decoded`);

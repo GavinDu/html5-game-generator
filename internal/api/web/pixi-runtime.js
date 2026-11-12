@@ -303,6 +303,14 @@ const sfx = {
   ctx: null, buffers: new Map(), inFlight: new Map(), pendingMusic: [],
   generation: 0, abort: new AbortController(), decodedBytes: 0,
   activeSources: new Set(),
+  // Bounded, probe-only lifecycle evidence. Never record URLs, bearer tokens,
+  // account identity or sound bytes; no gameplay behavior reads this trace.
+  diagnosticEvents: [],
+  trace(event, assetId = '') {
+    if (!probeMode) return;
+    this.diagnosticEvents.push({ event, assetId, atMs: Math.round(performance.now()) });
+    if (this.diagnosticEvents.length > 64) this.diagnosticEvents.shift();
+  },
   ensureCtx() {
     if (!this.ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -312,6 +320,7 @@ const sfx = {
     return this.ctx;
   },
   reset() {
+    this.trace('session_reset');
     // Invalidate every async fetch/decode callback before stopping audio.
     this.generation++;
     this.abort.abort();
@@ -342,6 +351,7 @@ const sfx = {
     url = requested.href;
     const generation = this.generation;
     const key = assetId + '|' + url;
+    this.trace(preloadOnly ? 'prefetch_intent' : 'play_intent', assetId);
     const ctx = this.ensureCtx();
     if (!ctx) {
       // No unchecked HTMLAudio URL fallback: that bypasses transfer limits.
@@ -360,7 +370,7 @@ const sfx = {
     };
     const job = () => {
       if (generation !== this.generation) return;
-      if (this.buffers.has(key)) { start(this.buffers.get(key)); return; }
+      if (this.buffers.has(key)) { this.trace('decoded_cache_hit', assetId); start(this.buffers.get(key)); return; }
       // Deduplicate *in-flight* fetch/decode, not only finished buffers.
       // Otherwise a burst of the same AI-authored SFX can spawn unlimited
       // concurrent 8 MiB fetches before the first result reaches the cache.
@@ -369,10 +379,12 @@ const sfx = {
         if (this.inFlight.size >= MAX_CONCURRENT_AUDIO_DECODES) return;
         const sessionSignal = this.abort.signal;
         const request = new AbortController();
-        const onAbort = () => request.abort();
+        const onAbort = () => { this.trace('session_abort', assetId); request.abort(); };
         sessionSignal.addEventListener('abort', onAbort, { once: true });
-        const timeout = setTimeout(() => request.abort(), AUDIO_FETCH_TIMEOUT_MS);
+        const timeout = setTimeout(() => { this.trace('timeout_abort', assetId); request.abort(); }, AUDIO_FETCH_TIMEOUT_MS);
+        this.trace('request_started', assetId);
         pending = apiFetch(url, { signal: request.signal }).then(async (response) => {
+          this.trace('response_' + response.status, assetId);
           if (!response.ok) throw new Error('audio asset HTTP ' + response.status);
           const declared = Number(response.headers.get('content-length'));
           if (declared > MAX_AUDIO_TRANSFER_BYTES) throw new Error('audio transfer budget exceeded');
@@ -410,9 +422,11 @@ const sfx = {
             return null;
           }
           this.buffers.set(key, buffer);
+          this.trace('decode_ok', assetId);
           this.decodedBytes += decodedBytes;
           return buffer;
         }).catch((error) => {
+          this.trace('fetch_or_decode_error_' + (error?.name || 'unknown') + (request.signal.aborted ? '_aborted' : ''), assetId);
           // Never bypass the protected API or resource budget via HTMLAudio.
           if (!request.signal.aborted && generation === this.generation) {
             warnOnce('audio-' + assetId, 'SFX', 'Audio unavailable: ' + (error.message || error));
@@ -3085,6 +3099,7 @@ async function run(id) {
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
         decodedSoundIds: [...sfx.buffers.keys()].map(key => key.split('|')[0]).sort(),
         audioDecodeJobs: sfx.inFlight.size,
+        audioDiagnosticEvents: sfx.diagnosticEvents.slice(-64),
         player: playerEnt ? { id: playerEnt.defId, x: playerEnt.x, y: playerEnt.y, w: playerEnt.w, h: playerEnt.h, laneIndex: laneTap ? laneIndex : null } : null,
         entities: [...entities.values()].filter((e) => !e.destroyed).map((e) => ({
           id: e.runtimeId, def: e.defId, kind: e.closed ? 'decoration' : e.def.kind,
