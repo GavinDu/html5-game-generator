@@ -180,3 +180,30 @@ pending commands to avoid ghost input on app resume.
 Rollback: revert this input queue slice; IR/package schema and previously
 published games remain unchanged. Fixed tick semantics are versioned by
 the trusted interpreter and must be replay-checked before deployment.
+
+
+## Playability audio request-instance proof (Epic #202 / #205)
+
+The live Playability Kit can receive `net::ERR_ABORTED` for a sound
+request even after the browser has delivered HTTP 200, the entire body
+has been consumed, and WebAudio `decodeAudioData` has produced a usable
+PCM buffer in the *same* runtime session. This occurs independently of
+gameplay and must not be confused with an actual broken required asset.
+
+The Kit can record this as an informational, fully decoded transfer
+**only** when all of the following are true:
+
+- Exactly one declared audio asset resolves to the failed request URL.
+- Exactly one browser fetch instance exists for that same URL, with an
+  `ERR_ABORTED` browser report. No other download/retry is excused.
+- The runtime session reports exactly one sound `request_started`,
+  `response_200`, `decode_ok` for that matching asset ID, in order.
+- The decoded sound ID is still cached and no decoding job is active;
+  no session reset, timeout, abort or decoder error appears in the trace.
+
+Every unverified asset, non-abort network error, duplicate fetch,
+unknown URL, missing decoder receipt or revoked session **remains
+blocking**. Unit tests explicitly cover those exclusions. This is
+request-provenance evidence, not a generic `ERR_ABORTED` waiver and
+not permission to skip audio validation. Physical iOS WebAudio and
+offline/foreground quality gates remain separate.
