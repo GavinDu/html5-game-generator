@@ -295,9 +295,12 @@ function frameP95Ms(buckets, total, longestMs) {
 // across games/versions; a restarted game must not play stale SFX.
 const MAX_AUDIO_TRANSFER_BYTES = 8 * 1024 * 1024;
 const MAX_AUDIO_DECODED_BYTES = 24 * 1024 * 1024;
+const MAX_TOTAL_AUDIO_DECODED_BYTES = 32 * 1024 * 1024;
+const MAX_ACTIVE_SOUND_SOURCES = 32;
+const MAX_QUEUED_SOUND_JOBS = 32;
 const sfx = {
   ctx: null, buffers: new Map(), pendingMusic: [],
-  generation: 0, abort: new AbortController(),
+  generation: 0, abort: new AbortController(), decodedBytes: 0,
   activeSources: new Set(), fallbackAudio: new Set(),
   ensureCtx() {
     if (!this.ctx) {
@@ -322,6 +325,7 @@ const sfx = {
     }
     this.fallbackAudio.clear();
     this.buffers.clear();
+    this.decodedBytes = 0;
     const previous = this.ctx;
     this.ctx = null;
     if (previous) previous.close().catch(() => {});
@@ -344,6 +348,7 @@ const sfx = {
     if (!ctx) { fallback(); return; }
     const start = (buffer) => {
       if (generation !== this.generation || ctx !== this.ctx) return;
+      if (this.activeSources.size >= MAX_ACTIVE_SOUND_SOURCES) return;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);
@@ -386,11 +391,14 @@ const sfx = {
       }).then((buffer) => {
         if (!buffer || signal.aborted || generation !== this.generation) return;
         const decodedBytes = buffer.length * buffer.numberOfChannels * 4;
-        if (!Number.isSafeInteger(decodedBytes) || decodedBytes > MAX_AUDIO_DECODED_BYTES) {
+        if (!Number.isSafeInteger(decodedBytes) ||
+            decodedBytes > MAX_AUDIO_DECODED_BYTES ||
+            this.decodedBytes + decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES) {
           log('SFX', 'Audio decoded buffer exceeds memory budget: ' + assetId);
           return;
         }
         this.buffers.set(key, buffer);
+        this.decodedBytes += decodedBytes;
         start(buffer);
       }).catch((error) => {
         // Never bypass byte/memory/auth limits by launching an unbounded
@@ -399,12 +407,22 @@ const sfx = {
         warnOnce('audio-' + assetId, 'SFX', 'Audio unavailable: ' + (error.message || error));
       });
     };
-    if (ctx.state === 'suspended') { this.pendingMusic.push(job); return; }
+    if (ctx.state === 'suspended') {
+      if (this.pendingMusic.length >= MAX_QUEUED_SOUND_JOBS) return;
+      this.pendingMusic.push(job);
+      return;
+    }
     job();
   },
 };
 addEventListener('pointerdown', () => sfx.unlock());
 addEventListener('pagehide', () => sfx.reset());
+addEventListener('visibilitychange', () => {
+  const ctx = sfx.ctx;
+  if (!ctx) return;
+  if (document.hidden) ctx.suspend().catch(() => {});
+  else if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+});
 
 const EASINGS = {
   linear: (t) => t,
