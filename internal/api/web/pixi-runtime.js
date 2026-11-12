@@ -947,6 +947,34 @@ async function run(id) {
   if (pkg.irVersion !== ir.irVersion) {
     throw new Error(`invalid game package: envelope IR version ${String(pkg.irVersion)} does not match payload ${ir.irVersion}`);
   }
+  // Game packages are declarative data, never executable extensions.
+  // Mirror the Go validator's capability vocabulary here so an older
+  // deployed runtime fails before allocating Pixi/Rapier/audio resources
+  // if a future generator advertises a module it cannot interpret.
+  const supportedCapabilities = new Set([
+    'render.sprite', 'render.animation', 'render.shape', 'render.text',
+    'render.filters', 'render.particles', 'render.parallax',
+    'physics.bodies', 'physics.colliders', 'physics.joints',
+    'physics.character_controller', 'physics.queries',
+    'fx.tween', 'fx.camera', 'fx.emitters', 'audio',
+    'input.keyboard', 'input.pointer', 'shell.v1',
+  ]);
+  const declaredCapabilities = ir.capabilities ?? [];
+  if (!Array.isArray(declaredCapabilities) || declaredCapabilities.length > 32) {
+    throw new Error('unsupported Game IR capability manifest');
+  }
+  const checkedCapabilities = new Set();
+  for (const capability of declaredCapabilities) {
+    if (typeof capability !== 'string' ||
+        !supportedCapabilities.has(capability) ||
+        checkedCapabilities.has(capability)) {
+      throw new Error('unsupported or duplicate Game IR capability: ' + String(capability).slice(0, 64));
+    }
+    checkedCapabilities.add(capability);
+  }
+  if (ir.irVersion === '1.2' && !checkedCapabilities.has('shell.v1')) {
+    throw new Error('Game IR 1.2 requires shell.v1 capability');
+  }
   if (!ir.game || typeof ir.game !== 'object' || !Array.isArray(ir.scenes) || !Array.isArray(ir.assets)) {
     throw new Error('invalid game package: Game IR is missing game, scenes, or assets');
   }
@@ -1137,8 +1165,6 @@ async function run(id) {
       if (!response.ok) {
         throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
       }
-      // Keep the 15-second abort deadline active until the *entire*
-      // network transfer finishes, not just the HTTP headers.
       imageBlob = await readBoundedImageBlob(response);
     } catch (error) {
       if (requestController.signal.aborted) {

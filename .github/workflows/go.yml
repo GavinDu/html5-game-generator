@@ -153,6 +153,15 @@ jobs:
         with:
           name: escape-quality-${{ matrix.browser }}
           path: /tmp/escape-quality-${{ matrix.browser }}/
+      - name: Verify unsupported Game IR capabilities fail closed before a player launches
+        run: node tools/playtest/capability-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-capability-rejection-${{ matrix.browser }}
+      - name: Upload capability-rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-capability-rejection-${{ matrix.browser }}
+          path: /tmp/runtime-capability-rejection-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Reject oversized image bytes before a playable scene on phone and tablet browsers
         run: node tools/playtest/oversized-image-failure-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-image-budget-${{ matrix.browser }}
       - name: Upload oversized required image rejection evidence
