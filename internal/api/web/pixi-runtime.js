@@ -2253,7 +2253,7 @@ async function run(id) {
 
   // --- Contacts -------------------------------------------------------
   function handleContact(a, b, started) {
-    if (state.ended || !playerEnt) return;
+    if (state.ended || state.failed || !playerEnt) return;
     const other = a === playerEnt ? b : b === playerEnt ? a : null;
     if (!other) return;
     const key = playerEnt.runtimeId + ':' + other.runtimeId;
