@@ -171,6 +171,15 @@ jobs:
           name: runtime-image-budget-${{ matrix.browser }}
           path: /tmp/runtime-image-budget-${{ matrix.browser }}/
           if-no-files-found: ignore
+      - name: Verify tampered 513-entity scenes fail before Pixi on phone/tablet
+        run: node tools/playtest/runtime-entity-budget-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/entity-budget-${{ matrix.browser }}
+      - name: Upload active entity budget rejection screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: entity-budget-${{ matrix.browser }}
+          path: /tmp/entity-budget-${{ matrix.browser }}/
+          if-no-files-found: error
       - name: Verify Escape seeded replay physics and screenshots on phone/tablet
         run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
       - name: Upload Escape deterministic replay screenshot evidence

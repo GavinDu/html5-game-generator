@@ -58,6 +58,9 @@ function warnOnce(key, cat, msg) {
 // the same failure across games reads as one incident. iOS receives only a
 // narrow post-verification run-result notification; it is not a control API.
 const RUNTIME_VERSION = '2026.10.23.2';
+// Go IR authoring permits at most 500 initial entities per scene. Allow
+// bounded runtime spawns, but never an unbounded Pixi/Rapier allocation.
+const MAX_ACTIVE_ENTITIES = 512;
 
 function compareRuntimeVersions(current, minimum) {
   const parse = (value) => {
@@ -980,6 +983,9 @@ async function run(id) {
   storeRemove(sessionStorage, sceneKey);
   const scene = (ir.scenes || []).find((s) => s.id === wantedScene) || ir.scenes?.[0];
   if (!scene) throw new Error('entry scene missing');
+  if (!Array.isArray(scene.entities) || scene.entities.length > MAX_ACTIVE_ENTITIES) {
+    throw new Error('scene exceeds active entity budget before renderer initialization');
+  }
 
   const orientation = ir.game.orientation;
   if (!['portrait', 'landscape', 'any'].includes(orientation)) throw new Error('unsupported game orientation');
@@ -1497,6 +1503,11 @@ async function run(id) {
   }
 
   function createEntity(def, x, y, runtimeId) {
+    // Check *before* allocating a sprite, rigid body, collider or listener.
+    // A failed spawn must not partially allocate a Game IR object.
+    if (entities.size >= MAX_ACTIVE_ENTITIES) {
+      throw new Error('active entity budget exceeded during spawn');
+    }
     const view = makeView(def);
     view.position.set(x, y);
     worldLayer.addChild(view);
@@ -2559,7 +2570,12 @@ async function run(id) {
       if (!tickErrLogged) {
         tickErrLogged = true;
         log('RT', 'TICK ERROR frame ' + frameNo + ': ' + (err.stack || err.message));
+        recordError('tick', err);
+        $('status').textContent = 'Game cannot continue safely. Return to the feed or retry.';
       }
+      // Fail closed on resource exhaustion or any semantic tick error:
+      // do not run more actions, fabricate a win, or submit a verified run.
+      try { app.ticker.stop(); } catch { /* ticker may already have stopped */ }
       return;
     }
     if (deterministicCapture && captureTargetStep != null && play.simStep >= captureTargetStep) {

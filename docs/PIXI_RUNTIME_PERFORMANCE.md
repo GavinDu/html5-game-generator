@@ -65,3 +65,24 @@ fixture migration rather than silently reinterpreting prior leaderboard
 runs. Physics/event state, Pixi rendering and WebAudio remain in the main
 interpreter. This is a compatibility-safe **first extraction**, not completion
 of #317 or full #315 determinism.
+
+## Active runtime entity cap (Epic #202 / #316)
+
+The compiler already caps *authored* entities at 500 per scene, but that
+does not constrain the number of live clones created through authored
+`spawn_entity` rules over a long session. The installed browser engine
+now sets a **512 active-entity ceiling** for its one live scene. Initial
+tampered packages above the ceiling fail *before* Pixi/WebGL/Rapier
+allocation. Dynamic `createEntity` checks the count *before* creating
+any sprite, rigid body, collider or pointer listener. A tick that exceeds
+this limit stops its ticker, reports a runtime-error diagnostic and shows
+a non-winning, actionable message; it does not submit a fabricated
+verified run or continue executing partial rules.
+
+The Chromium/WebKit CI matrix modifies only a test response to declare
+513 scene entities, checks the fail-closed player state and screenshots
+on phone/tablet profiles, and preserves the entire original game-quality
+suite. These are hard safety ceilings, not measured optimum concurrent
+sprites for every iPhone/iPad. Dynamic spawn abuse, repeated recycle
+behavior, per-tick event/action costs, joint creation and GPU texture
+budgets still require profiling and typed preflight under #316.
