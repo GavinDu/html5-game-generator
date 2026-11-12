@@ -1077,6 +1077,49 @@ async function run(id) {
   // extension — the null then kills Sprite construction ("reading 'texture'").
   // Load the image element directly and build the texture from it instead; the
   // browser sniffs the real format from the bytes.
+  // Runtime-side backstop against hostile/accidentally oversized AI assets.
+  // These are initial *safety caps*, not device-performance benchmarks; the
+  // publisher must also validate dimensions/bytes before a package ships.
+  // Count decoded pixels as an approximate lower-bound GPU/CPU footprint.
+  const MAX_IMAGE_TRANSFER_BYTES = 8 * 1024 * 1024;
+  const MAX_IMAGE_DIMENSION = 4096;
+  const MAX_IMAGE_PIXELS = 16 * 1024 * 1024;
+  const MAX_TOTAL_IMAGE_PIXELS = 32 * 1024 * 1024;
+  let decodedImagePixels = 0;
+
+  async function readBoundedImageBlob(response) {
+    const advertised = response.headers.get('content-length');
+    if (advertised != null && Number.isFinite(Number(advertised)) &&
+        Number(advertised) > MAX_IMAGE_TRANSFER_BYTES) {
+      throw new Error('image exceeds maximum compressed byte budget');
+    }
+    if (!response.body || typeof response.body.getReader !== 'function') {
+      const blob = await response.blob();
+      if (blob.size > MAX_IMAGE_TRANSFER_BYTES) {
+        throw new Error('image exceeds maximum compressed byte budget');
+      }
+      return blob;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let totalBytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > MAX_IMAGE_TRANSFER_BYTES) {
+          await reader.cancel().catch(() => {});
+          throw new Error('image exceeds maximum compressed byte budget');
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    return new Blob(chunks, { type: response.headers.get('content-type') || '' });
+  }
+
   async function loadTexture(asset) {
     if (!asset?.url) throw new Error('image asset has no URL');
     const assetURL = new URL(asset.url, location.href);
@@ -1088,9 +1131,16 @@ async function run(id) {
     // receives the same verified identity as the package request.
     const requestController = new AbortController();
     const requestTimeout = setTimeout(() => requestController.abort(), 15000);
-    let response;
+    let imageBlob;
     try {
-      response = await apiFetch(assetURL.href, { signal: requestController.signal });
+      const response = await apiFetch(assetURL.href, { signal: requestController.signal });
+      if (!response.ok) {
+        throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
+      }
+      // Keep the abort deadline active until the *entire* response has been
+      // consumed. Previously it was cleared at header receipt, leaving a
+      // stalled/oversized body able to occupy a worker indefinitely.
+      imageBlob = await readBoundedImageBlob(response);
     } catch (error) {
       if (requestController.signal.aborted) {
         throw new Error(`image request timed out after 15s: ${assetURL.pathname}`);
@@ -1099,10 +1149,6 @@ async function run(id) {
     } finally {
       clearTimeout(requestTimeout);
     }
-    if (!response.ok) {
-      throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
-    }
-    const imageBlob = await response.blob();
     if (asset.sha256) {
       if (!/^[a-f0-9]{64}$/i.test(asset.sha256)) {
         throw new Error(`image asset has an invalid SHA-256 declaration: ${assetURL.pathname}`);
@@ -1138,7 +1184,18 @@ async function run(id) {
         img.onerror = () => finish(reject, new Error(`image decode failed: ${assetURL.pathname}`));
         img.src = objectURL;
       });
-      return PIXI.Texture.from(img);
+      const width = img.naturalWidth;
+      const height = img.naturalHeight;
+      const pixels = width * height;
+      if (!Number.isSafeInteger(pixels) || width < 1 || height < 1 ||
+          width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION ||
+          pixels > MAX_IMAGE_PIXELS ||
+          decodedImagePixels + pixels > MAX_TOTAL_IMAGE_PIXELS) {
+        throw new Error(`image exceeds decoded texture budget: ${assetURL.pathname}`);
+      }
+      const texture = PIXI.Texture.from(img);
+      decodedImagePixels += pixels;
+      return texture;
     } finally {
       URL.revokeObjectURL(objectURL);
     }
