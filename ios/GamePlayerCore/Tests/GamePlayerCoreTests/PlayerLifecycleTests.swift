@@ -169,6 +169,44 @@ final class PlayerContractTests: XCTestCase {
         XCTAssertEqual(result.irHash.count, 12)
     }
 
+    func testAcceptsKnownIR12CapabilityManifest() throws {
+        let ir = #"{"irVersion":"1.2","capabilities":["shell.v1","render.sprite"]}"#
+        let result = try PlayerContract().validate(
+            package(irVersion: "1.2", ir: ir), expectedGameID: "game-123"
+        )
+        XCTAssertEqual(result.irVersion, "1.2")
+        XCTAssertEqual(PlayerContract.supportedCapabilities.count, 19)
+    }
+
+    func testCapabilityPreflightRejectsUnknownDuplicateOrUnboundedManifest() {
+        let invalid = [
+            #"{"irVersion":"1.0","capabilities":["render.unknown"]}"#,
+            #"{"irVersion":"1.0","capabilities":["render.sprite","render.sprite"]}"#,
+            #"{"irVersion":"1.0","capabilities":"render.sprite"}"#,
+            #"{"irVersion":"1.0","capabilities":[1]}"#,
+            #"{"irVersion":"1.2","capabilities":["render.sprite"]}"#,
+            #"{"irVersion":"1.2"}"#,
+            #"{"irVersion":"1.1","experience":{"archetype":"catcher"}}"#,
+        ]
+        for ir in invalid {
+            let version = ir.contains(#""1.2""#) ? "1.2" : ir.contains(#""1.1""#) ? "1.1" : "1.0"
+            XCTAssertThrowsError(
+                try PlayerContract().validate(
+                    package(irVersion: version, ir: ir), expectedGameID: "game-123"
+                ), "invalid capabilities unexpectedly accepted: \(ir)"
+            ) { error in
+                XCTAssertEqual(error as? PlayerFailure, .unsupportedCapabilities)
+            }
+        }
+        let oversized = Array(repeating: "\"render.sprite\"", count: 33).joined(separator: ",")
+        let ir = "{\"irVersion\":\"1.0\",\"capabilities\":[\(oversized)]}"
+        XCTAssertThrowsError(
+            try PlayerContract().validate(package(ir: ir), expectedGameID: "game-123")
+        ) { error in
+            XCTAssertEqual(error as? PlayerFailure, .unsupportedCapabilities)
+        }
+    }
+
     func testRejectsUnsupportedIRVersion() {
         XCTAssertThrowsError(
             try PlayerContract().validate(
