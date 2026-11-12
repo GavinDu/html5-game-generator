@@ -3129,7 +3129,7 @@ async function run(id) {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
         objectiveProgress: objectiveProgress(), variables: { ...state.variables },
-        ended: state.ended, won: state.won, frames: totalFrames,
+        ended: state.ended, won: state.won, failed: state.failed, frames: totalFrames,
         simStep: play.simStep, capturePaused,
         replayRunId: replayTrace?.id || null,
         started: play.shellStarted,
