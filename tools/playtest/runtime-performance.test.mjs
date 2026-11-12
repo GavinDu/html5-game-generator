@@ -85,3 +85,13 @@ test('render submission is reported before the unique runtime player_ready event
   assert.equal(source.indexOf("sendSocialDiagnostic('player_ready', 'ready'", firstReady + 1), -1,
     'duplicate runtime readiness report');
 });
+
+test('a trapped first-render failure cannot report a successful readiness milestone', () => {
+  const rendered = source.lastIndexOf('app.renderer.render(app.stage);');
+  const gate = source.indexOf("if (renderErrLogged) {", rendered);
+  const metric = source.indexOf('const firstSceneRenderSubmitMs =');
+  const ready = source.indexOf("sendSocialDiagnostic('player_ready', 'ready'");
+  assert.ok(rendered > 0 && gate > rendered && gate < metric && metric < ready,
+    'renderer error must fail closed before scene submission and player_ready');
+  assert.match(source, /throw new Error\('initial scene render failed; gameplay is not ready'\)/);
+});
