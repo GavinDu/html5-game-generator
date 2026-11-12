@@ -96,7 +96,7 @@ test('WebAudio fetch, active sources and decoded buffers have finite budgets', (
 });
 
 test('audio uses an asset and URL scoped key, not a cross-game assetId only', () => {
-  assert.match(source, /const key = assetId \+ '\\|' \+ url/);
+  assert.ok(source.includes("const key = assetId + '|' + url"));
   assert.match(source, /this\.buffers\.set\(key, buffer\)/);
   assert.doesNotMatch(source, /this\.buffers\.set\(assetId, buffer\)/);
 });
