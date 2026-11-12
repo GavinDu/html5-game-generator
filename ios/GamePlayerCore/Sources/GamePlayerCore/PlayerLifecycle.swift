@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// The states exposed to SwiftUI and UI automation. Every transition is explicit so
@@ -62,7 +63,10 @@ public struct GamePackageEnvelope: Decodable, Sendable {
     public let gameId: String
     public let ir: JSONValue?
     public let assets: [PackageAsset]
+    /// Historical 12-hex verified-run/leaderboard key. NOT the full digest.
     public let irHash: String
+    /// Full SHA-256 of the Go-canonical Game IR JSON embedded in this package.
+    public let irSha256: String
 }
 
 public indirect enum JSONValue: Decodable, Sendable {
@@ -121,7 +125,20 @@ public struct PlayerContract: Sendable {
         } else {
             throw PlayerFailure.missingIR
         }
-        guard envelope.irHash.count == 64, envelope.irHash.allSatisfy({ $0.isHexDigit }) else {
+        // The Go package format deliberately has TWO identities: a short board key
+        // and a complete SHA-256 of the canonical IR. Never mistake the 12-hex
+        // board key for a content digest, or recompute the digest from a Swift
+        // dictionary (object key order is not the same as Go's struct encoding).
+        guard envelope.irHash.count == 12, envelope.irHash.allSatisfy({ $0.isHexDigit }),
+              envelope.irSha256.count == 64, envelope.irSha256.allSatisfy({ $0.isHexDigit }),
+              envelope.irHash.lowercased() == String(envelope.irSha256.prefix(12)).lowercased(),
+              let canonicalIR = GamePackageIRBytes.extract(from: data) else {
+            throw PlayerFailure.invalidIRHash
+        }
+        let digest = SHA256.hash(data: canonicalIR).map {
+            String(format: "%02x", $0)
+        }.joined()
+        guard digest == envelope.irSha256.lowercased() else {
             throw PlayerFailure.invalidIRHash
         }
         for asset in envelope.assets {
