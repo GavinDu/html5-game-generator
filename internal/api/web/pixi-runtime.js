@@ -2728,12 +2728,6 @@ async function run(id) {
     bootMs: play.bootMs,
     renderer: 'webgl', irVersion: ir.irVersion,
   });
-  // Time to interactive is known at boot; report it now so sessions that
-  // never reach a run end still contribute it (Hephaestus #61).
-  sendSocialDiagnostic('player_ready', 'ready', {
-    time_to_interactive_ms: Math.min(play.bootMs, 3600000),
-  });
-
   // --- Shell start gate (IR 1.2) ---------------------------------------
   // Shell games wait at a start card: the world is built but the ticker
   // is stopped and game_start hasn't fired, so nothing moves, no music
@@ -2802,8 +2796,21 @@ async function run(id) {
   };
   addEventListener('resize', syncOrientation, { signal: abort.signal });
   syncOrientation();
-  // Even when rotation guidance pauses the ticker, show a real first frame.
+  // The renderer has *submitted* the first scene here, including when
+  // orientation guidance pauses play. This is not proof of compositor
+  // presentation or first accepted input, and navigation finish alone is
+  // not a gameplay-readiness signal.
   app.renderer.render(app.stage);
+  const firstSceneRenderSubmitMs = Math.max(0, Math.min(3600000,
+    Math.round(performance.now() - started)));
+  recordEvent('first_scene_render_submit', String(firstSceneRenderSubmitMs));
+  sendTelemetryEvent('milestone', { milestone: 'first_scene_render_submit', ms: firstSceneRenderSubmitMs });
+  sendNativeMetric('first_scene_render_submit', { ms: firstSceneRenderSubmitMs });
+  // Single runtime-owned readiness event; the native host must not report
+  // readiness merely because WKNavigationDelegate.didFinish fired.
+  sendSocialDiagnostic('player_ready', 'ready', {
+    time_to_interactive_ms: firstSceneRenderSubmitMs,
+  });
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
