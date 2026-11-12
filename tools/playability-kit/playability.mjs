@@ -106,6 +106,23 @@ async function runGame(browser, id) {
 
   // ---- collectors -------------------------------------------------------
   const errors = [], warns = [], badResponses = [], failedReqs = []; const fired = new Set();
+  // Exact request-instance provenance: an HTTP 200+decoded buffer does not
+  // prove *another* fetch of the same URL completed. Distinguish them before
+  // classifying any canceled sound delivery as required-asset failure.
+  const audioRequests = new Map();
+  let nextAudioRequestID = 0;
+  const soundRequest = r => /\/assets\/[^/]+(?:[?#]|$)/.test(r.url()) && r.resourceType() === 'fetch';
+  page.on('request', r => {
+    if (soundRequest(r)) audioRequests.set(r, { id: ++nextAudioRequestID, url: r.url(), phase: 'sent' });
+  });
+  page.on('requestfinished', r => {
+    const state = audioRequests.get(r);
+    if (state) state.phase = 'finished';
+  });
+  page.on('requestfailed', r => {
+    const state = audioRequests.get(r);
+    if (state) { state.phase = 'failed'; state.reason = r.failure()?.errorText || 'unknown'; }
+  });
   let texturesLine = null; let seenPkg = null;
   page.on('pageerror', (e) => errors.push(String(e.message || e).split('\n')[0]));
   page.on('console', (m) => {
@@ -211,6 +228,7 @@ async function runGame(browser, id) {
       decodedSoundIds: s0?.decodedSoundIds || [],
       activeDecodeJobs: s0?.audioDecodeJobs ?? null,
       audioEvents: s0?.audioDiagnosticEvents || [],
+      soundNetwork: [...audioRequests.values()].slice(-16),
     }));
   }
   if (provenRedundantAborts.length) {
