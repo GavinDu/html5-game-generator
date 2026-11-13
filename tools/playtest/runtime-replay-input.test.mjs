@@ -42,14 +42,13 @@ test('malformed input and invalid budgets become explicitly unverifiable, never 
     [-1, 'pointer', '10,20'],
     [1.5, 'pointer', '10,20'],
     [0, 'fake', ''],
-    [0, 'pointer', String(repeatingSymbol(), 'x')],
+    [0, 'pointer', 'x'.repeat(129)],
   ]) {
     const trace = createRunInputRecorder();
     assert.equal(trace.record(...invalid), false);
     assert.equal(trace.complete, false);
     assert.deepEqual(trace.inputs, []);
   }
-  function repeatingSymbol() { return 'x'.repeat(129); }
 });
 
 test('the next run uses independent state; replay uses a single trusted recording path', () => {
