@@ -26,6 +26,7 @@ test('2001st mixed normal or held-pointer sample fails closed and never evicts e
   const oldHead = { ...trace.inputs[0] };
   assert.equal(trace.record(2000, 'pointerup', ''), false);
   assert.equal(trace.complete, false);
+  assert.equal(trace.failureReason, 'input_limit');
   assert.equal(trace.inputs.length, 2000);
   assert.deepEqual(trace.inputs[0], oldHead, 'must not discard the beginning of the replay');
   assert.deepEqual(trace.inputs.at(-1), { tick: 1999, type: 'keyup', detail: 'ArrowRight' });
@@ -41,11 +42,18 @@ test('malformed input and invalid budgets become explicitly unverifiable, never 
   for (const invalid of [
     [-1, 'pointer', '10,20'],
     [1.5, 'pointer', '10,20'],
-    [0, 'fake', ''],
     [0, 'pointer', 'x'.repeat(129)],
   ]) {
     const trace = createRunInputRecorder();
     assert.equal(trace.record(...invalid), false);
+    assert.equal(trace.complete, false);
+    assert.equal(trace.failureReason, 'invalid_event');
+    assert.deepEqual(trace.inputs, []);
+  }
+  for (const type of ['fake', 'entity-pointer']) {
+    const trace = createRunInputRecorder();
+    assert.equal(trace.record(0, type, 'entity-1'), false);
+    assert.equal(trace.failureReason, 'unsupported_input');
     assert.equal(trace.complete, false);
     assert.deepEqual(trace.inputs, []);
   }
@@ -53,7 +61,7 @@ test('malformed input and invalid budgets become explicitly unverifiable, never 
 
 test('the next run uses independent state; replay uses a single trusted recording path', () => {
   const first = createRunInputRecorder(1);
-  assert.equal(first.record(1, 'entity-pointer', 'entity-1'), true);
+  assert.equal(first.record(1, 'key', 'ArrowLeft'), true);
   assert.equal(first.record(2, 'pointerup', ''), false);
   const second = createRunInputRecorder(2);
   assert.equal(second.record(0, 'pointer', '1,2'), true);
@@ -76,6 +84,7 @@ test('production runtime unifies all event sources and blocks partial leaderboar
   assert.doesNotMatch(runtime, /play\.inputLog\.(?:push|splice|shift)\(/);
   assert.match(runtime, /else if \(play\.shellStarted && replayInputRecorder\.complete\) \{\s*submitRun\(won\)/);
   assert.match(runtime, /else if \(play\.shellStarted && !replayInputRecorder\.complete\) \{/);
-  assert.match(runtime, /Not leaderboard-verified: replay input limit reached/);
+  assert.match(runtime, /Not leaderboard-verified: /);
+  assert.match(runtime, /'replay input limit reached' : 'unsupported replay input'/);
   assert.match(runtime, /function submitRun\(won\) \{\s*if \(!replayInputRecorder\.complete\) return;/);
 });
