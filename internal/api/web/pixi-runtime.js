@@ -3152,13 +3152,19 @@ async function run(id) {
   probeState.booted = true;
   // Probe mode: emit the verdict immediately and keep it live (2s cadence)
   // so the playtest worker can watch frames, HUD and status while it plays.
-  if (probeMode) { emitProbe(); setInterval(emitProbe, 2000); }
+  if (probeMode && !abort.signal.aborted) {
+    emitProbe();
+    // Probe polling is session-owned. In-page Play Again aborts the old
+    // session; an abandoned interval must not keep its captured scene alive.
+    const probeTimer = setInterval(emitProbe, 2000);
+    abort.signal.addEventListener('abort', () => clearInterval(probeTimer), { once: true });
+  }
   // Playability Kit hook (probe mode only): a READ-ONLY structured snapshot
   // so a user-mimic bot can see entity positions/kinds and drive real
   // pointer events. It accepts no input and exposes no mutable state, so it
   // adds no capability a game could abuse.
-  if (probeMode) {
-    window.__dqTest = {
+  if (probeMode && !abort.signal.aborted) {
+    const probeSessionAPI = {
       snapshot: () => ({
         t: state.elapsed, score: state.score, health: state.health,
         objectiveProgress: objectiveProgress(), variables: { ...state.variables },
@@ -3199,6 +3205,11 @@ async function run(id) {
         return true;
       },
     };
+    window.__dqTest = probeSessionAPI;
+    abort.signal.addEventListener('abort', () => {
+      // A later run can install a newer probe before an old callback fires.
+      if (window.__dqTest === probeSessionAPI) delete window.__dqTest;
+    }, { once: true });
   }
 }
 
