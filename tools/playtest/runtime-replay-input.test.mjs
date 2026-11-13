@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createRunInputRecorder, MAX_VERIFIABLE_RUN_INPUTS } from '../../internal/api/web/runtime-replay-input.mjs';
+import { createRunInputRecorder, MAX_VERIFIABLE_RUN_INPUTS,
+  createDeadInputDiagnostics, MAX_PENDING_INPUT_DIAGNOSTICS } from '../../internal/api/web/runtime-replay-input.mjs';
 
 const runtime = readFileSync(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url), 'utf8');
 
@@ -73,11 +74,12 @@ test('the next run uses independent state; replay uses a single trusted recordin
 });
 
 test('production runtime unifies all event sources and blocks partial leaderboard submission', () => {
-  assert.match(runtime, /import \{ createRunInputRecorder \} from '\.\/runtime-replay-input\.mjs'/);
+  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics \} from '\.\/runtime-replay-input\.mjs'/);
   assert.match(runtime, /const replayInputRecorder = createRunInputRecorder\(\)/);
   assert.match(runtime, /inputLog: replayInputRecorder\.inputs/);
   assert.match(runtime, /replayTraceComplete: play \? play\.replayTraceComplete : null/);
-  assert.match(runtime, /deadInputRate: play && play\.replayTraceComplete && play\.inputLog\.length > 0/);
+  assert.match(runtime, /deadInputRate: play && play\.replayTraceComplete && play\.deadInputDiagnosticsComplete && play\.inputLog\.length > 0/);
+  assert.match(runtime, /deadInputDiagnostics: play \? play\.deadInputDiagnosticsComplete : null/);
   assert.match(runtime, /function noteInput\(type, detail\) \{\s*replayInputRecorder\.record\(play\.simStep, type, detail \|\| ''\)/);
   assert.match(runtime, /replayInputRecorder\.record\(play\.simStep, 'pointer',/);
   assert.match(runtime, /replayInputRecorder\.record\(play\.simStep, 'pointerup', ''\)/);
@@ -87,4 +89,49 @@ test('production runtime unifies all event sources and blocks partial leaderboar
   assert.match(runtime, /Not leaderboard-verified: /);
   assert.match(runtime, /'replay input limit reached' : 'unsupported replay input'/);
   assert.match(runtime, /function submitRun\(won\) \{\s*if \(!replayInputRecorder\.complete\) return;/);
+});
+
+
+test('bounded diagnostic queue keeps original 200ms dead-input accounting on valid traces', () => {
+  const monitor = createDeadInputDiagnostics();
+  assert.equal(MAX_PENDING_INPUT_DIAGNOSTICS, 256);
+  assert.equal(monitor.record({ at: 10, x: -1, y: -1 }), true);
+  assert.equal(monitor.record({ at: 20, x: -1, y: -1 }), true);
+  assert.equal(monitor.drain(209, 0), 0, 'first sample has not yet aged 200 ms');
+  assert.equal(monitor.drain(210, 0), 1);
+  assert.equal(monitor.drain(220, 15), 1);
+  assert.equal(monitor.pending.length, 0);
+  assert.equal(monitor.complete, true);
+  assert.equal(monitor.record({ at: 221, x: 2, y: 1 }), true);
+  assert.equal(monitor.drain(430, 222), 0, 'movement newer than sample prevents false dead input');
+});
+
+test('diagnostic overflow or invalid time becomes explicitly incomplete without affecting gameplay', () => {
+  for (const limit of [0, -1, 257, Infinity, NaN, 1.5]) {
+    assert.throws(() => createDeadInputDiagnostics(limit), RangeError);
+  }
+  const monitor = createDeadInputDiagnostics();
+  for (let i = 0; i < MAX_PENDING_INPUT_DIAGNOSTICS; i++) {
+    assert.equal(monitor.record({ at: i, x: 0, y: 0 }), true);
+  }
+  assert.equal(monitor.pending.length, 256);
+  assert.equal(monitor.record({ at: 256, x: 0, y: 0 }), false);
+  assert.equal(monitor.complete, false);
+  assert.equal(monitor.pending.length, 0, 'do not retain stale diagnostic backlog');
+  assert.equal(monitor.record({ at: 257, x: 0, y: 0 }), false);
+  assert.equal(monitor.drain(1000, 0), 0);
+  const nextGame = createDeadInputDiagnostics();
+  assert.equal(nextGame.complete, true);
+  assert.equal(nextGame.record({ at: 0, x: 0, y: 0 }), true);
+  const invalid = createDeadInputDiagnostics();
+  assert.equal(invalid.record({ at: Infinity }), false);
+  assert.equal(invalid.complete, false);
+});
+
+test('shipping runtime never mutates diagnostic queue except through pure bounded monitor', () => {
+  assert.match(runtime, /const deadInputDiagnostics = createDeadInputDiagnostics\(\)/);
+  assert.match(runtime, /pendingInputs: deadInputDiagnostics\.pending/);
+  assert.match(runtime, /deadInputDiagnostics\.record\(\{ at: play\.visibleMs/);
+  assert.match(runtime, /play\.deadInputs \+= deadInputDiagnostics\.drain\(play\.visibleMs, play\.lastActivityMs\)/);
+  assert.doesNotMatch(runtime, /play\.pendingInputs\.(?:push|shift|splice)\(/);
 });
