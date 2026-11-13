@@ -132,13 +132,13 @@ func validReplayPointerDetail(detail string) bool {
 	return true
 }
 
+// RunRecord stores a full server-owned canonical IR digest for *new* runs.
+// The old 12-hex board key is insufficient for future replay provenance.
+// Legacy records omit IRSHA256; never infer an unrecorded historical digest.
 type RunRecord struct {
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
 	IRHash     string     `json:"irHash"`
-	// Full server-derived canonical IR digest for *new* runs. An old 12-hex
-	// leaderboard key is not sufficient provenance for future attestation.
-	// Legacy persisted records omit this field; never invent their digest.
 	IRSHA256   string     `json:"irSha256,omitempty"`
 	Name       string     `json:"name"`
 	Score      int        `json:"score"`
