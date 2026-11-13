@@ -45,3 +45,16 @@ does not establish compositor presentation. Real iPhone/iPad WebContent
 termination, 50+ foreground/rotation cycles, GPU memory/thermal profiles
 and native #203 lifecycle authority remain gates in Epic #202. No second
 JS/native control bridge or content-provided executable code was added.
+
+
+## CI evidence routing
+
+The required `.github/workflows/go.yml` `playtest` matrix runs
+`tools/playtest/input-cancellation-test.mjs` on **both Chromium and WebKit**
+with the phone and tablet viewports, and uploads `input-cancellation-*`
+screenshots and state evidence. The Go validation job also invokes the
+`tools/playtest` Node tests, including the pure ticker eligibility truth
+table. These test invocations are part of the required workflow, not optional
+manual scripts. A *completed-success* exact integrated-head workflow and
+its job/artifact results are the release gate; a source-level assertion or an
+older successful branch head is not release evidence.
