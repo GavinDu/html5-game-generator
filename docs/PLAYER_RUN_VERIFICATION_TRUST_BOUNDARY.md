@@ -10,9 +10,12 @@ replaying a seed and input trace. A logged-in player can modify HTTP requests.
 
 ## Deployed policy for this patch
 
-- `POST /v1/runs/{id}/verification` returns **403**, irrespective of run ID,
-  payload or authentication identity. It does not mutate `Verified` or
-  `ActualScore`, does not reveal run existence and is marked `no-store`.
+- A `POST /v1/runs/{id}/verification` that passes the existing
+  authentication middleware returns **403**, irrespective of run ID or
+  payload. Requests without valid authentication can be rejected earlier by
+  that middleware. Neither path allows client attestation. The handler does
+  not mutate `Verified` or `ActualScore`, does not reveal run existence
+  and is marked `no-store`.
 - The browser keeps `window.__dqReplay` for **local diagnostic comparisons**
   and replay timeouts, but does not POST a verdict or treat the local outcome
   as a server-issued attestation.
