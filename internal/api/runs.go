@@ -34,6 +34,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -135,6 +136,36 @@ func validReplayPointerDetail(detail string) bool {
 // RunRecord stores a full server-owned canonical IR digest for *new* runs.
 // The old 12-hex board key is insufficient for future replay provenance.
 // Legacy records omit IRSHA256; never infer an unrecorded historical digest.
+// canonicalRunInputSHA256 fingerprints admitted replay *evidence* using a
+// server-owned, fixed-field serialization. Inputs retain their tick/order:
+// multiple actions on the same tick are not commutative. This is not a
+// simulation, score verifier, signature, or proof of client execution.
+func canonicalRunInputSHA256(gameID, fullIRSHA256 string, seed uint32, durationMs int, inputs []RunInput) (string, error) {
+	type replayInputEvidenceV1 struct {
+		Schema     string     `json:"schema"`
+		GameID     string     `json:"gameId"`
+		IRSHA256   string     `json:"irSha256"`
+		Seed       uint32     `json:"seed"`
+		DurationMs int        `json:"durationMs"`
+		Inputs     []RunInput `json:"inputs"`
+	}
+	if gameID == "" || len(fullIRSHA256) != 64 || durationMs < 0 {
+		return "", fmt.Errorf("invalid replay evidence identity")
+	}
+	if inputs == nil {
+		inputs = []RunInput{}
+	}
+	raw, err := json.Marshal(replayInputEvidenceV1{
+		Schema: "replay-input-evidence-v1", GameID: gameID, IRSHA256: fullIRSHA256,
+		Seed: seed, DurationMs: durationMs, Inputs: inputs,
+	})
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(raw)
+	return hex.EncodeToString(digest[:]), nil
+}
+
 type RunRecord struct {
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
@@ -147,6 +178,9 @@ type RunRecord struct {
 	Seed       uint32     `json:"seed"`
 	Inputs     []RunInput `json:"inputs,omitempty"`
 	At         time.Time  `json:"at"`
+	// Server-computed canonical admitted seed/tick-input evidence. This
+	// does not attest that the browser actually executed those inputs.
+	ReplayInputSHA256 string `json:"replayInputSha256,omitempty"`
 	// Legacy Verified/ActualScore were once client-supplied. Retain them
 	// only for controlled audit; never expose them as trusted attestation
 	// until a server-owned replay proof and migration exist.
@@ -496,6 +530,13 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Compute replay evidence identity before a run ID or leaderboard record
+	// exists. A client never supplies this digest as an authority.
+	replayInputSHA256, digestErr := canonicalRunInputSHA256(id, fullIRSHA256, req.Seed, req.DurationMs, req.Inputs)
+	if digestErr != nil {
+		writeErr(w, http.StatusServiceUnavailable, "unable to identify replay inputs")
+		return
+	}
 	name, filtered := sanitizeName(req.Name)
 	now := time.Now()
 	runID, err := mintRunID(now)
@@ -515,7 +556,8 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := RunRecord{
 		ID:     runID,
-		GameID: id, IRHash: hash, IRSHA256: fullIRSHA256, Name: name,
+		GameID: id, IRHash: hash, IRSHA256: fullIRSHA256,
+		ReplayInputSHA256: replayInputSHA256, Name: name,
 		Score: req.Score, Won: req.Won, DurationMs: req.DurationMs,
 		Seed: req.Seed, Inputs: req.Inputs, At: now,
 	}
