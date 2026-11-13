@@ -35,6 +35,9 @@ var pixiRuntimeJS string
 //go:embed web/runtime-seeded-rng.mjs
 var runtimeSeededRNGJS string
 
+//go:embed web/runtime-fixed-step-clock.mjs
+var runtimeFixedStepClockJS string
+
 //go:embed web/runtime-movement-plane.mjs
 var runtimeMovementPlaneJS string
 
@@ -155,6 +158,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
 	mux.HandleFunc("GET /web/runtime-seeded-rng.mjs", s.handleRuntimeSeededRNG)
+	mux.HandleFunc("GET /web/runtime-fixed-step-clock.mjs", s.handleRuntimeFixedStepClock)
 	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
 	mux.HandleFunc("GET /web/runtime-work-budget.js", s.handleRuntimeWorkBudget)
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
@@ -380,6 +384,15 @@ func (s *Server) handleRuntimeSeededRNG(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeSeededRNGJS))
+}
+
+// GET /web/runtime-fixed-step-clock.mjs — bundled trusted semantic clock.
+// This is never loaded from user-supplied game scripts or assets.
+func (s *Server) handleRuntimeFixedStepClock(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeFixedStepClockJS))
 }
 
 // GET /web/runtime-movement-plane.mjs — bundled trusted, deterministic
