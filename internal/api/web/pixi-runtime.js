@@ -2423,7 +2423,13 @@ async function run(id) {
   // changes can cancel the physical contact without emitting pointerup.
   // Never carry a synthetic held control into the next simulation step.
   addEventListener('pointercancel', () => releaseHeldInputs(), { signal: abort.signal });
-  app.canvas.addEventListener('lostpointercapture', () => releaseHeldInputs(), { signal: abort.signal });
+  app.canvas.addEventListener('lostpointercapture', () => {
+    // Normal pointerup *also* releases implicit touch capture. A tap may
+    // still be waiting for the next semantic tick; never erase it on the
+    // ordinary release path. Only an unexpected loss of a held gesture
+    // cancels pending commands.
+    if (pointer.down) releaseHeldInputs();
+  }, { signal: abort.signal });
 
   const keysDown = new Set();
   releaseHeldInputs = () => {
