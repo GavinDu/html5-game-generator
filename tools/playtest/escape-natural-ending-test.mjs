@@ -35,6 +35,13 @@ try {
     });
     const errors = [];
     const routeRuleLogs = [];
+    const leaderboardSubmissions = [];
+    page.on('request', request => {
+      if (request.method() === 'POST' &&
+          /\/v1\/games\/[^/]+\/runs(?:\?|$)/.test(request.url())) {
+        leaderboardSubmissions.push(request.url());
+      }
+    });
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => {
       const line = m.text();
@@ -81,6 +88,28 @@ try {
       // Pixi/Rapier fixed steps, not shortened timer fixtures.
       assert.equal(tenSeconds.ended, false,
         'unmodified runner must remain alive through the first ten seconds');
+
+      // The same natural 20-minute terminal fixture also checks that an
+      // authoritative replay whose evidence exceeds Go's 2,000-event cap
+      // NEVER claims a verified score after the game actually ends.
+      // Deliver only native keyboard releases through the production DOM
+      // handler. Releases do not enqueue movement or mutate Game IR.
+      // Inject after 10 simulated seconds so the first-input timestamp is
+      // not rounded to zero in a paused frame-zero capture.
+      const overflowEvents = await page.evaluate(() => {
+        for (let i = 0; i < 2001; i++) {
+          window.dispatchEvent(new KeyboardEvent('keyup', {
+            bubbles: true, key: 'ArrowLeft',
+          }));
+        }
+        return 2001;
+      });
+      assert.equal(overflowEvents, 2001);
+      // Probe is a read-only diagnostic observation, not a gameplay setter.
+      await page.waitForFunction(() => window.__dqProbe?.replayTraceComplete === false &&
+        window.__dqProbe?.inputs === 2000, null, { timeout: 10000 });
+      assert.equal(leaderboardSubmissions.length, 0,
+        'evidence overflow must not submit a run before the terminal event');
       const advanceAndInspect = async (target) => {
         assert.equal(await page.evaluate(step => window.__dqTest.advanceToStep(step), target),
           true, 'fixed-step capture must accept the route milestone');
@@ -128,6 +157,18 @@ try {
       const resultVisible = await page.locator('#shell-result')
         .evaluate(el => el.classList.contains('on'));
       assert.equal(resultVisible, true, 'real caught ending must show a restartable result card');
+      const finalSubtitle = await page.locator('#shell-result-sub').textContent();
+      assert.match(finalSubtitle, /Not leaderboard-verified: replay input limit reached/,
+        'an incomplete run must show an explicit non-verified terminal result');
+      assert.match(finalSubtitle, /Play again for a new attempt/,
+        'the actual result card must offer a fresh attempt');
+      assert.equal(leaderboardSubmissions.length, 0,
+        'a complete natural terminal must not submit its truncated replay prefix');
+      const finalProbe = await page.evaluate(() => window.__dqProbe);
+      assert.equal(finalProbe.replayTraceComplete, false,
+        'authoritative replay completeness cannot reset during the terminal');
+      assert.equal(finalProbe.inputs, 2000,
+        'the final replay prefix remains at the fixed Go server bound');
       assert.deepEqual(errors, [], 'no uncaught browser errors in the long-run simulation');
       await page.screenshot({ path: out + '/natural-caught-result.png' });
       results.push({
@@ -136,6 +177,9 @@ try {
         endingStep: ending.simStep, endingScore: ending.score,
         endingGap: ending.variables.chaser_gap, won: ending.won,
         naturallyCaught: true, canonicalTimerUnchanged: true,
+        replayOverflowEvents: overflowEvents, replayInputsRetained: 2000,
+        finalResultExplicitlyUnverified: true,
+        leaderboardSubmissions: leaderboardSubmissions.length,
         route40FiredExactlyOnce: true, route80FiredExactlyOnce: true,
         routeScreenshots: ['route-after-40s.png', 'route-after-80s.png'],
         fullDurationReached: ending.t >= 1199,
