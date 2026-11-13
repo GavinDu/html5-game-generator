@@ -67,11 +67,18 @@ try {
 
       // A successful quick tap may get pointerup + lostpointercapture
       // before the next fixed tick. It is not a cancellation.
-      await hold();
       const completedTapQueue = await page.evaluate(() => {
-        window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 17 }));
-        document.querySelector('#stage canvas')
-          .dispatchEvent(new Event('lostpointercapture'));
+        // Synchronous dispatch avoids a real RAF tick consuming the tap
+        // between the down/up/lostcapture events.
+        const canvas = document.querySelector('#stage canvas');
+        const bounds = canvas.getBoundingClientRect();
+        canvas.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true, pointerId: 18,
+          clientX: bounds.left + bounds.width / 4,
+          clientY: bounds.top + bounds.height / 2,
+        }));
+        window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 18 }));
+        canvas.dispatchEvent(new Event('lostpointercapture'));
         return window.__dqTest.snapshot().pendingSemanticInputs;
       });
       assert.ok(completedTapQueue >= 1,
