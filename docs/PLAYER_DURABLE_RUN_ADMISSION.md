@@ -57,6 +57,17 @@ a transactional multi-process append log. In particular:
 - Physical iPhone/iPad replay parity, P50/P95 latency, thermal and game
   start/teardown lifecycle testing remain Epic #202 acceptance gates.
 
+## Integrated predecessor and test-fixture review — 2026-11-13
+
+This PR has been reconstructed as a single independent commit atop merged
+async lifecycle [PR #366](https://github.com/GavinDu/html5-game-generator/pull/366)
+(`a0b3eb16bd974430e9d53ca3316131b9c9ab37c0`), retaining exactly
+three intended files. Prior source head failed `gofmt` in Go Actions; the
+extraneous blank line was removed. The disk-failure test uses a completed
+winning run because the fixture game's public board only ranks successful
+time-trial completions. None of these test repairs bypass error assertions.
+Rerun the entire six-job validation on the new integrated head.
+
 **Release:** Merge only after exact-head Go, PostgreSQL, Chromium, WebKit,
 Playability Kit and cross-browser determinism pass and the senior
 architect verifies the API responses, malformed storage fixtures and
