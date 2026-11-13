@@ -230,18 +230,45 @@ function sendTelemetryEvent(kind, fields) {
     navigator.sendBeacon('/v1/telemetry/events', new Blob([payload], { type: 'application/json' }));
   } catch { /* telemetry must never break the game */ }
 }
-function sendNativeMetric(metric, fields = {}) {
+// The native v2 host will preinstall an unguessable *document-scoped*
+// challenge before a WK main-frame navigation. This producer-only upgrade
+// cannot authenticate page code by itself: the native Coordinator must
+// compare this token with its current navigation/attachment ownership.
+// Undefined means an older native host (schema v1); a PRESENT but malformed
+// v2 configuration must fail closed without downgrading to v1.
+function buildNativeBridgeMessage(type, fields, nativeBridge, sessionId, currentGameId) {
+  if (type !== 'player_metric' && type !== 'verified_run_available') return null;
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return null;
+  for (const reserved of ['schema', 'type', 'sessionId', 'gameId', 'documentNonce']) {
+    if (Object.prototype.hasOwnProperty.call(fields, reserved)) return null;
+  }
+  const legacy = nativeBridge === undefined;
+  if (!legacy && (!nativeBridge || typeof nativeBridge !== 'object' ||
+      nativeBridge.schema !== 2 ||
+      typeof nativeBridge.documentNonce !== 'string' ||
+      !/^[0-9a-f]{32}$/.test(nativeBridge.documentNonce))) {
+    return null;
+  }
+  return {
+    ...fields,
+    schema: legacy ? 1 : 2,
+    type,
+    sessionId,
+    gameId: currentGameId,
+    ...(legacy ? {} : { documentNonce: nativeBridge.documentNonce }),
+  };
+}
+function sendNativeHostMessage(type, fields = {}) {
   try {
-    window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
-      schema: 1,
-      type: 'player_metric',
-      sessionId: dqSessionId,
-      gameId,
-      metric,
-      sequence: ++dqNativeMetricSeq,
-      ...fields,
-    });
-  } catch { /* native performance reporting is optional outside iOS */ }
+    const payload = buildNativeBridgeMessage(
+      type, fields, window.__hephaestusNativeBridge, dqSessionId, gameId,
+    );
+    if (!payload) return; // malformed installed bridge: no v1 fallback
+    window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage(payload);
+  } catch { /* native reporting must never break gameplay */ }
+}
+function sendNativeMetric(metric, fields = {}) {
+  sendNativeHostMessage('player_metric', { metric, sequence: ++dqNativeMetricSeq, ...fields });
 }
 
 // --- Player diagnostic social events (Hephaestus #61) -------------------
@@ -2426,15 +2453,10 @@ async function run(id) {
         // submissions; it would otherwise spend resources fetching a
         // record that the backend explicitly marks verified=false.
         if (data.verified === true) {
-          try {
-            window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
-              schema: 1,
-              type: 'verified_run_available',
-              sessionId: dqSessionId,
-              gameId,
-              runId: data.runId,
-            });
-          } catch { /* native bridge is optional outside iOS */ }
+          // A ranked result is not automatically verified. Only forward
+          // this optional notification if the backend explicitly claims a
+          // verified result; the native host must still query/validate it.
+          sendNativeHostMessage('verified_run_available', { runId: data.runId });
         }
       }
       if (data && data.rank && play.shell) {
