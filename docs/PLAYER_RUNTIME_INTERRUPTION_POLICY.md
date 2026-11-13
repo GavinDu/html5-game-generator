@@ -18,8 +18,10 @@ restarting on page visibility, orientation or GPU restoration.
 
 - Document hidden/blur: cancel pointer contact, held keyboard actions and
   unconsumed semantic commands. Stop the ticker; no hidden simulation.
-- Pointer cancel and lost capture: apply the same cancellation, not just
-  `pointer.down = false`; do not carry an input into a future 60 Hz tick.
+- Pointer cancel: revoke the gesture and pending commands. Unexpected capture
+  loss **while still held** is also cancellation, but loss of implicit capture
+  **after a normal pointerup** must preserve a quick tap queued for the next
+  semantic tick. The browser test proves both paths.
 - Invalid orientation: cancel input and stop. Correct orientation can resume
   only if all other gates pass.
 - WebGL context loss: stop simulation while the renderer cannot present; cancel
