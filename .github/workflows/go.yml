@@ -251,6 +251,15 @@ jobs:
           name: input-cancellation-${{ matrix.browser }}
           path: /tmp/input-cancellation-${{ matrix.browser }}/
           if-no-files-found: ignore
+      - name: Verify replay overflow retains a bounded prefix and no false verified run
+        run: node tools/playtest/runtime-replay-overflow-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/replay-overflow-${{ matrix.browser }}
+      - name: Upload authoritative replay-overflow phone/tablet evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-overflow-${{ matrix.browser }}
+          path: /tmp/replay-overflow-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Verify low/high visual quality produce identical fixed-tick gameplay on iPhone/iPad
         run: node tools/playtest/runtime-quality-semantics-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-quality-semantics-${{ matrix.browser }}
       - name: Upload quality-invariant semantic state and screenshots
