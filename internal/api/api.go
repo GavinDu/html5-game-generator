@@ -44,6 +44,9 @@ var runtimeReplayInputJS string
 //go:embed web/runtime-movement-plane.mjs
 var runtimeMovementPlaneJS string
 
+//go:embed web/runtime-rule-predicates.mjs
+var runtimeRulePredicatesJS string
+
 //go:embed web/runtime-work-budget.js
 var runtimeWorkBudgetJS string
 
@@ -164,6 +167,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/runtime-fixed-step-clock.mjs", s.handleRuntimeFixedStepClock)
 	mux.HandleFunc("GET /web/runtime-replay-input.mjs", s.handleRuntimeReplayInput)
 	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
+	mux.HandleFunc("GET /web/runtime-rule-predicates.mjs", s.handleRuntimeRulePredicates)
 	mux.HandleFunc("GET /web/runtime-work-budget.js", s.handleRuntimeWorkBudget)
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
@@ -416,6 +420,15 @@ func (s *Server) handleRuntimeMovementPlane(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeMovementPlaneJS))
+}
+
+// GET /web/runtime-rule-predicates.mjs — trusted pure fixed-step IR predicates.
+// These semantics are bundled with the engine, never supplied by game content.
+func (s *Server) handleRuntimeRulePredicates(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeRulePredicatesJS))
 }
 
 // GET /web/runtime-work-budget.js — trusted deterministic semantic work guard.

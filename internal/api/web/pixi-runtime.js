@@ -32,6 +32,7 @@ import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 import { createFixedStepClock } from './runtime-fixed-step-clock.mjs';
 import { createRunInputRecorder, createDeadInputDiagnostics } from './runtime-replay-input.mjs';
+import { conditionsMet, ruleMatches } from './runtime-rule-predicates.mjs';
 
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
@@ -1842,50 +1843,6 @@ async function run(id) {
     }
   }
 
-  const matchesRef = (ref, ent) => ref === undefined || ref === '' || ref === ent.defId || ref === ent.def.kind || ref === ent.runtimeId;
-
-  function lookupVar(name) {
-    if (name === 'score') return state.score;
-    if (name === 'health') return state.health;
-    if (name === 'elapsed' || name === 'time') return state.elapsed;
-    const key = name.startsWith('variable:') ? name.slice(9) : name;
-    return state.variables[key] ?? 0;
-  }
-  function conditionsMet(rule) {
-    for (const p of rule.conditions || []) {
-      const lhs = lookupVar(p.variable);
-      const rhs = p.value;
-      let ok = false;
-      const ln = Number(lhs), rn = Number(rhs);
-      if (!Number.isNaN(ln) && !Number.isNaN(rn) && typeof rhs !== 'boolean') {
-        switch (p.operator) {
-          case 'eq': ok = ln === rn; break;
-          case 'neq': ok = ln !== rn; break;
-          case 'gt': ok = ln > rn; break;
-          case 'gte': ok = ln >= rn; break;
-          case 'lt': ok = ln < rn; break;
-          case 'lte': ok = ln <= rn; break;
-        }
-      } else {
-        if (p.operator === 'eq') ok = lhs === rhs;
-        else if (p.operator === 'neq') ok = lhs !== rhs;
-        else ok = false;
-      }
-      if (!ok) return false;
-    }
-    return true;
-  }
-
-  function ruleMatches(rule, event, source, target, value, inputAction) {
-    const when = rule.when || {};
-    if (when.event !== event) return false;
-    if (source && !matchesRef(when.source, source)) return false;
-    if (target && !matchesRef(when.target, target)) return false;
-    if (inputAction !== undefined && when.inputAction !== undefined && when.inputAction !== inputAction) return false;
-    if (value !== undefined && when.value !== undefined && Number(when.value) !== value) return false;
-    return true;
-  }
-
   let prevHealth = state.health;
   function emit(event, source, target, value, inputAction) {
     // Terminal game outcomes are immutable, even if late Rapier collision
@@ -1899,7 +1856,7 @@ async function run(id) {
       for (const rule of ir.rules) {
         workBudget.consumeCheck();
         if (!ruleMatches(rule, event, source, target, value, inputAction)) continue;
-        if (!conditionsMet(rule)) continue;
+        if (!conditionsMet(rule, state)) continue;
         log('RULE', `rule '${rule.id}' fired by ${event}`);
         noteActivity();
         execute(rule.actions || [], source, target);
@@ -1963,7 +1920,7 @@ async function run(id) {
       if (rule.when?.event !== 'score_reached') continue;
       if (state.firedThresholds.has(rule.id)) continue;
       if (!(state.score >= Number(rule.when.value))) continue;
-      if (!conditionsMet(rule)) continue;
+      if (!conditionsMet(rule, state)) continue;
       state.firedThresholds.add(rule.id);
       log('RULE', `rule '${rule.id}' fired by score_reached (${state.score})`);
       execute(rule.actions || [], playerEnt, undefined);
