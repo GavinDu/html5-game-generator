@@ -38,6 +38,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -87,6 +88,29 @@ func validReplayInputDetail(detail string) bool {
 			units++
 		}
 		if units > maxReplayInputDetailUTF16Units {
+			return false
+		}
+	}
+	return true
+}
+
+// A stored pointer event must have exactly the two canonical integer
+// coordinates emitted by the preinstalled Pixi input adapter. Number()
+// in the historical replay path would silently skip invalid coordinates
+// or accept ambiguous decimal/exponent/trailing-component representations.
+// One million logical pixels accommodates off-canvas pointer capture while
+// preventing unbounded values from reaching a future replay executor.
+const maxReplayPointerCoordinate int64 = 1_000_000
+
+func validReplayPointerDetail(detail string) bool {
+	coords := strings.Split(detail, ",")
+	if len(coords) != 2 {
+		return false
+	}
+	for _, coord := range coords {
+		value, err := strconv.ParseInt(coord, 10, 64)
+		if err != nil || strconv.FormatInt(value, 10) != coord ||
+			value < -maxReplayPointerCoordinate || value > maxReplayPointerCoordinate {
 			return false
 		}
 	}
@@ -401,7 +425,19 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		switch inp.Type {
-		case "pointer", "pointerup", "key", "keyup":
+		case "pointer":
+			if !validReplayPointerDetail(inp.Detail) {
+				writeErr(w, http.StatusBadRequest, "invalid pointer replay coordinates")
+				return
+			}
+		case "pointerup":
+			if inp.Detail != "" {
+				writeErr(w, http.StatusBadRequest, "pointer release must have no detail")
+				return
+			}
+		case "key", "keyup":
+			// Preserve the version 1.x input-binding vocabulary while its
+			// independent versioned replay grammar is being designed.
 		default:
 			writeErr(w, http.StatusBadRequest, "unknown input type")
 			return

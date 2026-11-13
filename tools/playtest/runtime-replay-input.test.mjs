@@ -173,3 +173,39 @@ test('browser detail budgets match UTF-16 code units at Go admission boundaries'
     if (!expected) assert.equal(trace.failureReason, 'invalid_event', name);
   }
 });
+
+test('replay pointer event grammar is canonical and fail-closed, while v1 keyboard remains compatible', () => {
+  const cases = [
+    ['pointer', '0,0', true],
+    ['pointer', '-12,1000000', true],
+    ['pointer', '1000000,-1000000', true],
+    ['pointer', '', false],
+    ['pointer', '0', false],
+    ['pointer', '1,2,3', false],
+    ['pointer', ',2', false],
+    ['pointer', 'NaN,0', false],
+    ['pointer', 'Infinity,3', false],
+    ['pointer', '1.2,3', false],
+    ['pointer', '01,2', false],
+    ['pointer', '-0,2', false],
+    ['pointer', '+1,2', false],
+    ['pointer', '1000001,2', false],
+    ['pointer', '-1000001,0', false],
+    ['pointer', ' 1,2', false],
+    ['pointerup', '', true],
+    ['pointerup', '1,2', false],
+    ['key', 'ArrowLeft', true],
+    ['keyup', 'ArrowLeft', true],
+    ['key', '', true], // Compatibility until versioned input-binding grammar
+  ];
+  for (const [type, detail, accepted] of cases) {
+    const trace = createRunInputRecorder();
+    assert.equal(trace.record(7, type, detail), accepted, type + ':' + detail);
+    assert.equal(trace.complete, accepted, type + ':' + detail);
+    assert.equal(trace.inputs.length, accepted ? 1 : 0, type + ':' + detail);
+    if (!accepted) {
+      assert.equal(trace.failureReason, 'invalid_event', type + ':' + detail);
+      assert.equal(trace.record(8, 'key', 'ArrowLeft'), false, 'corrupt replay prefix must stay frozen');
+    }
+  }
+});
