@@ -172,18 +172,30 @@ func (s *Server) loadRunsLocked() {
 	}
 }
 
-func (s *Server) appendRunFile(rec RunRecord) {
-	if err := os.MkdirAll(telemetryDir(), 0o755); err != nil {
-		return
-	}
-	f, err := os.OpenFile(filepath.Join(telemetryDir(), "runs.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+// appendRunFile is the durable admission boundary for a replay trace.
+// The caller holds runsMu: persistence and in-memory publication must be in
+// the same order, and an I/O failure must never yield a successful runId.
+// Existing JSONL logs remain readable; this is a single-process guarantee,
+// not a replacement for transactional multi-writer storage.
+func (s *Server) appendRunFile(rec RunRecord) error {
+	raw, err := json.Marshal(rec)
 	if err != nil {
-		return
+		return err
+	}
+	if err := os.MkdirAll(telemetryDir(), 0o755); err != nil {
+		return err
+	}
+	// Replay traces can contain private input timing, so newly-created logs
+	// must not be world-readable. Existing file permissions are unchanged.
+	f, err := os.OpenFile(filepath.Join(telemetryDir(), "runs.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
 	}
 	defer f.Close()
-	if raw, err := json.Marshal(rec); err == nil {
-		_, _ = f.Write(append(raw, '\n'))
+	if _, err := f.Write(append(raw, '\n')); err != nil {
+		return err
 	}
+	return f.Sync()
 }
 
 var nameBlocklist = []string{
@@ -498,9 +510,16 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 		Score: req.Score, Won: req.Won, DurationMs: req.DurationMs,
 		Seed: req.Seed, Inputs: req.Inputs, At: now,
 	}
+	// Never publish a run (or its leaderboard rank) until the on-disk
+	// replay trace has been written and synced. A failure can be retried
+	// without creating an in-memory ghost run that vanishes after restart.
+	if err := s.appendRunFile(rec); err != nil {
+		s.runsMu.Unlock()
+		writeErr(w, http.StatusServiceUnavailable, "unable to persist run")
+		return
+	}
 	s.runs = append(s.runs, rec)
 	s.runsMu.Unlock()
-	s.appendRunFile(rec)
 	// Rank on the weekly board (the default view).
 	board := s.boardRuns(id, hash, "week", game.GameIR)
 	rank := 0

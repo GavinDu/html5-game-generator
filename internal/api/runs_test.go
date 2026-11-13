@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -283,6 +285,89 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 	srv.runsMu.Unlock()
 	if stored != accepted {
 		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
+	}
+}
+
+func TestRunSubmissionRejectsUnavailablePersistenceWithoutGhostLeaderboard(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	const payload = `{"name":"durable","score":7,"won":true,"durationMs":20000,"seed":42}`
+	validDir := os.Getenv("DQ_TELEMETRY_DIR")
+
+	// First accepted trace must survive a real Server restart.
+	code, first := postRun(t, srv, gameID, payload)
+	if code != http.StatusCreated {
+		t.Fatalf("seed run rejected: code=%d response=%v", code, first)
+	}
+	firstID, ok := first["runId"].(string)
+	if !ok || firstID == "" {
+		t.Fatalf("accepted run missing durable locator: %v", first)
+	}
+	logPath := filepath.Join(validDir, "runs.jsonl")
+	info, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf("accepted run missing JSONL file: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("new replay trace file must be private (0600), got %04o", info.Mode().Perm())
+	}
+
+	root := t.TempDir()
+	blockedParent := filepath.Join(root, "not-a-directory")
+	if err := os.WriteFile(blockedParent, []byte("occupied"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	blockedLog := filepath.Join(root, "existing-dir")
+	if err := os.MkdirAll(filepath.Join(blockedLog, "runs.jsonl"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, blocked := range []string{blockedParent, blockedLog} {
+		t.Setenv("DQ_TELEMETRY_DIR", blocked)
+		code, result := postRun(t, srv, gameID, payload)
+		if code != http.StatusServiceUnavailable {
+			t.Fatalf("unwritable log %q: accepted ghost run status=%d payload=%v", blocked, code, result)
+		}
+		if _, found := result["runId"]; found {
+			t.Fatalf("failed persistence must not return a runId: %v", result)
+		}
+		board := getBoard(t, srv, gameID, "all")
+		entries, ok := board["entries"].([]any)
+		if !ok || len(entries) != 1 || entries[0].(map[string]any)["runId"] != firstID {
+			t.Fatalf("failed persistence must not alter leaderboard: %v", board)
+		}
+		srv.runsMu.Lock()
+		count := len(srv.runs)
+		srv.runsMu.Unlock()
+		if count != 1 {
+			t.Fatalf("failed persistence published an in-memory ghost run: count=%d", count)
+		}
+	}
+
+	// Recover the directory, submit again, then reload the same persisted
+	// file in a new Server. Both accepted IDs must resolve uniquely.
+	t.Setenv("DQ_TELEMETRY_DIR", validDir)
+	code, second := postRun(t, srv, gameID, payload)
+	if code != http.StatusCreated {
+		t.Fatalf("retry after persistence recovery: code=%d response=%v", code, second)
+	}
+	secondID, ok := second["runId"].(string)
+	if !ok || secondID == "" || secondID == firstID {
+		t.Fatalf("retry must allocate a distinct persisted run: %v", second)
+	}
+	restarted := New(srv.store, pipeline.NewRunner(srv.store))
+	for _, id := range []string{firstID, secondID} {
+		request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+id, nil)
+		response := httptest.NewRecorder()
+		restarted.Routes().ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("accepted run %s lost after restart: status=%d", id, response.Code)
+		}
+	}
+	restarted.runsMu.Lock()
+	persisted := len(restarted.runs)
+	restarted.runsMu.Unlock()
+	if persisted != 2 {
+		t.Fatalf("persistence/restart must contain only accepted runs: got %d", persisted)
 	}
 }
 
