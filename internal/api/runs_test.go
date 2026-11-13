@@ -85,30 +85,60 @@ func TestRunsSubmitBoardAndVerify(t *testing.T) {
 	if run["seed"] != 42.0 || len(run["inputs"].([]any)) != 2 {
 		t.Fatalf("run fetch: %v", run)
 	}
-	// Verification lands once; the board then shows verified.
-	req = httptest.NewRequest(http.MethodPost, "/v1/runs/"+runID+"/verification", strings.NewReader(`{"match":true,"actualScore":12}`))
-	rec = httptest.NewRecorder()
-	srv.Routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("verification: %d", rec.Code)
+	// A browser (even an authenticated browser replaying the actual seed)
+	// must not be able to attest its own score. Until a server-owned replay
+	// verifier ships, every claimed verdict is denied and never stored.
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"forged_match", `{"match":true,"actualScore":12}`},
+		{"negative_match", `{"match":false,"actualScore":0}`},
+		{"invalid_json", `{"match":`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/runs/"+runID+"/verification", strings.NewReader(tc.body))
+			req.Header.Set("X-User-ID", "another-player")
+			rec := httptest.NewRecorder()
+			srv.Routes().ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("untrusted verdict accepted: status %d body %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Header().Get("Cache-Control"), "no-store") {
+				t.Fatalf("verification rejection must be non-cacheable: %v", rec.Header())
+			}
+		})
 	}
 	board = getBoard(t, srv, gid, "week")
 	entries = board["entries"].([]any)
 	for _, e := range entries {
 		em := e.(map[string]any)
 		if em["runId"] == runID {
-			if em["verified"] != true {
-				t.Fatalf("verified flag not on board: %v", em)
+			if _, present := em["verified"]; present {
+				t.Fatalf("client verdict must not set verified flag: %v", em)
 			}
 		}
 	}
-	req = httptest.NewRequest(http.MethodPost, "/v1/runs/"+runID+"/verification", strings.NewReader(`{"match":false,"actualScore":0}`))
+	srv.runsMu.Lock()
+	var stored *RunRecord
+	for i := range srv.runs {
+		if srv.runs[i].ID == runID {
+			copy := srv.runs[i]
+			stored = &copy
+			break
+		}
+	}
+	srv.runsMu.Unlock()
+	if stored == nil || stored.Verified != nil || stored.ActualScore != nil {
+		t.Fatalf("untrusted verdict modified persisted run: %+v", stored)
+	}
+	// Do not reveal whether a guessed run ID exists through this retired
+	// endpoint; the response is independent of the run's presence.
+	req = httptest.NewRequest(http.MethodPost, "/v1/runs/missing-id/verification", strings.NewReader(`{"match":true}`))
 	rec = httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
-	var vresp map[string]any
-	_ = json.Unmarshal(rec.Body.Bytes(), &vresp)
-	if vresp["alreadyRecorded"] != true || vresp["verified"] != true {
-		t.Fatalf("second verdict must not rewrite history: %v", vresp)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unknown-run verdict must also fail closed: %d", rec.Code)
 	}
 }
 
