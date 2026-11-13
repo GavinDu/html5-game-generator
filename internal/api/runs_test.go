@@ -430,6 +430,119 @@ func TestNewRunRetainsServerOwnedFullIRDigestAfterRestart(t *testing.T) {
 	}
 }
 
+func TestReplayInputEvidenceDigestIsOrderSensitiveAndClaimsDoNotAttest(t *testing.T) {
+	const gameID = "sample-rainbow-bear"
+	const fullIR = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd"
+	inputs := []RunInput{
+		{Tick: 10, Type: "key", Detail: "ArrowLeft"},
+		{Tick: 10, Type: "key", Detail: "ArrowRight"},
+		{Tick: 11, Type: "pointer", Detail: "12,34"},
+	}
+	reference, err := canonicalRunInputSHA256(gameID, fullIR, 42, 20000, inputs)
+	if err != nil || len(reference) != 64 {
+		t.Fatalf("canonical replay digest: %q, %v", reference, err)
+	}
+	if raw, err := hex.DecodeString(reference); err != nil || len(raw) != 32 {
+		t.Fatalf("invalid SHA-256 digest: %s, %v", reference, err)
+	}
+	same, err := canonicalRunInputSHA256(gameID, fullIR, 42, 20000, append([]RunInput(nil), inputs...))
+	if err != nil || same != reference {
+		t.Fatalf("same replay evidence must remain stable across copies: %s != %s", same, reference)
+	}
+	for _, example := range []struct {
+		name     string
+		gameID   string
+		fullIR   string
+		seed     uint32
+		duration int
+		inputs   []RunInput
+	}{
+		{"different-game", "another", fullIR, 42, 20000, inputs},
+		{"different-IR", gameID, "1234123412341234123412341234123412341234123412341234123412341234", 42, 20000, inputs},
+		{"different-seed", gameID, fullIR, 43, 20000, inputs},
+		{"different-duration", gameID, fullIR, 42, 20001, inputs},
+		{"missing-input", gameID, fullIR, 42, 20000, inputs[:2]},
+		{"changed-key", gameID, fullIR, 42, 20000, []RunInput{{Tick: 10, Type: "key", Detail: "ArrowUp"}, inputs[1], inputs[2]}},
+		{"reordered-same-tick", gameID, fullIR, 42, 20000, []RunInput{inputs[1], inputs[0], inputs[2]}},
+	} {
+		t.Run(example.name, func(t *testing.T) {
+			digest, err := canonicalRunInputSHA256(example.gameID, example.fullIR, example.seed, example.duration, example.inputs)
+			if err != nil || digest == reference {
+				t.Fatalf("changed evidence improperly matches: %s == %s: %v", digest, reference, err)
+			}
+		})
+	}
+	empty, err := canonicalRunInputSHA256(gameID, fullIR, 42, 20000, nil)
+	explicit, explicitErr := canonicalRunInputSHA256(gameID, fullIR, 42, 20000, []RunInput{})
+	if err != nil || explicitErr != nil || empty != explicit {
+		t.Fatalf("nil versus empty trace must have one canonical encoding: %s %s, %v %v", empty, explicit, err, explicitErr)
+	}
+	if _, err := canonicalRunInputSHA256("", fullIR, 42, 20000, inputs); err == nil {
+		t.Fatal("cannot fingerprint missing game identity")
+	}
+	if _, err := canonicalRunInputSHA256(gameID, "short", 42, 20000, inputs); err == nil {
+		t.Fatal("cannot fingerprint missing authoritative IR digest")
+	}
+}
+
+func TestRunEvidenceDigestPersistedAcrossRestartWithoutTrustedScore(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	body := `{"name":"same-evidence","score":6,"won":true,"durationMs":20000,"seed":42,"inputs":[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":10,"type":"key","detail":"ArrowRight"}]}`
+	code, posted := postRun(t, srv, gameID, body)
+	if code != http.StatusCreated {
+		t.Fatalf("run submission: %d %v", code, posted)
+	}
+	id, _ := posted["runId"].(string)
+	if id == "" {
+		t.Fatalf("missing run ID: %v", posted)
+	}
+	var first RunRecord
+	for index, active := range []*Server{srv, New(srv.store, pipeline.NewRunner(srv.store))} {
+		rec := httptest.NewRecorder()
+		active.Routes().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/runs/"+id, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("read #%d failed: %d %s", index, rec.Code, rec.Body.String())
+		}
+		var got RunRecord
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if len(got.ReplayInputSHA256) != 64 || len(got.IRSHA256) != 64 ||
+			got.Verified != nil || got.ActualScore != nil {
+			t.Fatalf("server evidence hash must not imply a verified result: %+v", got)
+		}
+		computed, err := canonicalRunInputSHA256(gameID, got.IRSHA256, got.Seed, got.DurationMs, got.Inputs)
+		if err != nil || computed != got.ReplayInputSHA256 {
+			t.Fatalf("stored evidence hash does not match admitted trace: %+v %v", got, err)
+		}
+		if index > 0 && (got.ReplayInputSHA256 != first.ReplayInputSHA256 || got.ID != first.ID) {
+			t.Fatalf("restart changed persisted evidence identity: before %+v after %+v", first, got)
+		}
+		first = got
+	}
+	// Browser score/name/win claims are NOT inputs to the immutable evidence
+	// digest; they must be independently compared by the future server engine.
+	anotherCode, next := postRun(t, srv, gameID, `{"name":"another-claim","score":4,"won":false,"durationMs":20000,"seed":42,"inputs":[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":10,"type":"key","detail":"ArrowRight"}]}`)
+	if anotherCode != http.StatusCreated {
+		t.Fatalf("second run: %d %+v", anotherCode, next)
+	}
+	nextID, _ := next["runId"].(string)
+	var second RunRecord
+	for _, item := range srv.runs {
+		if item.ID == nextID {
+			second = item
+			break
+		}
+	}
+	if second.ID == "" || second.ReplayInputSHA256 != first.ReplayInputSHA256 || second.ID == first.ID {
+		t.Fatalf("same evidence must have same digest despite separate unverified claims: first %+v second %+v", first, second)
+	}
+	if second.Verified != nil {
+		t.Fatal("replay digest must never authorize client-reported score")
+	}
+}
+
 func TestRunIDRemainsUniqueAcrossProcessRestart(t *testing.T) {
 	srv := newRunsServer(t)
 	const gameID = "sample-rainbow-bear"
