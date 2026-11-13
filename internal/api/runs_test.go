@@ -285,6 +285,64 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 	}
 }
 
+func TestReplayPointerGrammarParityWithTrustedRecorder(t *testing.T) {
+	srv := newRunsServer(t)
+	cases := []struct {
+		name   string
+		typ    string
+		detail string
+		want   int
+	}{
+		{"zero", "pointer", "0,0", http.StatusCreated},
+		{"negative_and_max", "pointer", "-12,1000000", http.StatusCreated},
+		{"signed_boundaries", "pointer", "1000000,-1000000", http.StatusCreated},
+		{"empty_pointer", "pointer", "", http.StatusBadRequest},
+		{"one_coordinate", "pointer", "0", http.StatusBadRequest},
+		{"extra_coordinate", "pointer", "1,2,3", http.StatusBadRequest},
+		{"missing_coordinate", "pointer", ",2", http.StatusBadRequest},
+		{"not_a_number", "pointer", "NaN,0", http.StatusBadRequest},
+		{"infinity", "pointer", "Infinity,3", http.StatusBadRequest},
+		{"decimal", "pointer", "1.2,3", http.StatusBadRequest},
+		{"leading_zero", "pointer", "01,2", http.StatusBadRequest},
+		{"negative_zero", "pointer", "-0,2", http.StatusBadRequest},
+		{"plus_sign", "pointer", "+1,2", http.StatusBadRequest},
+		{"above_limit", "pointer", "1000001,2", http.StatusBadRequest},
+		{"below_limit", "pointer", "-1000001,0", http.StatusBadRequest},
+		{"whitespace", "pointer", " 1,2", http.StatusBadRequest},
+		{"release_empty", "pointerup", "", http.StatusCreated},
+		{"release_forged_detail", "pointerup", "1,2", http.StatusBadRequest},
+		{"key_binding", "key", "ArrowLeft", http.StatusCreated},
+		{"key_release", "keyup", "ArrowLeft", http.StatusCreated},
+		{"legacy_empty_key", "key", "", http.StatusCreated},
+	}
+	accepted := 0
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, err := json.Marshal(map[string]any{
+				"name": "ReplayShape", "score": 5, "won": false,
+				"durationMs": 20000, "seed": 42,
+				"inputs": []RunInput{{Tick: 7, Type: tc.typ, Detail: tc.detail}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			status, _ := postRun(t, srv, "sample-rainbow-bear", string(payload))
+			if status != tc.want {
+				t.Fatalf("replay detail %q type %s: got %d, want %d", tc.detail, tc.typ, status, tc.want)
+			}
+			if tc.want == http.StatusCreated {
+				accepted++
+			}
+		})
+	}
+	srv.runsMu.Lock()
+	stored := len(srv.runs)
+	srv.runsMu.Unlock()
+	if stored != accepted {
+		t.Fatalf("rejected pointer evidence persisted: got %d records, want %d", stored, accepted)
+	}
+}
+
 func TestAuthenticatedClientCannotSelfAttestRun(t *testing.T) {
 	srv := newRunsServer(t)
 	const secret = "test-replay-attestation-only-not-production"

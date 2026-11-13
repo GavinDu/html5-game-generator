@@ -7,6 +7,23 @@
 export const MAX_VERIFIABLE_RUN_INPUTS = 2000;
 const ALLOWED_INPUT_TYPES = new Set(['pointer', 'pointerup', 'key', 'keyup']);
 
+// Version 1.x replay pointer details are canonical signed integer logical
+// coordinates in the preinstalled 2D player's coordinate space. Permit
+// off-canvas captured drags but reject ambiguous/unbounded numbers: the
+// playback adapter otherwise silently ignores malformed pointer records.
+const MAX_REPLAY_POINTER_COORD = 1_000_000;
+const CANONICAL_POINTER_COORD = /^(?:0|-?[1-9][0-9]*)$/;
+
+function validReplayDetailShape(type, detail) {
+  if (type === 'pointerup') return detail === '';
+  if (type !== 'pointer') return true; // v1.x keys are matched by IR bindings
+  const coords = detail.split(',');
+  return coords.length === 2 && coords.every((text) =>
+    CANONICAL_POINTER_COORD.test(text) &&
+    Number.isSafeInteger(Number(text)) &&
+    Math.abs(Number(text)) <= MAX_REPLAY_POINTER_COORD);
+}
+
 export function createRunInputRecorder(maxEvents = MAX_VERIFIABLE_RUN_INPUTS) {
   if (!Number.isSafeInteger(maxEvents) || maxEvents < 1 || maxEvents > MAX_VERIFIABLE_RUN_INPUTS) {
     throw new RangeError('invalid replay input trace budget');
@@ -29,6 +46,11 @@ export function createRunInputRecorder(maxEvents = MAX_VERIFIABLE_RUN_INPUTS) {
       if (!ALLOWED_INPUT_TYPES.has(type)) {
         complete = false;
         failureReason = 'unsupported_input';
+        return false;
+      }
+      if (!validReplayDetailShape(type, detail)) {
+        complete = false;
+        failureReason = 'invalid_event';
         return false;
       }
       // Events are recorded in semantic tick order. Multiple inputs at
