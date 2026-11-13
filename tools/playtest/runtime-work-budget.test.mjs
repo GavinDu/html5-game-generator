@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createSimulationWorkBudget, createSemanticInputQueue, SIMULATION_WORK_LIMITS, MAX_QUEUED_SEMANTIC_INPUTS } from '../../internal/api/web/runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue, SIMULATION_WORK_LIMITS, MAX_QUEUED_SEMANTIC_INPUTS, shouldRunSemanticTicker } from '../../internal/api/web/runtime-work-budget.js';
 
 const runtime = await readFile(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url), 'utf8');
 
@@ -75,6 +75,35 @@ test('all live and replay input rules run inside one fixed-step work budget', ()
   assert.match(runtime, /semanticInputQueue\.drain\(\(\{ source, target, action \}\) => \{\s*emit\('input', source, target, undefined, action\);/);
   assert.match(runtime, /function applyReplayInputs\(step\) \{[^]*?queueGameInput\(playerEnt, undefined, tapActionName\(\)\);/);
   assert.match(runtime, /function queueGameInput\(source, target, action\) \{[^]*?semanticInputQueue\.enqueue/);
-  assert.match(runtime, /const releaseHeldInputs = \(\) => \{[^]*?semanticInputQueue\.clear\(\)/);
+  assert.match(runtime, /releaseHeldInputs = \(\) => \{[^]*?semanticInputQueue\.clear\(\)/);
   assert.match(runtime, /if \(state\.ended \|\| state\.failed\) return;\s*try \{\s*semanticInputQueue\.enqueue/);
+});
+
+
+test('ticker resumes only for a live visible, context-valid interactive session', () => {
+  const runnable = { shellStarted: true, hidden: false, orientationBlocked: false,
+    contextLost: false, ended: false, failed: false, renderFailed: false,
+    deterministicCapture: false };
+  assert.equal(shouldRunSemanticTicker(runnable), true);
+  for (const stopCondition of ['hidden', 'orientationBlocked', 'contextLost',
+    'ended', 'failed', 'renderFailed', 'deterministicCapture']) {
+    assert.equal(shouldRunSemanticTicker({ ...runnable, [stopCondition]: true }), false,
+      stopCondition + ' must fail closed');
+  }
+  assert.equal(shouldRunSemanticTicker({ ...runnable, shellStarted: false }), false);
+  assert.equal(shouldRunSemanticTicker(), false);
+  assert.equal(shouldRunSemanticTicker({ ...runnable, contextLost: true, hidden: true }), false);
+  assert.equal(shouldRunSemanticTicker({ ...runnable, contextLost: false }), true,
+    'restored context is eligible only with every other guard still true');
+});
+
+test('visibility, context loss, rotation and capture cancellation share a guard and clear inputs', () => {
+  assert.match(runtime, /document\.addEventListener\('visibilitychange', \(\) => \{\s*if \(document\.hidden\) \{\s*releaseHeldInputs\(\)/);
+  assert.match(runtime, /webglcontextlost[^]*?contextLost = true;\s*releaseHeldInputs\(\);\s*try \{ app\.ticker\.stop\(\)/);
+  assert.match(runtime, /webglcontextrestored[^]*?contextLost = false;[^]*?resumeTickerIfSafe\(\)/);
+  assert.match(runtime, /lostpointercapture', \(\) => \{[^]*?if \(pointer\.down\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /pointercancel', \(\) => releaseHeldInputs\(\)/);
+  assert.match(runtime, /if \(orientationBlocked\) releaseHeldInputs\(\);\s*resumeTickerIfSafe\(\)/);
+  assert.match(runtime, /resumeTickerIfSafe = \(\) => \{\s*const canRun = shouldRunSemanticTicker/);
+  assert.match(runtime, /if \(canRun\) app\.ticker\.start\(\);\s*else app\.ticker\.stop\(\)/);
 });
