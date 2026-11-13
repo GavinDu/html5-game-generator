@@ -79,7 +79,7 @@ test('production runtime unifies all event sources and blocks partial leaderboar
   assert.match(runtime, /inputLog: replayInputRecorder\.inputs/);
   assert.match(runtime, /replayTraceComplete: play \? play\.replayTraceComplete : null/);
   assert.match(runtime, /deadInputRate: play && play\.replayTraceComplete && play\.deadInputDiagnosticsComplete && play\.inputLog\.length > 0/);
-  assert.match(runtime, /deadInputDiagnostics: play \? play\.deadInputDiagnosticsComplete : null/);
+  assert.match(runtime, /deadInputDiagnosticsComplete: play \? play\.deadInputDiagnosticsComplete : null/);
   assert.match(runtime, /function noteInput\(type, detail\) \{\s*replayInputRecorder\.record\(play\.simStep, type, detail \|\| ''\)/);
   assert.match(runtime, /replayInputRecorder\.record\(play\.simStep, 'pointer',/);
   assert.match(runtime, /replayInputRecorder\.record\(play\.simStep, 'pointerup', ''\)/);
