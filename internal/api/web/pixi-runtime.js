@@ -915,6 +915,53 @@ function storeGet(store, k) { try { return store.getItem(k); } catch { return nu
 function storeSet(store, k, v) { try { store.setItem(k, v); } catch { /* unavailable */ } }
 function storeRemove(store, k) { try { store.removeItem(k); } catch { /* unavailable */ } }
 
+// One attempt owns async boot before the first fetch/app.init await. The
+// older attempt is revoked synchronously, even when it has not created Pixi
+// yet and therefore cannot be found through activeSession.
+function createGameRunAttemptGate() {
+  let current = null;
+  return {
+    begin() {
+      current?.abort();
+      const controller = new AbortController();
+      current = controller;
+      return {
+        controller,
+        assertActive() {
+          if (current !== controller || controller.signal.aborted) {
+            const error = new Error('game run superseded by a newer attempt');
+            error.name = 'StaleGameRunError';
+            throw error;
+          }
+        },
+      };
+    },
+  };
+}
+// Every image created by loadTexture() is private to one game attempt.
+// Pixi's app.destroy(texture:false) intentionally avoids global/shared
+// caches; retire only these privately decoded image textures on restart.
+function disposeOwnedGameTextures(textures) {
+  const owned = new Set(textures.values());
+  textures.clear();
+  for (const texture of owned) {
+    try { texture.destroy(true); } catch { /* disposal must be idempotent */ }
+  }
+}
+
+async function awaitGameRunAttempt(promise, attempt) {
+  try {
+    const result = await promise;
+    attempt.assertActive();
+    return result;
+  } catch (error) {
+    // Network AbortError from a revoked attempt must be recognized as stale
+    // rather than surfacing as a failure on the successor's player sheet.
+    attempt.assertActive();
+    throw error;
+  }
+}
+const gameRunAttemptGate = createGameRunAttemptGate();
 let activeSession = null; // { app, abort: AbortController }
 let restartCount = 0;
 let skipStartCardOnce = false; // Play again skips the how-to card (design: retry < 1s)
@@ -926,6 +973,7 @@ async function restartGame() {
   skipStartCardGameId = gameId;
   recordEvent('restart', 'attempt ' + restartCount);
   await run(gameId).catch((err) => {
+    if (err?.name === 'StaleGameRunError') return;
     $('status').textContent = 'Failed to restart: ' + err.message;
     recordError('restart', err);
   });
@@ -934,16 +982,21 @@ window.__dqRestart = restartGame;
 
 async function run(id) {
   const started = performance.now();
+  const attempt = gameRunAttemptGate.begin();
+  const abort = attempt.controller;
+  // Each awaited allocation must still belong to this run before it may
+  // mutate the stage, register inputs or publish readiness/failure.
+  const awaitActive = (promise) => awaitGameRunAttempt(promise, attempt);
   // Tear down the previous session (in-place restart path).
   if (activeSession) {
     sfx.reset();
     try { activeSession.abort.abort(); } catch { /* ignore */ }
     try { activeSession.app.destroy(true, { children: true, texture: false }); } catch { /* ignore */ }
+    try { activeSession.disposeTextures?.(); } catch { /* ignore */ }
     activeSession = null;
     $('stage').innerHTML = '';
     $('end').style.display = 'none';
   }
-  const abort = new AbortController();
   dqEvents = [];
   Emitter.instances = [];
   $('shell-start')?.classList.remove('on');
@@ -961,12 +1014,13 @@ async function run(id) {
   let replayTrace = null;
   if (replayRunId) {
     try {
-      const rr = await apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`);
+      const rr = await awaitActive(apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`, { signal: abort.signal }));
       if (rr.ok) {
-        replayTrace = await rr.json();
+        replayTrace = await awaitActive(rr.json());
         if (Number.isFinite(replayTrace.seed)) sessionSeed = replayTrace.seed >>> 0;
       }
-    } catch {
+    } catch (error) {
+      attempt.assertActive();
       // A missing run must never become an apparently valid recorded
       // preview. Ordinary gameplay keeps its existing fallback behavior.
       if (deterministicCapture) {
@@ -1057,12 +1111,12 @@ async function run(id) {
     play.frameSamples = [];
     play.longestFrameMs = 0;
   }
-  const res = await apiFetch(`/v1/games/${encodeURIComponent(id)}/package`);
+  const res = await awaitActive(apiFetch(`/v1/games/${encodeURIComponent(id)}/package`, { signal: abort.signal }));
   if (!res.ok) {
-    const body = await res.text();
+    const body = await awaitActive(res.text());
     throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
   }
-  const pkg = await res.json();
+  const pkg = await awaitActive(res.json());
   if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) {
     throw new Error('invalid game package: expected an object envelope');
   }
@@ -1165,13 +1219,20 @@ async function run(id) {
 
   // --- Pixi stage -----------------------------------------------------
   const app = new PIXI.Application();
-  await app.init({
-    width: W, height: H,
-    antialias: qualityMode !== 'low',
-    resolution: qualityMode === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2),
-    autoDensity: true,
-    background: scene.backgroundColor ? parseColor(scene.backgroundColor, 0x16204a) : 0x16204a,
-  });
+  try {
+    await awaitActive(app.init({
+      width: W, height: H,
+      antialias: qualityMode !== 'low',
+      resolution: qualityMode === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2),
+      autoDensity: true,
+      background: scene.backgroundColor ? parseColor(scene.backgroundColor, 0x16204a) : 0x16204a,
+    }));
+  } catch (error) {
+    // An attempt revoked while WebGL is initializing must not leak an
+    // unattached canvas/renderer after a successor has already started.
+    try { app.destroy(true, { children: true, texture: false }); } catch { /* partially initialized */ }
+    throw error;
+  }
   $('stage').appendChild(app.canvas);
   // Letterbox continuity (Phase E): when the viewport aspect differs
   // from the world's, the page around the canvas wears the scene's
@@ -1183,6 +1244,19 @@ async function run(id) {
     if (stageEl) stageEl.style.background = scene.backgroundColor;
   }
   activeSession = { app, abort };
+  const discardFailedBootstrap = (error) => {
+    // Only retire this attempt's renderer. A newer run may already own the
+    // pooled stage by the time an old fetch/decode rejects.
+    abort.abort();
+    // Partial preflight decoded textures must not survive a canceled boot.
+    // The map is private to this attempt; never release successor resources.
+    disposeOwnedGameTextures(textures);
+    if (activeSession?.app === app) {
+      try { app.destroy(true, { children: true, texture: false }); } catch { /* already destroyed */ }
+      activeSession = null;
+    }
+    throw error;
+  };
   // The canvas can outlive an OS background/context-loss event. These
   // callbacks are installed during initialization, before input/clock
   // closures exist, so safe no-op handlers are replaced after setup.
@@ -1272,6 +1346,11 @@ async function run(id) {
     }
   }
   const textures = new Map();
+  // The active scene owns only decoded package images, not Pixi's global
+  // textures or shared engine caches. Revoke them on the next Play Again.
+  if (activeSession?.app === app) {
+    activeSession.disposeTextures = () => disposeOwnedGameTextures(textures);
+  }
   // Package asset URLs are extension-less (/v1/games/<id>/assets/<assetId>), and
   // PIXI.Assets.load() resolves null for a URL it cannot match to a loader by
   // extension — the null then kills Sprite construction ("reading 'texture'").
@@ -1329,7 +1408,11 @@ async function run(id) {
     // Image.src cannot carry the Bearer header kept in tab-scoped session
     // storage. Fetch through apiFetch first so private/group asset delivery
     // receives the same verified identity as the package request.
+    attempt.assertActive();
     const requestController = new AbortController();
+    const onSessionAbort = () => requestController.abort();
+    abort.signal.addEventListener('abort', onSessionAbort, { once: true });
+    if (abort.signal.aborted) requestController.abort();
     const requestTimeout = setTimeout(() => requestController.abort(), 15000);
     let imageBlob;
     try {
@@ -1339,13 +1422,16 @@ async function run(id) {
       }
       imageBlob = await readBoundedImageBlob(response);
     } catch (error) {
+      attempt.assertActive();
       if (requestController.signal.aborted) {
         throw new Error(`image request timed out after 15s: ${assetURL.pathname}`);
       }
       throw error;
     } finally {
       clearTimeout(requestTimeout);
+      abort.signal.removeEventListener('abort', onSessionAbort);
     }
+    attempt.assertActive();
     if (asset.sha256) {
       if (!/^[a-f0-9]{64}$/i.test(asset.sha256)) {
         throw new Error(`image asset has an invalid SHA-256 declaration: ${assetURL.pathname}`);
@@ -1390,6 +1476,8 @@ async function run(id) {
           decodedImagePixels + pixels > MAX_TOTAL_IMAGE_PIXELS) {
         throw new Error(`image exceeds decoded texture budget: ${assetURL.pathname}`);
       }
+      // A canceled decode must not upload an obsolete texture to the GPU.
+      attempt.assertActive();
       const texture = PIXI.Texture.from(img);
       decodedImagePixels += pixels;
       return texture;
@@ -1404,18 +1492,29 @@ async function run(id) {
   const imageAssets = (pkg.assets || []).filter((asset) => asset.kind === 'image');
   let nextImageIndex = 0;
   const imageWorkerCount = Math.min(6, imageAssets.length);
-  await Promise.all(Array.from({ length: imageWorkerCount }, async () => {
-    while (true) {
-      const index = nextImageIndex++;
-      if (index >= imageAssets.length) return;
-      const asset = imageAssets[index];
-      try {
-        textures.set(asset.id, await loadTexture(assetURL.get(asset.id)));
-      } catch (e) {
-        throw new Error(`required image asset '${asset.id}' failed validation or loading: ${e.message}`);
+  try {
+    await awaitActive(Promise.all(Array.from({ length: imageWorkerCount }, async () => {
+      while (true) {
+        attempt.assertActive();
+        const index = nextImageIndex++;
+        if (index >= imageAssets.length) return;
+        const asset = imageAssets[index];
+        try {
+          const texture = await loadTexture(assetURL.get(asset.id));
+          try { attempt.assertActive(); } catch (error) {
+            try { texture.destroy(true); } catch { /* already released */ }
+            throw error;
+          }
+          textures.set(asset.id, texture);
+        } catch (error) {
+          if (error?.name === 'StaleGameRunError') throw error;
+          throw new Error(`required image asset '${asset.id}' failed validation or loading: ${error.message}`);
+        }
       }
-    }
-  }));
+    })));
+  } catch (error) {
+    discardFailedBootstrap(error);
+  }
   log('PKG', `textures loaded: ${textures.size}/${imageAssets.length} images`);
   const audio = new Map();
   for (const a of pkg.assets || []) {
@@ -1458,7 +1557,11 @@ async function run(id) {
   }
 
   // --- Rapier world ---------------------------------------------------
-  await RAPIER.init();
+  try {
+    await awaitActive(RAPIER.init());
+  } catch (error) {
+    discardFailedBootstrap(error);
+  }
   log('PHYS', 'rapier initialized');
   const world = new RAPIER.World({ x: toM(scene.gravity?.[0] ?? 0), y: toM(scene.gravity?.[1] ?? 0) });
   world.timestep = 1 / 60;
@@ -3229,6 +3332,7 @@ if (!gameId) {
   listGames();
 } else {
   run(gameId).catch((err) => {
+    if (err?.name === 'StaleGameRunError') return;
     $('status').textContent = 'Failed to load: ' + err.message;
     log('PKG', 'ERROR ' + err.message);
     if (err.stack) log('PKG', 'STACK ' + err.stack.split('\n').slice(0, 6).join(' <- '));
