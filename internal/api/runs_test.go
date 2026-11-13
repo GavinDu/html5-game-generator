@@ -177,7 +177,6 @@ func TestRunsWeeklyWindow(t *testing.T) {
 	}
 }
 
-
 func TestRunsRejectNonMonotonicReplayTicks(t *testing.T) {
 	srv := newRunsServer(t)
 	gid := "sample-rainbow-bear"
