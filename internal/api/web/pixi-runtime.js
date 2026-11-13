@@ -30,6 +30,7 @@ import { createSimulationWorkBudget, createSemanticInputQueue } from './runtime-
 import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
+import { createRunInputRecorder } from './runtime-replay-input.mjs';
 
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
@@ -976,6 +977,7 @@ async function run(id) {
   }
   srand(sessionSeed);
 
+  const replayInputRecorder = createRunInputRecorder();
   // --- Play-session bookkeeping (Phases A+B) ---------------------------
   // One object for everything the shell, the metrics, and telemetry v2
   // need: visible-play clock (fps that excludes hidden time), the
@@ -988,7 +990,7 @@ async function run(id) {
     visibleMs: 0,               // ticker time while visible + running
     startedAt: 0,               // performance.now() at boot completion
     firstInputAt: 0, firstRewardAt: 0,
-    inputLog: [],               // {tick, type, detail}
+    inputLog: replayInputRecorder.inputs, // complete prefix, never shifted
     pendingInputs: [],          // {at: visibleMs, x, y} awaiting the 200ms activity check
     deadInputs: 0,
     lastActivityMs: 0,          // last visibleMs with a rule fire / collect / player move
@@ -1006,8 +1008,7 @@ async function run(id) {
     milestonesHit: new Set(),
   };
   function noteInput(type, detail) {
-    play.inputLog.push({ tick: play.simStep, type, detail: detail || '' });
-    if (play.inputLog.length > 2000) play.inputLog.splice(0, play.inputLog.length - 2000);
+    replayInputRecorder.record(play.simStep, type, detail || '');
     play.pendingInputs.push({ at: play.visibleMs, x: play.lastPlayerX, y: play.lastPlayerY });
     if (!play.firstInputAt) {
       play.firstInputAt = Math.round(play.visibleMs);
@@ -2294,8 +2295,13 @@ async function run(id) {
           body: JSON.stringify({ match, actualScore: state.score }),
         }).catch(() => {});
       } catch { /* the verdict on the window is the worker's evidence */ }
-    } else if (play.shellStarted) {
+    } else if (play.shellStarted && replayInputRecorder.complete) {
       submitRun(won);
+    } else if (play.shellStarted && !replayInputRecorder.complete) {
+      // A local win remains a win, but the full authoritative input trace
+      // is unavailable. Never claim leaderboard verification of a prefix.
+      const subtitle = play.shell ? $('shell-result-sub') : $('end-sub');
+      if (subtitle) subtitle.textContent += ' · Not leaderboard-verified: replay input limit reached. Play again for a new attempt.';
     }
   }
 
@@ -2316,6 +2322,7 @@ async function run(id) {
     return playerNameCache;
   }
   function submitRun(won) {
+    if (!replayInputRecorder.complete) return;
     const body = {
       name: playerName(),
       score: state.score,
@@ -2689,12 +2696,12 @@ async function run(id) {
     if (pointer.down) {
       const moved = Math.abs(pointer.x - lastSampleX) + Math.abs(pointer.y - lastSampleY);
       if (moved >= 3 || play.simStep - lastSampleStep >= 6) {
-        play.inputLog.push({ tick: play.simStep, type: 'pointer', detail: `${Math.round(pointer.x)},${Math.round(pointer.y)}` });
+        replayInputRecorder.record(play.simStep, 'pointer', `${Math.round(pointer.x)},${Math.round(pointer.y)}`);
         lastSampleX = pointer.x; lastSampleY = pointer.y; lastSampleStep = play.simStep;
       }
       wasDown = true;
     } else if (wasDown) {
-      play.inputLog.push({ tick: play.simStep, type: 'pointerup', detail: '' });
+      replayInputRecorder.record(play.simStep, 'pointerup', '');
       wasDown = false;
     }
   }
