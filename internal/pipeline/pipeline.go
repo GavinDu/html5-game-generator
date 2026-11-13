@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -39,9 +40,45 @@ var stageOrder = []model.StageName{
 // goroutine and clients poll — it just no longer pretends the stub
 // stages take time they do not.
 
+// BrowserGate is a synchronous, bounded pre-publish validator for one
+// canonical Game IR. A configured adapter must use an isolated unpublished
+// staging transport, verify actual browser results and input provenance, and
+// return an error rather than allow an inconclusive game to publish.
+type BrowserGate func(ctx context.Context, gameID string, ir *gameir.Document) error
+
 type Runner struct {
-	store     store.Store
-	confirmMu sync.Mutex // serializes confirmation check + running transition
+	store               store.Store
+	confirmMu           sync.Mutex // serializes confirmation check + running transition
+	browserGateMu       sync.RWMutex
+	browserGate         BrowserGate
+	browserGateRequired bool
+}
+
+// ConfigureBrowserGate is safe before or during generation. required=true
+// fails closed when no adapter was supplied. The current prototype remains
+// unchanged until the deployment explicitly enables this gate.
+func (r *Runner) ConfigureBrowserGate(gate BrowserGate, required bool) {
+	r.browserGateMu.Lock()
+	defer r.browserGateMu.Unlock()
+	r.browserGate = gate
+	r.browserGateRequired = required
+}
+
+// runBrowserGate enforces the deadline even if a faulty adapter ignores
+// context cancellation. The adapter must still cooperate with cancellation
+// to release its browser and staging resources.
+func runBrowserGate(ctx context.Context, gate BrowserGate, gameID string, ir *gameir.Document) error {
+	done := make(chan error, 1)
+	go func() { done <- gate(ctx, gameID, ir) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+		return ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func NewRunner(st store.Store) *Runner { return &Runner{store: st} }
@@ -386,6 +423,22 @@ func (r *Runner) runRemaining(jobID string) {
 		}
 		if err := staticChecks(gameJS); err != nil {
 			return fmt.Errorf("temporary HTML5 reference failed static checks: %w", err)
+		}
+		// A required browser gate must execute on the canonical IR BEFORE any
+		// manifest/ready state exists. Inconclusive or missing evidence fails
+		// VALIDATE and stopOnStageFailure keeps PUBLISH strictly pending.
+		r.browserGateMu.RLock()
+		gate, required := r.browserGate, r.browserGateRequired
+		r.browserGateMu.RUnlock()
+		if required && gate == nil {
+			return fmt.Errorf("browser playtest gate required but no adapter configured")
+		}
+		if gate != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := runBrowserGate(ctx, gate, job.GameID, canonicalIR); err != nil {
+				return fmt.Errorf("browser playtest gate: %w", err)
+			}
 		}
 		// No quality number is recorded here: the validate stage used
 		// to stamp a hard-coded 0.85 "stub vision-judge score", a
