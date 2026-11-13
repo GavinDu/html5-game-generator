@@ -75,7 +75,7 @@ test('all live and replay input rules run inside one fixed-step work budget', ()
   assert.match(runtime, /semanticInputQueue\.drain\(\(\{ source, target, action \}\) => \{\s*emit\('input', source, target, undefined, action\);/);
   assert.match(runtime, /function applyReplayInputs\(step\) \{[^]*?queueGameInput\(playerEnt, undefined, tapActionName\(\)\);/);
   assert.match(runtime, /function queueGameInput\(source, target, action\) \{[^]*?semanticInputQueue\.enqueue/);
-  assert.match(runtime, /const releaseHeldInputs = \(\) => \{[^]*?semanticInputQueue\.clear\(\)/);
+  assert.match(runtime, /releaseHeldInputs = \(\) => \{[^]*?semanticInputQueue\.clear\(\)/);
   assert.match(runtime, /if \(state\.ended \|\| state\.failed\) return;\s*try \{\s*semanticInputQueue\.enqueue/);
 });
 
