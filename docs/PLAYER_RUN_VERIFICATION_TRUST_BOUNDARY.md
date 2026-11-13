@@ -26,9 +26,14 @@ replaying a seed and input trace. A logged-in player can modify HTTP requests.
   the server's run-submission response explicitly says `verified: true`.
   Native independently fetches and checks run/game/session provenance;
   it must not interpret a mere `runId` as verification.
-- Existing historical verification flags cannot be re-attested by this
-  patch. Audit/clear prior client-issued `Verified=true` records separately
-  under a controlled migration; do **not** silently rewrite gameplay history.
+- Existing historical client-issued verification flags are **not
+  presented as trusted** through leaderboard or recorded-run read APIs:
+  `verified` and `actualScore` are masked in the response copy. The
+  original persisted record is left intact as audit evidence. A future
+  versioned server-attestation field/migration must distinguish authenticated
+  server verdicts from this legacy field; do **not** silently rewrite history.
+- Audit/clear or re-attest historical client-issued `Verified=true` records
+  separately through a controlled, reviewed migration.
 
 ## Versioned replacement protocol (NOT yet implemented)
 
