@@ -139,11 +139,12 @@ function emitProbe() {
     } : null,
     events: dqEvents.slice(-40),
     inputs: play ? play.inputLog.length : 0,
+    replayTraceComplete: play ? play.replayTraceComplete : null,
     deadInputs: play ? play.deadInputs : 0,
     score: play && typeof play.score === 'number' ? play.score : null,
     jankRate,
     p95FrameMs,
-    deadInputRate: play && play.inputLog.length > 0
+    deadInputRate: play && play.replayTraceComplete && play.inputLog.length > 0
       ? Math.round(1000 * play.deadInputs / play.inputLog.length) / 1000 : null,
     firstInputMs: play && play.firstInputAt ? play.firstInputAt : null,
     firstRewardMs: play && play.firstRewardAt ? play.firstRewardAt : null,
@@ -991,6 +992,7 @@ async function run(id) {
     startedAt: 0,               // performance.now() at boot completion
     firstInputAt: 0, firstRewardAt: 0,
     inputLog: replayInputRecorder.inputs, // complete prefix, never shifted
+    get replayTraceComplete() { return replayInputRecorder.complete; },
     pendingInputs: [],          // {at: visibleMs, x, y} awaiting the 200ms activity check
     deadInputs: 0,
     lastActivityMs: 0,          // last visibleMs with a rule fire / collect / player move
