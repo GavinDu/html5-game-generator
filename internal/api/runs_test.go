@@ -208,3 +208,49 @@ func TestRunsRejectNonMonotonicReplayTicks(t *testing.T) {
 		t.Fatalf("rejected replay traces must not be stored: got %d, want 2", stored)
 	}
 }
+
+func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
+	srv := newRunsServer(t)
+	gid := "sample-rainbow-bear"
+	cases := []struct {
+		name   string
+		detail string
+		want   int
+	}{
+		{"empty", "", http.StatusCreated},
+		{"ascii_exact_128", strings.Repeat("x", 128), http.StatusCreated},
+		{"ascii_over_129", strings.Repeat("x", 129), http.StatusBadRequest},
+		{"supplementary_exact_128", strings.Repeat("🎮", 64), http.StatusCreated},
+		{"supplementary_over_130", strings.Repeat("🎮", 65), http.StatusBadRequest},
+		{"mixed_boundary", strings.Repeat("x", 126) + "🎮", http.StatusCreated},
+		{"mixed_over", strings.Repeat("x", 127) + "🎮", http.StatusBadRequest},
+	}
+	accepted := 0
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, err := json.Marshal(map[string]any{
+				"name": "ReplayDetail", "score": 5, "won": false,
+				"durationMs": 20000, "seed": 42,
+				"inputs": []RunInput{{Tick: 10, Type: "key", Detail: tc.detail}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			code, _ := postRun(t, srv, gid, string(payload))
+			if code != tc.want {
+				t.Fatalf("POST detail validation = %d, want %d", code, tc.want)
+			}
+			if tc.want == http.StatusCreated {
+				accepted++
+			}
+		})
+	}
+	// Losing runs need not appear on the public time/wins leaderboard;
+	// validate the persistence boundary itself, not board presentation.
+	srv.runsMu.Lock()
+	stored := len(srv.runs)
+	srv.runsMu.Unlock()
+	if stored != accepted {
+		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
+	}
+}
