@@ -53,3 +53,19 @@ export function createSemanticInputQueue(capacity = MAX_QUEUED_SEMANTIC_INPUTS) 
     get size() { return events.length; },
   });
 }
+
+
+// One lifecycle predicate for the Pixi simulation/render ticker. This
+// does not advance virtual time, resume audio, or accept untrusted Game IR.
+// A terminal, errored, hidden, orientation-blocked, or context-lost session
+// must not resurrect simulation on an unrelated focus/resize event.
+// Deterministic capture is driven only by its explicit test step controller.
+export function shouldRunSemanticTicker({
+  shellStarted = false, hidden = true, orientationBlocked = false,
+  contextLost = false, ended = false, failed = false,
+  renderFailed = false, deterministicCapture = false,
+} = {}) {
+  return shellStarted === true && hidden === false &&
+    !orientationBlocked && !contextLost && !ended && !failed &&
+    !renderFailed && !deterministicCapture;
+}

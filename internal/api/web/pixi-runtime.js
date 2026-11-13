@@ -26,7 +26,7 @@
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
 
 import * as PIXI from 'pixi.js';
-import { createSimulationWorkBudget, createSemanticInputQueue } from './runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue, shouldRunSemanticTicker } from './runtime-work-budget.js';
 import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
@@ -1182,35 +1182,47 @@ async function run(id) {
     if (stageEl) stageEl.style.background = scene.backgroundColor;
   }
   activeSession = { app, abort };
+  // The canvas can outlive an OS background/context-loss event. These
+  // callbacks are installed during initialization, before input/clock
+  // closures exist, so safe no-op handlers are replaced after setup.
+  let contextLost = false;
+  let releaseHeldInputs = () => {};
+  let resumeTickerIfSafe = () => {};
   if (deterministicCapture) app.ticker.stop();
   log('RT', 'pixi stage ready');
 
-  // Pause when the page is hidden (Phase A): the ticker drives the
-  // whole simulation, so stopping it freezes the world; the frame
-  // delta is clamped in tickFrame, so resuming doesn't lurch.
+  // Backgrounding freezes semantics and cancels pending user commands.
+  // A visibility change must never restart a terminal or failed run.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+      releaseHeldInputs();
       try { app.ticker.stop(); } catch { /* ignore */ }
       recordEvent('pause', 'hidden');
       flushPerfWindow();
     } else {
-      if (play.shellStarted && !orientationBlocked && !(deterministicCapture && capturePaused)) { try { app.ticker.start(); } catch { /* ignore */ } }
+      resumeTickerIfSafe();
       recordEvent('resume', '');
     }
   }, { signal: abort.signal });
-  // WebGL context loss: prevent the default (a frozen canvas forever)
-  // so the browser restores the context and Pixi re-creates its GL
-  // state; report both transitions as telemetry-grade events.
+  // Suspend simulation while the GPU context cannot present the scene;
+  // otherwise semantic state could advance invisibly through a GPU reset.
+  // Context events are session-owned and removed by abort on teardown.
   app.canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
+    contextLost = true;
+    releaseHeldInputs();
+    try { app.ticker.stop(); } catch { /* ignore */ }
     log('RT', 'WEBGL CONTEXT LOST');
     recordError('context', new Error('WebGL context lost'));
     recordEvent('context_lost', '');
-  });
+  }, { signal: abort.signal });
   app.canvas.addEventListener('webglcontextrestored', () => {
+    if (!contextLost) return;
+    contextLost = false;
     log('RT', 'WEBGL CONTEXT RESTORED');
     recordEvent('context_restored', '');
-  });
+    resumeTickerIfSafe();
+  }, { signal: abort.signal });
 
   // Pixi's own render listener runs outside our ticker's try/catch; a
   // throw there (e.g. a missing render pipe) repeats every frame and
@@ -2426,19 +2438,22 @@ async function run(id) {
   // Mobile OS gesture arbitration, WebView backgrounding and keyboard focus
   // changes can cancel the physical contact without emitting pointerup.
   // Never carry a synthetic held control into the next simulation step.
-  addEventListener('pointercancel', () => { pointer.down = false; semanticInputQueue.clear(); }, { signal: abort.signal });
-  app.canvas.addEventListener('lostpointercapture', () => { pointer.down = false; }, { signal: abort.signal });
+  addEventListener('pointercancel', () => releaseHeldInputs(), { signal: abort.signal });
+  app.canvas.addEventListener('lostpointercapture', () => {
+    // Normal pointerup *also* releases implicit touch capture. A tap may
+    // still be waiting for the next semantic tick; never erase it on the
+    // ordinary release path. Only an unexpected loss of a held gesture
+    // cancels pending commands.
+    if (pointer.down) releaseHeldInputs();
+  }, { signal: abort.signal });
 
   const keysDown = new Set();
-  const releaseHeldInputs = () => {
+  releaseHeldInputs = () => {
     pointer.down = false;
     keysDown.clear();
     semanticInputQueue.clear();
   };
   addEventListener('blur', releaseHeldInputs, { signal: abort.signal });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) releaseHeldInputs();
-  }, { signal: abort.signal });
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   addEventListener('keydown', (ev) => {
     if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
@@ -2721,6 +2736,19 @@ async function run(id) {
   let captureTargetStep = null;
   let capturePaused = true;
   let perfWindowStart = 0;
+  resumeTickerIfSafe = () => {
+    const canRun = shouldRunSemanticTicker({
+      shellStarted: play.shellStarted, hidden: document.hidden,
+      orientationBlocked, contextLost, ended: state.ended,
+      failed: state.failed, renderFailed: renderErrLogged,
+      deterministicCapture,
+    });
+    try {
+      if (canRun) app.ticker.start();
+      else app.ticker.stop();
+    } catch { /* already torn down */ }
+    return canRun;
+  };
   app.ticker.add((ticker) => {
     frameNo++;
     totalFrames++;
@@ -3071,9 +3099,7 @@ async function run(id) {
     if (play.shellStarted) return;
     play.shellStarted = true;
     $('shell-start').classList.remove('on');
-    if (!deterministicCapture && !orientationBlocked) {
-      try { app.ticker.start(); } catch { /* ignore */ }
-    }
+    resumeTickerIfSafe();
     recordEvent('start', fromProbe ? 'probe-auto' : 'tap');
     workBudget.reset();
     try {
@@ -3140,8 +3166,8 @@ async function run(id) {
       orientationHint.textContent = orientationBlocked
         ? (orientation === 'portrait' ? 'Portrait game · turn your device upright to play' : 'Landscape game · turn your device sideways to play') : '';
     }
-    if (orientationBlocked) { pointer.down = false; keysDown.clear(); app.ticker.stop(); }
-    else if (play.shellStarted && !state.ended && !state.failed && !document.hidden && !deterministicCapture) app.ticker.start();
+    if (orientationBlocked) releaseHeldInputs();
+    resumeTickerIfSafe();
   };
   addEventListener('resize', syncOrientation, { signal: abort.signal });
   syncOrientation();
@@ -3185,6 +3211,7 @@ async function run(id) {
         // Probe-only read-only input cancellation evidence, never exposed in
         // ordinary gameplay or as a mutable control channel.
         heldInputs: { pointerDown: pointer.down, keys: [...keysDown].sort() },
+        pendingSemanticInputs: semanticInputQueue.size,
         // Probe-only immutable animation snapshot; never a control channel.
         animations: [...entities.values()].filter(e => e.view instanceof PIXI.AnimatedSprite)
           .map(e => ({ id: e.defId, frame: e.view.currentFrame, playing: e.view.playing })),
