@@ -176,3 +176,35 @@ func TestRunsWeeklyWindow(t *testing.T) {
 		t.Fatalf("all board should include it, has %d", n)
 	}
 }
+
+func TestRunsRejectNonMonotonicReplayTicks(t *testing.T) {
+	srv := newRunsServer(t)
+	gid := "sample-rainbow-bear"
+	const prefix = `{"name":"TickOrder","score":5,"won":false,"durationMs":20000,"seed":42,"inputs":`
+	cases := []struct {
+		name   string
+		inputs string
+		want   int
+	}{
+		{"same_tick_allowed", `[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":10,"type":"pointerup","detail":""}]`, http.StatusCreated},
+		{"ascending_allowed", `[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":11,"type":"keyup","detail":"ArrowLeft"}]`, http.StatusCreated},
+		{"backwards_rejected", `[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":9,"type":"pointerup","detail":""}]`, http.StatusBadRequest},
+		{"negative_rejected", `[{"tick":0,"type":"pointer","detail":"10,20"},{"tick":-1,"type":"pointerup","detail":""}]`, http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			code, _ := postRun(t, srv, gid, prefix+tc.inputs+"}")
+			if code != tc.want {
+				t.Fatalf("input trace validation status = %d, want %d", code, tc.want)
+			}
+		})
+	}
+	// This game's public time leaderboard omits losing runs, so inspect
+	// persistent run admission rather than equating board entries with posts.
+	srv.runsMu.Lock()
+	stored := len(srv.runs)
+	srv.runsMu.Unlock()
+	if stored != 2 {
+		t.Fatalf("rejected replay traces must not be stored: got %d, want 2", stored)
+	}
+}

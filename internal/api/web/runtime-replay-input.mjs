@@ -31,6 +31,14 @@ export function createRunInputRecorder(maxEvents = MAX_VERIFIABLE_RUN_INPUTS) {
         failureReason = 'unsupported_input';
         return false;
       }
+      // Events are recorded in semantic tick order. Multiple inputs at
+      // the same 60Hz step are legal, but going backwards would create an
+      // ambiguous replay and must permanently invalidate this evidence.
+      if (inputs.length && tick < inputs[inputs.length - 1].tick) {
+        complete = false;
+        failureReason = 'invalid_event';
+        return false;
+      }
       if (inputs.length >= maxEvents) {
         complete = false;
         failureReason = 'input_limit';

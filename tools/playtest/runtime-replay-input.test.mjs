@@ -135,3 +135,22 @@ test('shipping runtime never mutates diagnostic queue except through pure bounde
   assert.match(runtime, /play\.deadInputs \+= deadInputDiagnostics\.drain\(play\.visibleMs, play\.lastActivityMs\)/);
   assert.doesNotMatch(runtime, /play\.pendingInputs\.(?:push|shift|splice)\(/);
 });
+
+
+test('authoritative recorder rejects backwards fixed ticks but preserves same-tick action order', () => {
+  const valid = createRunInputRecorder();
+  assert.equal(valid.record(7, 'pointer', '10,20'), true);
+  assert.equal(valid.record(7, 'pointerup', ''), true);
+  assert.equal(valid.record(8, 'key', 'ArrowLeft'), true);
+  assert.deepEqual(valid.inputs.map(event => event.tick), [7, 7, 8]);
+  assert.equal(valid.complete, true);
+
+  const invalid = createRunInputRecorder();
+  assert.equal(invalid.record(12, 'key', 'ArrowRight'), true);
+  assert.equal(invalid.record(11, 'keyup', 'ArrowRight'), false);
+  assert.equal(invalid.complete, false);
+  assert.equal(invalid.failureReason, 'invalid_event');
+  assert.deepEqual(invalid.inputs, [{ tick: 12, type: 'key', detail: 'ArrowRight' }]);
+  assert.equal(invalid.record(13, 'pointer', '20,30'), false);
+  assert.equal(invalid.inputs.length, 1, 'invalid evidence must remain frozen');
+});

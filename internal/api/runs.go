@@ -360,11 +360,20 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "input trace too large")
 		return
 	}
+	// Authoritative replay events are ordered by the fixed-step simulation
+	// tick. Multiple actions on one tick are valid and retain their original
+	// sequence, but a backwards tick cannot be replayed canonically.
+	previousTick := -1
 	for _, inp := range req.Inputs {
 		if inp.Tick < 0 {
 			writeErr(w, http.StatusBadRequest, "input tick must be >= 0")
 			return
 		}
+		if inp.Tick < previousTick {
+			writeErr(w, http.StatusBadRequest, "input ticks must be nondecreasing")
+			return
+		}
+		previousTick = inp.Tick
 		switch inp.Type {
 		case "pointer", "pointerup", "key", "keyup":
 		default:
