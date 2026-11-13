@@ -116,7 +116,6 @@ type Server struct {
 	runsMu     sync.Mutex
 	runs       []RunRecord
 	runsLoaded bool
-	runSeq     int
 
 	// Difficulty tuner (Phase E): shadow pacing proposals keyed by
 	// proposal id. In-memory only; nothing applies itself.

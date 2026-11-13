@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -282,6 +283,81 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 	srv.runsMu.Unlock()
 	if stored != accepted {
 		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
+	}
+}
+
+func TestRunIDRemainsUniqueAcrossProcessRestart(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	firstCode, first := postRun(t, srv, gameID, `{"name":"first","score":7,"won":false,"durationMs":20000,"seed":42}`)
+	if firstCode != http.StatusCreated {
+		t.Fatalf("first run: %d, %v", firstCode, first)
+	}
+	firstID, _ := first["runId"].(string)
+	if firstID == "" {
+		t.Fatalf("first run missing ID: %v", first)
+	}
+
+	// An actual new Server reloads the persisted runs.jsonl. The previous
+	// process-local counter restarted from one, duplicating the first run
+	// ID on the same day; GET would then return the earlier wrong trace.
+	restarted := New(srv.store, pipeline.NewRunner(srv.store))
+	secondCode, second := postRun(t, restarted, gameID, `{"name":"second","score":8,"won":false,"durationMs":20000,"seed":43}`)
+	if secondCode != http.StatusCreated {
+		t.Fatalf("second run after restart: %d, %v", secondCode, second)
+	}
+	secondID, _ := second["runId"].(string)
+	if secondID == firstID {
+		t.Fatalf("run ID reused after restart: %q", secondID)
+	}
+
+	seen := map[string]bool{}
+	for _, testCase := range []struct {
+		id    string
+		score float64
+	}{
+		{firstID, 7}, {secondID, 8},
+	} {
+		parts := strings.Split(testCase.id, "-")
+		if len(parts) != 3 || parts[0] != "run" || len(parts[1]) != 8 || len(parts[2]) != 32 {
+			t.Fatalf("unexpected run ID format: %q", testCase.id)
+		}
+		if _, err := hex.DecodeString(parts[2]); err != nil {
+			t.Fatalf("run ID nonce must be hex: %q: %v", testCase.id, err)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/v1/runs/"+testCase.id, nil)
+		rec := httptest.NewRecorder()
+		restarted.Routes().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s after restart status %d", testCase.id, rec.Code)
+		}
+		var run map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &run); err != nil {
+			t.Fatal(err)
+		}
+		if run["id"] != testCase.id || run["score"] != testCase.score {
+			t.Fatalf("cross-run aliasing: wanted %s score %v, got %v", testCase.id, testCase.score, run)
+		}
+		seen[testCase.id] = true
+	}
+	// Rapid same-day submissions must have distinct IDs without relying on
+	// sequence state. This also detects accidental constant RNG results.
+	for i := 0; i < 64; i++ {
+		status, run := postRun(t, restarted, gameID, `{"name":"repeat","score":5,"won":false,"durationMs":20000,"seed":44}`)
+		if status != http.StatusCreated {
+			t.Fatalf("rapid run %d rejected: %d %v", i, status, run)
+		}
+		id, _ := run["runId"].(string)
+		if id == "" || seen[id] {
+			t.Fatalf("new run ID missing/duplicated after %d submissions: %q", i, id)
+		}
+		seen[id] = true
+	}
+	restarted.runsMu.Lock()
+	stored := len(restarted.runs)
+	restarted.runsMu.Unlock()
+	if stored != len(seen) {
+		t.Fatalf("persistence/restart index mismatch: %d records, %d distinct IDs", stored, len(seen))
 	}
 }
 

@@ -30,6 +30,7 @@ package api
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -67,6 +68,20 @@ func irHashOf(doc *gameir.Document) string {
 		return ""
 	}
 	return digest[:12]
+}
+
+// mintRunID is server-owned identity, separate from the deterministic
+// seed/tick replay. The previous same-day process-local counter restarted
+// at 1 after loading runs.jsonl, reusing persisted IDs and making
+// GET /v1/runs/{id} resolve an unrelated earlier attempt.
+// 128 bits of CSPRNG entropy remain unique across restarts and independent
+// API instances without client-supplied data.
+func mintRunID(now time.Time) (string, error) {
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return "", err
+	}
+	return "run-" + now.Format("20060102") + "-" + hex.EncodeToString(nonce[:]), nil
 }
 
 type RunInput struct {
@@ -461,13 +476,27 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, filtered := sanitizeName(req.Name)
+	now := time.Now()
+	runID, err := mintRunID(now)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "unable to allocate run ID")
+		return
+	}
 	s.runsMu.Lock()
-	s.runSeq++
+	// Defense in depth against any accidental duplicate, including legacy
+	// persisted IDs. An ID must never resolve ambiguously in this process.
+	for _, previous := range s.runs {
+		if previous.ID == runID {
+			s.runsMu.Unlock()
+			writeErr(w, http.StatusServiceUnavailable, "unable to allocate unique run ID")
+			return
+		}
+	}
 	rec := RunRecord{
-		ID:     "run-" + time.Now().Format("20060102") + "-" + itoa(s.runSeq),
+		ID:     runID,
 		GameID: id, IRHash: hash, Name: name,
 		Score: req.Score, Won: req.Won, DurationMs: req.DurationMs,
-		Seed: req.Seed, Inputs: req.Inputs, At: time.Now(),
+		Seed: req.Seed, Inputs: req.Inputs, At: now,
 	}
 	s.runs = append(s.runs, rec)
 	s.runsMu.Unlock()
