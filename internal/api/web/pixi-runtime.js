@@ -2303,7 +2303,11 @@ async function run(id) {
       // A local win remains a win, but the full authoritative input trace
       // is unavailable. Never claim leaderboard verification of a prefix.
       const subtitle = play.shell ? $('shell-result-sub') : $('end-sub');
-      if (subtitle) subtitle.textContent += ' · Not leaderboard-verified: replay input limit reached. Play again for a new attempt.';
+      if (subtitle) {
+        const reason = replayInputRecorder.failureReason === 'input_limit'
+          ? 'replay input limit reached' : 'unsupported replay input';
+        subtitle.textContent += ` · Not leaderboard-verified: ${reason}. Play again for a new attempt.`;
+      }
     }
   }
 
