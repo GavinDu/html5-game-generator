@@ -132,10 +132,14 @@ func validReplayPointerDetail(detail string) bool {
 	return true
 }
 
+// RunRecord stores a full server-owned canonical IR digest for *new* runs.
+// The old 12-hex board key is insufficient for future replay provenance.
+// Legacy records omit IRSHA256; never infer an unrecorded historical digest.
 type RunRecord struct {
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
 	IRHash     string     `json:"irHash"`
+	IRSHA256   string     `json:"irSha256,omitempty"`
 	Name       string     `json:"name"`
 	Score      int        `json:"score"`
 	Won        bool       `json:"won"`
@@ -472,7 +476,12 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	}
 	// The board is the game's CURRENT IR; a run claiming a different
 	// hash played a different build and doesn't belong on this board.
-	currentHash := irHashOf(game.GameIR)
+	fullIRSHA256 := irSHA256Of(game.GameIR)
+	if len(fullIRSHA256) != 64 {
+		writeErr(w, http.StatusServiceUnavailable, "unable to identify game version")
+		return
+	}
+	currentHash := fullIRSHA256[:12]
 	hash := req.IRHash
 	if hash == "" {
 		hash = currentHash
@@ -506,7 +515,7 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := RunRecord{
 		ID:     runID,
-		GameID: id, IRHash: hash, Name: name,
+		GameID: id, IRHash: hash, IRSHA256: fullIRSHA256, Name: name,
 		Score: req.Score, Won: req.Won, DurationMs: req.DurationMs,
 		Seed: req.Seed, Inputs: req.Inputs, At: now,
 	}

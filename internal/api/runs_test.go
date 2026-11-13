@@ -371,6 +371,65 @@ func TestRunSubmissionRejectsUnavailablePersistenceWithoutGhostLeaderboard(t *te
 	}
 }
 
+func TestNewRunRetainsServerOwnedFullIRDigestAfterRestart(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	game, ok := srv.store.GetGame(gameID)
+	if !ok {
+		t.Fatal("sample inventory game missing")
+	}
+	expectedFull := irSHA256Of(game.GameIR)
+	if len(expectedFull) != 64 {
+		t.Fatalf("canonical server IR digest must have 64 hex chars: %q", expectedFull)
+	}
+	if decoded, err := hex.DecodeString(expectedFull); err != nil || len(decoded) != 32 {
+		t.Fatalf("canonical IR digest is not SHA-256: %q, %v", expectedFull, err)
+	}
+	short := expectedFull[:12]
+	code, posted := postRun(t, srv, gameID, `{"name":"provenance","score":6,"won":true,"durationMs":20000,"seed":42}`)
+	if code != http.StatusCreated {
+		t.Fatalf("run rejected: status=%d body=%v", code, posted)
+	}
+	runID, ok := posted["runId"].(string)
+	if !ok || runID == "" {
+		t.Fatalf("run identity absent: %v", posted)
+	}
+	for _, active := range []*Server{srv, New(srv.store, pipeline.NewRunner(srv.store))} {
+		request := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID, nil)
+		response := httptest.NewRecorder()
+		active.Routes().ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("authorized run lookup failed: %d (%s)", response.Code, response.Body.String())
+		}
+		var rec RunRecord
+		if err := json.Unmarshal(response.Body.Bytes(), &rec); err != nil {
+			t.Fatal(err)
+		}
+		if rec.IRHash != short || rec.IRSHA256 != expectedFull {
+			t.Fatalf("new run lost server-derived digest: short=%q full=%q expected=%q",
+				rec.IRHash, rec.IRSHA256, expectedFull)
+		}
+		if rec.Verified != nil || rec.ActualScore != nil {
+			t.Fatalf("full digest must not imply independent server replay verification: %+v", rec)
+		}
+	}
+	// Legacy JSONL has no full digest. Do not guess one from a 12-hex key.
+	var legacy RunRecord
+	if err := json.Unmarshal([]byte(`{"id":"legacy","gameId":"sample-rainbow-bear","irHash":"abc123def456"}`), &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.IRSHA256 != "" {
+		t.Fatalf("legacy run must not obtain a fabricated full digest: %+v", legacy)
+	}
+	raw, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "irSha256") {
+		t.Fatalf("legacy run should omit unavailable digest: %s", raw)
+	}
+}
+
 func TestRunIDRemainsUniqueAcrossProcessRestart(t *testing.T) {
 	srv := newRunsServer(t)
 	const gameID = "sample-rainbow-bear"
