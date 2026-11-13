@@ -73,8 +73,11 @@ A dedicated, versioned native per-document nonce/credential lease is still
 required on the iOS host. Deterministic server replay attestation is a
 separate security blocker (#360). Do not close generator #317 or Epic #202.
 
-**Release requirement:** upstream #365 must merge independently with all
-six checks, then this stacked PR must be reparented to main, inspected at
-its new head and rerun Go, PostgreSQL, Chromium, WebKit, Playability Kit
-and cross-browser determinism before merge. iPhone/iPad physical GPU,
-memory and thermal acceptance remains separate.
+**Release requirement:** upstream #365 was merged independently after all
+six required checks as commit `ae16ef0bac779719be3d125263abdfb73123a514`.
+This PR was reconstructed as a single change directly on merged main;
+its latest head and all five changed files must undergo a new complete
+Go, PostgreSQL, Chromium, WebKit, Playability Kit and cross-browser
+determinism review before merge. Earlier stacked-head green checks do
+**not** certify the rebuilt commit. iPhone/iPad physical GPU, memory
+and thermal acceptance remains separate.
