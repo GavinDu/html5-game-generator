@@ -199,8 +199,12 @@ func TestRunsRejectNonMonotonicReplayTicks(t *testing.T) {
 			}
 		})
 	}
-	entries := getBoard(t, srv, gid, "all")["entries"].([]any)
-	if len(entries) != 2 {
-		t.Fatalf("rejected replay traces must not enter leaderboard: got %d, want 2", len(entries))
+	// This game's public time leaderboard omits losing runs, so inspect
+	// persistent run admission rather than equating board entries with posts.
+	srv.runsMu.Lock()
+	stored := len(srv.runs)
+	srv.runsMu.Unlock()
+	if stored != 2 {
+		t.Fatalf("rejected replay traces must not be stored: got %d, want 2", stored)
 	}
 }
