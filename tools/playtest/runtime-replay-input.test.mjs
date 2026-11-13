@@ -154,3 +154,22 @@ test('authoritative recorder rejects backwards fixed ticks but preserves same-ti
   assert.equal(invalid.record(13, 'pointer', '20,30'), false);
   assert.equal(invalid.inputs.length, 1, 'invalid evidence must remain frozen');
 });
+
+test('browser detail budgets match UTF-16 code units at Go admission boundaries', () => {
+  const cases = [
+    ['empty', '', true],
+    ['ascii_exact_128', 'x'.repeat(128), true],
+    ['ascii_over_129', 'x'.repeat(129), false],
+    ['supplementary_exact_128', '🎮'.repeat(64), true],
+    ['supplementary_over_130', '🎮'.repeat(65), false],
+    ['mixed_exact_128', 'x'.repeat(126) + '🎮', true],
+    ['mixed_over_129', 'x'.repeat(127) + '🎮', false],
+  ];
+  for (const [name, detail, expected] of cases) {
+    const trace = createRunInputRecorder();
+    assert.equal(trace.record(10, 'key', detail), expected, name);
+    assert.equal(trace.complete, expected, name + ' completeness');
+    assert.equal(trace.inputs.length, expected ? 1 : 0, name + ' retained count');
+    if (!expected) assert.equal(trace.failureReason, 'invalid_event', name);
+  }
+});
