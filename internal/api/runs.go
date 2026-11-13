@@ -104,8 +104,9 @@ type RunRecord struct {
 	Seed       uint32     `json:"seed"`
 	Inputs     []RunInput `json:"inputs,omitempty"`
 	At         time.Time  `json:"at"`
-	// Verified is nil while no replay verdict exists; the board
-	// renders that as "unverified". First verdict wins.
+	// Legacy Verified/ActualScore were once client-supplied. Retain them
+	// only for controlled audit; never expose them as trusted attestation
+	// until a server-owned replay proof and migration exist.
 	Verified    *bool `json:"verified,omitempty"`
 	ActualScore *int  `json:"actualScore,omitempty"`
 }
@@ -494,7 +495,10 @@ func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
 		}
 		entries = append(entries, entry{
 			Rank: i + 1, RunID: rec.ID, Name: rec.Name, Score: rec.Score,
-			Won: rec.Won, DurationMs: rec.DurationMs, Verified: rec.Verified, At: rec.At,
+			// Legacy Verified was writable by the browser and is not proof.
+			// Suppress it in public API responses until an independently
+			// attested, versioned server result can be represented.
+			Won: rec.Won, DurationMs: rec.DurationMs, Verified: nil, At: rec.At,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -531,6 +535,12 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "run not found")
 		return
 	}
+	// Do not leak historical client-origin "verified" verdicts through
+	// recorded-run fetches: the same endpoint is used by the iOS host to
+	// determine whether it may present an independently verified result.
+	// Keep the original values in storage for explicit audit/remediation.
+	found.Verified = nil
+	found.ActualScore = nil
 	writeJSON(w, http.StatusOK, found)
 }
 
