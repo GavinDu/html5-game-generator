@@ -534,34 +534,17 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, found)
 }
 
-// POST /v1/runs/{id}/verification — a replay's verdict. First
-// verdict wins; later reports are acknowledged but do not rewrite
-// history.
-func (s *Server) handleRunVerification(w http.ResponseWriter, r *http.Request) {
-	rid := r.PathValue("id")
-	var req struct {
-		Match       bool `json:"match"`
-		ActualScore int  `json:"actualScore"`
-	}
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	s.runsMu.Lock()
-	defer s.runsMu.Unlock()
-	for i := range s.runs {
-		if s.runs[i].ID != rid {
-			continue
-		}
-		if s.runs[i].Verified != nil {
-			writeJSON(w, http.StatusOK, map[string]any{"verified": *s.runs[i].Verified, "alreadyRecorded": true})
-			return
-		}
-		m := req.Match
-		a := req.ActualScore
-		s.runs[i].Verified = &m
-		s.runs[i].ActualScore = &a
-		writeJSON(w, http.StatusOK, map[string]any{"verified": m})
-		return
-	}
-	writeErr(w, http.StatusNotFound, "run not found")
+// POST /v1/runs/{id}/verification — legacy endpoint intentionally disabled.
+//
+// The old handler trusted a browser-supplied {"match":true} boolean and
+// marked a run Verified without replaying the seed/inputs on the server.
+// An authenticated game player can modify their HTTP request, so neither
+// a replay-mode browser session nor a client-held token can attest a score.
+//
+// Until a server-owned deterministic replay verifier exists, reject every
+// client verdict, including negative/unknown-run reports. Do not mutate the
+// stored verification state or disclose whether a run ID exists.
+func (s *Server) handleRunVerification(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	writeErr(w, http.StatusForbidden, "server-attested replay verification required")
 }
