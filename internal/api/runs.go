@@ -74,6 +74,25 @@ type RunInput struct {
 	Detail string `json:"detail"`
 }
 
+// Matches String.length in the trusted JavaScript replay recorder. Go strings
+// are UTF-8, but JS counts UTF-16 code units (two for supplementary scalars).
+// Fail early at the bound without allocating a temporary rune/UTF-16 slice.
+const maxReplayInputDetailUTF16Units = 128
+
+func validReplayInputDetail(detail string) bool {
+	units := 0
+	for _, codePoint := range detail {
+		units++
+		if codePoint > 0xFFFF {
+			units++
+		}
+		if units > maxReplayInputDetailUTF16Units {
+			return false
+		}
+	}
+	return true
+}
+
 type RunRecord struct {
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
@@ -374,6 +393,12 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		previousTick = inp.Tick
+		// Admission must match the 128 UTF-16-code-unit limit of the
+		// trusted browser recorder; HTTP callers cannot bypass that budget.
+		if !validReplayInputDetail(inp.Detail) {
+			writeErr(w, http.StatusBadRequest, "input detail exceeds replay budget")
+			return
+		}
 		switch inp.Type {
 		case "pointer", "pointerup", "key", "keyup":
 		default:
