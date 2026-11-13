@@ -284,3 +284,55 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
 	}
 }
+
+func TestAuthenticatedClientCannotSelfAttestRun(t *testing.T) {
+	srv := newRunsServer(t)
+	const secret = "test-replay-attestation-only-not-production"
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	t.Setenv("DQ_AUTH_HMAC_SECRET", secret)
+	token := authTokenForTest("authenticated-attacker", time.Now().Add(time.Hour), secret)
+	srv.runsMu.Lock()
+	srv.runs = append(srv.runs, RunRecord{
+		ID: "attestation-target", GameID: "sample-rainbow-bear",
+		Score: 12, Won: true, Seed: 42, DurationMs: 20000,
+	})
+	srv.runsMu.Unlock()
+	for _, tc := range []struct {
+		name string
+		url  string
+		body string
+	}{
+		{"forged_positive", "/v1/runs/attestation-target/verification", `{"match":true,"actualScore":12}`},
+		{"forged_negative", "/v1/runs/attestation-target/verification", `{"match":false,"actualScore":0}`},
+		{"guessed_id", "/v1/runs/no-such-run/verification", `{"match":true,"actualScore":99999}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.url, strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			srv.Routes().ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("valid bearer must not authorize self-attestation: %d: %s",
+					rec.Code, rec.Body.String())
+			}
+		})
+	}
+	srv.runsMu.Lock()
+	stored := srv.runs[0]
+	srv.runsMu.Unlock()
+	if stored.Verified != nil || stored.ActualScore != nil {
+		t.Fatalf("authenticated browser changed verification state: %+v", stored)
+	}
+}
+
+func TestTrustedRuntimeNeverSelfPostsReplayVerdict(t *testing.T) {
+	// The Go handler is the authoritative security boundary. This additional
+	// shipped-asset contract guards against accidentally reintroducing a
+	// client-side POST, which is both misleading and wastes network work.
+	if strings.Contains(pixiRuntimeJS, "/verification") {
+		t.Fatal("trusted Pixi runtime must never POST a client-owned replay verdict")
+	}
+	if !strings.Contains(pixiRuntimeJS, "data.verified === true") {
+		t.Fatal("native verified-result notifications require an explicit server verdict")
+	}
+}
