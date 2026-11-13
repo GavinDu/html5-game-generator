@@ -10,7 +10,7 @@ const probeSource = await readFile(probeURL, 'utf8');
 
 test('runtime image loading is bounded and concurrent', () => {
   assert.match(source, /const imageWorkerCount = Math\.min\(6, imageAssets\.length\)/);
-  assert.match(source, /await Promise\.all\(Array\.from\(\{ length: imageWorkerCount \}/);
+  assert.match(source, /await awaitActive\(Promise\.all\(Array\.from\(\{ length: imageWorkerCount \}/);
   assert.doesNotMatch(source, /for \(const a of pkg\.assets \|\| \[\]\) \{\s*if \(a\.kind !== 'image'\) continue;\s*try \{\s*textures\.set\(a\.id, await loadTexture/);
 });
 
