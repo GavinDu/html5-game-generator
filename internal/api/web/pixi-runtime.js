@@ -2307,12 +2307,9 @@ async function run(id) {
     if (replayTrace) {
       const match = state.score === replayTrace.score && won === !!replayTrace.won;
       window.__dqReplay = { runId: replayRunId, match, expected: replayTrace.score, actual: state.score };
-      try {
-        apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ match, actualScore: state.score }),
-        }).catch(() => {});
-      } catch { /* the verdict on the window is the worker's evidence */ }
+      // This local browser replay comparison is *diagnostic*, not an
+      // attestation. A game client cannot authorize its own leaderboard
+      // verdict. Only a future server-owned replay executor can do so.
     } else if (play.shellStarted && replayInputRecorder.complete) {
       submitRun(won);
     } else if (play.shellStarted && !replayInputRecorder.complete) {
@@ -2363,20 +2360,28 @@ async function run(id) {
       if (data && data.runId) {
         play.lastRunId = data.runId;
         window.__dqLastRunId = data.runId;
-        try {
-          window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
-            schema: 1,
-            type: 'verified_run_available',
-            sessionId: dqSessionId,
-            gameId,
-            runId: data.runId,
-          });
-        } catch { /* native bridge is optional outside iOS */ }
+        // A stored, ranked run is not automatically a verified run.
+        // Never wake the native verified-result bridge for unverified
+        // submissions; it would otherwise spend resources fetching a
+        // record that the backend explicitly marks verified=false.
+        if (data.verified === true) {
+          try {
+            window.webkit?.messageHandlers?.hephaestusRunResult?.postMessage({
+              schema: 1,
+              type: 'verified_run_available',
+              sessionId: dqSessionId,
+              gameId,
+              runId: data.runId,
+            });
+          } catch { /* native bridge is optional outside iOS */ }
+        }
       }
       if (data && data.rank && play.shell) {
         const sub = $('shell-result-sub');
         if (sub && !sub.textContent.includes('Leaderboard')) {
-          sub.textContent += ` · Leaderboard: #${data.rank} this week`;
+          // Being ranked is not proof of an independently replayed score.
+          const status = data.verified === true ? '' : ' (unverified)';
+          sub.textContent += ` · Leaderboard: #${data.rank} this week${status}`;
         }
       }
     }).catch(() => {});
@@ -2837,12 +2842,8 @@ async function run(id) {
     // verification (30 sim-seconds past its last recorded input).
     if (replayTrace && !state.ended && !window.__dqReplay && play.simStep > replayLastTick + 1800) {
       window.__dqReplay = { runId: replayRunId, match: false, reason: 'timeout', expected: replayTrace.score, actual: state.score };
-      try {
-        apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}/verification`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ match: false, actualScore: state.score }),
-        }).catch(() => {});
-      } catch { /* verdict on the window is the evidence */ }
+      // A local timeout is diagnostic evidence only; do not mutate the
+      // shared verification record through a client-controlled endpoint.
       try { app.ticker.stop(); } catch { /* ignore */ }
     }
     if (steps === 0) return; // no sim advance this display frame

@@ -85,30 +85,60 @@ func TestRunsSubmitBoardAndVerify(t *testing.T) {
 	if run["seed"] != 42.0 || len(run["inputs"].([]any)) != 2 {
 		t.Fatalf("run fetch: %v", run)
 	}
-	// Verification lands once; the board then shows verified.
-	req = httptest.NewRequest(http.MethodPost, "/v1/runs/"+runID+"/verification", strings.NewReader(`{"match":true,"actualScore":12}`))
-	rec = httptest.NewRecorder()
-	srv.Routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("verification: %d", rec.Code)
+	// A browser (even an authenticated browser replaying the actual seed)
+	// must not be able to attest its own score. Until a server-owned replay
+	// verifier ships, every claimed verdict is denied and never stored.
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"forged_match", `{"match":true,"actualScore":12}`},
+		{"negative_match", `{"match":false,"actualScore":0}`},
+		{"invalid_json", `{"match":`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/runs/"+runID+"/verification", strings.NewReader(tc.body))
+			req.Header.Set("X-User-ID", "another-player")
+			rec := httptest.NewRecorder()
+			srv.Routes().ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("untrusted verdict accepted: status %d body %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Header().Get("Cache-Control"), "no-store") {
+				t.Fatalf("verification rejection must be non-cacheable: %v", rec.Header())
+			}
+		})
 	}
 	board = getBoard(t, srv, gid, "week")
 	entries = board["entries"].([]any)
 	for _, e := range entries {
 		em := e.(map[string]any)
 		if em["runId"] == runID {
-			if em["verified"] != true {
-				t.Fatalf("verified flag not on board: %v", em)
+			if _, present := em["verified"]; present {
+				t.Fatalf("client verdict must not set verified flag: %v", em)
 			}
 		}
 	}
-	req = httptest.NewRequest(http.MethodPost, "/v1/runs/"+runID+"/verification", strings.NewReader(`{"match":false,"actualScore":0}`))
+	srv.runsMu.Lock()
+	var stored *RunRecord
+	for i := range srv.runs {
+		if srv.runs[i].ID == runID {
+			copy := srv.runs[i]
+			stored = &copy
+			break
+		}
+	}
+	srv.runsMu.Unlock()
+	if stored == nil || stored.Verified != nil || stored.ActualScore != nil {
+		t.Fatalf("untrusted verdict modified persisted run: %+v", stored)
+	}
+	// Do not reveal whether a guessed run ID exists through this retired
+	// endpoint; the response is independent of the run's presence.
+	req = httptest.NewRequest(http.MethodPost, "/v1/runs/missing-id/verification", strings.NewReader(`{"match":true}`))
 	rec = httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec, req)
-	var vresp map[string]any
-	_ = json.Unmarshal(rec.Body.Bytes(), &vresp)
-	if vresp["alreadyRecorded"] != true || vresp["verified"] != true {
-		t.Fatalf("second verdict must not rewrite history: %v", vresp)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unknown-run verdict must also fail closed: %d", rec.Code)
 	}
 }
 
@@ -252,5 +282,114 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 	srv.runsMu.Unlock()
 	if stored != accepted {
 		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
+	}
+}
+
+func TestAuthenticatedClientCannotSelfAttestRun(t *testing.T) {
+	srv := newRunsServer(t)
+	const secret = "test-replay-attestation-only-not-production"
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	t.Setenv("DQ_AUTH_HMAC_SECRET", secret)
+	token := authTokenForTest("authenticated-attacker", time.Now().Add(time.Hour), secret)
+	srv.runsMu.Lock()
+	srv.runs = append(srv.runs, RunRecord{
+		ID: "attestation-target", GameID: "sample-rainbow-bear",
+		Score: 12, Won: true, Seed: 42, DurationMs: 20000,
+	})
+	srv.runsMu.Unlock()
+	for _, tc := range []struct {
+		name string
+		url  string
+		body string
+	}{
+		{"forged_positive", "/v1/runs/attestation-target/verification", `{"match":true,"actualScore":12}`},
+		{"forged_negative", "/v1/runs/attestation-target/verification", `{"match":false,"actualScore":0}`},
+		{"guessed_id", "/v1/runs/no-such-run/verification", `{"match":true,"actualScore":99999}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.url, strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer "+token)
+			rec := httptest.NewRecorder()
+			srv.Routes().ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("valid bearer must not authorize self-attestation: %d: %s",
+					rec.Code, rec.Body.String())
+			}
+		})
+	}
+	srv.runsMu.Lock()
+	stored := srv.runs[0]
+	srv.runsMu.Unlock()
+	if stored.Verified != nil || stored.ActualScore != nil {
+		t.Fatalf("authenticated browser changed verification state: %+v", stored)
+	}
+}
+
+func TestTrustedRuntimeNeverSelfPostsReplayVerdict(t *testing.T) {
+	// The Go handler is the authoritative security boundary. This additional
+	// shipped-asset contract guards against accidentally reintroducing a
+	// client-side POST, which is both misleading and wastes network work.
+	if strings.Contains(pixiRuntimeJS, "/verification") {
+		t.Fatal("trusted Pixi runtime must never POST a client-owned replay verdict")
+	}
+	if !strings.Contains(pixiRuntimeJS, "data.verified === true") {
+		t.Fatal("native verified-result notifications require an explicit server verdict")
+	}
+}
+
+func TestHistoricalClientVerdictsNeverAppearAsServerAttestation(t *testing.T) {
+	srv := newRunsServer(t)
+	const gid = "sample-rainbow-bear"
+	game, ok := srv.store.GetGame(gid)
+	if !ok {
+		t.Fatal("published test game missing")
+	}
+	legacyVerdict := true
+	legacyScore := 12
+	srv.runsMu.Lock()
+	srv.runs = append(srv.runs, RunRecord{
+		ID: "legacy-client-verified", GameID: gid, IRHash: irHashOf(game.GameIR),
+		Name: "Legacy", Score: 12, Won: true, DurationMs: 20000,
+		Seed: 42, Inputs: []RunInput{{Tick: 10, Type: "key", Detail: "ArrowLeft"}},
+		At: time.Now(), Verified: &legacyVerdict, ActualScore: &legacyScore,
+	})
+	srv.runsMu.Unlock()
+
+	board := getBoard(t, srv, gid, "week")
+	entries := board["entries"].([]any)
+	if len(entries) != 1 {
+		t.Fatalf("legacy rank should remain visible but untrusted: %v", entries)
+	}
+	listed := entries[0].(map[string]any)
+	if _, leaked := listed["verified"]; leaked {
+		t.Fatalf("historical client verdict leaked into leaderboard API: %v", listed)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/runs/legacy-client-verified", nil)
+	rec := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authorized public replay retrieval failed: %d", rec.Code)
+	}
+	var record map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if _, leaked := record["verified"]; leaked {
+		t.Fatalf("historical client verdict leaked into recorded-run response: %v", record)
+	}
+	if _, leaked := record["actualScore"]; leaked {
+		t.Fatalf("untrusted historical actualScore leaked into replay response: %v", record)
+	}
+	if record["score"] != 12.0 || len(record["inputs"].([]any)) != 1 {
+		t.Fatalf("safe replay seed/input payload was silently lost: %v", record)
+	}
+	// Do not destroy historical records without an explicit, reviewed
+	// migration: the read API must mask on a copy, not mutate storage.
+	srv.runsMu.Lock()
+	stored := srv.runs[0]
+	srv.runsMu.Unlock()
+	if stored.Verified == nil || !*stored.Verified ||
+		stored.ActualScore == nil || *stored.ActualScore != 12 {
+		t.Fatalf("historical verdict must remain for audit: %+v", stored)
 	}
 }

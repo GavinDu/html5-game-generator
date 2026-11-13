@@ -104,8 +104,9 @@ type RunRecord struct {
 	Seed       uint32     `json:"seed"`
 	Inputs     []RunInput `json:"inputs,omitempty"`
 	At         time.Time  `json:"at"`
-	// Verified is nil while no replay verdict exists; the board
-	// renders that as "unverified". First verdict wins.
+	// Legacy Verified/ActualScore were once client-supplied. Retain them
+	// only for controlled audit; never expose them as trusted attestation
+	// until a server-owned replay proof and migration exist.
 	Verified    *bool `json:"verified,omitempty"`
 	ActualScore *int  `json:"actualScore,omitempty"`
 }
@@ -494,7 +495,10 @@ func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
 		}
 		entries = append(entries, entry{
 			Rank: i + 1, RunID: rec.ID, Name: rec.Name, Score: rec.Score,
-			Won: rec.Won, DurationMs: rec.DurationMs, Verified: rec.Verified, At: rec.At,
+			// Legacy Verified was writable by the browser and is not proof.
+			// Suppress it in public API responses until an independently
+			// attested, versioned server result can be represented.
+			Won: rec.Won, DurationMs: rec.DurationMs, Verified: nil, At: rec.At,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -531,37 +535,26 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "run not found")
 		return
 	}
+	// Do not leak historical client-origin "verified" verdicts through
+	// recorded-run fetches: the same endpoint is used by the iOS host to
+	// determine whether it may present an independently verified result.
+	// Keep the original values in storage for explicit audit/remediation.
+	found.Verified = nil
+	found.ActualScore = nil
 	writeJSON(w, http.StatusOK, found)
 }
 
-// POST /v1/runs/{id}/verification — a replay's verdict. First
-// verdict wins; later reports are acknowledged but do not rewrite
-// history.
-func (s *Server) handleRunVerification(w http.ResponseWriter, r *http.Request) {
-	rid := r.PathValue("id")
-	var req struct {
-		Match       bool `json:"match"`
-		ActualScore int  `json:"actualScore"`
-	}
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	s.runsMu.Lock()
-	defer s.runsMu.Unlock()
-	for i := range s.runs {
-		if s.runs[i].ID != rid {
-			continue
-		}
-		if s.runs[i].Verified != nil {
-			writeJSON(w, http.StatusOK, map[string]any{"verified": *s.runs[i].Verified, "alreadyRecorded": true})
-			return
-		}
-		m := req.Match
-		a := req.ActualScore
-		s.runs[i].Verified = &m
-		s.runs[i].ActualScore = &a
-		writeJSON(w, http.StatusOK, map[string]any{"verified": m})
-		return
-	}
-	writeErr(w, http.StatusNotFound, "run not found")
+// POST /v1/runs/{id}/verification — legacy endpoint intentionally disabled.
+//
+// The old handler trusted a browser-supplied {"match":true} boolean and
+// marked a run Verified without replaying the seed/inputs on the server.
+// An authenticated game player can modify their HTTP request, so neither
+// a replay-mode browser session nor a client-held token can attest a score.
+//
+// Until a server-owned deterministic replay verifier exists, reject every
+// client verdict, including negative/unknown-run reports. Do not mutate the
+// stored verification state or disclose whether a run ID exists.
+func (s *Server) handleRunVerification(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	writeErr(w, http.StatusForbidden, "server-attested replay verification required")
 }
