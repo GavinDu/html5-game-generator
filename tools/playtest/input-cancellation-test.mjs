@@ -65,6 +65,21 @@ try {
       assert.equal((await state()).pointerDown, false,
         'lost pointer capture must release a synthetic held touch');
 
+      // A successful quick tap may get pointerup + lostpointercapture
+      // before the next fixed tick. It is not a cancellation.
+      await hold();
+      const completedTapQueue = await page.evaluate(() => {
+        window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 17 }));
+        document.querySelector('#stage canvas')
+          .dispatchEvent(new Event('lostpointercapture'));
+        return window.__dqTest.snapshot().pendingSemanticInputs;
+      });
+      assert.ok(completedTapQueue >= 1,
+        'normal implicit capture release must preserve a queued quick tap');
+      await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      assert.equal((await page.evaluate(() => window.__dqTest.snapshot().pendingSemanticInputs)), 0,
+        'focus interruption must still cancel outstanding actions');
+
       // Rotation pauses the fixed-step simulation and revokes queued input.
       await hold();
       await page.setViewportSize({ width: profile.height, height: profile.width });
