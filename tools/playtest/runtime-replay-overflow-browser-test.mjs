@@ -79,9 +79,15 @@ try {
 
       const screenshot = shots + '/' + browserName + '-' + device.name + '.png';
       await page.screenshot({ path: screenshot, fullPage: true });
-      report.push({ browser: browserName, device: device.name, dispatched,
+      report.push({ browser: browserName, device: device.name, passed: true, dispatched,
         ...evidence, runSubmissions: runSubmissions.length, screenshot });
       console.log(JSON.stringify(report.at(-1)));
+    } catch (error) {
+      const screenshot = shots + '/' + browserName + '-' + device.name + '-failed.png';
+      await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
+      report.push({ browser: browserName, device: device.name, passed: false,
+        error: String(error), pageErrors: errors, screenshot });
+      console.error(JSON.stringify(report.at(-1)));
     } finally {
       await page.close();
     }
@@ -90,7 +96,9 @@ try {
   await browser.close();
 }
 
+const passed = report.length === 2 && report.every(entry => entry.passed);
 writeFileSync(shots + '/report.json', JSON.stringify({
-  browser: browserName, passed: report.length === 2, cases: report,
+  browser: browserName, passed, cases: report,
 }, null, 2));
-assert.equal(report.length, 2);
+console.log(JSON.stringify({ browser: browserName, passed, cases: report.length }));
+if (!passed) process.exitCode = 1;
