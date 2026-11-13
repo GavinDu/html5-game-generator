@@ -59,6 +59,27 @@ try {
       await page.evaluate(() => window.dispatchEvent(new Event('blur')));
       assert.deepEqual((await state()).keys, [], 'WebView focus loss must release keyboard controls');
 
+      await hold();
+      await page.evaluate(() => document.querySelector('#stage canvas')
+        .dispatchEvent(new Event('lostpointercapture')));
+      assert.equal((await state()).pointerDown, false,
+        'lost pointer capture must release a synthetic held touch');
+
+      // Rotation pauses the fixed-step simulation and revokes queued input.
+      await hold();
+      await page.setViewportSize({ width: profile.height, height: profile.width });
+      await page.waitForFunction(() => document.body.dataset.orientationBlocked === 'true');
+      assert.equal((await state()).pointerDown, false, 'rotation must release held input');
+      const rotated = await page.evaluate(() => window.__dqTest.snapshot());
+      assert.equal(rotated.pendingSemanticInputs, 0, 'rotation must discard queued commands');
+      await page.waitForTimeout(160);
+      assert.equal((await page.evaluate(() => window.__dqTest.snapshot().simStep)),
+        rotated.simStep, 'simulation must not advance with incompatible orientation');
+      await page.setViewportSize({ width: profile.width, height: profile.height });
+      await page.waitForFunction(() => document.body.dataset.orientationBlocked === 'false');
+      await page.waitForFunction(step => window.__dqTest.snapshot().simStep > step,
+        rotated.simStep, { timeout: 5000 });
+
       assert.deepEqual(errors, [], 'no browser runtime exceptions during interruption flow');
       const screenshot = output + '/' + profile.name + '.png';
       await page.screenshot({ path: screenshot });
