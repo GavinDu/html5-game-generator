@@ -41,3 +41,46 @@ export function createRunInputRecorder(maxEvents = MAX_VERIFIABLE_RUN_INPUTS) {
     },
   };
 }
+
+
+// The dead-input-rate probe is diagnostic only. A frame is not guaranteed to
+// advance while backgrounded or waiting for a user Start tap, so a flood of
+// inputs cannot be allowed to grow this queue forever. When exhausted the
+// result is *unknown*, not an invented zero/bad-input quality measurement.
+export const MAX_PENDING_INPUT_DIAGNOSTICS = 256;
+
+export function createDeadInputDiagnostics(maxPending = MAX_PENDING_INPUT_DIAGNOSTICS) {
+  if (!Number.isSafeInteger(maxPending) || maxPending < 1 || maxPending > MAX_PENDING_INPUT_DIAGNOSTICS) {
+    throw new RangeError('invalid pending input diagnostic budget');
+  }
+  const pending = [];
+  let complete = true;
+  return {
+    pending,
+    get complete() { return complete; },
+    record(sample) {
+      if (!complete) return false;
+      if (!sample || !Number.isFinite(sample.at) || sample.at < 0) {
+        pending.length = 0;
+        complete = false;
+        return false;
+      }
+      if (pending.length >= maxPending) {
+        pending.length = 0;
+        complete = false;
+        return false;
+      }
+      pending.push(sample);
+      return true;
+    },
+    drain(visibleMS, lastActivityMS) {
+      if (!complete) return 0;
+      let dead = 0;
+      while (pending.length && visibleMS - pending[0].at >= 200) {
+        const input = pending.shift();
+        if (lastActivityMS < input.at) dead++;
+      }
+      return dead;
+    },
+  };
+}
