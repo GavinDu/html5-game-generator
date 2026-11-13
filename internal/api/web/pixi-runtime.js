@@ -30,6 +30,7 @@ import { createSimulationWorkBudget, createSemanticInputQueue } from './runtime-
 import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
+import { createFixedStepClock } from './runtime-fixed-step-clock.mjs';
 
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
@@ -2699,8 +2700,8 @@ async function run(id) {
     }
   }
 
-  const STEP_MS = 1000 / 60;
-  let simAcc = 0;
+  const simClock = createFixedStepClock();
+  const STEP_MS = simClock.stepMS;
   let captureTargetStep = null;
   let capturePaused = true;
   let perfWindowStart = 0;
@@ -2739,7 +2740,7 @@ async function run(id) {
     // before; 120Hz panels step every other frame; slow devices run
     // up to 3 catch-up steps, then shed time instead of spiraling.
     // This is what makes leaderboard replay verification possible.
-    if (!deterministicCapture) simAcc += Math.min(ticker.deltaMS, 250);
+    if (!deterministicCapture) simClock.addFrame(ticker.deltaMS);
     samplePointerForTrace();
     let steps = 0;
     try {
@@ -2755,11 +2756,11 @@ async function run(id) {
           if (state.ended) break;
         }
       } else {
-        while (simAcc >= STEP_MS && steps < 3) {
+        while (simClock.hasPendingStep(steps)) {
           applyReplayInputs(play.simStep);
           tickFrame(STEP_MS);
           play.simStep++;
-          simAcc -= STEP_MS;
+          simClock.completedStep();
           steps++;
           if (state.ended) break;
         }
@@ -2782,7 +2783,7 @@ async function run(id) {
       captureTargetStep = null;
       try { app.ticker.stop(); } catch { /* capture remains paused if already stopped */ }
     }
-    if (steps === 3 && simAcc >= STEP_MS) simAcc = 0; // shed, don't spiral
+    simClock.finishFrame(steps); // shed, don't spiral
     // Scripted-run score snapshot (determinism check): when the
     // worker sets __dqScriptEnd, freeze the score at exactly that
     // step — a poll-based read would overshoot by up to a poll
