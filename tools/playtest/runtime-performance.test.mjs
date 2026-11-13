@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const runtimeURL = new URL('../../internal/api/web/pixi-runtime.js', import.meta.url);
 const source = await readFile(runtimeURL, 'utf8');
+const clockSource = await readFile(new URL('../../internal/api/web/runtime-fixed-step-clock.mjs', import.meta.url), 'utf8');
 const probeURL = new URL('./probe.mjs', import.meta.url);
 const probeSource = await readFile(probeURL, 'utf8');
 
@@ -59,7 +60,11 @@ test('discrete lane taps clamp to three x centers and never follow held pointer 
 });
 
 test('all semantic updates run at fixed 60Hz independently of display frames', () => {
-  assert.match(source, /const STEP_MS = 1000 \/ 60/);
+  assert.match(source, /const simClock = createFixedStepClock\(\)/);
+  assert.match(source, /const STEP_MS = simClock\.stepMS/);
+  assert.match(clockSource, /export const FIXED_STEP_MS = 1000 \/ 60;/);
+  assert.match(clockSource, /export const MAX_CATCHUP_STEPS = 3;/);
+  assert.match(source, /simClock\.finishFrame\(steps\)/);
   assert.match(source, /tickFrame\(STEP_MS\)/);
   assert.match(source, /play\.simStep\+\+/);
   assert.match(source, /world\.step\(eventQueue\)/);
