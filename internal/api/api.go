@@ -47,6 +47,9 @@ var runtimeMovementPlaneJS string
 //go:embed web/runtime-rule-predicates.mjs
 var runtimeRulePredicatesJS string
 
+//go:embed web/runtime-semantic-fingerprint.mjs
+var runtimeSemanticFingerprintJS string
+
 //go:embed web/runtime-work-budget.js
 var runtimeWorkBudgetJS string
 
@@ -167,6 +170,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/runtime-replay-input.mjs", s.handleRuntimeReplayInput)
 	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
 	mux.HandleFunc("GET /web/runtime-rule-predicates.mjs", s.handleRuntimeRulePredicates)
+	mux.HandleFunc("GET /web/runtime-semantic-fingerprint.mjs", s.handleRuntimeSemanticFingerprint)
 	mux.HandleFunc("GET /web/runtime-work-budget.js", s.handleRuntimeWorkBudget)
 	mux.HandleFunc("GET /web/vendor/pixi.min.mjs", s.handlePixiVendor)
 	mux.HandleFunc("GET /web/vendor/rapier.es.js", s.handleRapierVendor)
@@ -428,6 +432,15 @@ func (s *Server) handleRuntimeRulePredicates(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeRulePredicatesJS))
+}
+
+// GET /web/runtime-semantic-fingerprint.mjs — trusted diagnostic-only
+// read-only game state fingerprint. Never load user-authored executable code.
+func (s *Server) handleRuntimeSemanticFingerprint(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeSemanticFingerprintJS))
 }
 
 // GET /web/runtime-work-budget.js — trusted deterministic semantic work guard.

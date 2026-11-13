@@ -33,6 +33,7 @@ import { createSeededRandom } from './runtime-seeded-rng.mjs';
 import { createFixedStepClock } from './runtime-fixed-step-clock.mjs';
 import { createRunInputRecorder, createDeadInputDiagnostics } from './runtime-replay-input.mjs';
 import { conditionsMet, ruleMatches } from './runtime-rule-predicates.mjs';
+import { semanticFingerprintV1 } from './runtime-semantic-fingerprint.mjs';
 
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
@@ -3273,6 +3274,29 @@ async function run(id) {
         objectiveProgress: objectiveProgress(), variables: { ...state.variables },
         ended: state.ended, won: state.won, failed: state.failed, frames: totalFrames,
         simStep: play.simStep, capturePaused,
+        // Probe-only diagnostic: semantic state excludes Pixi view/canvas,
+        // animation frames, FPS and GPU resources. It does NOT authorize
+        // an untrusted browser score or a native verified result.
+        semanticFingerprint: semanticFingerprintV1({
+          simStep: play.simStep,
+          rngState: sessionRandom.getState(),
+          score: state.score,
+          health: state.health,
+          objectiveProgress: objectiveProgress(),
+          depth: state.depth,
+          ended: state.ended,
+          won: state.won,
+          failed: state.failed,
+          variables: state.variables,
+          timers: state.timers,
+          collectedPairs: state.collectedPairs,
+          insideRegions: state.insideRegions,
+          firedThresholds: state.firedThresholds,
+          heldKeys: keysDown,
+          pointerDown: pointer.down,
+          pendingSemanticInputs: semanticInputQueue.size,
+          entities: entities.values(),
+        }).hash,
         replayRunId: replayTrace?.id || null,
         started: play.shellStarted,
         // Probe-only read-only input cancellation evidence, never exposed in
