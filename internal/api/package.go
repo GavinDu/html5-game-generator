@@ -224,6 +224,7 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		IRSHA256:             irSHA256Of(game.GameIR),
 	}
 	var deliveredAssetBytes int64
+	var decodedRasterPixels uint64
 	for _, asset := range game.GameIR.Assets {
 		data, _, found := s.store.GetArtifact(game.ID, asset.URI)
 		if !found {
@@ -237,6 +238,15 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		deliveredAssetBytes += int64(len(data))
+		if asset.Kind == "image" {
+			pixels, decodedErr := rasterHeaderPixels(asset.MIMEType, data)
+			if decodedErr != nil || !packageRasterAggregateAllows(decodedRasterPixels, pixels) {
+				w.Header().Set("Cache-Control", "private, no-store")
+				writeErr(w, http.StatusUnprocessableEntity, "published package raster exceeds decoded resource budget")
+				return
+			}
+			decodedRasterPixels += pixels
+		}
 		assetHash, hashErr := packageAssetSHA256(asset.SHA256, data)
 		if hashErr != nil {
 			w.Header().Set("Cache-Control", "private, no-store")
@@ -298,6 +308,14 @@ func (s *Server) handleGetGameAsset(w http.ResponseWriter, r *http.Request) {
 			if !strings.EqualFold(asset.SHA256, hex.EncodeToString(sum[:])) {
 				w.Header().Set("Cache-Control", "private, no-store")
 				writeErr(w, http.StatusUnprocessableEntity, "asset content failed integrity validation")
+				return
+			}
+		}
+		if asset.Kind == "image" {
+			pixels, decodedErr := rasterHeaderPixels(asset.MIMEType, data)
+			if decodedErr != nil || !packageRasterAggregateAllows(0, pixels) {
+				w.Header().Set("Cache-Control", "private, no-store")
+				writeErr(w, http.StatusUnprocessableEntity, "asset raster exceeds decoded resource budget")
 				return
 			}
 		}
