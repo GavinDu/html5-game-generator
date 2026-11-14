@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRunInputRecorder, MAX_VERIFIABLE_RUN_INPUTS,
-  createDeadInputDiagnostics, MAX_PENDING_INPUT_DIAGNOSTICS } from '../../internal/api/web/runtime-replay-input.mjs';
+  createDeadInputDiagnostics, MAX_PENDING_INPUT_DIAGNOSTICS, indexValidatedReplayInputs } from '../../internal/api/web/runtime-replay-input.mjs';
 
 const runtime = readFileSync(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url), 'utf8');
 
@@ -208,4 +208,70 @@ test('replay pointer event grammar is canonical and fail-closed, while v1 keyboa
       assert.equal(trace.record(8, 'key', 'ArrowLeft'), false, 'corrupt replay prefix must stay frozen');
     }
   }
+});
+
+
+test('recorded replay playback retains same-tick order and server-compatible bounds', () => {
+  const inputs = [
+    { tick: 7, type: 'pointer', detail: '-10,1000000' },
+    { tick: 7, type: 'pointerup', detail: '' },
+    { tick: 8, type: 'key', detail: 'ArrowLeft' },
+  ];
+  const indexed = indexValidatedReplayInputs(inputs, 1000);
+  assert.deepEqual(indexed.byStep.get(7), inputs.slice(0, 2));
+  assert.deepEqual(indexed.byStep.get(8), inputs.slice(2));
+  assert.equal(indexed.eventCount, 3);
+  assert.equal(indexed.lastTick, 8);
+  assert.deepEqual(indexValidatedReplayInputs(undefined).byStep.size, 0,
+    'historic inputless records may omit the field');
+  assert.equal(indexValidatedReplayInputs([]).lastTick, 0);
+
+  const atLimit = Array.from({ length: MAX_VERIFIABLE_RUN_INPUTS }, (_, i) =>
+    ({ tick: i, type: 'key', detail: 'ArrowRight' }));
+  assert.equal(indexValidatedReplayInputs(atLimit, 35_000).eventCount, 2000);
+  assert.throws(() => indexValidatedReplayInputs([...atLimit, atLimit[0]], 35_000),
+    /invalid recorded replay input count/);
+});
+
+test('stored replay events fail closed before map allocation or silent playback skips', () => {
+  const valid = [
+    { tick: 1, type: 'pointer', detail: '1,2' },
+    { tick: 2, type: 'pointerup', detail: '' },
+  ];
+  const corruptions = [
+    [{ tick: 2, type: 'key', detail: 'ArrowLeft' }, { tick: 1, type: 'keyup', detail: 'ArrowLeft' }],
+    [{ tick: -1, type: 'key', detail: 'ArrowLeft' }],
+    [{ tick: 1.5, type: 'key', detail: 'ArrowLeft' }],
+    [{ tick: Infinity, type: 'key', detail: 'ArrowLeft' }],
+    [{ tick: 121, type: 'key', detail: 'ArrowLeft' }], // 1s + 1s allowed slack is tick 120
+    [{ tick: 1, type: 'entity-pointer', detail: 'player' }],
+    [{ tick: 1, type: 'pointer', detail: '01,2' }],
+    [{ tick: 1, type: 'pointer', detail: 'NaN,2' }],
+    [{ tick: 1, type: 'pointer', detail: '1000001,2' }],
+    [{ tick: 1, type: 'pointerup', detail: '1,2' }],
+    [{ tick: 1, type: 'key', detail: 'x'.repeat(129) }],
+    [{ tick: 1, type: 'key', detail: undefined }],
+    [null],
+  ];
+  for (const bad of corruptions) {
+    assert.throws(() => indexValidatedReplayInputs(bad, 1000),
+      /invalid recorded replay event/, JSON.stringify(bad));
+  }
+  for (const invalid of [true, {}, 'bad', 2001]) {
+    assert.throws(() => indexValidatedReplayInputs(invalid), /input count/);
+  }
+  for (const duration of [-1, 0, 999, 1_800_001, 1.1, NaN, '1000']) {
+    assert.throws(() => indexValidatedReplayInputs(valid, duration), /replay duration/);
+  }
+  assert.equal(indexValidatedReplayInputs(valid, 1000).lastTick, 2);
+});
+
+test('shipping replay path fails closed on wrong run identity and malformed stored trace', () => {
+  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs \} from '\.\/runtime-replay-input\.mjs'/);
+  assert.match(runtime, /if \(replayRunId\) \{\s*\/\/ An explicit replay must not silently start/);
+  assert.match(runtime, /replayTrace\.id !== replayRunId \|\|\s*replayTrace\.gameId !== id/);
+  assert.match(runtime, /replayIndex = indexValidatedReplayInputs\(replayTrace\.inputs, replayTrace\.durationMs\)/);
+  assert.match(runtime, /const replayByStep = replayIndex\?\.byStep \?\? new Map\(\)/);
+  assert.match(runtime, /const replayLastTick = replayIndex\?\.lastTick \?\? 0/);
+  assert.doesNotMatch(runtime, /for \(const inp of replayTrace\.inputs\) \{/);
 });
