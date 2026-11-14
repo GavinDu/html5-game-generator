@@ -469,6 +469,15 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "input trace too large")
 		return
 	}
+	// The trusted renderer records inputs against the 60 Hz fixed-step
+	// game clock and reports duration from that same clock. Reject events
+	// far beyond a claimed run: they cannot participate in the submitted
+	// outcome and must not become work for a future server replay executor.
+	// One second of clock/rounding slack preserves old legitimate traces;
+	// this is a resource bound, NOT independent score attestation.
+	const replayStepsPerSecond = 60
+	const legacyReplaySlackSeconds = 1
+	maxRecordedTick := req.DurationMs*replayStepsPerSecond/1000 + replayStepsPerSecond*legacyReplaySlackSeconds
 	// Authoritative replay events are ordered by the fixed-step simulation
 	// tick. Multiple actions on one tick are valid and retain their original
 	// sequence, but a backwards tick cannot be replayed canonically.
@@ -476,6 +485,10 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	for _, inp := range req.Inputs {
 		if inp.Tick < 0 {
 			writeErr(w, http.StatusBadRequest, "input tick must be >= 0")
+			return
+		}
+		if inp.Tick > maxRecordedTick {
+			writeErr(w, http.StatusBadRequest, "input tick exceeds run duration")
 			return
 		}
 		if inp.Tick < previousTick {

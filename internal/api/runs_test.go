@@ -242,6 +242,55 @@ func TestRunsRejectNonMonotonicReplayTicks(t *testing.T) {
 	}
 }
 
+func TestRunsRejectInputTicksBeyondFixedStepDuration(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	// The renderer emits fixed 60 Hz input ticks and duration from the same
+	// simulation. Allow a 1s boundary margin for historical timing, but
+	// reject events farther in the future that cannot affect this run.
+	cases := []struct {
+		name       string
+		durationMs int
+		tick       int
+		want       int
+	}{
+		{"zero_tick_allowed", 1000, 0, http.StatusCreated},
+		{"one_second_grace_boundary", 1000, 120, http.StatusCreated},
+		{"just_past_grace_rejected", 1000, 121, http.StatusBadRequest},
+		{"longer_run_boundary", 20000, 1260, http.StatusCreated},
+		{"just_past_longer_run_rejected", 20000, 1261, http.StatusBadRequest},
+		{"pathological_future_tick_rejected", 1000, 1_000_000_000, http.StatusBadRequest},
+	}
+	accepted := 0
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, err := json.Marshal(map[string]any{
+				"name": "TickBound", "score": 4, "won": false,
+				"durationMs": tc.durationMs, "seed": 42,
+				"inputs": []RunInput{{Tick: tc.tick, Type: "pointer", Detail: "10,20"}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			code, response := postRun(t, srv, gameID, string(payload))
+			if code != tc.want {
+				t.Fatalf("tick %d duration %d status=%d want=%d response=%v", tc.tick, tc.durationMs, code, tc.want, response)
+			}
+			if code == http.StatusCreated {
+				accepted++
+			} else if _, ok := response["runId"]; ok {
+				t.Fatalf("rejected future input must not receive a runId: %v", response)
+			}
+		})
+	}
+	srv.runsMu.Lock()
+	stored := len(srv.runs)
+	srv.runsMu.Unlock()
+	if stored != accepted || accepted != 3 {
+		t.Fatalf("rejected future input must not persist a run: stored=%d accepted=%d", stored, accepted)
+	}
+}
+
 func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 	srv := newRunsServer(t)
 	gid := "sample-rainbow-bear"
