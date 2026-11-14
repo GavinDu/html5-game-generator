@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	SchemaV2 = "semantic-input-trace-v2"
-	MaxEvents = 2000
-	MaxDurationTicks = 30 * 60 * 60 // 30 minutes at the canonical 60 Hz.
-	MaxFixedCoordinate = 1000000000 // 1 million logical pixels at millipixel scale.
-	maxActionBytes = 128
+	SchemaV2           = "semantic-input-trace-v2"
+	MaxEvents          = 2000
+	MaxDurationTicks   = 30 * 60 * 60 // 30 minutes at the canonical 60 Hz.
+	MaxFixedCoordinate = 1000000000   // 1 million logical pixels at millipixel scale.
+	maxActionBytes     = 128
 )
 
 // Position is a fixed-point (1/1000 logical pixel) position. No floats,
@@ -31,20 +31,20 @@ type Position struct {
 // Event is one declared semantic action edge at a 60 Hz simulation tick.
 // Ordinal starts at zero on each tick and increments without gaps.
 type Event struct {
-	Tick uint32 `json:"tick"`
-	Ordinal uint32 `json:"ordinal"`
-	Action string `json:"action"`
-	Device string `json:"device"` // pointer or keyboard
-	Phase string `json:"phase"` // down, move, up, cancel
+	Tick     uint32 `json:"tick"`
+	Ordinal  uint32 `json:"ordinal"`
+	Action   string `json:"action"`
+	Device   string `json:"device"` // pointer or keyboard
+	Phase    string `json:"phase"` // down, move, up, cancel
 	Position *Position `json:"position,omitempty"`
 }
 
 // Trace is a data-only protocol and does NOT constitute server attestation.
 // A future compiler/runtime rollout must declare its own v2 capability.
 type Trace struct {
-	Schema string `json:"schema"`
-	DurationTicks uint32 `json:"durationTicks"`
-	Events []Event `json:"events"`
+	Schema        string  `json:"schema"`
+	DurationTicks uint32  `json:"durationTicks"`
+	Events        []Event `json:"events"`
 }
 
 func bindingKind(ir *gameir.Document, action, device string) (string, error) {
@@ -179,11 +179,11 @@ func CanonicalSHA256(ir *gameir.Document, gameID, fullIRSHA256 string, seed uint
 		trace.Events = []Event{}
 	}
 	type evidence struct {
-		Schema string `json:"schema"`
-		GameID string `json:"gameId"`
+		Schema   string `json:"schema"`
+		GameID   string `json:"gameId"`
 		IRSHA256 string `json:"irSha256"`
-		Seed uint32 `json:"seed"`
-		Trace Trace `json:"trace"`
+		Seed     uint32 `json:"seed"`
+		Trace    Trace  `json:"trace"`
 	}
 	// JSON struct field order is stable and the protocol contains no
 	// floating point, map iteration, or platform timestamps.
