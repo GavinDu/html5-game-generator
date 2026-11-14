@@ -31,11 +31,11 @@ type Position struct {
 // Event is one declared semantic action edge at a 60 Hz simulation tick.
 // Ordinal starts at zero on each tick and increments without gaps.
 type Event struct {
-	Tick     uint32 `json:"tick"`
-	Ordinal  uint32 `json:"ordinal"`
-	Action   string `json:"action"`
-	Device   string `json:"device"` // pointer or keyboard
-	Phase    string `json:"phase"` // down, move, up, cancel
+	Tick     uint32    `json:"tick"`
+	Ordinal  uint32    `json:"ordinal"`
+	Action   string    `json:"action"`
+	Device   string    `json:"device"` // pointer or keyboard
+	Phase    string    `json:"phase"`  // down, move, up, cancel
 	Position *Position `json:"position,omitempty"`
 }
 
