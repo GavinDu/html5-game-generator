@@ -31,7 +31,7 @@ import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 import { createFixedStepClock } from './runtime-fixed-step-clock.mjs';
-import { createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs } from './runtime-replay-input.mjs';
+import { createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs, replayPointerPhase } from './runtime-replay-input.mjs';
 import { conditionsMet, ruleMatches } from './runtime-rule-predicates.mjs';
 import { semanticFingerprintV1 } from './runtime-semantic-fingerprint.mjs';
 
@@ -2504,26 +2504,27 @@ async function run(id) {
       y: (ev.clientY - rect.top) * (H / rect.height),
     };
   };
-  app.canvas.addEventListener('pointerdown', (ev) => {
-    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return; // no off-tick input before active play
+  // Live and replay both perform these exact control-plane transitions;
+  // replay must not invent another tap for each sampled drag coordinate.
+  function beginPointer(x, y) {
     pointer.down = true;
-    const p = toLogical(ev);
-    pointer.x = p.x;
-    // IR shell controls can constrain the pointer to horizontal-only movement.
-    // Keep the player in the catcher lane instead of following vertical cursor drift.
-    pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
-    // A tap is a destination command even when down/up happen between
-    // simulation frames. Holding the contact is reserved for drag controls.
+    pointer.x = x;
+    pointer.y = dragXOnly && playerEnt ? playerTarget.y : y;
     if (laneTap && playerEnt) {
-      // One physical tap advances exactly one lane. Touch position determines
-      // direction, not the destination; vertical drift is never accepted.
-      laneIndex = clamp(laneIndex + (p.x < W / 2 ? -1 : 1), 0, 2);
+      laneIndex = clamp(laneIndex + (x < W / 2 ? -1 : 1), 0, 2);
       playerTarget.x = laneCenters[laneIndex];
       playerTarget.y = playerEnt.anchorY;
     } else if (ir.experience?.controls?.scheme === 'tap') {
-      playerTarget.x = p.x;
-      if (!dragXOnly) playerTarget.y = p.y;
+      playerTarget.x = x;
+      if (!dragXOnly) playerTarget.y = y;
     }
+  }
+  app.canvas.addEventListener('pointerdown', (ev) => {
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
+    const p = toLogical(ev);
+    beginPointer(p.x, p.y);
+    // Persist the physical down even when up occurs before the next 60 Hz
+    // tick; the release handler now records that distinct edge as well.
     noteInput('pointer', `${Math.round(p.x)},${Math.round(p.y)}`);
     queueGameInput(playerEnt, undefined, tapActionName());
   }, { signal: abort.signal });
@@ -2533,7 +2534,15 @@ async function run(id) {
     pointer.x = p.x;
     pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
   }, { signal: abort.signal });
-  addEventListener('pointerup', () => { pointer.down = false; }, { signal: abort.signal });
+  addEventListener('pointerup', () => {
+    if (!pointer.down) return;
+    pointer.down = false;
+    // A fast tap may start and finish between ticker frames. Recording its
+    // release here is essential for replaying two consecutive real taps.
+    if (!replayTrace && play.shellStarted && !state.failed && !state.ended) {
+      noteInput('pointerup', '');
+    }
+  }, { signal: abort.signal });
   // Mobile OS gesture arbitration, WebView backgrounding and keyboard focus
   // changes can cancel the physical contact without emitting pointerup.
   // Never carry a synthetic held control into the next simulation step.
@@ -2548,16 +2557,23 @@ async function run(id) {
 
   const keysDown = new Set();
   releaseHeldInputs = () => {
+    // A canceled/blurred gesture must not remain held in stored replay.
+    // The pending semantic queue is still cleared for safety; exact
+    // sub-tick cancellation semantics require a versioned trace protocol.
+    if (!replayTrace && play.shellStarted && !state.failed && !state.ended) {
+      if (pointer.down) noteInput('pointerup', '');
+      for (const action of keysDown) {
+        const binding = kbBindings.find((b) => b.action === action);
+        if (binding) noteInput('keyup', binding.key || binding.action);
+      }
+    }
     pointer.down = false;
     keysDown.clear();
     semanticInputQueue.clear();
   };
   addEventListener('blur', releaseHeldInputs, { signal: abort.signal });
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
-  addEventListener('keydown', (ev) => {
-    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
-    const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
-    if (!b) return;
+  function beginKeyboardAction(b) {
     if (laneTap && playerEnt && !keysDown.has(b.action) &&
         (b.action === 'move_left' || b.action === 'move_right')) {
       laneIndex = clamp(laneIndex + (b.action === 'move_left' ? -1 : 1), 0, 2);
@@ -2565,8 +2581,16 @@ async function run(id) {
       playerTarget.y = playerEnt.anchorY;
     }
     keysDown.add(b.action);
-    noteInput('key', ev.key);
+    // Each physical keydown, including OS repeats, enqueues exactly one
+    // action; stored replay must mirror those discrete commands.
     queueGameInput(playerEnt, undefined, b.action);
+  }
+  addEventListener('keydown', (ev) => {
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
+    const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
+    if (!b) return;
+    noteInput('key', ev.key);
+    beginKeyboardAction(b);
   }, { signal: abort.signal });
   addEventListener('keyup', (ev) => {
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
@@ -2789,15 +2813,24 @@ async function run(id) {
       if (inp.type === 'pointer') {
         const [x, y] = String(inp.detail || '').split(',').map(Number);
         if (Number.isFinite(x) && Number.isFinite(y)) {
-          pointer.down = true; pointer.x = x; pointer.y = y;
-          queueGameInput(playerEnt, undefined, tapActionName());
+          const phase = replayPointerPhase(inp.type, pointer.down);
+          if (phase === 'down') {
+            beginPointer(x, y);
+            queueGameInput(playerEnt, undefined, tapActionName());
+          } else {
+            // Consecutive pointer samples while held are movement, not
+            // new taps and not new lane changes.
+            pointer.x = x;
+            pointer.y = dragXOnly && playerEnt ? playerTarget.y : y;
+          }
         }
       } else if (inp.type === 'pointerup') {
         pointer.down = false;
       } else if (inp.type === 'key' || inp.type === 'keyup') {
         const b = kbBindings.find((x) => x.key === inp.detail || x.action === inp.detail);
         if (b) {
-          if (inp.type === 'key') keysDown.add(b.action); else keysDown.delete(b.action);
+          if (inp.type === 'key') beginKeyboardAction(b);
+          else keysDown.delete(b.action);
         }
       }
     }
@@ -2806,19 +2839,15 @@ async function run(id) {
   // record its position whenever it moved enough (or every few steps),
   // so a drag is reproducible step for step. Without this, only taps
   // would replay faithfully.
-  let lastSampleX = -1, lastSampleY = -1, lastSampleStep = -99, wasDown = false;
+  let lastSampleX = -1, lastSampleY = -1, lastSampleStep = -99;
   function samplePointerForTrace() {
-    if (replayTrace) return;
-    if (pointer.down) {
-      const moved = Math.abs(pointer.x - lastSampleX) + Math.abs(pointer.y - lastSampleY);
-      if (moved >= 3 || play.simStep - lastSampleStep >= 6) {
-        replayInputRecorder.record(play.simStep, 'pointer', `${Math.round(pointer.x)},${Math.round(pointer.y)}`);
-        lastSampleX = pointer.x; lastSampleY = pointer.y; lastSampleStep = play.simStep;
-      }
-      wasDown = true;
-    } else if (wasDown) {
-      replayInputRecorder.record(play.simStep, 'pointerup', '');
-      wasDown = false;
+    if (replayTrace || !pointer.down) return;
+    const moved = Math.abs(pointer.x - lastSampleX) + Math.abs(pointer.y - lastSampleY);
+    if (moved >= 3 || play.simStep - lastSampleStep >= 6) {
+      // Contact is already down; the replay adapter interprets this as
+      // movement, never as an extra action or a second lane-tap command.
+      replayInputRecorder.record(play.simStep, 'pointer', `${Math.round(pointer.x)},${Math.round(pointer.y)}`);
+      lastSampleX = pointer.x; lastSampleY = pointer.y; lastSampleStep = play.simStep;
     }
   }
 
