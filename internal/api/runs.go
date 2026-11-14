@@ -458,8 +458,16 @@ func (s *Server) boardRuns(gameID, hash, window string, doc *gameir.Document) []
 		if metric == "time" && !rec.Won {
 			continue // a time board ranks finished runs only
 		}
+		// A modern persisted replay with changed seed, inputs, digest or
+		// version is not safe to display as a ranked outcome when its
+		// own GET /v1/runs/{id} would refuse the same evidence. Preserve
+		// historical legacy claims only as explicitly provisional.
+		evidenceStatus := runEvidenceStatus(&rec)
+		if evidenceStatus == "invalid_evidence" {
+			continue
+		}
 		cp := rec
-		cp.EvidenceStatus = runEvidenceStatus(&rec)
+		cp.EvidenceStatus = evidenceStatus
 		cp.Inputs = nil // boards never carry traces
 		out = append(out, cp)
 	}
