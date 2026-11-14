@@ -29,8 +29,8 @@ func TestSemanticTraceV2RejectsUnpairedEscapedSurrogateBeforeIRBinding(t *testin
 		"ju\\ud800\\u1234mp", // high followed by non-low scalar
 	} {
 		t.Run(escaped, func(t *testing.T) {
-			wire := strings.Replace(string(original), actionWire,
-				"\"action\":\""+escaped+"\"", 1)
+			wire := strings.ReplaceAll(string(original), actionWire,
+				"\"action\":\""+escaped+"\"")
 			if _, err := DecodeStrictV2(published, []byte(wire)); err == nil {
 				t.Fatalf("malformed UTF-16 escaped action admitted: %s", escaped)
 			}
@@ -46,8 +46,8 @@ func TestSemanticTraceV2PreservesPairedSurrogateAndLiteralBackslash(t *testing.T
 
 	published := sampleIR()
 	published.InputBindings[0].Action = "ju🚀mp"
-	wire := strings.Replace(string(original), "\"action\":\"jump\"",
-		"\"action\":\"ju\\uD83D\\uDE80mp\"", 1)
+	wire := strings.ReplaceAll(string(original), "\"action\":\"jump\"",
+		"\"action\":\"ju\\uD83D\\uDE80mp\"")
 	decoded, err := DecodeStrictV2(published, []byte(wire))
 	if err != nil {
 		t.Fatalf("valid UTF-16 surrogate pair rejected: %v", err)
@@ -61,6 +61,7 @@ func TestSemanticTraceV2PreservesPairedSurrogateAndLiteralBackslash(t *testing.T
 	published.InputBindings[0].Action = "ju\\ud800mp"
 	trace := validTrace()
 	trace.Events[0].Action = published.InputBindings[0].Action
+	trace.Events[1].Action = published.InputBindings[0].Action
 	encoded, err := json.Marshal(trace)
 	if err != nil {
 		t.Fatal(err)
