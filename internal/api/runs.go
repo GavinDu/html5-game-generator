@@ -499,12 +499,15 @@ func boardMetric(doc *gameir.Document) (string, string) {
 
 // POST /v1/games/{id}/runs — submit a finished run.
 func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	game, ok := s.store.GetGame(id)
+	// The run submission is scoped to the exact published game's current
+	// viewer permissions. Never persist an outsider's private-game score.
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Vary", "Authorization, X-User-ID")
+	game, ok := s.deliverableGame(w, r)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
+	id := game.ID
 	var req struct {
 		Name       string     `json:"name"`
 		Score      int        `json:"score"`
@@ -679,12 +682,15 @@ func itoa(n int) string {
 // GET /v1/games/{id}/leaderboard?window=week|all — the board for the
 // game's current IR version.
 func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	game, ok := s.store.GetGame(id)
+	// Names, scores and run IDs are gameplay data. Public, groups and
+	// owner-preview eligibility must match game package/asset access.
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Vary", "Authorization, X-User-ID")
+	game, ok := s.deliverableGame(w, r)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "game not found")
 		return
 	}
+	id := game.ID
 	window := r.URL.Query().Get("window")
 	if window != "all" {
 		window = "week"
