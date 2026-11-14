@@ -33,7 +33,26 @@ func TestPublishedImageRequiresAdmittedMIMEAtPackageAndDirectAssetEndpoints(t *t
 		}
 	}
 
-	for _, mime := range []string{"", "image/webp", "image/svg+xml", "application/octet-stream"} {
+	// A v1 published Game IR historically omitted mimeType. Its actual
+	// PNG bytes must still be sniffed and admitted under the SAME budget.
+	legacy, ok := st.GetGame(game.ID)
+	if !ok {
+		t.Fatal("seeded legacy game missing")
+	}
+	for i := range legacy.GameIR.Assets {
+		if legacy.GameIR.Assets[i].ID == id {
+			legacy.GameIR.Assets[i].MIMEType = ""
+		}
+	}
+	st.UpdateGame(legacy)
+	for _, path := range paths {
+		resp := getAs(t, srv, path, "")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("legacy MIME-less valid PNG %s: HTTP %d %s", path, resp.Code, resp.Body.String())
+		}
+	}
+
+	for _, mime := range []string{"image/webp", "image/svg+xml", "application/octet-stream"} {
 		t.Run("declared-"+mime, func(t *testing.T) {
 			existing, ok := st.GetGame(game.ID)
 			if !ok {
