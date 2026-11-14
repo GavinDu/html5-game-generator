@@ -756,7 +756,9 @@ func TestReplayKeyboardGrammarMatchesOnlyPublishedBindings(t *testing.T) {
 			"durationMs": 20000, "seed": 42,
 			"inputs": []RunInput{{Tick: 7, Type: typ, Detail: detail}},
 		})
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		return string(payload)
 	}
 	for _, typ := range []string{"key", "keyup"} {
@@ -766,11 +768,16 @@ func TestReplayKeyboardGrammarMatchesOnlyPublishedBindings(t *testing.T) {
 		}
 	}
 	game, ok := srv.store.GetGame(gameID)
-	if !ok { t.Fatal("missing game fixture") }
+	if !ok {
+		t.Fatal("missing game fixture")
+	}
 	game.GameIR.InputBindings = append(game.GameIR.InputBindings,
 		gameir.InputBinding{Action: "move_left", Input: "keyboard", Key: "ArrowLeft"})
 	srv.store.UpdateGame(game)
-	for _, tc := range []struct{typ, detail string; want int}{
+	for _, tc := range []struct {
+		typ, detail string
+		want        int
+	}{
 		{"key", "ArrowLeft", http.StatusCreated},
 		{"keyup", "ArrowLeft", http.StatusCreated},
 		{"key", "move_left", http.StatusCreated},
@@ -783,9 +790,13 @@ func TestReplayKeyboardGrammarMatchesOnlyPublishedBindings(t *testing.T) {
 	} {
 		t.Run(tc.typ+"_"+tc.detail, func(t *testing.T) {
 			code, response := postRun(t, srv, gameID, body(tc.typ, tc.detail))
-			if code != tc.want { t.Fatalf("%s %q status %d want %d: %v", tc.typ, tc.detail, code, tc.want, response) }
+			if code != tc.want {
+				t.Fatalf("%s %q status %d want %d: %v", tc.typ, tc.detail, code, tc.want, response)
+			}
 			if code != http.StatusCreated {
-				if _, ok := response["runId"]; ok { t.Fatalf("rejected key minted run ID: %v", response) }
+				if _, ok := response["runId"]; ok {
+					t.Fatalf("rejected key minted run ID: %v", response)
+				}
 			}
 		})
 	}
