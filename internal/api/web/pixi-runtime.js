@@ -1309,7 +1309,9 @@ async function run(id) {
   // A visibility change must never restart a terminal or failed run.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      releaseHeldInputs();
+      // A recorded replay is driven only by its trace. Focus/visibility
+      // changes pause presentation but cannot forge an input-release edge.
+      if (!replayTrace) releaseHeldInputs();
       try { app.ticker.stop(); } catch { /* ignore */ }
       recordEvent('pause', 'hidden');
       flushPerfWindow();
@@ -1324,7 +1326,7 @@ async function run(id) {
   app.canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
     contextLost = true;
-    releaseHeldInputs();
+    if (!replayTrace) releaseHeldInputs();
     try { app.ticker.stop(); } catch { /* ignore */ }
     log('RT', 'WEBGL CONTEXT LOST');
     recordError('context', new Error('WebGL context lost'));
@@ -2529,13 +2531,13 @@ async function run(id) {
     queueGameInput(playerEnt, undefined, tapActionName());
   }, { signal: abort.signal });
   app.canvas.addEventListener('pointermove', (ev) => {
-    if (!pointer.down) return;
+    if (replayTrace || !pointer.down) return;
     const p = toLogical(ev);
     pointer.x = p.x;
     pointer.y = dragXOnly && playerEnt ? playerTarget.y : p.y;
   }, { signal: abort.signal });
   addEventListener('pointerup', () => {
-    if (!pointer.down) return;
+    if (replayTrace || !pointer.down) return;
     pointer.down = false;
     // A fast tap may start and finish between ticker frames. Recording its
     // release here is essential for replaying two consecutive real taps.
@@ -2546,13 +2548,15 @@ async function run(id) {
   // Mobile OS gesture arbitration, WebView backgrounding and keyboard focus
   // changes can cancel the physical contact without emitting pointerup.
   // Never carry a synthetic held control into the next simulation step.
-  addEventListener('pointercancel', () => releaseHeldInputs(), { signal: abort.signal });
+  addEventListener('pointercancel', () => {
+    if (!replayTrace) releaseHeldInputs();
+  }, { signal: abort.signal });
   app.canvas.addEventListener('lostpointercapture', () => {
     // Normal pointerup *also* releases implicit touch capture. A tap may
     // still be waiting for the next semantic tick; never erase it on the
     // ordinary release path. Only an unexpected loss of a held gesture
     // cancels pending commands.
-    if (pointer.down) releaseHeldInputs();
+    if (!replayTrace && pointer.down) releaseHeldInputs();
   }, { signal: abort.signal });
 
   const keysDown = new Set();
@@ -2571,7 +2575,9 @@ async function run(id) {
     keysDown.clear();
     semanticInputQueue.clear();
   };
-  addEventListener('blur', releaseHeldInputs, { signal: abort.signal });
+  addEventListener('blur', () => {
+    if (!replayTrace) releaseHeldInputs();
+  }, { signal: abort.signal });
   const kbBindings = (ir.inputBindings || []).filter((b) => b.input === 'keyboard');
   function beginKeyboardAction(b) {
     if (laneTap && playerEnt && !keysDown.has(b.action) &&
@@ -2593,6 +2599,9 @@ async function run(id) {
     beginKeyboardAction(b);
   }, { signal: abort.signal });
   addEventListener('keyup', (ev) => {
+    // Live browser input must not mutate a replay's held-key state or
+    // evidence log. The replay stream exclusively owns key transitions.
+    if (replayTrace || orientationBlocked || !play.shellStarted || state.failed || state.ended) return;
     const b = kbBindings.find((x) => x.key === ev.key || x.action === ev.key);
     if (b) { keysDown.delete(b.action); noteInput('keyup', ev.key); }
   }, { signal: abort.signal });
@@ -3282,7 +3291,7 @@ async function run(id) {
       orientationHint.textContent = orientationBlocked
         ? (orientation === 'portrait' ? 'Portrait game · turn your device upright to play' : 'Landscape game · turn your device sideways to play') : '';
     }
-    if (orientationBlocked) releaseHeldInputs();
+    if (orientationBlocked && !replayTrace) releaseHeldInputs();
     resumeTickerIfSafe();
   };
   addEventListener('resize', syncOrientation, { signal: abort.signal });
