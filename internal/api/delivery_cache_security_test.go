@@ -19,7 +19,7 @@ func TestAssetDeliveryRechecksVisibilityBeforeConditionalResponse(t *testing.T) 
 	game := seedReadyGame(st, "asset-visibility-game")
 	game.ModerationStatus = "approved"
 
-	assetBytes := []byte("safe public asset")
+	assetBytes := tinyRasterPNG(t) // Real encoded PNG; retain ETag/visibility assertions.
 	sum := sha256.Sum256(assetBytes)
 	game.GameIR.Assets = append(game.GameIR.Assets, gameir.Asset{
 		ID: "sprite", Kind: "image", URI: "assets/sprite.png",
