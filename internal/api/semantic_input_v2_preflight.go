@@ -86,13 +86,13 @@ func (s *Server) handleValidateSemanticInputV2(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"schema":        "semantic-input-admission-v2",
-		"gameId":        game.ID,
-		"irSha256":      fullIRSHA256,
-		"seed":          uint32(seedValue),
-		"traceSha256":   digest,
-		"durationTicks": trace.DurationTicks,
-		"eventCount":    len(trace.Events),
+		"schema":         "semantic-input-admission-v2",
+		"gameId":         game.ID,
+		"irSha256":       fullIRSHA256,
+		"seed":           uint32(seedValue),
+		"traceSha256":    digest,
+		"durationTicks":  trace.DurationTicks,
+		"eventCount":     len(trace.Events),
 		"evidenceStatus": "unverified",
 		"rankingScope":   "none",
 		"attested":       false,
