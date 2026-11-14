@@ -52,17 +52,21 @@ func TestSemanticTraceV2ValidatesDeclaredEdgesAndCanonicalIdentity(t *testing.T)
 		t.Fatalf("repeated input must have deterministic hash: %q != %q", same, reference)
 	}
 	for _, test := range []struct {
-		name string
-		game string
-		full string
-		seed uint32
+		name  string
+		game  string
+		full  string
+		seed  uint32
 		trace Trace
 	}{
 		{"different-game", "game-2", full, 42, trace},
 		{"different-ir", "game-1", strings.Repeat("c", 64), 42, trace},
 		{"different-seed", "game-1", full, 43, trace},
 		{"different-duration", "game-1", full, 42, func() Trace { c := trace; c.DurationTicks++; return c }()},
-		{"removed-input", "game-1", full, 42, func() Trace { c := trace; c.Events = append([]Event(nil), trace.Events[:len(trace.Events)-2]...); return c }()},
+		{"removed-input", "game-1", full, 42, func() Trace {
+			c := trace
+			c.Events = append([]Event(nil), trace.Events[:len(trace.Events)-2]...)
+			return c
+		}()},
 		{"different-position", "game-1", full, 42, func() Trace {
 			c := trace
 			c.Events = append([]Event(nil), trace.Events...)
@@ -96,7 +100,7 @@ func TestSemanticTraceV2ValidatesDeclaredEdgesAndCanonicalIdentity(t *testing.T)
 func TestSemanticTraceV2RejectsMalformedAndUnbalancedActions(t *testing.T) {
 	valid := validTrace()
 	tests := []struct {
-		name string
+		name   string
 		mutate func(*Trace)
 	}{
 		{"unknown-schema", func(x *Trace) { x.Schema = "semantic-input-trace-v9" }},
@@ -117,7 +121,7 @@ func TestSemanticTraceV2RejectsMalformedAndUnbalancedActions(t *testing.T) {
 		{"missing-pointer-position", func(x *Trace) { x.Events[0].Position = nil }},
 		{"unexpected-key-position", func(x *Trace) { x.Events[5].Position = pos(1, 1) }},
 		{"unexpected-release-position", func(x *Trace) { x.Events[1].Position = pos(1, 1) }},
-		{"coordinate-overflow", func(x *Trace) { x.Events[0].Position = pos(MaxFixedCoordinate + 1, 0) }},
+		{"coordinate-overflow", func(x *Trace) { x.Events[0].Position = pos(MaxFixedCoordinate+1, 0) }},
 		{"oversized-action", func(x *Trace) { x.Events[0].Action = strings.Repeat("a", 129) }},
 		{"too-many-events", func(x *Trace) { x.Events = make([]Event, MaxEvents+1) }},
 	}
