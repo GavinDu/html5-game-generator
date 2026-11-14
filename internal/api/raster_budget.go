@@ -30,7 +30,9 @@ func rasterHeaderPixels(mime string, data []byte) (uint64, error) {
 	case "image/gif":
 		expected = "gif"
 	default:
-		return 0, nil
+		// Unknown image MIME is not a safe opt-out from decoded pixel limits.
+		// New formats require a separately versioned, tested decoder gate.
+		return 0, fmt.Errorf("unsupported or missing image MIME type")
 	}
 	config, actual, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
