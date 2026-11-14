@@ -12,11 +12,9 @@ import (
 
 // These are conservative hard-fail admission ceilings, not empirical mobile
 // GPU targets. A small compressed asset can still request a huge allocation.
-const (
-	maxRasterDimension    = 8192
-	maxRasterPixels uint64 = 16_777_216
-	maxPackageRasterPixels uint64 = 64_000_000
-)
+const maxRasterDimension = 8192
+const maxRasterPixels uint64 = 16_777_216
+const maxPackageRasterPixels uint64 = 64_000_000
 
 // rasterHeaderPixels validates the declared PNG/JPEG/GIF header without
 // allocating a decoded image. Unknown/legacy formats deliberately remain
