@@ -173,6 +173,11 @@ func CanonicalSHA256(ir *gameir.Document, gameID, fullIRSHA256 string, seed uint
 	if err := Validate(ir, trace); err != nil {
 		return "", err
 	}
+	// Persist a single canonical wire representation for zero-input
+	// sessions; nil and an empty event list must fingerprint identically.
+	if trace.Events == nil {
+		trace.Events = []Event{}
+	}
 	type evidence struct {
 		Schema string `json:"schema"`
 		GameID string `json:"gameId"`
