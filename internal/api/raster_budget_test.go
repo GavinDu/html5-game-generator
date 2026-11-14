@@ -60,8 +60,10 @@ func TestRasterHeaderAdmissionRejectsCompressedDimensionBomb(t *testing.T) {
 	if _, err := rasterHeaderPixels("image/jpeg", valid); err == nil {
 		t.Fatal("declared MIME spoof against encoded PNG admitted")
 	}
-	if pixels, err = rasterHeaderPixels("image/webp", valid); err != nil || pixels != 0 {
-		t.Fatalf("unimplemented WebP policy must be handled by separate capability gate: %d %v", pixels, err)
+	for _, mime := range []string{"", "image/webp", "image/svg+xml", "application/octet-stream", "image/png; charset=utf-8"} {
+		if _, err := rasterHeaderPixels(mime, valid); err == nil {
+			t.Fatalf("unadmitted image MIME %q bypassed decoded pixel budget", mime)
+		}
 	}
 }
 
