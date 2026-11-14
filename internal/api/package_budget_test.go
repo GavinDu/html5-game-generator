@@ -45,7 +45,8 @@ func TestPackageAdvertisesByteLengthAndRejectsOversizedStoredImage(t *testing.T)
 		ID: id, Kind: "image", URI: uri, MIMEType: "image/png",
 	})
 	st.UpdateGame(game)
-	st.PutArtifact(game.ID, uri, []byte("small confirmed content"), "image/png")
+	smallRaster := tinyRasterPNG(t)
+	st.PutArtifact(game.ID, uri, smallRaster, "image/png")
 
 	rec := getAs(t, srv, "/v1/games/budget-fixture-game/package", "")
 	if rec.Code != http.StatusOK {
@@ -59,7 +60,7 @@ func TestPackageAdvertisesByteLengthAndRejectsOversizedStoredImage(t *testing.T)
 	for _, asset := range pkg.Assets {
 		if asset.ID == id {
 			found = true
-			if asset.ByteLength != len("small confirmed content") {
+			if asset.ByteLength != len(smallRaster) {
 				t.Errorf("delivered byteLength = %d, want exact stored byte length", asset.ByteLength)
 			}
 		}
