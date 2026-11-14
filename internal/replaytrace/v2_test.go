@@ -64,7 +64,7 @@ func TestSemanticTraceV2ValidatesDeclaredEdgesAndCanonicalIdentity(t *testing.T)
 		{"different-duration", "game-1", full, 42, func() Trace { c := trace; c.DurationTicks++; return c }()},
 		{"removed-input", "game-1", full, 42, func() Trace {
 			c := trace
-			c.Events = append([]Event(nil), trace.Events[:len(trace.Events)-2]...)
+			c.Events = append([]Event(nil), trace.Events[:len(trace.Events)-1]...)
 			return c
 		}()},
 		{"different-position", "game-1", full, 42, func() Trace {
