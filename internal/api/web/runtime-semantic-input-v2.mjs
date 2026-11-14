@@ -19,8 +19,27 @@ function bindingKey(device, action) {
   return device + '\u0000' + action;
 }
 
+// TextEncoder silently replaces lone UTF-16 surrogates with U+FFFD,
+// while Go's strict v2 JSON decoder rejects escaped unpaired surrogates.
+// Reject them here rather than publishing client evidence that the server
+// cannot later admit or fingerprint without changing the action identity.
+function wellFormedUTF16(text) {
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    if (ch >= 0xD800 && ch <= 0xDBFF) {
+      if (++i >= text.length) return false;
+      const low = text.charCodeAt(i);
+      if (low < 0xDC00 || low > 0xDFFF) return false;
+    } else if (ch >= 0xDC00 && ch <= 0xDFFF) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function canonicalAction(action) {
   return typeof action === 'string' && action.length > 0 &&
+    wellFormedUTF16(action) &&
     textEncoder.encode(action).length <= MAX_ACTION_BYTES;
 }
 
