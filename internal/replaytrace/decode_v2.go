@@ -170,69 +170,69 @@ func scanUniqueJSON(decoder *json.Decoder, depth int) error {
 	return nil
 }
 
- // rejectUnpairedUnicodeEscapes preserves valid surrogate pairs and escaped
- // literal backslashes, but rejects malformed Unicode *wire spelling* rather
- // than allowing encoding/json to substitute the replacement rune.
- func rejectUnpairedUnicodeEscapes(payload []byte) error {
- 	inString := false
- 	for i := 0; i < len(payload); i++ {
- 		switch payload[i] {
- 		case '"':
- 			inString = !inString
- 		case '\\':
- 			if !inString {
- 				continue // The JSON token decoder rejects invalid outside escapes.
- 			}
- 			if i+1 >= len(payload) {
- 				return errors.New("unterminated JSON string escape")
- 			}
- 			if payload[i+1] != 'u' {
- 				i++ // Escaped quote or backslash is not a Unicode escape.
- 				continue
- 			}
- 			if i+6 > len(payload) {
- 				return errors.New("incomplete escaped Unicode codepoint")
- 			}
- 			value, ok := readEscapedHexQuad(payload[i+2 : i+6])
- 			if !ok {
- 				return errors.New("invalid escaped Unicode codepoint")
- 			}
- 			i += 5 // Skip the complete \\uXXXX spelling.
- 			switch {
- 			case value >= 0xD800 && value <= 0xDBFF:
- 				if i+6 >= len(payload) || payload[i+1] != '\\' || payload[i+2] != 'u' {
- 					return errors.New("unpaired high UTF-16 surrogate escape")
- 				}
- 				low, valid := readEscapedHexQuad(payload[i+3 : i+7])
- 				if !valid || low < 0xDC00 || low > 0xDFFF {
- 					return errors.New("high UTF-16 surrogate escape has no low surrogate")
- 				}
- 				i += 6 // Skip the complete following \\uXXXX low surrogate.
- 			case value >= 0xDC00 && value <= 0xDFFF:
- 				return errors.New("unpaired low UTF-16 surrogate escape")
- 			}
- 		}
- 	}
- 	return nil // Syntax, quoting, and trailing values remain JSON decoder-owned.
- }
- 
- func readEscapedHexQuad(src []byte) (uint16, bool) {
- 	if len(src) != 4 {
- 		return 0, false
- 	}
- 	var value uint16
- 	for _, digit := range src {
- 		value <<= 4
- 		switch {
- 		case digit >= '0' && digit <= '9':
- 			value |= uint16(digit - '0')
- 		case digit >= 'a' && digit <= 'f':
- 			value |= uint16(digit-'a') + 10
- 		case digit >= 'A' && digit <= 'F':
- 			value |= uint16(digit-'A') + 10
- 		default:
- 			return 0, false
- 		}
- 	}
- 	return value, true
- }
+// rejectUnpairedUnicodeEscapes preserves valid surrogate pairs and escaped
+// literal backslashes, but rejects malformed Unicode *wire spelling* rather
+// than allowing encoding/json to substitute the replacement rune.
+func rejectUnpairedUnicodeEscapes(payload []byte) error {
+	inString := false
+	for i := 0; i < len(payload); i++ {
+		switch payload[i] {
+		case '"':
+			inString = !inString
+		case '\\':
+			if !inString {
+				continue // The JSON token decoder rejects invalid outside escapes.
+			}
+			if i+1 >= len(payload) {
+				return errors.New("unterminated JSON string escape")
+			}
+			if payload[i+1] != 'u' {
+				i++ // Escaped quote or backslash is not a Unicode escape.
+				continue
+			}
+			if i+6 > len(payload) {
+				return errors.New("incomplete escaped Unicode codepoint")
+			}
+			value, ok := readEscapedHexQuad(payload[i+2 : i+6])
+			if !ok {
+				return errors.New("invalid escaped Unicode codepoint")
+			}
+			i += 5 // Skip the complete \uXXXX spelling.
+			switch {
+			case value >= 0xD800 && value <= 0xDBFF:
+				if i+6 >= len(payload) || payload[i+1] != '\\' || payload[i+2] != 'u' {
+					return errors.New("unpaired high UTF-16 surrogate escape")
+				}
+				low, valid := readEscapedHexQuad(payload[i+3 : i+7])
+				if !valid || low < 0xDC00 || low > 0xDFFF {
+					return errors.New("high UTF-16 surrogate escape has no low surrogate")
+				}
+				i += 6 // Skip the complete following \uXXXX low surrogate.
+			case value >= 0xDC00 && value <= 0xDFFF:
+				return errors.New("unpaired low UTF-16 surrogate escape")
+			}
+		}
+	}
+	return nil // Syntax, quoting, and trailing values remain JSON decoder-owned.
+}
+
+func readEscapedHexQuad(src []byte) (uint16, bool) {
+	if len(src) != 4 {
+		return 0, false
+	}
+	var value uint16
+	for _, digit := range src {
+		value <<= 4
+		switch {
+		case digit >= '0' && digit <= '9':
+			value |= uint16(digit - '0')
+		case digit >= 'a' && digit <= 'f':
+			value |= uint16(digit - 'a') + 10
+		case digit >= 'A' && digit <= 'F':
+			value |= uint16(digit - 'A') + 10
+		default:
+			return 0, false
+		}
+	}
+	return value, true
+}
