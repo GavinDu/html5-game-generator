@@ -227,9 +227,9 @@ func readEscapedHexQuad(src []byte) (uint16, bool) {
 		case digit >= '0' && digit <= '9':
 			value |= uint16(digit - '0')
 		case digit >= 'a' && digit <= 'f':
-			value |= uint16(digit - 'a') + 10
+			value |= uint16(digit-'a') + 10
 		case digit >= 'A' && digit <= 'F':
-			value |= uint16(digit - 'A') + 10
+			value |= uint16(digit-'A') + 10
 		default:
 			return 0, false
 		}
