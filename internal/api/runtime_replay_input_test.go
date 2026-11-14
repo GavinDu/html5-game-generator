@@ -22,6 +22,7 @@ func TestTrustedReplayInputRecorderModuleServedSafely(t *testing.T) {
 	for _, required := range []string{
 		"MAX_VERIFIABLE_RUN_INPUTS = 2000",
 		"export function createRunInputRecorder(",
+		"export function indexValidatedReplayInputs(",
 		"inputs.length >= maxEvents",
 		"complete = false",
 	} {
