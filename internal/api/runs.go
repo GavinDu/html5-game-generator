@@ -169,6 +169,29 @@ func canonicalRunInputSHA256(gameID, fullIRSHA256 string, seed uint32, durationM
 	return hex.EncodeToString(digest[:]), nil
 }
 
+// persistedReplayEvidenceConsistent verifies the on-disk canonical replay
+// fingerprint before returning a modern recorded trace to a browser.
+// This detects accidental JSONL corruption or partial migration; a writer
+// able to edit both evidence and digest can still forge a matching pair.
+// Historical runs without a digest remain diagnostic-only and unchanged.
+func persistedReplayEvidenceConsistent(rec *RunRecord) bool {
+	if rec == nil {
+		return false
+	}
+	if rec.ReplayInputSHA256 == "" {
+		return true // Legacy format has no server-computed fingerprint.
+	}
+	if len(rec.IRHash) != 12 || len(rec.IRSHA256) != 64 ||
+		rec.IRHash != rec.IRSHA256[:12] ||
+		len(rec.ReplayInputSHA256) != 64 {
+		return false
+	}
+	expected, err := canonicalRunInputSHA256(
+		rec.GameID, rec.IRSHA256, rec.Seed, rec.DurationMs, rec.Inputs,
+	)
+	return err == nil && rec.ReplayInputSHA256 == expected
+}
+
 type RunRecord struct {
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
@@ -689,6 +712,14 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		// Do not reveal the existence of a private, moderated, removed or
 		// blocked creator's recording to an unauthorized viewer.
 		writeErr(w, http.StatusNotFound, "run not found")
+		return
+	}
+	// Modern runs carry a server-computed fingerprint of immutable IR,
+	// seed, duration and ordered inputs. Do not serve corrupted persisted
+	// evidence as if it were a valid diagnostic replay. This is *not*
+	// server-owned score attestation; legacy records remain diagnostic only.
+	if !persistedReplayEvidenceConsistent(found) {
+		writeErr(w, http.StatusConflict, "stored replay evidence is inconsistent")
 		return
 	}
 	// Do not leak historical client-origin "verified" verdicts through
