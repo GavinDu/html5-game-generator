@@ -59,7 +59,7 @@ func TestStrictV2PreservesCanonicalEscapedKeysAndCaseSensitiveActionValues(t *te
 	good := string(original)
 	for _, tc := range []struct {
 		name string
-		old string
+		old  string
 		next string
 	}{
 		{"escaped-canonical-schema", `"schema":`, `"sch\u0065ma":`},
