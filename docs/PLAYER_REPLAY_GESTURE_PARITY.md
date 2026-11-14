@@ -11,6 +11,7 @@ The live WebGL canvas reports each physical pointerdown with `noteInput('pointer
 - Keep the v1 `pointer` / `pointerup` / `key` / `keyup` wire vocabulary. Interpret the **first** `pointer` after an up as a physical down and subsequent `pointer` samples while held as moves. Only a down enqueues the tap action.
 - Share `beginPointer` (lane target, x-only constraints, tap destinations) and `beginKeyboardAction` (keyboard lane change, key-held state and discrete action queue) between live DOM events and replay.
 - Record a release **on the physical pointerup edge**, including fast down/up inside one 60 Hz tick. Explicitly record cancellation/blur releases for held inputs where available. Do not duplicate release at the next ticker step. Same-tick event order remains stable.
+- Suppress live pointer/key/focus, visibility, context-loss and orientation release mutations while a stored trace owns the replay control state; pausing presentation never silently alters replay inputs.
 - Reuse the bounded 2,000-event recorder and the existing strict server input grammar; do not add a new privileged event or dynamic code capability.
 
 ## Senior game-engine-architect challenge: constraints still open
