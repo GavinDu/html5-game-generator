@@ -143,6 +143,8 @@ func validReplayKeyboardDetail(doc *gameir.Document, detail string) bool {
 // server-owned, fixed-field serialization. Inputs retain their tick/order:
 // multiple actions on the same tick are not commutative. This is not a
 // simulation, score verifier, signature, or proof of client execution.
+const persistedRunEvidenceSchemaV1 = "replay-input-evidence-v1"
+
 func canonicalRunInputSHA256(gameID, fullIRSHA256 string, seed uint32, durationMs int, inputs []RunInput) (string, error) {
 	type replayInputEvidenceV1 struct {
 		Schema     string     `json:"schema"`
@@ -159,7 +161,7 @@ func canonicalRunInputSHA256(gameID, fullIRSHA256 string, seed uint32, durationM
 		inputs = []RunInput{}
 	}
 	raw, err := json.Marshal(replayInputEvidenceV1{
-		Schema: "replay-input-evidence-v1", GameID: gameID, IRSHA256: fullIRSHA256,
+		Schema: persistedRunEvidenceSchemaV1, GameID: gameID, IRSHA256: fullIRSHA256,
 		Seed: seed, DurationMs: durationMs, Inputs: inputs,
 	})
 	if err != nil {
@@ -178,9 +180,18 @@ func persistedReplayEvidenceConsistent(rec *RunRecord) bool {
 	if rec == nil {
 		return false
 	}
-	if rec.ReplayInputSHA256 == "" {
-		return true // Legacy format has no server-computed fingerprint.
+	// Historical v0 records did not carry an explicit schema or a digest.
+	// Keep those diagnostic only. A *modern* record missing a fingerprint is
+	// malformed: it must not silently downgrade into a legacy read.
+	if rec.EvidenceSchema != "" && rec.EvidenceSchema != persistedRunEvidenceSchemaV1 {
+		return false // Unsupported or malformed stored schema.
 	}
+	if rec.ReplayInputSHA256 == "" {
+		return rec.EvidenceSchema == ""
+	}
+	// Records created by the earlier integrity rollout stored a digest but
+	// had no explicit marker. Continue validating them for compatibility.
+
 	if len(rec.IRHash) != 12 || len(rec.IRSHA256) != 64 ||
 		rec.IRHash != rec.IRSHA256[:12] ||
 		len(rec.ReplayInputSHA256) != 64 {
@@ -207,6 +218,9 @@ type RunRecord struct {
 	// Server-computed canonical admitted seed/tick-input evidence. This
 	// does not attest that the browser actually executed those inputs.
 	ReplayInputSHA256 string `json:"replayInputSha256,omitempty"`
+	// New submissions explicitly pin their evidence format. A missing
+	// fingerprint on a marked run must never become a legacy bypass.
+	EvidenceSchema string `json:"evidenceSchema,omitempty"`
 	// Legacy Verified/ActualScore were once client-supplied. Retain them
 	// only for controlled audit; never expose them as trusted attestation
 	// until a server-owned replay proof and migration exist.
@@ -601,7 +615,7 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	rec := RunRecord{
 		ID:     runID,
 		GameID: id, IRHash: hash, IRSHA256: fullIRSHA256,
-		ReplayInputSHA256: replayInputSHA256, Name: name,
+		ReplayInputSHA256: replayInputSHA256, EvidenceSchema: persistedRunEvidenceSchemaV1, Name: name,
 		Score: req.Score, Won: req.Won, DurationMs: req.DurationMs,
 		Seed: req.Seed, Inputs: req.Inputs, At: now,
 	}
