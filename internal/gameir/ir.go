@@ -514,7 +514,7 @@ func Validate(d *Document) error {
 		if len(scene.WorldSize) != 0 && (len(scene.WorldSize) != 2 || !finite(scene.WorldSize[0]) || !finite(scene.WorldSize[1]) || scene.WorldSize[0] <= 0 || scene.WorldSize[1] <= 0 || scene.WorldSize[0] > 100000 || scene.WorldSize[1] > 100000) {
 			return fmt.Errorf("scene %q worldSize must contain two positive bounded numbers", scene.ID)
 		}
-		if scene.PixelsPerMeter != nil && (*scene.PixelsPerMeter < 10 || *scene.PixelsPerMeter > 1000) {
+		if scene.PixelsPerMeter != nil && (!finite(*scene.PixelsPerMeter) || *scene.PixelsPerMeter < 10 || *scene.PixelsPerMeter > 1000) {
 			return fmt.Errorf("scene %q pixelsPerMeter must be between 10 and 1000", scene.ID)
 		}
 		layerIDs := enum()
@@ -532,7 +532,7 @@ func Validate(d *Document) error {
 			if layer.Tint != "" && !validColor(layer.Tint) {
 				return fmt.Errorf("scene %q layer %q has invalid tint %q", scene.ID, layer.ID, layer.Tint)
 			}
-			if layer.Alpha != nil && (*layer.Alpha < 0 || *layer.Alpha > 1) {
+			if layer.Alpha != nil && (!finite(*layer.Alpha) || *layer.Alpha < 0 || *layer.Alpha > 1) {
 				return fmt.Errorf("scene %q layer %q alpha must be between 0 and 1", scene.ID, layer.ID)
 			}
 		}
@@ -608,7 +608,7 @@ func Validate(d *Document) error {
 				if !finite(j.Motor.Target) || abs(j.Motor.Target) > 1000000 {
 					return fmt.Errorf("joint %q motor target out of range", j.ID)
 				}
-				if j.Motor.MaxForce != nil && (*j.Motor.MaxForce <= 0 || *j.Motor.MaxForce > 1000000) {
+				if j.Motor.MaxForce != nil && (!finite(*j.Motor.MaxForce) || *j.Motor.MaxForce <= 0 || *j.Motor.MaxForce > 1000000) {
 					return fmt.Errorf("joint %q motor maxForce out of range", j.ID)
 				}
 				for label, v := range map[string]*float64{"stiffness": j.Motor.Stiffness, "damping": j.Motor.Damping} {
@@ -894,7 +894,7 @@ func validateRender(entity Entity, assets map[string]struct{}) error {
 	if r.Tint != "" && !validColor(r.Tint) {
 		return fmt.Errorf("entity %q render tint %q is not a hex color", id, r.Tint)
 	}
-	if r.Alpha != nil && (*r.Alpha < 0 || *r.Alpha > 1) {
+	if r.Alpha != nil && (!finite(*r.Alpha) || *r.Alpha < 0 || *r.Alpha > 1) {
 		return fmt.Errorf("entity %q render alpha must be between 0 and 1", id)
 	}
 	if r.BlendMode != "" && !has(blendModes, r.BlendMode) {
@@ -929,10 +929,10 @@ func validateRender(entity Entity, assets map[string]struct{}) error {
 		if s.Stroke != "" && !validColor(s.Stroke) {
 			return fmt.Errorf("entity %q shape stroke %q is not a hex color", id, s.Stroke)
 		}
-		if s.StrokeWidth != nil && (*s.StrokeWidth < 0 || *s.StrokeWidth > 1000) {
+		if s.StrokeWidth != nil && (!finite(*s.StrokeWidth) || *s.StrokeWidth < 0 || *s.StrokeWidth > 1000) {
 			return fmt.Errorf("entity %q shape strokeWidth out of range", id)
 		}
-		if s.CornerRadius != nil && (*s.CornerRadius < 0 || *s.CornerRadius > 10000) {
+		if s.CornerRadius != nil && (!finite(*s.CornerRadius) || *s.CornerRadius < 0 || *s.CornerRadius > 10000) {
 			return fmt.Errorf("entity %q shape cornerRadius out of range", id)
 		}
 		if len(s.Points) > 64 {
@@ -951,7 +951,7 @@ func validateRender(entity Entity, assets map[string]struct{}) error {
 		if len(t.Content) > 2000 {
 			return fmt.Errorf("entity %q text content too long", id)
 		}
-		if t.FontSize != nil && (*t.FontSize < 1 || *t.FontSize > 500) {
+		if t.FontSize != nil && (!finite(*t.FontSize) || *t.FontSize < 1 || *t.FontSize > 500) {
 			return fmt.Errorf("entity %q text fontSize out of range", id)
 		}
 		if t.Fill != "" && !validColor(t.Fill) {
@@ -983,7 +983,7 @@ func validateRender(entity Entity, assets map[string]struct{}) error {
 		if f.Type == "displacement" && f.AssetID != "" && !has(assets, f.AssetID) {
 			return fmt.Errorf("entity %q displacement filter references missing asset %q", id, f.AssetID)
 		}
-		if f.Scale != nil && (*f.Scale < 0 || *f.Scale > 10000) {
+		if f.Scale != nil && (!finite(*f.Scale) || *f.Scale < 0 || *f.Scale > 10000) {
 			return fmt.Errorf("entity %q filter scale out of range", id)
 		}
 	}
@@ -1100,7 +1100,7 @@ func validateEmitter(e ParticleEmitter, assets map[string]struct{}) error {
 		return fmt.Errorf("spread must be between 0 and 360")
 	}
 	for label, v := range map[string]*float64{"startAlpha": e.StartAlpha, "endAlpha": e.EndAlpha} {
-		if v != nil && (*v < 0 || *v > 1) {
+		if v != nil && (!finite(*v) || *v < 0 || *v > 1) {
 			return fmt.Errorf("%s must be between 0 and 1", label)
 		}
 	}
