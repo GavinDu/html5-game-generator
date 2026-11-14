@@ -114,6 +114,18 @@ export function indexValidatedReplayInputs(rawInputs, durationMs) {
 }
 
 
+// Interpret version-1 pointer samples as a single physical contact: the
+// first sample after release is DOWN, subsequent samples are MOVE, and
+// pointerup ends that contact. Live recording historically reused 'pointer'
+// for both down and drag samples; replaying every sample as a tap invented
+// gameplay inputs that never occurred in the original run.
+export function replayPointerPhase(type, wasDown) {
+  if (type === 'pointer') return wasDown ? 'move' : 'down';
+  if (type === 'pointerup') return wasDown ? 'up' : 'redundant-up';
+  return null;
+}
+
+
 // The dead-input-rate probe is diagnostic only. A frame is not guaranteed to
 // advance while backgrounded or waiting for a user Start tap, so a flood of
 // inputs cannot be allowed to grow this queue forever. When exhausted the

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRunInputRecorder, MAX_VERIFIABLE_RUN_INPUTS,
-  createDeadInputDiagnostics, MAX_PENDING_INPUT_DIAGNOSTICS, indexValidatedReplayInputs } from '../../internal/api/web/runtime-replay-input.mjs';
+  createDeadInputDiagnostics, MAX_PENDING_INPUT_DIAGNOSTICS, indexValidatedReplayInputs, replayPointerPhase } from '../../internal/api/web/runtime-replay-input.mjs';
 
 const runtime = readFileSync(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url), 'utf8');
 
@@ -74,7 +74,7 @@ test('the next run uses independent state; replay uses a single trusted recordin
 });
 
 test('production runtime unifies all event sources and blocks partial leaderboard submission', () => {
-  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs \} from '\.\/runtime-replay-input\.mjs'/);
+  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs, replayPointerPhase \} from '\.\/runtime-replay-input\.mjs'/);
   assert.match(runtime, /const replayInputRecorder = createRunInputRecorder\(\)/);
   assert.match(runtime, /inputLog: replayInputRecorder\.inputs/);
   assert.match(runtime, /replayTraceComplete: play \? play\.replayTraceComplete : null/);
@@ -82,7 +82,7 @@ test('production runtime unifies all event sources and blocks partial leaderboar
   assert.match(runtime, /deadInputDiagnosticsComplete: play \? play\.deadInputDiagnosticsComplete : null/);
   assert.match(runtime, /function noteInput\(type, detail\) \{\s*replayInputRecorder\.record\(play\.simStep, type, detail \|\| ''\)/);
   assert.match(runtime, /replayInputRecorder\.record\(play\.simStep, 'pointer',/);
-  assert.match(runtime, /replayInputRecorder\.record\(play\.simStep, 'pointerup', ''\)/);
+  assert.match(runtime, /noteInput\('pointerup', ''\)/);
   assert.doesNotMatch(runtime, /play\.inputLog\.(?:push|splice|shift)\(/);
   assert.match(runtime, /else if \(play\.shellStarted && replayInputRecorder\.complete\) \{\s*submitRun\(won\)/);
   assert.match(runtime, /else if \(play\.shellStarted && !replayInputRecorder\.complete\) \{/);
@@ -267,11 +267,57 @@ test('stored replay events fail closed before map allocation or silent playback 
 });
 
 test('shipping replay path fails closed on wrong run identity and malformed stored trace', () => {
-  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs \} from '\.\/runtime-replay-input\.mjs'/);
+  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs, replayPointerPhase \} from '\.\/runtime-replay-input\.mjs'/);
   assert.match(runtime, /if \(replayRunId\) \{\s*\/\/ An explicit replay must not silently start/);
   assert.match(runtime, /replayTrace\.id !== replayRunId \|\|\s*replayTrace\.gameId !== id/);
   assert.match(runtime, /replayIndex = indexValidatedReplayInputs\(replayTrace\.inputs, replayTrace\.durationMs\)/);
   assert.match(runtime, /const replayByStep = replayIndex\?\.byStep \?\? new Map\(\)/);
   assert.match(runtime, /const replayLastTick = replayIndex\?\.lastTick \?\? 0/);
   assert.doesNotMatch(runtime, /for \(const inp of replayTrace\.inputs\) \{/);
+});
+
+
+test('replay v1 pointer phase handles down, held drag, fast double-tap and duplicate release', () => {
+  const events = ['pointer', 'pointer', 'pointer', 'pointerup', 'pointer',
+    'pointerup', 'pointerup', 'pointer', 'pointerup'];
+  let held = false;
+  const phases = events.map((type) => {
+    const phase = replayPointerPhase(type, held);
+    if (phase === 'down') held = true;
+    if (phase === 'up') held = false;
+    return phase;
+  });
+  assert.deepEqual(phases, [
+    'down', 'move', 'move', 'up', 'down', 'up', 'redundant-up', 'down', 'up',
+  ]);
+  assert.equal(phases.filter((p) => p === 'down').length, 3,
+    'five pointer coordinates represent only three physical taps');
+  assert.equal(replayPointerPhase('key', false), null);
+  assert.equal(held, false);
+});
+
+test('production replay shares real input-side effects without synthesizing drag taps', () => {
+  assert.match(runtime, /function beginPointer\(x, y\)/);
+  assert.match(runtime, /beginPointer\(p\.x, p\.y\);\s*\/\/ Persist the physical down/);
+  assert.match(runtime, /const phase = replayPointerPhase\(inp\.type, pointer\.down\)/);
+  assert.match(runtime, /if \(phase === 'down'\) \{\s*beginPointer\(x, y\);\s*queueGameInput\(playerEnt, undefined, tapActionName\(\)\)/);
+  assert.match(runtime, /Consecutive pointer samples while held are movement, not/);
+  assert.match(runtime, /if \(replayTrace \|\| !pointer\.down\) return;\s*pointer\.down = false;\s*\/\/ A fast tap/);
+  assert.match(runtime, /function beginKeyboardAction\(b\)/);
+  assert.match(runtime, /if \(inp\.type === 'key'\) beginKeyboardAction\(b\)/);
+  assert.match(runtime, /noteInput\('key', ev\.key\);\s*beginKeyboardAction\(b\)/);
+  assert.match(runtime, /if \(replayTrace \|\| !pointer\.down\) return;/);
+  assert.doesNotMatch(runtime, /wasDown = false;/,
+    'release evidence is recorded on the physical edge, never deferred to the next frame');
+});
+
+
+test('stored replay is isolated from live pointer/key releases and focus interruption', () => {
+  assert.match(runtime, /addEventListener\('keyup', \(ev\) => \{\s*\/\/ Live browser input must not mutate a replay/);
+  assert.match(runtime, /addEventListener\('pointermove', \(ev\) => \{\s*if \(replayTrace \|\| !pointer\.down\) return/);
+  assert.match(runtime, /addEventListener\('pointerup', \(\) => \{\s*if \(replayTrace \|\| !pointer\.down\) return/);
+  assert.match(runtime, /addEventListener\('pointercancel', \(\) => \{\s*if \(!replayTrace\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /addEventListener\('blur', \(\) => \{\s*if \(!replayTrace\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /if \(document\.hidden\) \{\s*\/\/ A recorded replay is driven only by its trace/);
+  assert.match(runtime, /if \(orientationBlocked && !replayTrace\) releaseHeldInputs\(\)/);
 });

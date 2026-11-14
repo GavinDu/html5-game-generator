@@ -98,12 +98,14 @@ test('ticker resumes only for a live visible, context-valid interactive session'
 });
 
 test('visibility, context loss, rotation and capture cancellation share a guard and clear inputs', () => {
-  assert.match(runtime, /document\.addEventListener\('visibilitychange', \(\) => \{\s*if \(document\.hidden\) \{\s*releaseHeldInputs\(\)/);
-  assert.match(runtime, /webglcontextlost[^]*?contextLost = true;\s*releaseHeldInputs\(\);\s*try \{ app\.ticker\.stop\(\)/);
+  // Live input releases on interruption; a stored trace is never mutated by
+  // display focus or physical pointer cancellation during diagnostic replay.
+  assert.match(runtime, /document\.addEventListener\('visibilitychange', \(\) => \{[^]*?if \(document\.hidden\) \{[^]*?if \(!replayTrace\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /webglcontextlost[^]*?contextLost = true;\s*if \(!replayTrace\) releaseHeldInputs\(\);\s*try \{ app\.ticker\.stop\(\)/);
   assert.match(runtime, /webglcontextrestored[^]*?contextLost = false;[^]*?resumeTickerIfSafe\(\)/);
-  assert.match(runtime, /lostpointercapture', \(\) => \{[^]*?if \(pointer\.down\) releaseHeldInputs\(\)/);
-  assert.match(runtime, /pointercancel', \(\) => releaseHeldInputs\(\)/);
-  assert.match(runtime, /if \(orientationBlocked\) releaseHeldInputs\(\);\s*resumeTickerIfSafe\(\)/);
+  assert.match(runtime, /lostpointercapture', \(\) => \{[^]*?if \(!replayTrace && pointer\.down\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /pointercancel', \(\) => \{\s*if \(!replayTrace\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /if \(orientationBlocked && !replayTrace\) releaseHeldInputs\(\);\s*resumeTickerIfSafe\(\)/);
   assert.match(runtime, /resumeTickerIfSafe = \(\) => \{\s*const canRun = shouldRunSemanticTicker/);
   assert.match(runtime, /if \(canRun\) app\.ticker\.start\(\);\s*else app\.ticker\.stop\(\)/);
 });

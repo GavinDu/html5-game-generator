@@ -29,6 +29,9 @@ test('new declarative movement axes override objective while legacy IR stays com
   assert.match(runtime, /const dragXOnly = resolveHorizontalMovement\(ir\)/);
   assert.match(runtime, /from '\.\/runtime-movement-plane\.mjs'/);
   assert.doesNotMatch(runtime, /holes_stitched/);
-  assert.match(runtime, /if \(!dragXOnly\) playerTarget\.y = p\.y/);
+  assert.match(runtime, /function beginPointer\(x, y\)/);
+  assert.match(runtime, /if \(!dragXOnly\) playerTarget\.y = y/);
+  assert.match(runtime, /beginPointer\(p\.x, p\.y\)/);
+  assert.match(runtime, /beginPointer\(x, y\)/);
   assert.match(runtime, /if \(!dragXOnly && keysDown\.has\('move_up'\)\)/);
 });
