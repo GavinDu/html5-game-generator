@@ -314,24 +314,36 @@ func TestRunsRejectOutOfHorizonEventAfterValidPrefix(t *testing.T) {
 }
 
 func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
+	// The browser recorder's 128-UTF-16-unit budget is independent of
+	// input semantics. Previously, this test HTTP-posted unbound key
+	// strings to a tap-only game as positive cases, which now correctly
+	// fails the stronger published-IR grammar. Test length parity as a
+	// pure predicate, and separately prove oversized requests cannot
+	// create a run record under the full HTTP admission pipeline.
 	srv := newRunsServer(t)
-	gid := "sample-rainbow-bear"
 	cases := []struct {
 		name   string
 		detail string
-		want   int
+		valid  bool
 	}{
-		{"empty", "", http.StatusCreated},
-		{"ascii_exact_128", strings.Repeat("x", 128), http.StatusCreated},
-		{"ascii_over_129", strings.Repeat("x", 129), http.StatusBadRequest},
-		{"supplementary_exact_128", strings.Repeat("🎮", 64), http.StatusCreated},
-		{"supplementary_over_130", strings.Repeat("🎮", 65), http.StatusBadRequest},
-		{"mixed_boundary", strings.Repeat("x", 126) + "🎮", http.StatusCreated},
-		{"mixed_over", strings.Repeat("x", 127) + "🎮", http.StatusBadRequest},
+		{"empty", "", true},
+		{"ascii_exact_128", strings.Repeat("x", 128), true},
+		{"ascii_over_129", strings.Repeat("x", 129), false},
+		{"supplementary_exact_128", strings.Repeat("🎮", 64), true},
+		{"supplementary_over_130", strings.Repeat("🎮", 65), false},
+		{"mixed_boundary", strings.Repeat("x", 126) + "🎮", true},
+		{"mixed_over", strings.Repeat("x", 127) + "🎮", false},
 	}
-	accepted := 0
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if got := validReplayInputDetail(tc.detail); got != tc.valid {
+				t.Fatalf("UTF-16 detail parity = %t, want %t", got, tc.valid)
+			}
+			if tc.valid {
+				// Semantic key admission is tested with a declared input
+				// binding in TestReplayKeyboardGrammarMatchesOnlyPublishedBindings.
+				return
+			}
 			payload, err := json.Marshal(map[string]any{
 				"name": "ReplayDetail", "score": 5, "won": false,
 				"durationMs": 20000, "seed": 42,
@@ -340,22 +352,20 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			code, _ := postRun(t, srv, gid, string(payload))
-			if code != tc.want {
-				t.Fatalf("POST detail validation = %d, want %d", code, tc.want)
+			code, response := postRun(t, srv, "sample-rainbow-bear", string(payload))
+			if code != http.StatusBadRequest {
+				t.Fatalf("oversized detail HTTP %d, want 400: %v", code, response)
 			}
-			if tc.want == http.StatusCreated {
-				accepted++
+			if _, ok := response["runId"]; ok {
+				t.Fatalf("oversized detail minted run ID: %v", response)
 			}
 		})
 	}
-	// Losing runs need not appear on the public time/wins leaderboard;
-	// validate the persistence boundary itself, not board presentation.
 	srv.runsMu.Lock()
 	stored := len(srv.runs)
 	srv.runsMu.Unlock()
-	if stored != accepted {
-		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
+	if stored != 0 {
+		t.Fatalf("oversized replay detail must never be stored: %d records", stored)
 	}
 }
 
