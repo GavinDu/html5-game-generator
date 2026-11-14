@@ -1,32 +1,18 @@
 package api
 
-// Leaderboard v2 (Phase C of the IR 1.2 rollout): runs, boards, and
-// replay verification.
+// Leaderboard v2: unverified player claims and canonical input evidence.
 //
-// A run is a finished play session submitted by the player runtime:
-// final score, win/lose, duration, the run's seed, and the full
-// step-stamped input trace. Because the runtime simulates at a fixed
-// timestep from a seeded RNG, a run is reproducible: the server can
-// re-serve the trace (GET /v1/runs/{id}) and a browser can replay it
-// (?replay=<id>) and report whether the same score comes out — that
-// verdict lands via POST /v1/runs/{id}/verification and is shown on
-// the board as the run's verified flag.
+// A run is a player-submitted score, win/lose, seed, duration, and ordered
+// fixed-step input trace. The server exposes the admitted trace for browser
+// diagnostic replay (GET /v1/runs/{id}, ?replay=<id>), but the browser's
+// comparison is not a trusted outcome. Client-owned verdict writes to
+// POST /v1/runs/{id}/verification are disabled. Only a future independent
+// server-owned replay attestor may mark a new run verified.
 //
-// Boards are keyed by (game, IR content hash): any IR change starts
-// a fresh board, so scores from an older build never pollute the new
-// one. Windows: "week" (rolling 7 days, the default — matches the
-// fused design's weekly-default decision) and "all".
-//
-// Interim identity: display names are free text (filtered, ≤24
-// chars), boards are unverified until a replay verdict arrives. The
-// Sign-in-with-Apple identity layer replaces names later without
-// changing the run model.
-//
-// Submissions are plausibility-capped from the game's own economics
-// (the same recycle/stream model the validator's balance check
-// uses): a score the game cannot physically produce in the run's
-// duration is rejected, so the cap — not trust — is the first line
-// of defense, and replay verification is the second.
+// Leaderboard partitions use the current canonical IR content hash.
+// Names are filtered display text, not verified identity. Plausibility
+// score caps, typed input grammar and SHA-256 evidence hashes are admission
+// constraints, NOT proof that a browser executed the claimed game state.
 
 import (
 	"bufio"
@@ -131,6 +117,23 @@ func validReplayPointerDetail(detail string) bool {
 		}
 	}
 	return true
+}
+
+// Only keyboard controls declared by this exact published IR may occur
+// in an admitted replay. The installed Pixi runtime records keyboard input
+// only when b.key === event.key || b.action === event.key; arbitrary
+// client-supplied names are not valid game inputs. Legacy persisted traces
+// are left untouched and remain unverified by this admission predicate.
+func validReplayKeyboardDetail(doc *gameir.Document, detail string) bool {
+	if doc == nil || detail == "" {
+		return false
+	}
+	for _, binding := range doc.InputBindings {
+		if binding.Input == "keyboard" && (binding.Key == detail || binding.Action == detail) {
+			return true
+		}
+	}
+	return false
 }
 
 // RunRecord stores a full server-owned canonical IR digest for *new* runs.
@@ -514,8 +517,13 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case "key", "keyup":
-			// Preserve the version 1.x input-binding vocabulary while its
-			// independent versioned replay grammar is being designed.
+			// Both down and release are recorded only for an IR-matched
+			// keyboard binding. A tap-only game cannot generate a keyboard
+			// event; accepting it would poison future server replay evidence.
+			if !validReplayKeyboardDetail(game.GameIR, inp.Detail) {
+				writeErr(w, http.StatusBadRequest, "keyboard replay input is not declared by game IR")
+				return
+			}
 		default:
 			writeErr(w, http.StatusBadRequest, "unknown input type")
 			return

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"doodlequest/internal/gameir"
 	"doodlequest/internal/inventory"
 	"doodlequest/internal/pipeline"
 	"doodlequest/internal/store"
@@ -220,7 +221,8 @@ func TestRunsRejectNonMonotonicReplayTicks(t *testing.T) {
 		want   int
 	}{
 		{"same_tick_allowed", `[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":10,"type":"pointerup","detail":""}]`, http.StatusCreated},
-		{"ascending_allowed", `[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":11,"type":"keyup","detail":"ArrowLeft"}]`, http.StatusCreated},
+		{"ascending_allowed", `[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":11,"type":"pointerup","detail":""}]`, http.StatusCreated},
+		{"unbound_keyboard_rejected", `[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":11,"type":"keyup","detail":"ArrowLeft"}]`, http.StatusBadRequest},
 		{"backwards_rejected", `[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":9,"type":"pointerup","detail":""}]`, http.StatusBadRequest},
 		{"negative_rejected", `[{"tick":0,"type":"pointer","detail":"10,20"},{"tick":-1,"type":"pointerup","detail":""}]`, http.StatusBadRequest},
 	}
@@ -312,24 +314,36 @@ func TestRunsRejectOutOfHorizonEventAfterValidPrefix(t *testing.T) {
 }
 
 func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
+	// The browser recorder's 128-UTF-16-unit budget is independent of
+	// input semantics. Previously, this test HTTP-posted unbound key
+	// strings to a tap-only game as positive cases, which now correctly
+	// fails the stronger published-IR grammar. Test length parity as a
+	// pure predicate, and separately prove oversized requests cannot
+	// create a run record under the full HTTP admission pipeline.
 	srv := newRunsServer(t)
-	gid := "sample-rainbow-bear"
 	cases := []struct {
 		name   string
 		detail string
-		want   int
+		valid  bool
 	}{
-		{"empty", "", http.StatusCreated},
-		{"ascii_exact_128", strings.Repeat("x", 128), http.StatusCreated},
-		{"ascii_over_129", strings.Repeat("x", 129), http.StatusBadRequest},
-		{"supplementary_exact_128", strings.Repeat("🎮", 64), http.StatusCreated},
-		{"supplementary_over_130", strings.Repeat("🎮", 65), http.StatusBadRequest},
-		{"mixed_boundary", strings.Repeat("x", 126) + "🎮", http.StatusCreated},
-		{"mixed_over", strings.Repeat("x", 127) + "🎮", http.StatusBadRequest},
+		{"empty", "", true},
+		{"ascii_exact_128", strings.Repeat("x", 128), true},
+		{"ascii_over_129", strings.Repeat("x", 129), false},
+		{"supplementary_exact_128", strings.Repeat("🎮", 64), true},
+		{"supplementary_over_130", strings.Repeat("🎮", 65), false},
+		{"mixed_boundary", strings.Repeat("x", 126) + "🎮", true},
+		{"mixed_over", strings.Repeat("x", 127) + "🎮", false},
 	}
-	accepted := 0
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if got := validReplayInputDetail(tc.detail); got != tc.valid {
+				t.Fatalf("UTF-16 detail parity = %t, want %t", got, tc.valid)
+			}
+			if tc.valid {
+				// Semantic key admission is tested with a declared input
+				// binding in TestReplayKeyboardGrammarMatchesOnlyPublishedBindings.
+				return
+			}
 			payload, err := json.Marshal(map[string]any{
 				"name": "ReplayDetail", "score": 5, "won": false,
 				"durationMs": 20000, "seed": 42,
@@ -338,22 +352,20 @@ func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			code, _ := postRun(t, srv, gid, string(payload))
-			if code != tc.want {
-				t.Fatalf("POST detail validation = %d, want %d", code, tc.want)
+			code, response := postRun(t, srv, "sample-rainbow-bear", string(payload))
+			if code != http.StatusBadRequest {
+				t.Fatalf("oversized detail HTTP %d, want 400: %v", code, response)
 			}
-			if tc.want == http.StatusCreated {
-				accepted++
+			if _, ok := response["runId"]; ok {
+				t.Fatalf("oversized detail minted run ID: %v", response)
 			}
 		})
 	}
-	// Losing runs need not appear on the public time/wins leaderboard;
-	// validate the persistence boundary itself, not board presentation.
 	srv.runsMu.Lock()
 	stored := len(srv.runs)
 	srv.runsMu.Unlock()
-	if stored != accepted {
-		t.Fatalf("oversized detail must never be stored: %d records, want %d", stored, accepted)
+	if stored != 0 {
+		t.Fatalf("oversized replay detail must never be stored: %d records", stored)
 	}
 }
 
@@ -557,7 +569,7 @@ func TestReplayInputEvidenceDigestIsOrderSensitiveAndClaimsDoNotAttest(t *testin
 func TestRunEvidenceDigestPersistedAcrossRestartWithoutTrustedScore(t *testing.T) {
 	srv := newRunsServer(t)
 	const gameID = "sample-rainbow-bear"
-	body := `{"name":"same-evidence","score":6,"won":true,"durationMs":20000,"seed":42,"inputs":[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":10,"type":"key","detail":"ArrowRight"}]}`
+	body := `{"name":"same-evidence","score":6,"won":true,"durationMs":20000,"seed":42,"inputs":[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":10,"type":"pointer","detail":"30,40"}]}`
 	code, posted := postRun(t, srv, gameID, body)
 	if code != http.StatusCreated {
 		t.Fatalf("run submission: %d %v", code, posted)
@@ -592,7 +604,7 @@ func TestRunEvidenceDigestPersistedAcrossRestartWithoutTrustedScore(t *testing.T
 	}
 	// Browser score/name/win claims are NOT inputs to the immutable evidence
 	// digest; they must be independently compared by the future server engine.
-	anotherCode, next := postRun(t, srv, gameID, `{"name":"another-claim","score":4,"won":false,"durationMs":20000,"seed":42,"inputs":[{"tick":10,"type":"key","detail":"ArrowLeft"},{"tick":10,"type":"key","detail":"ArrowRight"}]}`)
+	anotherCode, next := postRun(t, srv, gameID, `{"name":"another-claim","score":4,"won":false,"durationMs":20000,"seed":42,"inputs":[{"tick":10,"type":"pointer","detail":"10,20"},{"tick":10,"type":"pointer","detail":"30,40"}]}`)
 	if anotherCode != http.StatusCreated {
 		t.Fatalf("second run: %d %+v", anotherCode, next)
 	}
@@ -713,9 +725,9 @@ func TestReplayPointerGrammarParityWithTrustedRecorder(t *testing.T) {
 		{"whitespace", "pointer", " 1,2", http.StatusBadRequest},
 		{"release_empty", "pointerup", "", http.StatusCreated},
 		{"release_forged_detail", "pointerup", "1,2", http.StatusBadRequest},
-		{"key_binding", "key", "ArrowLeft", http.StatusCreated},
-		{"key_release", "keyup", "ArrowLeft", http.StatusCreated},
-		{"legacy_empty_key", "key", "", http.StatusCreated},
+		{"key_binding_undeclared", "key", "ArrowLeft", http.StatusBadRequest},
+		{"key_release_undeclared", "keyup", "ArrowLeft", http.StatusBadRequest},
+		{"empty_key", "key", "", http.StatusBadRequest},
 	}
 	accepted := 0
 	for _, tc := range cases {
@@ -742,6 +754,65 @@ func TestReplayPointerGrammarParityWithTrustedRecorder(t *testing.T) {
 	srv.runsMu.Unlock()
 	if stored != accepted {
 		t.Fatalf("rejected pointer evidence persisted: got %d records, want %d", stored, accepted)
+	}
+}
+
+func TestReplayKeyboardGrammarMatchesOnlyPublishedBindings(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	body := func(typ, detail string) string {
+		payload, err := json.Marshal(map[string]any{
+			"name": "KeyMatch", "score": 4, "won": false,
+			"durationMs": 20000, "seed": 42,
+			"inputs": []RunInput{{Tick: 7, Type: typ, Detail: detail}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(payload)
+	}
+	for _, typ := range []string{"key", "keyup"} {
+		code, response := postRun(t, srv, gameID, body(typ, "ArrowLeft"))
+		if code != http.StatusBadRequest {
+			t.Fatalf("tap-only game admitted unbound %s: code=%d body=%v", typ, code, response)
+		}
+	}
+	game, ok := srv.store.GetGame(gameID)
+	if !ok {
+		t.Fatal("missing game fixture")
+	}
+	game.GameIR.InputBindings = append(game.GameIR.InputBindings,
+		gameir.InputBinding{Action: "move_left", Input: "keyboard", Key: "ArrowLeft"})
+	srv.store.UpdateGame(game)
+	for _, tc := range []struct {
+		typ, detail string
+		want        int
+	}{
+		{"key", "ArrowLeft", http.StatusCreated},
+		{"keyup", "ArrowLeft", http.StatusCreated},
+		{"key", "move_left", http.StatusCreated},
+		{"keyup", "move_left", http.StatusCreated},
+		{"key", "ArrowRight", http.StatusBadRequest},
+		{"keyup", "ArrowRight", http.StatusBadRequest},
+		{"key", "", http.StatusBadRequest},
+		{"keyup", "", http.StatusBadRequest},
+		{"key", "MOVE_LEFT", http.StatusBadRequest},
+	} {
+		t.Run(tc.typ+"_"+tc.detail, func(t *testing.T) {
+			code, response := postRun(t, srv, gameID, body(tc.typ, tc.detail))
+			if code != tc.want {
+				t.Fatalf("%s %q status %d want %d: %v", tc.typ, tc.detail, code, tc.want, response)
+			}
+			if code != http.StatusCreated {
+				if _, ok := response["runId"]; ok {
+					t.Fatalf("rejected key minted run ID: %v", response)
+				}
+			}
+		})
+	}
+	// This predicate filters newly admitted traces, not historical records.
+	if validReplayKeyboardDetail(nil, "ArrowLeft") {
+		t.Fatal("missing IR must not admit keyboard evidence")
 	}
 }
 
