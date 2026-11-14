@@ -41,6 +41,9 @@ var runtimeFixedStepClockJS string
 //go:embed web/runtime-replay-input.mjs
 var runtimeReplayInputJS string
 
+//go:embed web/runtime-replay-package-guard.mjs
+var runtimeReplayPackageGuardJS string
+
 //go:embed web/runtime-movement-plane.mjs
 var runtimeMovementPlaneJS string
 
@@ -168,6 +171,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/runtime-seeded-rng.mjs", s.handleRuntimeSeededRNG)
 	mux.HandleFunc("GET /web/runtime-fixed-step-clock.mjs", s.handleRuntimeFixedStepClock)
 	mux.HandleFunc("GET /web/runtime-replay-input.mjs", s.handleRuntimeReplayInput)
+	mux.HandleFunc("GET /web/runtime-replay-package-guard.mjs", s.handleRuntimeReplayPackageGuard)
 	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
 	mux.HandleFunc("GET /web/runtime-rule-predicates.mjs", s.handleRuntimeRulePredicates)
 	mux.HandleFunc("GET /web/runtime-semantic-fingerprint.mjs", s.handleRuntimeSemanticFingerprint)
@@ -413,6 +417,15 @@ func (s *Server) handleRuntimeReplayInput(w http.ResponseWriter, r *http.Request
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeReplayInputJS))
+}
+
+// GET /web/runtime-replay-package-guard.mjs — installed playback
+// provenance/binding validator. Never sourced from user-created Game IR.
+func (s *Server) handleRuntimeReplayPackageGuard(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeReplayPackageGuardJS))
 }
 
 // GET /web/runtime-movement-plane.mjs — bundled trusted, deterministic
