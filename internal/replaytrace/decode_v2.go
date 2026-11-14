@@ -48,10 +48,6 @@ func DecodeStrictV2(ir *gameir.Document, payload []byte) (Trace, error) {
 
 	// Check field presence/null separately: decoding JSON null into a Go
 	// zero-value scalar or pointer would otherwise erase wire distinctions.
-	var envelope map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &envelope); err != nil {
-		return empty, err
-	}
 	fields, err := requireWireObject(payload, "schema", "durationTicks", "events")
 	if err != nil {
 		return empty, err
@@ -74,7 +70,7 @@ func DecodeStrictV2(ir *gameir.Document, payload []byte) (Trace, error) {
 			}
 		}
 	}
-	_ = envelope // Wire shape validated above; typed decoder rejects unknown fields.
+	// The typed decoder checks all nested unknown-field exclusions.
 
 	typedDecoder := json.NewDecoder(bytes.NewReader(payload))
 	typedDecoder.DisallowUnknownFields()
