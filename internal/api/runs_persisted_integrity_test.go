@@ -109,6 +109,7 @@ func TestModernPersistedRunEvidenceDriftFailsClosedOnGET(t *testing.T) {
 	legacy := original
 	legacy.IRSHA256 = ""
 	legacy.ReplayInputSHA256 = ""
+	legacy.EvidenceSchema = ""
 	srv.runsMu.Lock()
 	srv.runs[index] = legacy
 	srv.runsMu.Unlock()
@@ -120,7 +121,7 @@ func TestModernPersistedRunEvidenceDriftFailsClosedOnGET(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"irSha256", "replayInputSha256", "verified", "actualScore"} {
+	for _, forbidden := range []string{"irSha256", "replayInputSha256", "evidenceSchema", "verified", "actualScore"} {
 		if _, exists := decoded[forbidden]; exists {
 			t.Fatalf("legacy diagnostic run must not invent %s: %v", forbidden, decoded)
 		}
@@ -165,5 +166,95 @@ func TestModernReplayDriftFromPersistedJSONLRejectedAfterServerRestart(t *testin
 		httptest.NewRequest(http.MethodGet, "/v1/runs/"+id, nil))
 	if rec.Code != http.StatusConflict || !strings.Contains(rec.Header().Get("Cache-Control"), "no-store") {
 		t.Fatalf("restarted server cannot serve corrupt JSONL: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+
+func TestExplicitModernReplayEvidenceSchemaBlocksMissingFingerprint(t *testing.T) {
+	srv := newRunsServer(t)
+	const gameID = "sample-rainbow-bear"
+	code, posted := postRun(t, srv, gameID,
+		`{"name":"schema-pin","score":4,"won":false,"durationMs":15000,"seed":77,"inputs":[{"tick":5,"type":"pointer","detail":"1,2"}]}`)
+	if code != http.StatusCreated {
+		t.Fatalf("submit versioned replay: %d %v", code, posted)
+	}
+	id, _ := posted["runId"].(string)
+	if id == "" {
+		t.Fatalf("missing new run id: %v", posted)
+	}
+	var original RunRecord
+	srv.runsMu.Lock()
+	index := -1
+	for i, item := range srv.runs {
+		if item.ID == id {
+			index, original = i, item
+			break
+		}
+	}
+	srv.runsMu.Unlock()
+	if index < 0 || original.EvidenceSchema != persistedRunEvidenceSchemaV1 ||
+		len(original.ReplayInputSHA256) != 64 || !persistedReplayEvidenceConsistent(&original) {
+		t.Fatalf("new run must pin schema and fingerprint: %+v", original)
+	}
+	for _, tc := range []struct {
+		name    string
+		modify  func(*RunRecord)
+		allowed bool
+	}{
+		{"deleted-digest", func(r *RunRecord) { r.ReplayInputSHA256 = "" }, false},
+		{"unsupported-schema", func(r *RunRecord) { r.EvidenceSchema = "replay-input-evidence-v99" }, false},
+		{"blank-modern-fingerprint", func(r *RunRecord) { r.ReplayInputSHA256 = "x" }, false},
+		{"old-digest-only", func(r *RunRecord) { r.EvidenceSchema = "" }, true},
+		{"true-legacy", func(r *RunRecord) {
+			r.EvidenceSchema, r.IRSHA256, r.ReplayInputSHA256 = "", "", ""
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mutated := original
+			tc.modify(&mutated)
+			if got := persistedReplayEvidenceConsistent(&mutated); got != tc.allowed {
+				t.Fatalf("schema/trace integrity got=%t want=%t: %+v", got, tc.allowed, mutated)
+			}
+			srv.runsMu.Lock()
+			srv.runs[index] = mutated
+			srv.runsMu.Unlock()
+			req := httptest.NewRequest(http.MethodGet, "/v1/runs/"+id, nil)
+			rec := httptest.NewRecorder()
+			srv.Routes().ServeHTTP(rec, req)
+			wantCode := http.StatusConflict
+			if tc.allowed {
+				wantCode = http.StatusOK
+			}
+			if rec.Code != wantCode {
+				t.Errorf("stored format gate: HTTP %d, expected %d: %s", rec.Code, wantCode, rec.Body.String())
+			}
+			if !strings.Contains(rec.Header().Get("Cache-Control"), "no-store") {
+				t.Errorf("replay responses may never be cached: %q", rec.Header().Get("Cache-Control"))
+			}
+			srv.runsMu.Lock()
+			srv.runs[index] = original
+			srv.runsMu.Unlock()
+		})
+	}
+
+	// Exercise actual JSONL reload: dropping ONLY the modern hash must be
+	// rejected even if a reader knows nothing about the previous process.
+	missing := original
+	missing.ReplayInputSHA256 = ""
+	raw, err := json.Marshal(missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(telemetryDir(), "runs.jsonl"),
+		append(raw, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restarted := New(srv.store, pipeline.NewRunner(srv.store))
+	rec := httptest.NewRecorder()
+	restarted.Routes().ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/v1/runs/"+id, nil))
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("restarted server admitted modern run with deleted SHA: %d %s",
+			rec.Code, rec.Body.String())
 	}
 }
