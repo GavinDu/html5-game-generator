@@ -60,9 +60,15 @@ func TestRasterHeaderAdmissionRejectsCompressedDimensionBomb(t *testing.T) {
 	if _, err := rasterHeaderPixels("image/jpeg", valid); err == nil {
 		t.Fatal("declared MIME spoof against encoded PNG admitted")
 	}
-	for _, mime := range []string{"", "image/webp", "image/svg+xml", "application/octet-stream", "image/png; charset=utf-8"} {
+	if pixels, err = rasterHeaderPixels("", valid); err != nil || pixels != 1 {
+		t.Fatalf("legacy absent MIME must still sniff valid header and enforce pixels: %d %v", pixels, err)
+	}
+	if _, err := rasterHeaderPixels("", valid[:12]); err == nil {
+		t.Fatal("legacy absent MIME must reject truncated raster bytes")
+	}
+	for _, mime := range []string{"image/webp", "image/svg+xml", "application/octet-stream", "image/png; charset=utf-8"} {
 		if _, err := rasterHeaderPixels(mime, valid); err == nil {
-			t.Fatalf("unadmitted image MIME %q bypassed decoded pixel budget", mime)
+			t.Fatalf("unsupported declared image MIME %q bypassed raster admission", mime)
 		}
 	}
 }
