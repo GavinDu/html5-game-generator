@@ -7,6 +7,7 @@ const sourcePath = fileURLToPath(new URL('./render-preview.mjs', import.meta.url
 const source = await readFile(sourcePath, 'utf8');
 const runtimePath = fileURLToPath(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url));
 const runtime = await readFile(runtimePath, 'utf8');
+const replayPackageGuard = await readFile(new URL('../../internal/api/web/runtime-replay-package-guard.mjs', import.meta.url), 'utf8');
 
 test('preview renderer persists the first usable poster before capturing later frames', () => {
   assert.match(source, /if \(!posterReady\)/);
@@ -69,7 +70,9 @@ test('preview rendering refuses missing or stale recorded runs before capturing 
   assert.match(source, /sourceRun\.id/);
   assert.match(source, /capture runtime did not load the requested recorded input trace/);
   assert.match(runtime, /deterministic capture requires the exact recorded run/);
-  assert.match(runtime, /recorded replay IR hash differs from the current package/);
+  assert.match(runtime, /if \(replayTrace\) validateStoredReplayPackageIdentity\(replayTrace, pkg\)/);
+  assert.match(replayPackageGuard, /recorded replay game IR differs from the current package/);
+  assert.match(replayPackageGuard, /recorded replay immutable IR digest mismatch/);
 });
 
 test('preview clips can begin after a reviewed intro without unverified wall-clock drift', () => {

@@ -32,6 +32,7 @@ import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 import { createFixedStepClock } from './runtime-fixed-step-clock.mjs';
 import { createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs, replayPointerPhase } from './runtime-replay-input.mjs';
+import { validateStoredReplayPackageIdentity, validateStoredReplayKeyboardGrammar } from './runtime-replay-package-guard.mjs';
 import { conditionsMet, ruleMatches } from './runtime-rule-predicates.mjs';
 import { semanticFingerprintV1 } from './runtime-semantic-fingerprint.mjs';
 
@@ -1162,9 +1163,9 @@ async function run(id) {
   if (pkg.gameId !== id) {
     throw new Error(`invalid game package: requested game ${id}, received ${String(pkg.gameId)}`);
   }
-  if (deterministicCapture && replayTrace && replayTrace.irHash !== pkg.irHash) {
-    throw new Error('recorded replay IR hash differs from the current package');
-  }
+  // Every explicit replay, not only screenshot captures, must match the
+  // current immutable Game IR to prevent mislabelled comparison outcomes.
+  if (replayTrace) validateStoredReplayPackageIdentity(replayTrace, pkg);
   if (!pkg.ir || typeof pkg.ir !== 'object' || Array.isArray(pkg.ir)) {
     throw new Error('invalid game package: canonical Game IR is missing');
   }
@@ -1172,6 +1173,9 @@ async function run(id) {
     throw new Error('invalid game package: assets must be an array');
   }
   const ir = pkg.ir;
+  // Reject undeclared stored keyboard actions before setting up the scene.
+  // Missing key bindings must not be silently ignored during replay.
+  if (replayIndex) validateStoredReplayKeyboardGrammar(replayIndex, ir);
   log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), format v${pkg.packageFormatVersion}, min runtime ${pkg.minRuntimeVersion}, IR v${ir.irVersion}, ${pkg.assets.length} assets`);
   if (pkg.packageFormatVersion !== '2.0') throw new Error('unsupported packageFormatVersion ' + pkg.packageFormatVersion);
   const compatibility = compareRuntimeVersions(RUNTIME_VERSION, pkg.minRuntimeVersion);
