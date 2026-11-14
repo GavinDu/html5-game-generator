@@ -217,6 +217,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/feed", s.handleFeed)
 	s.registerSocialRoutes(mux)
 	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
+	// Diagnostic-only semantic input v2 preflight. No run/score write.
+	mux.HandleFunc("POST /v1/games/{id}/semantic-input-v2/validate", s.handleValidateSemanticInputV2)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
 	mux.HandleFunc("POST /v1/runs/{id}/verification", s.handleRunVerification)
