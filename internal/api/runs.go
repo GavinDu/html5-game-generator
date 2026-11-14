@@ -441,6 +441,11 @@ func maxPlausibleScore(doc *gameir.Document, durationMs int) int {
 // to the window and sorted by the board's metric.
 func (s *Server) boardRuns(gameID, hash, window string, doc *gameir.Document) []RunRecord {
 	metric, order := boardMetric(doc)
+	// A 12-hex historical board key alone cannot identify a modern Game IR
+	// version. New runs persist the full 64-hex digest, which must match
+	// the currently published document even if an IR SHA-256 prefix collides.
+	// Historical digestless runs remain diagnostic/provisional only.
+	publishedIRSHA256 := irSHA256Of(doc)
 	cutoff := time.Time{}
 	if window != "all" {
 		cutoff = time.Now().Add(-7 * 24 * time.Hour)
@@ -450,6 +455,9 @@ func (s *Server) boardRuns(gameID, hash, window string, doc *gameir.Document) []
 	var out []RunRecord
 	for _, rec := range s.runs {
 		if rec.GameID != gameID || rec.IRHash != hash {
+			continue
+		}
+		if rec.IRSHA256 != "" && rec.IRSHA256 != publishedIRSHA256 {
 			continue
 		}
 		if !cutoff.IsZero() && rec.At.Before(cutoff) {
