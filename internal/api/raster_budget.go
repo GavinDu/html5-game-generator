@@ -17,9 +17,10 @@ const maxRasterPixels uint64 = 16_777_216
 const maxPackageRasterPixels uint64 = 64_000_000
 
 // rasterHeaderPixels validates the declared PNG/JPEG/GIF header without
-// allocating a decoded image. Unknown/legacy formats deliberately remain
-// outside this *partial* policy and must be covered by separate capability
-// admission before #383 can close. Callers must first enforce byte limits.
+// allocating a decoded image. Unsupported and missing image MIME labels
+// fail closed instead of bypassing the decoded budget; new formats require
+// explicit versioned capability and header-decode support. Callers must first
+// enforce byte limits.
 func rasterHeaderPixels(mime string, data []byte) (uint64, error) {
 	var expected string
 	switch strings.ToLower(strings.TrimSpace(mime)) {
