@@ -22,8 +22,8 @@ func TestSemanticTraceV2RejectsUnpairedEscapedSurrogateBeforeIRBinding(t *testin
 	published := sampleIR()
 	published.InputBindings[0].Action = "ju\uFFFDmp"
 	for _, escaped := range []string{
-		"ju\\ud800mp", // high surrogate only
-		"ju\\udfffmp", // low surrogate only
+		"ju\\ud800mp",        // high surrogate only
+		"ju\\udfffmp",        // low surrogate only
 		"ju\\ud800\\ud800mp", // high followed by high
 		"ju\\ud800\\u0061mp", // high followed by ordinary codepoint
 		"ju\\ud800\\u1234mp", // high followed by non-low scalar
