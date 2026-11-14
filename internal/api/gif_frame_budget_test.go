@@ -41,12 +41,12 @@ func syntheticGIFFrameHeaders(width, height uint16, frames int) []byte {
 	binary.LittleEndian.PutUint16(data[8:10], height)
 	for range frames {
 		data = append(data,
-			0x2c, // image separator
+			0x2c,       // image separator
 			0, 0, 0, 0, // left and top
 			0, 0, 0, 0, // width and height
 			0x80, // local 2-color table
 			0, 0, 0, 255, 255, 255,
-			0x02, // minimum LZW code size
+			0x02,             // minimum LZW code size
 			0x02, 0x4c, 0x01, // one tiny compressed subblock
 			0, // subblock terminator
 		)
@@ -95,7 +95,7 @@ func TestGIFContainerMetadataRejectsTruncationAndTrailingContent(t *testing.T) {
 	valid := encodeTinyAnimatedGIF(t, 2)
 	for _, corrupted := range [][]byte{
 		valid[:12],
-		valid[:len(valid)-1], // missing terminator
+		valid[:len(valid)-1],                     // missing terminator
 		append(append([]byte(nil), valid...), 0), // trailing garbage
 		append(append([]byte(nil), valid[:len(valid)-2]...), 0xff, 0x3b), // broken final LZW subblock
 	} {
