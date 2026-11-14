@@ -133,6 +133,23 @@ func validReplayPointerDetail(detail string) bool {
 	return true
 }
 
+// Only keyboard controls declared by this exact published IR may occur
+// in an admitted replay. The installed Pixi runtime records keyboard input
+// only when b.key === event.key || b.action === event.key; arbitrary
+// client-supplied names are not valid game inputs. Legacy persisted traces
+// are left untouched and remain unverified by this admission predicate.
+func validReplayKeyboardDetail(doc *gameir.Document, detail string) bool {
+	if doc == nil || detail == "" {
+		return false
+	}
+	for _, binding := range doc.InputBindings {
+		if binding.Input == "keyboard" && (binding.Key == detail || binding.Action == detail) {
+			return true
+		}
+	}
+	return false
+}
+
 // RunRecord stores a full server-owned canonical IR digest for *new* runs.
 // The old 12-hex board key is insufficient for future replay provenance.
 // Legacy records omit IRSHA256; never infer an unrecorded historical digest.
@@ -514,8 +531,13 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case "key", "keyup":
-			// Preserve the version 1.x input-binding vocabulary while its
-			// independent versioned replay grammar is being designed.
+			// Both down and release are recorded only for an IR-matched
+			// keyboard binding. A tap-only game cannot generate a keyboard
+			// event; accepting it would poison future server replay evidence.
+			if !validReplayKeyboardDetail(game.GameIR, inp.Detail) {
+				writeErr(w, http.StatusBadRequest, "keyboard replay input is not declared by game IR")
+				return
+			}
 		default:
 			writeErr(w, http.StatusBadRequest, "unknown input type")
 			return
