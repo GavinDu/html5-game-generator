@@ -68,7 +68,7 @@ func TestDecodeStrictV2RejectsAmbiguousUnknownAndTruncatedJSON(t *testing.T) {
 		{"missing-event-ordinal", replaced("\"ordinal\":0,", "")},
 		{"missing-position-coordinate", replaced("\"x\":1000,", "")},
 		{"null-duration", replaced("\"durationTicks\":120", "\"durationTicks\":null")},
-		{"null-events", replaced("\"events\":[", "\"events\":null,\"discarded\":[")},
+		{"null-events", []byte("{\"schema\":\"semantic-input-trace-v2\",\"durationTicks\":10,\"events\":null}")},
 		{"null-event", replaced("\"events\":[", "\"events\":[null,")},
 		{"null-position", replaced("\"position\":{\"x\":1000,\"y\":2000}", "\"position\":null")},
 		{"null-coordinate", replaced("\"x\":1000", "\"x\":null")},
