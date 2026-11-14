@@ -50,3 +50,5 @@ cross-browser determinism), source challenger review, and no loss of
 previous IR version acceptance. Independent server replay verifier
 [#360](https://github.com/GavinDu/html5-game-generator/issues/360)
 and iPhone/iPad actual GPU-memory/thermal evidence (#202) remain OPEN.
+
+- A second HTTP negative regression now submits a valid first input followed by an out-of-horizon event, and proves the *entire* run is rejected without minting an ID or partially persisting a run.

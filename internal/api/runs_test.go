@@ -291,6 +291,26 @@ func TestRunsRejectInputTicksBeyondFixedStepDuration(t *testing.T) {
 	}
 }
 
+// A late invalid event must reject the entire trace, not persist the
+// earlier valid prefix or assign a run identity for partial attestation.
+func TestRunsRejectOutOfHorizonEventAfterValidPrefix(t *testing.T) {
+	srv := newRunsServer(t)
+	payload := `{"name":"FuturePrefix","score":4,"won":false,"durationMs":1000,"seed":42,"inputs":[{"tick":60,"type":"pointer","detail":"10,20"},{"tick":121,"type":"pointer","detail":"12,20"}]}`
+	code, body := postRun(t, srv, "sample-rainbow-bear", payload)
+	if code != http.StatusBadRequest {
+		t.Fatalf("late replay event must reject whole trace: HTTP %d body=%v", code, body)
+	}
+	if _, ok := body["runId"]; ok {
+		t.Fatalf("rejected partial trace must not mint a run ID: %v", body)
+	}
+	srv.runsMu.Lock()
+	count := len(srv.runs)
+	srv.runsMu.Unlock()
+	if count != 0 {
+		t.Fatalf("late replay input created %d records, want none", count)
+	}
+}
+
 func TestRunDetailBudgetMatchesJavaScriptUTF16(t *testing.T) {
 	srv := newRunsServer(t)
 	gid := "sample-rainbow-bear"
