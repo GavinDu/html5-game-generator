@@ -206,6 +206,7 @@ func persistedReplayEvidenceConsistent(rec *RunRecord) bool {
 type RunRecord struct {
 	// Computed only for board copies, never persisted nor client-writable.
 	EvidenceStatus string `json:"-"`
+
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
 	IRHash     string     `json:"irHash"`
@@ -692,12 +693,12 @@ func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
 	board := s.boardRuns(id, hash, window, game.GameIR)
 	metric, order := boardMetric(game.GameIR)
 	type entry struct {
-		Rank       int       `json:"rank"`
-		RunID      string    `json:"runId"`
-		Name       string    `json:"name"`
-		Score      int       `json:"score"`
-		Won        bool      `json:"won"`
-		DurationMs int       `json:"durationMs"`
+		Rank           int       `json:"rank"`
+		RunID          string    `json:"runId"`
+		Name           string    `json:"name"`
+		Score          int       `json:"score"`
+		Won            bool      `json:"won"`
+		DurationMs     int       `json:"durationMs"`
 		Verified       *bool     `json:"verified,omitempty"`
 		EvidenceStatus string    `json:"evidenceStatus"`
 		RankingScope   string    `json:"rankingScope"`
