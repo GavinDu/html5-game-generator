@@ -16,20 +16,27 @@ const maxGIFFrames = 128
 const maxGIFDecodedFramePixels uint64 = 64_000_000
 
 func gifFrameMetadataBudget(data []byte) error {
+	_, err := gifFrameMetadataPixels(data)
+	return err
+}
+
+// gifFrameMetadataPixels returns the already bounded sum of *all* GIF frame
+// rectangles for the containing game package's aggregate decoded-pixel budget.
+func gifFrameMetadataPixels(data []byte) (uint64, error) {
 	if len(data) < 13 ||
 		(string(data[:6]) != "GIF87a" && string(data[:6]) != "GIF89a") {
-		return fmt.Errorf("GIF header missing or truncated")
+		return 0, fmt.Errorf("GIF header missing or truncated")
 	}
 	canvasWidth := int(binary.LittleEndian.Uint16(data[6:8]))
 	canvasHeight := int(binary.LittleEndian.Uint16(data[8:10]))
 	if canvasWidth == 0 || canvasHeight == 0 {
-		return fmt.Errorf("GIF logical screen has empty dimensions")
+		return 0, fmt.Errorf("GIF logical screen has empty dimensions")
 	}
 	cursor := 13
 	if data[10]&0x80 != 0 {
 		tableBytes := 3 * (1 << (int(data[10]&0x07) + 1))
 		if len(data)-cursor < tableBytes {
-			return fmt.Errorf("truncated GIF global color table")
+			return 0, fmt.Errorf("truncated GIF global color table")
 		}
 		cursor += tableBytes
 	}
@@ -38,32 +45,32 @@ func gifFrameMetadataBudget(data []byte) error {
 	frames := 0
 	for {
 		if cursor >= len(data) {
-			return fmt.Errorf("truncated GIF before trailer")
+			return 0, fmt.Errorf("truncated GIF before trailer")
 		}
 		block := data[cursor]
 		cursor++
 		switch block {
 		case 0x3b: // End of GIF container.
 			if frames == 0 {
-				return fmt.Errorf("GIF contains no image frames")
+				return 0, fmt.Errorf("GIF contains no image frames")
 			}
 			if cursor != len(data) {
-				return fmt.Errorf("unexpected data after GIF trailer")
+				return 0, fmt.Errorf("unexpected data after GIF trailer")
 			}
-			return nil
+			return decodedPixels, nil
 		case 0x21: // Extension block, including graphic control.
 			if cursor >= len(data) {
-				return fmt.Errorf("truncated GIF extension label")
+				return 0, fmt.Errorf("truncated GIF extension label")
 			}
 			cursor++ // Extension label.
 			next, err := skipGIFDataSubblocks(data, cursor)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			cursor = next
 		case 0x2c: // Image descriptor.
 			if len(data)-cursor < 9 {
-				return fmt.Errorf("truncated GIF frame descriptor")
+				return 0, fmt.Errorf("truncated GIF frame descriptor")
 			}
 			left := int(binary.LittleEndian.Uint16(data[cursor : cursor+2]))
 			top := int(binary.LittleEndian.Uint16(data[cursor+2 : cursor+4]))
@@ -74,40 +81,40 @@ func gifFrameMetadataBudget(data []byte) error {
 			if width == 0 || height == 0 ||
 				width > maxRasterDimension || height > maxRasterDimension ||
 				left+width > canvasWidth || top+height > canvasHeight {
-				return fmt.Errorf("GIF frame dimensions exceed logical canvas or admission bounds")
+				return 0, fmt.Errorf("GIF frame dimensions exceed logical canvas or admission bounds")
 			}
 			framePixels := uint64(width) * uint64(height)
 			if framePixels > maxRasterPixels {
-				return fmt.Errorf("GIF frame exceeds decoded pixel budget")
+				return 0, fmt.Errorf("GIF frame exceeds decoded pixel budget")
 			}
 			if frames >= maxGIFFrames ||
 				decodedPixels > maxGIFDecodedFramePixels-framePixels {
-				return fmt.Errorf("GIF animation exceeds frame or aggregate decoded pixel budget")
+				return 0, fmt.Errorf("GIF animation exceeds frame or aggregate decoded pixel budget")
 			}
 			frames++
 			decodedPixels += framePixels
 			if packed&0x80 != 0 {
 				tableBytes := 3 * (1 << (int(packed&0x07) + 1))
 				if len(data)-cursor < tableBytes {
-					return fmt.Errorf("truncated GIF local color table")
+					return 0, fmt.Errorf("truncated GIF local color table")
 				}
 				cursor += tableBytes
 			}
 			if cursor >= len(data) {
-				return fmt.Errorf("missing GIF LZW minimum code size")
+				return 0, fmt.Errorf("missing GIF LZW minimum code size")
 			}
 			lzwMinSize := data[cursor]
 			cursor++
 			if lzwMinSize < 2 || lzwMinSize > 8 {
-				return fmt.Errorf("invalid GIF minimum LZW code size")
+				return 0, fmt.Errorf("invalid GIF minimum LZW code size")
 			}
 			next, err := skipGIFDataSubblocks(data, cursor)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			cursor = next
 		default:
-			return fmt.Errorf("invalid GIF container block marker")
+			return 0, fmt.Errorf("invalid GIF container block marker")
 		}
 	}
 }

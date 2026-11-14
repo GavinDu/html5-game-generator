@@ -239,8 +239,8 @@ func (s *Server) handleGetPackage(w http.ResponseWriter, r *http.Request) {
 		}
 		deliveredAssetBytes += int64(len(data))
 		if asset.Kind == "image" {
-			pixels, decodedErr := rasterHeaderPixels(asset.MIMEType, data)
-			if decodedErr != nil || !packageRasterAggregateAllows(decodedRasterPixels, pixels) {
+			pixels, decodedErr := rasterPackageDecodedCost(asset.MIMEType, data)
+			if decodedErr != nil || !packageDecodedRasterCostAllows(decodedRasterPixels, pixels) {
 				w.Header().Set("Cache-Control", "private, no-store")
 				writeErr(w, http.StatusUnprocessableEntity, "published package raster exceeds decoded resource budget")
 				return
