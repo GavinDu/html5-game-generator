@@ -169,7 +169,6 @@ func TestModernReplayDriftFromPersistedJSONLRejectedAfterServerRestart(t *testin
 	}
 }
 
-
 func TestExplicitModernReplayEvidenceSchemaBlocksMissingFingerprint(t *testing.T) {
 	srv := newRunsServer(t)
 	const gameID = "sample-rainbow-bear"
