@@ -54,7 +54,10 @@ test('drag_x shell controls keep pointer and keyboard movement on the horizontal
 test('discrete lane taps clamp to three x centers and never follow held pointer y', () => {
   assert.match(source, /const laneTap = ir\.experience\?\.controls\?\.scheme === 'lane_tap'/);
   assert.match(source, /const laneCenters = \[W \* 0\.25, W \* 0\.5, W \* 0\.75\]/);
-  assert.match(source, /laneIndex = clamp\(laneIndex \+ \(p\.x < W \/ 2 \? -1 : 1\), 0, 2\)/);
+  assert.match(source, /function beginPointer\(x, y\)/);
+  assert.match(source, /laneIndex = clamp\(laneIndex \+ \(x < W \/ 2 \? -1 : 1\), 0, 2\)/);
+  assert.match(source, /beginPointer\(p\.x, p\.y\)/);
+  assert.match(source, /beginPointer\(x, y\)/);
   assert.match(source, /if \(pointer\.down && !laneTap\)/);
   assert.match(source, /playerTarget\.y = playerEnt\.anchorY/);
 });
