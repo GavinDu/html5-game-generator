@@ -59,6 +59,9 @@ func DecodeStrictV2(ir *gameir.Document, payload []byte) (Trace, error) {
 	if err != nil {
 		return empty, err
 	}
+	if err := requireExactWireKeys(fields, "schema", "durationTicks", "events"); err != nil {
+		return empty, err
+	}
 	var eventRecords []json.RawMessage
 	if err := json.Unmarshal(fields["events"], &eventRecords); err != nil {
 		return empty, fmt.Errorf("semantic trace events must be an array: %w", err)
@@ -71,8 +74,15 @@ func DecodeStrictV2(ir *gameir.Document, payload []byte) (Trace, error) {
 		if err != nil {
 			return empty, fmt.Errorf("semantic event %d: %w", i, err)
 		}
+		if err := requireExactWireKeys(event, "tick", "ordinal", "action", "device", "phase", "position"); err != nil {
+			return empty, fmt.Errorf("semantic event %d: %w", i, err)
+		}
 		if position, ok := event["position"]; ok {
-			if _, err := requireWireObject(position, "x", "y"); err != nil {
+			coordinates, err := requireWireObject(position, "x", "y")
+			if err != nil {
+				return empty, fmt.Errorf("semantic event %d position: %w", i, err)
+			}
+			if err := requireExactWireKeys(coordinates, "x", "y"); err != nil {
 				return empty, fmt.Errorf("semantic event %d position: %w", i, err)
 			}
 		}
@@ -89,6 +99,26 @@ func DecodeStrictV2(ir *gameir.Document, payload []byte) (Trace, error) {
 		return empty, err
 	}
 	return trace, nil
+}
+
+// A Go struct decoder accepts case-insensitive JSON field aliases even with
+// DisallowUnknownFields. For canonical replay evidence, only exact protocol
+// member spelling is allowed. Otherwise "events":[inputs],"Events":[] can
+// silently overwrite the accepted semantic trace with a different one.
+func requireExactWireKeys(fields map[string]json.RawMessage, allowed ...string) error {
+	for key := range fields {
+		matched := false
+		for _, canonical := range allowed {
+			if key == canonical {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return fmt.Errorf("noncanonical semantic input field %q", key)
+		}
+	}
+	return nil
 }
 
 func requireWireObject(payload json.RawMessage, required ...string) (map[string]json.RawMessage, error) {
