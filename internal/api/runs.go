@@ -204,6 +204,8 @@ func persistedReplayEvidenceConsistent(rec *RunRecord) bool {
 }
 
 type RunRecord struct {
+	// Computed only for board copies, never persisted nor client-writable.
+	EvidenceStatus string `json:"-"`
 	ID         string     `json:"id"`
 	GameID     string     `json:"gameId"`
 	IRHash     string     `json:"irHash"`
@@ -226,6 +228,22 @@ type RunRecord struct {
 	// until a server-owned replay proof and migration exist.
 	Verified    *bool `json:"verified,omitempty"`
 	ActualScore *int  `json:"actualScore,omitempty"`
+}
+
+// runEvidenceStatus is an advisory statement about *input storage*, never
+// an independent verdict about win, score or honest browser execution.
+// Historical client-writable Verified/ActualScore cannot promote trust.
+func runEvidenceStatus(rec *RunRecord) string {
+	if rec == nil {
+		return "invalid_evidence"
+	}
+	if rec.EvidenceSchema == "" && rec.ReplayInputSHA256 == "" {
+		return "legacy_unverified"
+	}
+	if !persistedReplayEvidenceConsistent(rec) {
+		return "invalid_evidence"
+	}
+	return "unverified"
 }
 
 // loadRunsLocked reads the runs backlog into memory (called once
@@ -440,6 +458,7 @@ func (s *Server) boardRuns(gameID, hash, window string, doc *gameir.Document) []
 			continue // a time board ranks finished runs only
 		}
 		cp := rec
+		cp.EvidenceStatus = runEvidenceStatus(&rec)
 		cp.Inputs = nil // boards never carry traces
 		out = append(out, cp)
 	}
@@ -640,6 +659,7 @@ func (s *Server) handleSubmitRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"runId": rec.ID, "rank": rank, "verified": false, "nameFiltered": filtered,
+		"evidenceStatus": "unverified", "rankingScope": "provisional",
 	})
 }
 
@@ -678,8 +698,10 @@ func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
 		Score      int       `json:"score"`
 		Won        bool      `json:"won"`
 		DurationMs int       `json:"durationMs"`
-		Verified   *bool     `json:"verified,omitempty"`
-		At         time.Time `json:"at"`
+		Verified       *bool     `json:"verified,omitempty"`
+		EvidenceStatus string    `json:"evidenceStatus"`
+		RankingScope   string    `json:"rankingScope"`
+		At             time.Time `json:"at"`
 	}
 	entries := []entry{}
 	for i, rec := range board {
@@ -691,7 +713,8 @@ func (s *Server) handleLeaderboardV2(w http.ResponseWriter, r *http.Request) {
 			// Legacy Verified was writable by the browser and is not proof.
 			// Suppress it in public API responses until an independently
 			// attested, versioned server result can be represented.
-			Won: rec.Won, DurationMs: rec.DurationMs, Verified: nil, At: rec.At,
+			Won: rec.Won, DurationMs: rec.DurationMs, Verified: nil,
+			EvidenceStatus: rec.EvidenceStatus, RankingScope: "provisional", At: rec.At,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -742,7 +765,13 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	// Keep the original values in storage for explicit audit/remediation.
 	found.Verified = nil
 	found.ActualScore = nil
-	writeJSON(w, http.StatusOK, found)
+	// Use an on-the-fly envelope. Do not persist or trust any client-supplied
+	// attestation metadata, and never re-expose the historical verdict fields.
+	writeJSON(w, http.StatusOK, struct {
+		*RunRecord
+		EvidenceStatus string `json:"evidenceStatus"`
+		RankingScope   string `json:"rankingScope"`
+	}{found, runEvidenceStatus(found), "provisional"})
 }
 
 // POST /v1/runs/{id}/verification — legacy endpoint intentionally disabled.
