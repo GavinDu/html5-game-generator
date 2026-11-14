@@ -51,6 +51,7 @@ func TestRunAndLeaderboardDeliveryAuthorizationMatchesGamePackage(t *testing.T) 
 	game.OwnerID = owner
 	game.Status = model.GameReady
 	game.Visibility = "private"
+	game.GroupIDs = nil
 	game.ModerationStatus = "approved"
 	game.Quarantined = false
 	srv.store.UpdateGame(game)
