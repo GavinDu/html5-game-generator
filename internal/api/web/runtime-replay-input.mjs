@@ -73,6 +73,47 @@ export function createRunInputRecorder(maxEvents = MAX_VERIFIABLE_RUN_INPUTS) {
 }
 
 
+// Replayed inputs cross a server-to-browser persistence boundary. Even when
+// the submission endpoint enforces a bounded, ordered grammar, older records
+// and storage corruption must not allocate an unbounded step map or silently
+// skip malformed actions. This is a *client playback guard*, never server
+// attestation or proof of a score.
+export function indexValidatedReplayInputs(rawInputs, durationMs) {
+  // Historic inputless records may omit the JSON field (Go omitempty).
+  const inputs = rawInputs == null ? [] : rawInputs;
+  if (!Array.isArray(inputs) || inputs.length > MAX_VERIFIABLE_RUN_INPUTS) {
+    throw new Error('invalid recorded replay input count');
+  }
+  if (durationMs !== undefined && durationMs !== null &&
+      (!Number.isSafeInteger(durationMs) || durationMs < 1000 || durationMs > 1_800_000)) {
+    throw new Error('invalid recorded replay duration');
+  }
+  // Go permits one second of fixed-step slack for legacy captures. Without
+  // the optional duration field, still bound the trace to a 30-minute run.
+  const maxTick = durationMs == null
+    ? 1_800_000 * 60 / 1000 + 60
+    : Math.floor(durationMs * 60 / 1000) + 60;
+  const byStep = new Map();
+  let lastTick = 0;
+  let previousTick = -1;
+  for (const entry of inputs) {
+    if (!entry || !Number.isSafeInteger(entry.tick) || entry.tick < previousTick ||
+        entry.tick < 0 || entry.tick > maxTick ||
+        !ALLOWED_INPUT_TYPES.has(entry.type) ||
+        typeof entry.detail !== 'string' || entry.detail.length > 128 ||
+        !validReplayDetailShape(entry.type, entry.detail)) {
+      throw new Error('invalid recorded replay event');
+    }
+    const eventsAtStep = byStep.get(entry.tick) || [];
+    eventsAtStep.push(entry);
+    byStep.set(entry.tick, eventsAtStep);
+    previousTick = entry.tick;
+    lastTick = entry.tick;
+  }
+  return { byStep, lastTick, eventCount: inputs.length };
+}
+
+
 // The dead-input-rate probe is diagnostic only. A frame is not guaranteed to
 // advance while backgrounded or waiting for a user Start tap, so a flood of
 // inputs cannot be allowed to grow this queue forever. When exhausted the

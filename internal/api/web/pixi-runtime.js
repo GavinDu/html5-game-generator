@@ -31,7 +31,7 @@ import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
 import { createFixedStepClock } from './runtime-fixed-step-clock.mjs';
-import { createRunInputRecorder, createDeadInputDiagnostics } from './runtime-replay-input.mjs';
+import { createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs } from './runtime-replay-input.mjs';
 import { conditionsMet, ruleMatches } from './runtime-rule-predicates.mjs';
 import { semanticFingerprintV1 } from './runtime-semantic-fingerprint.mjs';
 
@@ -1040,12 +1040,12 @@ async function run(id) {
   // The trace's seed overrides everything — determinism is the point.
   const replayRunId = params.get('replay');
   let replayTrace = null;
+  let replayIndex = null;
   if (replayRunId) {
     try {
       const rr = await awaitActive(apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`, { signal: abort.signal }));
       if (rr.ok) {
         replayTrace = await awaitActive(rr.json());
-        if (Number.isFinite(replayTrace.seed)) sessionSeed = replayTrace.seed >>> 0;
       }
     } catch (error) {
       attempt.assertActive();
@@ -1056,10 +1056,21 @@ async function run(id) {
       }
     }
   }
-  if (deterministicCapture && replayRunId &&
-      (!replayTrace || replayTrace.id !== replayRunId ||
-       replayTrace.gameId !== id || !Number.isSafeInteger(replayTrace.seed))) {
-    throw new Error('deterministic capture requires the exact recorded run');
+  if (replayRunId) {
+    // An explicit replay must not silently start an unrelated new game when
+    // its stored run is absent, stale, malformed or from another game.
+    // Validate the complete ordered trace before allocating the per-tick map.
+    if (!replayTrace || replayTrace.id !== replayRunId ||
+        replayTrace.gameId !== id || !Number.isSafeInteger(replayTrace.seed) ||
+        replayTrace.seed < 0 || replayTrace.seed > 0xffffffff) {
+      // Preserve the established preview-capture failure contract while
+      // rejecting the same invalid identity for ordinary replay playback.
+      throw new Error(deterministicCapture
+        ? 'deterministic capture requires the exact recorded run'
+        : 'recorded replay identity or seed is invalid');
+    }
+    replayIndex = indexValidatedReplayInputs(replayTrace.inputs, replayTrace.durationMs);
+    sessionSeed = replayTrace.seed >>> 0;
   }
   srand(sessionSeed);
 
@@ -2754,14 +2765,7 @@ async function run(id) {
   // --- Replay application (Phase C) -----------------------------------
   // Inputs grouped by sim step. During replay the page ignores live
   // input: the trace drives pointer + keys exactly as recorded.
-  const replayByStep = new Map();
-  if (replayTrace && Array.isArray(replayTrace.inputs)) {
-    for (const inp of replayTrace.inputs) {
-      const list = replayByStep.get(inp.tick) || [];
-      list.push(inp);
-      replayByStep.set(inp.tick, list);
-    }
-  }
+  const replayByStep = replayIndex?.byStep ?? new Map();
   // Scripted inputs (playtest determinism check): the worker may set
   // window.__dqScripted = [{tick, type, detail}] before play begins;
   // they are applied at their steps exactly like a replay trace, so
@@ -2776,8 +2780,7 @@ async function run(id) {
       scriptedByStep.set(inp.tick, list);
     }
   }
-  const replayLastTick = replayTrace && Array.isArray(replayTrace.inputs) && replayTrace.inputs.length
-    ? replayTrace.inputs[replayTrace.inputs.length - 1].tick : 0;
+  const replayLastTick = replayIndex?.lastTick ?? 0;
   function applyReplayInputs(step) {
     ensureScripted();
     const list = [...(replayByStep.get(step) || []), ...((scriptedByStep && scriptedByStep.get(step)) || [])];
