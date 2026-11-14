@@ -10,9 +10,9 @@ func TestGameIRRejectsNonFiniteSceneAndRenderScalars(t *testing.T) {
 	// Range checks without finite() admit NaN because neither comparison
 	// evaluates true, potentially poisoning physics or the Pixi renderer.
 	cases := []struct {
-		name string
+		name  string
 		valid float64
-		set func(*Document, *float64)
+		set   func(*Document, *float64)
 	}{
 		{"pixels-per-meter", 100, func(d *Document, v *float64) {
 			d.Scenes[0].PixelsPerMeter = v
@@ -59,7 +59,7 @@ func TestGameIRRejectsNonFiniteSceneAndRenderScalars(t *testing.T) {
 				t.Fatalf("finite value within bounds rejected: %v", err)
 			}
 			for _, invalid := range []struct {
-				name string
+				name   string
 				number float64
 			}{
 				{"nan", math.NaN()},
