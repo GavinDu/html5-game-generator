@@ -59,6 +59,11 @@ func rasterHeaderPixels(mime string, data []byte) (uint64, error) {
 	if pixels > maxRasterPixels {
 		return 0, fmt.Errorf("raster image decoded pixels exceed admission ceiling")
 	}
+	if actual == "gif" {
+		if err := gifFrameMetadataBudget(data); err != nil {
+			return 0, err
+		}
+	}
 	return pixels, nil
 }
 
