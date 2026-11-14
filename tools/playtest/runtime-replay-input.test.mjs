@@ -302,11 +302,22 @@ test('production replay shares real input-side effects without synthesizing drag
   assert.match(runtime, /const phase = replayPointerPhase\(inp\.type, pointer\.down\)/);
   assert.match(runtime, /if \(phase === 'down'\) \{\s*beginPointer\(x, y\);\s*queueGameInput\(playerEnt, undefined, tapActionName\(\)\)/);
   assert.match(runtime, /Consecutive pointer samples while held are movement, not/);
-  assert.match(runtime, /if \(!pointer\.down\) return;\s*pointer\.down = false;\s*\/\/ A fast tap/);
+  assert.match(runtime, /if \(replayTrace \|\| !pointer\.down\) return;\s*pointer\.down = false;\s*\/\/ A fast tap/);
   assert.match(runtime, /function beginKeyboardAction\(b\)/);
   assert.match(runtime, /if \(inp\.type === 'key'\) beginKeyboardAction\(b\)/);
   assert.match(runtime, /noteInput\('key', ev\.key\);\s*beginKeyboardAction\(b\)/);
   assert.match(runtime, /if \(replayTrace \|\| !pointer\.down\) return;/);
   assert.doesNotMatch(runtime, /wasDown = false;/,
     'release evidence is recorded on the physical edge, never deferred to the next frame');
+});
+
+
+test('stored replay is isolated from live pointer/key releases and focus interruption', () => {
+  assert.match(runtime, /addEventListener\('keyup', \(ev\) => \{\s*\/\/ Live browser input must not mutate a replay/);
+  assert.match(runtime, /addEventListener\('pointermove', \(ev\) => \{\s*if \(replayTrace \|\| !pointer\.down\) return/);
+  assert.match(runtime, /addEventListener\('pointerup', \(\) => \{\s*if \(replayTrace \|\| !pointer\.down\) return/);
+  assert.match(runtime, /addEventListener\('pointercancel', \(\) => \{\s*if \(!replayTrace\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /addEventListener\('blur', \(\) => \{\s*if \(!replayTrace\) releaseHeldInputs\(\)/);
+  assert.match(runtime, /if \(document\.hidden\) \{\s*\/\/ A recorded replay is driven only by its trace/);
+  assert.match(runtime, /if \(orientationBlocked && !replayTrace\) releaseHeldInputs\(\)/);
 });
