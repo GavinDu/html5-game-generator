@@ -72,3 +72,27 @@ func packageRasterAggregateAllows(current, incoming uint64) bool {
 		incoming <= maxRasterPixels &&
 		incoming <= maxPackageRasterPixels-current
 }
+
+// rasterPackageDecodedCost accounts for animation *frames*, not only the
+// logical first canvas, when budgeting all decoded raster assets together.
+// The underlying header check still imposes each image/animation's own caps.
+func rasterPackageDecodedCost(mime string, data []byte) (uint64, error) {
+	canvasPixels, err := rasterHeaderPixels(mime, data)
+	if err != nil {
+		return 0, err
+	}
+	// Header validation has already ensured that bytes and declared MIME
+	// match. This also supports legacy published v1 GIFs without MIME.
+	if len(data) >= 6 && (string(data[:6]) == "GIF89a" || string(data[:6]) == "GIF87a") {
+		return gifFrameMetadataPixels(data)
+	}
+	return canvasPixels, nil
+}
+
+// Each per-asset limit has already been checked. The package limit is
+// intentionally broader than one static image: a GIF's validated frame
+// rectangles can total up to maxGIFDecodedFramePixels.
+func packageDecodedRasterCostAllows(current, incoming uint64) bool {
+	return current <= maxPackageRasterPixels &&
+		incoming <= maxPackageRasterPixels-current
+}
