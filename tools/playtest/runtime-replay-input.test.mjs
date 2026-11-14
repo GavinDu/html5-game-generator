@@ -74,7 +74,7 @@ test('the next run uses independent state; replay uses a single trusted recordin
 });
 
 test('production runtime unifies all event sources and blocks partial leaderboard submission', () => {
-  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics \} from '\.\/runtime-replay-input\.mjs'/);
+  assert.match(runtime, /import \{ createRunInputRecorder, createDeadInputDiagnostics, indexValidatedReplayInputs \} from '\.\/runtime-replay-input\.mjs'/);
   assert.match(runtime, /const replayInputRecorder = createRunInputRecorder\(\)/);
   assert.match(runtime, /inputLog: replayInputRecorder\.inputs/);
   assert.match(runtime, /replayTraceComplete: play \? play\.replayTraceComplete : null/);
