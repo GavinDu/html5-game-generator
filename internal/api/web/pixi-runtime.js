@@ -1063,7 +1063,11 @@ async function run(id) {
     if (!replayTrace || replayTrace.id !== replayRunId ||
         replayTrace.gameId !== id || !Number.isSafeInteger(replayTrace.seed) ||
         replayTrace.seed < 0 || replayTrace.seed > 0xffffffff) {
-      throw new Error('recorded replay identity or seed is invalid');
+      // Preserve the established preview-capture failure contract while
+      // rejecting the same invalid identity for ordinary replay playback.
+      throw new Error(deterministicCapture
+        ? 'deterministic capture requires the exact recorded run'
+        : 'recorded replay identity or seed is invalid');
     }
     replayIndex = indexValidatedReplayInputs(replayTrace.inputs, replayTrace.durationMs);
     sessionSeed = replayTrace.seed >>> 0;
