@@ -112,11 +112,11 @@ func TestSemanticInputV2HTTPPreflightBindsPublishedIRWithoutScoreWrites(t *testi
 	}
 
 	invalidCases := []struct {
-		name string
+		name  string
 		route string
-		body []byte
-		mime string
-		want int
+		body  []byte
+		mime  string
+		want  int
 	}{
 		{"stale-full-IR", strings.Replace(path, full, strings.Repeat("f", 64), 1), idle, "application/json", http.StatusConflict},
 		{"missing-hash", "/v1/games/" + gameID + "/semantic-input-v2/validate?seed=42", idle, "application/json", http.StatusBadRequest},
