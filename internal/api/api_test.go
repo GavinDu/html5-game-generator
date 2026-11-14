@@ -320,9 +320,15 @@ func TestGroupsAndSharing(t *testing.T) {
 // seedPackageAssets stores every asset declared by a Game IR fixture. The
 // package endpoint intentionally fails closed when any published asset is
 // missing, so tests must model a complete published package.
-func seedPackageAssets(st store.Store, gameID string, doc *gameir.Document, primaryAsset []byte) {
+func seedPackageAssets(t *testing.T, st store.Store, gameID string, doc *gameir.Document, primaryAsset []byte) {
+	t.Helper()
 	for _, asset := range doc.Assets {
 		data := []byte("fixture-asset:" + asset.ID)
+		if asset.Kind == "image" {
+			// Real PNG encoded bytes: image admission must not silently
+			// accept placeholder text declared as a valid raster asset.
+			data = tinyRasterPNG(t)
+		}
 		if asset.ID == "bobo" && primaryAsset != nil {
 			data = primaryAsset
 		}
@@ -348,7 +354,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
 		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
-	seedPackageAssets(st, doc.Game.ID, doc, []byte("immutable-asset"))
+	seedPackageAssets(t, st, doc.Game.ID, doc, tinyRasterPNG(t))
 
 	packagePath := "/v1/games/" + doc.Game.ID + "/package"
 	first := do(t, srv, http.MethodGet, packagePath, nil, "")
@@ -382,7 +388,7 @@ func TestPublicPackageAndAssetUseImmutableETags(t *testing.T) {
 
 	assetPath := "/v1/games/" + doc.Game.ID + "/assets/bobo"
 	asset := do(t, srv, http.MethodGet, assetPath, nil, "")
-	if asset.Code != http.StatusOK || asset.Body.String() != "immutable-asset" {
+	if asset.Code != http.StatusOK || !bytes.Equal(asset.Body.Bytes(), tinyRasterPNG(t)) {
 		t.Fatalf("asset fetch: %d %q", asset.Code, asset.Body.String())
 	}
 	if got := asset.Header().Get("Cache-Control"); got != "public, max-age=0, must-revalidate" {
@@ -417,7 +423,7 @@ func TestPackageErrorsAreNeverCacheable(t *testing.T) {
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
 		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic, ModerationStatus: "approved"})
-	seedPackageAssets(st, doc.Game.ID, doc, []byte("immutable-asset"))
+	seedPackageAssets(t, st, doc.Game.ID, doc, tinyRasterPNG(t))
 
 	missingAsset := do(t, srv, http.MethodGet, "/v1/games/"+doc.Game.ID+"/assets/not-in-ir", nil, "")
 	if missingAsset.Code != http.StatusNotFound {
@@ -456,7 +462,7 @@ func TestPackageVisibilityRevocationWithCachedETag(t *testing.T) {
 		Visibility: model.VisibilityPublic, ModerationStatus: "approved",
 	}
 	st.CreateGame(game)
-	seedPackageAssets(st, doc.Game.ID, doc, []byte("immutable-asset"))
+	seedPackageAssets(t, st, doc.Game.ID, doc, tinyRasterPNG(t))
 
 	path := "/v1/games/" + doc.Game.ID + "/package"
 	first := do(t, srv, http.MethodGet, path, nil, "")
@@ -495,7 +501,7 @@ func TestGetPackage(t *testing.T) {
 	}
 	st.CreateGame(&model.Game{ID: doc.Game.ID, Title: doc.Game.Title, GameIR: doc,
 		OwnerID: "pkg-owner", Status: model.GameReady, Visibility: model.VisibilityPublic})
-	seedPackageAssets(st, doc.Game.ID, doc, []byte("fake-png"))
+	seedPackageAssets(t, st, doc.Game.ID, doc, tinyRasterPNG(t))
 	st.CreateGame(&model.Game{ID: "pkg-draft-1", Title: "Draft", OwnerID: "pkg-owner"})
 
 	rec := do(t, srv, "GET", "/v1/games/"+doc.Game.ID+"/package", nil, "")
@@ -522,7 +528,7 @@ func TestGetPackage(t *testing.T) {
 		t.Fatalf("bad asset descriptor: %+v", pkg.Assets[1])
 	}
 	assetRec := do(t, srv, "GET", pkg.Assets[1].URL, nil, "")
-	if assetRec.Code != http.StatusOK || assetRec.Body.String() != "fake-png" ||
+	if assetRec.Code != http.StatusOK || !bytes.Equal(assetRec.Body.Bytes(), tinyRasterPNG(t)) ||
 		assetRec.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("asset delivery: %d %s", assetRec.Code, assetRec.Body.String())
 	}
