@@ -129,6 +129,16 @@ test('v2 constructor rejects ambiguous bindings, invalid action/byte length and 
   assert.throws(() => createSemanticInputV2Recorder([{ action: 'jump', input: 'tap' },
     { action: 'jump', input: 'drag' }]), TypeError);
   assert.throws(() => createSemanticInputV2Recorder([{ action: 'é'.repeat(65), input: 'tap' }]), TypeError);
+  // Go's strict wire parser rejects unpaired surrogate escapes; no browser
+  // replacement-rune normalization may turn them into a different action.
+  assert.throws(() => createSemanticInputV2Recorder([{ action: '\uD800', input: 'tap' }]), TypeError);
+  assert.throws(() => createSemanticInputV2Recorder([{ action: '\uDC00', input: 'keyboard' }]), TypeError);
+  const malformed = createSemanticInputV2Recorder(bindings);
+  assert.equal(malformed.record({
+    tick: 1, action: '\uD800', device: 'pointer', phase: 'down', position: fixed(0, 0),
+  }), false);
+  assert.equal(malformed.complete, false);
+  assert.equal(malformed.failureReason, 'invalid_event');
   assert.throws(() => createSemanticInputV2Recorder([{ action: 'jump', input: 'tap' },
     ...Array.from({ length: 256 }, (_, i) => ({ action: String(i), input: 'keyboard' }))]), RangeError);
 });
