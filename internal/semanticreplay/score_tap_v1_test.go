@@ -250,7 +250,7 @@ func TestTapScoreDiagnosticNeverClaimsServerAttestation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(raw), `"attested":true`) || !strings.Contains(string(raw), `"rankingScope":"none"`) ||
-		!strings.Contains(raw, `"evidenceStatus":"unverified"`) {
+		!strings.Contains(string(raw), `"evidenceStatus":"unverified"`) {
 		t.Fatalf("diagnostic replay must not be promoted to a verdict: %s", raw)
 	}
 }
