@@ -170,6 +170,17 @@ func TestLocalVerdictJournalRejectsCorruptAndWorldReadableSnapshots(t *testing.T
 	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("world-readable player identities silently admitted: %v", err)
 	}
+	// An oversized existing file must be rejected by the bounded read,
+	// not deserialized or silently reset to an empty trusted ledger.
+	if err := os.Chmod(path, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", maxLocalJournalBytes+1)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
+		t.Fatalf("oversized trusted journal accepted: %v", err)
+	}
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
@@ -256,5 +267,50 @@ func TestLocalVerdictJournalIsSerializedAcross100ConcurrentRetries(t *testing.T)
 	}
 	if got, ok := reloaded.Read(id.RunID); !ok || got.Score != 7 || got.Status != Verified {
 		t.Fatalf("racing worker retries changed durable result: %+v %v", got, ok)
+	}
+}
+
+
+func TestLocalVerdictJournalFailedFinalWritePreservesPendingAcrossRestart(t *testing.T) {
+	root := t.TempDir()
+	parent := filepath.Join(root, "live")
+	path := filepath.Join(parent, "server-only.json")
+	journal, err := OpenLocalVerdictJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := policyIdentity()
+	if _, err := journal.CreatePending(id); err != nil {
+		t.Fatal(err)
+	}
+	moved := parent + "-saved"
+	if err := os.Rename(parent, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(parent, []byte("blocked"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	decision := Decision{
+		Identity: id, Status: Verified, Score: 99,
+		StateSHA256: strings.Repeat("d", 64),
+	}
+	if _, err := journal.CommitServerDecision("private-worker", decision); !errors.Is(err, ErrJournalUnavailable) {
+		t.Fatalf("unavailable ledger claimed committed verdict: %v", err)
+	}
+	if got, ok := journal.Read(id.RunID); !ok || got.Status != Pending {
+		t.Fatalf("failed storage commit mutated pending state: %+v %v", got, ok)
+	}
+	if err := os.Remove(parent); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(moved, parent); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := OpenLocalVerdictJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := reloaded.Read(id.RunID); !ok || got.Status != Pending {
+		t.Fatalf("failed storage commit changed persisted pending state: %+v %v", got, ok)
 	}
 }
