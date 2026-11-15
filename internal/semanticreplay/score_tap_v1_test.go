@@ -50,8 +50,12 @@ func tapTrace(ticks ...uint32) replaytrace.Trace {
 		ordinal += 2
 		prev = tick
 	}
+	duration := uint32(20)
+	if len(ticks) > 0 && ticks[len(ticks)-1] > duration {
+		duration = ticks[len(ticks)-1]
+	}
 	return replaytrace.Trace{
-		Schema: replaytrace.SchemaV2, DurationTicks: 20, Events: events,
+		Schema: replaytrace.SchemaV2, DurationTicks: duration, Events: events,
 	}
 }
 
