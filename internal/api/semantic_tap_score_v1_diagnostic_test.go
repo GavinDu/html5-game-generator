@@ -207,7 +207,6 @@ func TestTapScoreDiagnosticRecordIDDomainsAreNotAuthoredIRGameIDs(t *testing.T) 
 	}
 }
 
-
 func TestSemanticTapScoreDiagnosticCapacityFailsClosedBeforeExpensiveTraceParsing(t *testing.T) {
 	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
 	srv := newRunsServer(t)
