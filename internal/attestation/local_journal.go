@@ -132,8 +132,24 @@ func OpenLocalVerdictJournal(path string) (*LocalVerdictJournal, error) {
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
 		return nil, ErrJournalUnavailable
 	}
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) > maxLocalJournalBytes {
+	// Use a bounded reader as well as lstat: a damaged journal must never
+	// allocate unbounded memory if it grows between metadata and the read.
+	if info.Size() > maxLocalJournalBytes {
+		return nil, ErrJournalUnavailable
+	}
+	opened, err := os.Open(path)
+	if err != nil {
+		return nil, ErrJournalUnavailable
+	}
+	openedInfo, statErr := opened.Stat()
+	if statErr != nil || !openedInfo.Mode().IsRegular() ||
+		openedInfo.Mode().Perm()&0077 != 0 {
+		_ = opened.Close()
+		return nil, ErrJournalUnavailable
+	}
+	data, readErr := io.ReadAll(io.LimitReader(opened, maxLocalJournalBytes+1))
+	closeErr := opened.Close()
+	if readErr != nil || closeErr != nil || len(data) > maxLocalJournalBytes {
 		return nil, ErrJournalUnavailable
 	}
 	var env localJournalEnvelope
