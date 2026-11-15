@@ -863,8 +863,16 @@ func TestTrustedRuntimeNeverSelfPostsReplayVerdict(t *testing.T) {
 	if strings.Contains(pixiRuntimeJS, "/verification") {
 		t.Fatal("trusted Pixi runtime must never POST a client-owned replay verdict")
 	}
-	if !strings.Contains(pixiRuntimeJS, "data.verified === true") {
-		t.Fatal("native verified-result notifications require an explicit server verdict")
+	if !strings.Contains(pixiRuntimeJS, "mayRequestNativeRunVerificationLookup(data)") ||
+		!strings.Contains(runtimeResultProvenanceJS, "result.verified === true") ||
+		!strings.Contains(runtimeResultProvenanceJS, "result.attested === true") ||
+		!strings.Contains(runtimeResultProvenanceJS, "result.rankingScope === 'verified_only'") ||
+		!strings.Contains(runtimeResultProvenanceJS, "result.evidenceStatus === 'verified'") {
+		t.Fatal("native verified-result notifications require a complete server-attested verdict shape and native re-fetch")
+	}
+	if !strings.Contains(pixiRuntimeJS, "provisionalRunPlacementLabel(data)") ||
+		!strings.Contains(runtimeResultProvenanceJS, "Provisional leaderboard position") {
+		t.Fatal("shipped browser result must expose client ranks as provisional and unverified")
 	}
 }
 
