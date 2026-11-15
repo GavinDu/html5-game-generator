@@ -70,7 +70,7 @@ test('unknown command and attempts to override privileged bridge metadata are re
 
 test('shipping runtime uses the same builder for all narrow messages without a native control API', () => {
   assert.match(source, /sendNativeHostMessage\('player_metric', \{ metric, sequence:/);
-  assert.match(source, /if \(data\.verified === true\) \{[\s\S]*?sendNativeHostMessage\('verified_run_available', \{ runId: data\.runId \}\)/);
+  assert.match(source, /if \(mayRequestNativeRunVerificationLookup\(data\)\) \{[\s\S]*?sendNativeHostMessage\('verified_run_available', \{ runId: data\.runId \}\)/);
   assert.match(source, /if \(!payload\) return; \/\/ malformed installed bridge: no v1 fallback/);
   assert.match(source, /window\.webkit\?\.messageHandlers\?\.hephaestusRunResult\?\.postMessage\(payload\)/);
   assert.doesNotMatch(source, /postMessage\(\{\s*schema: 1,\s*type: 'verified_run_available'/);
