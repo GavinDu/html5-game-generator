@@ -167,9 +167,19 @@ func OpenLocalVerdictJournal(path string) (*LocalVerdictJournal, error) {
 		len(snap.Records) > maxLocalJournalRecords {
 		return nil, ErrJournalUnavailable
 	}
+	// A server replay worker job must never finalize two different attempts.
+	// Reject preexisting aliasing on restart rather than trusting a snapshot
+	// with ambiguous idempotency ownership.
+	jobOwners := make(map[string]string, len(snap.Records))
 	for runID, entry := range snap.Records {
 		if err := validateJournalEntry(runID, entry); err != nil {
 			return nil, ErrJournalUnavailable
+		}
+		if entry.FinalJobID != "" {
+			if owner, exists := jobOwners[entry.FinalJobID]; exists && owner != runID {
+				return nil, ErrJournalUnavailable
+			}
+			jobOwners[entry.FinalJobID] = runID
 		}
 	}
 	j.records = snap.Records
@@ -285,6 +295,13 @@ func (j *LocalVerdictJournal) CommitServerDecision(jobID string, decision Decisi
 	current, ok := j.records[runID]
 	if !ok {
 		return Verdict{}, ErrJournalConflict
+	}
+	// Bound to maxLocalJournalRecords by admission: a job ID is a unique
+	// idempotency identity for one run, never a transferable capability.
+	for existingRunID, entry := range j.records {
+		if existingRunID != runID && entry.FinalJobID == jobID {
+			return Verdict{}, ErrJournalConflict
+		}
 	}
 	output, err := ApplyServerDecision(current.Verdict, decision)
 	if err != nil {

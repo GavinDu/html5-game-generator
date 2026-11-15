@@ -313,3 +313,97 @@ func TestLocalVerdictJournalFailedFinalWritePreservesPendingAcrossRestart(t *tes
 		t.Fatalf("failed storage commit changed persisted pending state: %+v %v", got, ok)
 	}
 }
+
+func TestLocalVerdictJournalRejectsCrossRunJobAliasAcrossRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "verdicts.json")
+	journal, err := OpenLocalVerdictJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := policyIdentity()
+	second := first
+	second.RunID = "attempt-2"
+	second.TraceSHA256 = strings.Repeat("f", 64)
+	for _, id := range []Identity{first, second} {
+		if _, err := journal.CreatePending(id); err != nil {
+			t.Fatalf("pending %s: %v", id.RunID, err)
+		}
+	}
+	firstDecision := Decision{
+		Identity: first, Status: Verified, Score: 17,
+		StateSHA256: strings.Repeat("d", 64),
+	}
+	secondDecision := Decision{
+		Identity: second, Status: Rejected, RejectionReason: "unsupported_ir",
+	}
+	firstFinal, err := journal.CommitServerDecision("replay-worker-job-1", firstDecision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := journal.CommitServerDecision("replay-worker-job-1", secondDecision); !errors.Is(err, ErrJournalConflict) {
+		t.Fatalf("one job finalized different runs: %v", err)
+	}
+	if got, ok := journal.Read(second.RunID); !ok || got.Status != Pending {
+		t.Fatalf("cross-run conflict mutated pending: %+v %v", got, ok)
+	}
+	reopened, err := OpenLocalVerdictJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := reopened.CommitServerDecision("replay-worker-job-1", firstDecision); err != nil || got != firstFinal {
+		t.Fatalf("same run/job retry must remain idempotent: %+v %v", got, err)
+	}
+	if _, err := reopened.CommitServerDecision("replay-worker-job-1", secondDecision); !errors.Is(err, ErrJournalConflict) {
+		t.Fatalf("restarted journal reused already consumed job: %v", err)
+	}
+	if got, err := reopened.CommitServerDecision("replay-worker-job-2", secondDecision); err != nil || got.Status != Rejected {
+		t.Fatalf("independent job was refused: %+v %v", got, err)
+	}
+	if got, ok := reopened.Read(first.RunID); !ok || got != firstFinal {
+		t.Fatalf("cross-run operations changed original final: %+v %v", got, ok)
+	}
+}
+
+func TestLocalVerdictJournalRejectsExistingDuplicateTerminalWorkerJobs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "verdicts.json")
+	journal, err := OpenLocalVerdictJournal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := policyIdentity()
+	second := first
+	second.RunID = "attempt-2"
+	second.TraceSHA256 = strings.Repeat("f", 64)
+	firstPending, err := NewPending(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPending, err := NewPending(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstFinal, err := ApplyServerDecision(firstPending, Decision{
+		Identity: first, Status: Verified, Score: 17,
+		StateSHA256: strings.Repeat("d", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFinal, err := ApplyServerDecision(secondPending, Decision{
+		Identity: second, Status: Rejected, RejectionReason: "unsupported_ir",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a legacy checksum-valid snapshot created before cross-run
+	// uniqueness was enforced. Never silently bless or repair this history.
+	if err := journal.persist(map[string]journalEntry{
+		first.RunID:  {Verdict: firstFinal, FinalJobID: "same-job"},
+		second.RunID: {Verdict: secondFinal, FinalJobID: "same-job"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
+		t.Fatalf("duplicate committed job owners were trusted on restart: %v", err)
+	}
+}
