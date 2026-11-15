@@ -227,6 +227,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/games/{id}/runs", s.handleSubmitRun)
 	// Diagnostic-only semantic input v2 preflight. No run/score write.
 	mux.HandleFunc("POST /v1/games/{id}/semantic-input-v2/validate", s.handleValidateSemanticInputV2)
+	// Narrow, server-executed Go diagnostic with no run/score/board write.
+	mux.HandleFunc("POST /v1/games/{id}/semantic-tap-score-v1/diagnose", s.handleDiagnoseSemanticTapScoreV1)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
 	mux.HandleFunc("POST /v1/runs/{id}/verification", s.handleRunVerification)
