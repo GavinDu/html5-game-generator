@@ -40,14 +40,14 @@ func (s *Server) handleVerifiedOnlyLeaderboard(w http.ResponseWriter, r *http.Re
 	// materialization. A browser's Verified:true or matching hash is NOT
 	// independent server attestation and cannot grant a trusted rank.
 	writeJSON(w, http.StatusOK, map[string]any{
-		"gameId": game.ID,
-		"irHash": fullIRSHA256[:12],
-		"irSha256": fullIRSHA256,
-		"window": window,
-		"metric": metric,
-		"order": order,
-		"rankingScope": "verified_only",
+		"gameId":               game.ID,
+		"irHash":               fullIRSHA256[:12],
+		"irSha256":             fullIRSHA256,
+		"window":               window,
+		"metric":               metric,
+		"order":                order,
+		"rankingScope":         "verified_only",
 		"attestationAvailable": false,
-		"entries": []any{},
+		"entries":              []any{},
 	})
 }
