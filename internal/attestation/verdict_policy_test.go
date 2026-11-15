@@ -8,14 +8,14 @@ import (
 
 func policyIdentity() Identity {
 	return Identity{
-		RunID: "attempt-1",
-		GameID: "public-game",
-		PlayerID: "authorized-player",
-		IRSHA256: strings.Repeat("a", 64),
-		TraceSHA256: strings.Repeat("b", 64),
+		RunID:            "attempt-1",
+		GameID:           "public-game",
+		PlayerID:         "authorized-player",
+		IRSHA256:         strings.Repeat("a", 64),
+		TraceSHA256:      strings.Repeat("b", 64),
 		CapabilitySHA256: strings.Repeat("c", 64),
-		Seed: 42,
-		ProofVersion: ProofVersion,
+		Seed:             42,
+		ProofVersion:     ProofVersion,
 	}
 }
 
