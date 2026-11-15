@@ -15,14 +15,14 @@ import (
 )
 
 const (
-	localJournalFormat = 1
-	maxLocalJournalBytes = 8 << 20
+	localJournalFormat     = 1
+	maxLocalJournalBytes   = 8 << 20
 	maxLocalJournalRecords = 10000
-	maxJournalJobIDBytes = 128
+	maxJournalJobIDBytes   = 128
 )
 
 var (
-	ErrJournalConflict = errors.New("server verdict journal conflict")
+	ErrJournalConflict    = errors.New("server verdict journal conflict")
 	ErrJournalUnavailable = errors.New("server verdict journal unavailable")
 )
 
@@ -31,8 +31,8 @@ var (
 // replay worker; these Go methods do not authenticate any actor. Do NOT
 // expose it directly through HTTP or use it as a distributed worker ledger.
 type LocalVerdictJournal struct {
-	mu sync.Mutex
-	path string
+	mu      sync.Mutex
+	path    string
 	records map[string]journalEntry
 	// A rename succeeded but the directory sync failed. The on-disk state
 	// may be newer than memory; block further writes until reopened.
@@ -40,19 +40,19 @@ type LocalVerdictJournal struct {
 }
 
 type journalEntry struct {
-	Verdict Verdict `json:"verdict"`
-	FinalJobID string `json:"finalJobId,omitempty"`
+	Verdict    Verdict `json:"verdict"`
+	FinalJobID string  `json:"finalJobId,omitempty"`
 }
 
 type localJournalSnapshot struct {
-	Version int `json:"version"`
+	Version int                     `json:"version"`
 	Records map[string]journalEntry `json:"records"`
 }
 
 type localJournalEnvelope struct {
-	FormatVersion int `json:"formatVersion"`
-	SHA256 string `json:"sha256"`
-	Snapshot json.RawMessage `json:"snapshot"`
+	FormatVersion int             `json:"formatVersion"`
+	SHA256        string          `json:"sha256"`
+	Snapshot      json.RawMessage `json:"snapshot"`
 }
 
 func validJournalJobID(id string) bool {
@@ -99,11 +99,11 @@ func validateJournalEntry(runID string, entry journalEntry) error {
 			return ErrJournalConflict
 		}
 		next := Decision{
-			Identity: entry.Verdict.Identity,
-			Status: entry.Verdict.Status,
-			Score: entry.Verdict.Score,
-			Won: entry.Verdict.Won,
-			StateSHA256: entry.Verdict.StateSHA256,
+			Identity:        entry.Verdict.Identity,
+			Status:          entry.Verdict.Status,
+			Score:           entry.Verdict.Score,
+			Won:             entry.Verdict.Won,
+			StateSHA256:     entry.Verdict.StateSHA256,
 			RejectionReason: entry.Verdict.RejectionReason,
 		}
 		recomputed, err := ApplyServerDecision(pending, next)
@@ -176,8 +176,8 @@ func (j *LocalVerdictJournal) persist(next map[string]journalEntry) error {
 	digest := sha256.Sum256(snapshot)
 	data, err := json.Marshal(localJournalEnvelope{
 		FormatVersion: localJournalFormat,
-		SHA256: hex.EncodeToString(digest[:]),
-		Snapshot: snapshot,
+		SHA256:        hex.EncodeToString(digest[:]),
+		Snapshot:      snapshot,
 	})
 	if err != nil || len(data) > maxLocalJournalBytes {
 		return ErrJournalUnavailable
@@ -240,7 +240,9 @@ func (j *LocalVerdictJournal) CreatePending(id Identity) (Verdict, error) {
 		return existing.Verdict, nil
 	}
 	next := make(map[string]journalEntry, len(j.records)+1)
-	for k, v := range j.records { next[k] = v }
+	for k, v := range j.records {
+		next[k] = v
+	}
 	next[id.RunID] = journalEntry{Verdict: pending}
 	if err := j.persist(next); err != nil {
 		return Verdict{}, err
@@ -279,7 +281,9 @@ func (j *LocalVerdictJournal) CommitServerDecision(jobID string, decision Decisi
 		return output, nil
 	}
 	next := make(map[string]journalEntry, len(j.records))
-	for k, v := range j.records { next[k] = v }
+	for k, v := range j.records {
+		next[k] = v
+	}
 	next[runID] = journalEntry{Verdict: output, FinalJobID: jobID}
 	if err := j.persist(next); err != nil {
 		return Verdict{}, err
