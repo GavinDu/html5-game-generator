@@ -14,23 +14,23 @@ import (
 // score attestation or proves parity with the production Pixi interpreter.
 func TestTapScoreSharedCrossLanguageGoldenCorpus(t *testing.T) {
 	type expectedState struct {
-		Score int64 `json:"score"`
-		Terminal string `json:"terminal"`
-		DownEvents uint32 `json:"downEvents"`
+		Score          int64  `json:"score"`
+		Terminal       string `json:"terminal"`
+		DownEvents     uint32 `json:"downEvents"`
 		ActionsApplied uint32 `json:"actionsApplied"`
 	}
 	type caseRecord struct {
-		Name string `json:"name"`
-		Seed uint32 `json:"seed"`
-		DurationTicks uint32 `json:"durationTicks"`
-		ScoreDelta int64 `json:"scoreDelta"`
-		EndGame *bool `json:"endGame"`
-		TapTicks []uint32 `json:"tapTicks"`
-		Expected expectedState `json:"expected"`
+		Name          string        `json:"name"`
+		Seed          uint32        `json:"seed"`
+		DurationTicks uint32        `json:"durationTicks"`
+		ScoreDelta    int64         `json:"scoreDelta"`
+		EndGame       *bool         `json:"endGame"`
+		TapTicks      []uint32      `json:"tapTicks"`
+		Expected      expectedState `json:"expected"`
 	}
 	type corpus struct {
-		Schema string `json:"schema"`
-		Cases []caseRecord `json:"cases"`
+		Schema string       `json:"schema"`
+		Cases  []caseRecord `json:"cases"`
 	}
 	data, err := os.ReadFile("../../tools/playtest/fixtures/runtime-tap-score-golden-v1.json")
 	if err != nil {
@@ -60,11 +60,11 @@ func TestTapScoreSharedCrossLanguageGoldenCorpus(t *testing.T) {
 					ID: "golden-tap", Title: "Shared Tap Golden",
 					EntryScene: "main", Orientation: "any",
 				},
-				Scenes: []gameir.Scene{{ID: "main"}},
+				Scenes:        []gameir.Scene{{ID: "main"}},
 				InputBindings: []gameir.InputBinding{{Action: "tap", Input: "tap"}},
 				Rules: []gameir.Rule{{
-					ID: "score",
-					When: gameir.Condition{Event: "input", InputAction: "tap"},
+					ID:      "score",
+					When:    gameir.Condition{Event: "input", InputAction: "tap"},
 					Actions: []gameir.Action{{Type: "add_score", Value: float64(tc.ScoreDelta)}},
 				}},
 			}
@@ -87,7 +87,7 @@ func TestTapScoreSharedCrossLanguageGoldenCorpus(t *testing.T) {
 						Phase: "down", Position: &replaytrace.Position{X: 1000, Y: 2000},
 					},
 					replaytrace.Event{
-						Tick: tick, Ordinal: ordinal+1, Action: "tap", Device: "pointer",
+						Tick: tick, Ordinal: ordinal + 1, Action: "tap", Device: "pointer",
 						Phase: "up",
 					},
 				)
@@ -95,9 +95,9 @@ func TestTapScoreSharedCrossLanguageGoldenCorpus(t *testing.T) {
 				previousTick = tick
 			}
 			trace := replaytrace.Trace{
-				Schema: replaytrace.SchemaV2,
+				Schema:        replaytrace.SchemaV2,
 				DurationTicks: tc.DurationTicks,
-				Events: events,
+				Events:        events,
 			}
 			first, err := ReplayDiagnostic(ir, trace, tc.Seed)
 			if err != nil {
