@@ -150,10 +150,12 @@ func TestLocalVerdictJournalRejectsCorruptAndWorldReadableSnapshots(t *testing.T
 func TestLocalVerdictJournalFailedWriteLeavesNoInMemoryVerdict(t *testing.T) {
 	dir := t.TempDir()
 	blocking := filepath.Join(dir, "file-not-directory")
-	if err := os.WriteFile(blocking, []byte("blocking"), 0600); err != nil { t.Fatal(err) }
 	path := filepath.Join(blocking, "verdicts.json")
+	// Open a fresh missing journal before the parent path is poisoned:
+	// the first pending write must fail, not silently update memory.
 	journal, err := OpenLocalVerdictJournal(path)
 	if err != nil { t.Fatal(err) }
+	if err := os.WriteFile(blocking, []byte("blocking"), 0600); err != nil { t.Fatal(err) }
 	if _, err := journal.CreatePending(policyIdentity()); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("write to unavailable parent claimed success: %v", err)
 	}
