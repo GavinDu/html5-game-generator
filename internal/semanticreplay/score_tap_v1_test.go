@@ -1,8 +1,8 @@
 package semanticreplay
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,7 +18,7 @@ func tapScoreIR() *gameir.Document {
 			ID: "tap-score", Title: "Tap Score",
 			EntryScene: "main", Orientation: "any",
 		},
-		Scenes: []gameir.Scene{{ID: "main"}},
+		Scenes:        []gameir.Scene{{ID: "main"}},
 		InputBindings: []gameir.InputBinding{{Action: "tap", Input: "tap"}},
 		Rules: []gameir.Rule{{
 			ID: "score", When: gameir.Condition{
@@ -43,7 +43,7 @@ func tapTrace(ticks ...uint32) replaytrace.Trace {
 				Phase: "down", Position: &replaytrace.Position{X: 1000, Y: 2000},
 			},
 			replaytrace.Event{
-				Tick: tick, Ordinal: ordinal+1, Action: "tap", Device: "pointer",
+				Tick: tick, Ordinal: ordinal + 1, Action: "tap", Device: "pointer",
 				Phase: "up",
 			},
 		)
@@ -129,9 +129,9 @@ func TestTapScoreExplicitTerminalStopsFurtherSameTickAndLaterActions(t *testing.
 
 func TestTapScoreRejectsUnsupportedIRWithoutPartialExecution(t *testing.T) {
 	cases := []struct {
-		name string
+		name   string
 		change func(*gameir.Document)
-		want error
+		want   error
 	}{
 		{"nil-experience-disallowed-v12", func(d *gameir.Document) { d.IRVersion = gameir.Version12 }, ErrInvalidIR},
 		{"version-11", func(d *gameir.Document) { d.IRVersion = gameir.Version11 }, ErrUnsupportedIR},
@@ -144,10 +144,14 @@ func TestTapScoreRejectsUnsupportedIRWithoutPartialExecution(t *testing.T) {
 		}, ErrUnsupportedIR},
 		{"keyboard", func(d *gameir.Document) { d.InputBindings[0].Input = "keyboard"; d.InputBindings[0].Key = "Space" }, ErrUnsupportedInput},
 		{"drag", func(d *gameir.Document) { d.InputBindings[0].Input = "drag" }, ErrUnsupportedInput},
-		{"condition", func(d *gameir.Document) { d.Rules[0].Conditions = []gameir.Predicate{{Variable: "score", Operator: "gte", Value: float64(0)}} }, ErrUnsupportedRule},
+		{"condition", func(d *gameir.Document) {
+			d.Rules[0].Conditions = []gameir.Predicate{{Variable: "score", Operator: "gte", Value: float64(0)}}
+		}, ErrUnsupportedRule},
 		{"wrong-rule-event", func(d *gameir.Document) { d.Rules[0].When.Event = "score_reached" }, ErrUnsupportedRule},
 		{"missing-input-action", func(d *gameir.Document) { d.Rules[0].When.InputAction = "" }, ErrUnsupportedRule},
-		{"health", func(d *gameir.Document) { d.Rules[0].Actions[0] = gameir.Action{Type: "change_health", Value: float64(-1)} }, ErrUnsupportedAction},
+		{"health", func(d *gameir.Document) {
+			d.Rules[0].Actions[0] = gameir.Action{Type: "change_health", Value: float64(-1)}
+		}, ErrUnsupportedAction},
 		{"string-score", func(d *gameir.Document) { d.Rules[0].Actions[0].Value = "10" }, ErrUnsupportedAction},
 		{"fractional-score", func(d *gameir.Document) { d.Rules[0].Actions[0].Value = float64(1.5) }, ErrUnsupportedAction},
 		{"nan-score", func(d *gameir.Document) { d.Rules[0].Actions[0].Value = float64(1e100) }, ErrUnsupportedAction},
@@ -175,7 +179,7 @@ func TestTapScoreRejectsUnsupportedIRWithoutPartialExecution(t *testing.T) {
 func TestTapScoreRejectsInvalidCanonicalEdgesAndBounds(t *testing.T) {
 	ir := tapScoreIR()
 	cases := []struct {
-		name string
+		name  string
 		trace replaytrace.Trace
 	}{
 		{"duplicate-down", replaytrace.Trace{
@@ -201,7 +205,7 @@ func TestTapScoreRejectsInvalidCanonicalEdgesAndBounds(t *testing.T) {
 			Events: []replaytrace.Event{{Tick: 1, Ordinal: 0, Action: "forged", Device: "pointer", Phase: "down", Position: &replaytrace.Position{}}},
 		}},
 		{"zero-duration", replaytrace.Trace{Schema: replaytrace.SchemaV2}},
-		{"too-long", replaytrace.Trace{Schema: replaytrace.SchemaV2, DurationTicks: replaytrace.MaxDurationTicks+1}},
+		{"too-long", replaytrace.Trace{Schema: replaytrace.SchemaV2, DurationTicks: replaytrace.MaxDurationTicks + 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -220,8 +224,8 @@ func TestTapScoreRejectsInvalidCanonicalEdgesAndBounds(t *testing.T) {
 			actions[j] = gameir.Action{Type: "add_score", Value: float64(1)}
 		}
 		ir.Rules = append(ir.Rules, gameir.Rule{
-			ID: fmt.Sprintf("score%d", i),
-			When: gameir.Condition{Event: "input", InputAction: "tap"},
+			ID:      fmt.Sprintf("score%d", i),
+			When:    gameir.Condition{Event: "input", InputAction: "tap"},
 			Actions: actions,
 		})
 	}
