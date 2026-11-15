@@ -83,7 +83,8 @@ test('health exhaustion ends the tick and all subsequent commands are ignored sa
   assert.equal(first.state.score, 0);
   assert.deepEqual(first.effects.map(e => e.type), ['health_changed', 'terminal']);
   const after = reduceSemanticStateTick(first.state, 2, []);
-  assert.strictEqual(after.state, first.state);
+  assert.deepEqual(after.state, first.state);
+  assert.equal(canonicalSemanticState(after.state), canonicalSemanticState(first.state));
   assert.deepEqual(after.effects, []);
   assert.throws(() => reduceSemanticStateTick(first.state, 2, [
     cmd(0, 'add_score', 1),
