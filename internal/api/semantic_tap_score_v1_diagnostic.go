@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"doodlequest/internal/semanticreplay"
 	"doodlequest/internal/replaytrace"
+	"doodlequest/internal/semanticreplay"
 )
 
 // POST /v1/games/{id}/semantic-tap-score-v1/diagnose
@@ -91,21 +91,21 @@ func (s *Server) handleDiagnoseSemanticTapScoreV1(w http.ResponseWriter, r *http
 	// leaderboard rank: a deterministic client-provided trace is NOT proof
 	// that the game ran or that a browser score was earned.
 	writeJSON(w, http.StatusOK, map[string]any{
-		"schema": "semantic-tap-score-diagnostic-v1",
-		"proofVersion": diagnostic.ProofVersion,
-		"gameId": game.ID,
-		"irSha256": fullIRSHA256,
-		"seed": diagnostic.Seed,
-		"durationTicks": diagnostic.DurationTicks,
-		"eventCount": len(trace.Events),
-		"traceSha256": diagnostic.TraceSHA256,
-		"stateSha256": diagnostic.StateSHA256,
-		"score": diagnostic.Score,
-		"terminal": diagnostic.Terminal,
-		"downEvents": diagnostic.DownEvents,
+		"schema":         "semantic-tap-score-diagnostic-v1",
+		"proofVersion":   diagnostic.ProofVersion,
+		"gameId":         game.ID,
+		"irSha256":       fullIRSHA256,
+		"seed":           diagnostic.Seed,
+		"durationTicks":  diagnostic.DurationTicks,
+		"eventCount":     len(trace.Events),
+		"traceSha256":    diagnostic.TraceSHA256,
+		"stateSha256":    diagnostic.StateSHA256,
+		"score":          diagnostic.Score,
+		"terminal":       diagnostic.Terminal,
+		"downEvents":     diagnostic.DownEvents,
 		"actionsApplied": diagnostic.ActionsApplied,
 		"evidenceStatus": "unverified",
-		"rankingScope": "none",
-		"attested": false,
+		"rankingScope":   "none",
+		"attested":       false,
 	})
 }
