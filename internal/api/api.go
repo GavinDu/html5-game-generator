@@ -41,6 +41,9 @@ var runtimeFixedStepClockJS string
 //go:embed web/runtime-replay-input.mjs
 var runtimeReplayInputJS string
 
+//go:embed web/runtime-semantic-input-v2.mjs
+var runtimeSemanticInputV2JS string
+
 //go:embed web/runtime-replay-package-guard.mjs
 var runtimeReplayPackageGuardJS string
 
@@ -171,6 +174,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/runtime-seeded-rng.mjs", s.handleRuntimeSeededRNG)
 	mux.HandleFunc("GET /web/runtime-fixed-step-clock.mjs", s.handleRuntimeFixedStepClock)
 	mux.HandleFunc("GET /web/runtime-replay-input.mjs", s.handleRuntimeReplayInput)
+	mux.HandleFunc("GET /web/runtime-semantic-input-v2.mjs", s.handleRuntimeSemanticInputV2)
 	mux.HandleFunc("GET /web/runtime-replay-package-guard.mjs", s.handleRuntimeReplayPackageGuard)
 	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
 	mux.HandleFunc("GET /web/runtime-rule-predicates.mjs", s.handleRuntimeRulePredicates)
@@ -419,6 +423,15 @@ func (s *Server) handleRuntimeReplayInput(w http.ResponseWriter, r *http.Request
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeReplayInputJS))
+}
+
+// GET /web/runtime-semantic-input-v2.mjs — trusted, bounded data-only
+// semantic action-edge producer. Never loaded from user-supplied Game IR.
+func (s *Server) handleRuntimeSemanticInputV2(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeSemanticInputV2JS))
 }
 
 // GET /web/runtime-replay-package-guard.mjs — installed playback
