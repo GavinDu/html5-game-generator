@@ -170,6 +170,21 @@ func CanonicalSHA256(ir *gameir.Document, gameID, fullIRSHA256 string, seed uint
 			return "", errors.New("invalid full Game IR SHA-256")
 		}
 	}
+	// Bind the claimed full IR digest to the actual canonical Game IR bytes.
+	// Valid 64-character hex alone does not establish the referenced IR.
+	// Record gameID is intentionally a separate server-owned identity: it
+	// need not equal the in-document ir.Game.ID authored by the creator.
+	if ir == nil {
+		return "", errors.New("missing published Game IR")
+	}
+	irBytes, err := json.Marshal(ir)
+	if err != nil {
+		return "", errors.New("could not encode published Game IR")
+	}
+	irSum := sha256.Sum256(irBytes)
+	if hex.EncodeToString(irSum[:]) != fullIRSHA256 {
+		return "", errors.New("published Game IR digest does not match evidence identity")
+	}
 	if err := Validate(ir, trace); err != nil {
 		return "", err
 	}
