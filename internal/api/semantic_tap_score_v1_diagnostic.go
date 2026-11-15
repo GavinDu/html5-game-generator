@@ -12,6 +12,12 @@ import (
 	"doodlequest/internal/semanticreplay"
 )
 
+// A conservative *process-wide* cost cap on the independent Go replay
+// diagnostic. Read-only callers cannot reserve unlimited server workers by
+// supplying otherwise valid expensive traces. This is not a per-account
+// request-rate policy and must not be mistaken for signed attestation.
+var semanticTapDiagnosticSlots = make(chan struct{}, 4)
+
 // POST /v1/games/{id}/semantic-tap-score-v1/diagnose
 //
 // Authorized, diagnostic-only Go semantic execution of a *tiny* fixed-tick
@@ -28,6 +34,16 @@ func (s *Server) handleDiagnoseSemanticTapScoreV1(w http.ResponseWriter, r *http
 	// gameplay must never be partly simulated into a believable score.
 	if err := semanticreplay.SupportedIR(game.GameIR); err != nil {
 		writeErr(w, http.StatusUnprocessableEntity, "published game is outside the diagnostic-only tap-score capability")
+		return
+	}
+	// Authorize before capacity admission so private games remain 404.
+	// Never enqueue an unbounded number of clients awaiting replay slots.
+	select {
+	case semanticTapDiagnosticSlots <- struct{}{}:
+		defer func() { <-semanticTapDiagnosticSlots }()
+	default:
+		w.Header().Set("Retry-After", "1")
+		writeErr(w, http.StatusTooManyRequests, "semantic diagnostic capacity temporarily exhausted")
 		return
 	}
 	// The game ID and digest are server-owned. The query only supplies an
