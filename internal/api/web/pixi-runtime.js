@@ -35,6 +35,7 @@ import { createRunInputRecorder, createDeadInputDiagnostics, indexValidatedRepla
 import { validateStoredReplayPackageIdentity, validateStoredReplayKeyboardGrammar } from './runtime-replay-package-guard.mjs';
 import { conditionsMet, ruleMatches } from './runtime-rule-predicates.mjs';
 import { semanticFingerprintV1 } from './runtime-semantic-fingerprint.mjs';
+import { provisionalRunPlacementLabel, mayRequestNativeRunVerificationLookup } from './runtime-result-provenance.mjs';
 
 const W = 390, H = 844;
 const $ = (id) => document.getElementById(id);
@@ -2465,23 +2466,22 @@ async function run(id) {
       if (data && data.runId) {
         play.lastRunId = data.runId;
         window.__dqLastRunId = data.runId;
-        // A stored, ranked run is not automatically a verified run.
-        // Never wake the native verified-result bridge for unverified
-        // submissions; it would otherwise spend resources fetching a
-        // record that the backend explicitly marks verified=false.
-        if (data.verified === true) {
-          // A ranked result is not automatically verified. Only forward
-          // this optional notification if the backend explicitly claims a
-          // verified result; the native host must still query/validate it.
+        // This is only a notification to request a native re-fetch, not
+        // trusted score provenance. The server must explicitly claim a
+        // server-owned verified-only verdict before the host even looks it
+        // up; native still independently authorizes the record itself.
+        if (mayRequestNativeRunVerificationLookup(data)) {
           sendNativeHostMessage('verified_run_available', { runId: data.runId });
         }
       }
-      if (data && data.rank && play.shell) {
+      // An untrusted browser submit may have a numeric *provisional*
+      // position, but must never look like an authoritative competition
+      // rank. Missing legacy provenance is also treated as unverified.
+      const provisionalLabel = provisionalRunPlacementLabel(data);
+      if (provisionalLabel && play.shell) {
         const sub = $('shell-result-sub');
-        if (sub && !sub.textContent.includes('Leaderboard')) {
-          // Being ranked is not proof of an independently replayed score.
-          const status = data.verified === true ? '' : ' (unverified)';
-          sub.textContent += ` · Leaderboard: #${data.rank} this week${status}`;
+        if (sub && !sub.textContent.includes('Provisional leaderboard')) {
+          sub.textContent += ` · ${provisionalLabel}`;
         }
       }
     }).catch(() => {});
