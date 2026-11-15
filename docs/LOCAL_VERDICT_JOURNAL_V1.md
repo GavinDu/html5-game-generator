@@ -1,0 +1,22 @@
+# Runtime Epic #202 — local server-only attestation journal (#449)
+
+## Truthful, limited capability
+
+`internal/attestation.LocalVerdictJournal` is a **private, single-process durability primitive**, not a deployed replay attestor, multi-writer database or public API. All writes are initiated from a future independently authenticated backend worker with a server-issued immutable `Identity`. Page JavaScript, HTTP run POST, historical `RunRecord.Verified` and `ActualScore` have **no path** to this new package. No existing production route or leaderboard is modified.
+
+The journal serializes via a process-local mutex, validates the preexisting `attestation.NewPending` / `ApplyServerDecision` state policy, and persists snapshots as versioned JSON with a SHA-256 checksum, file `0600`, file fsync, atomic temporary-file rename and directory fsync. It publishes updated memory only after storage succeeds. If a post-rename directory sync fails, it marks itself unavailable so an uncertain disk/memory boundary cannot accept another write until reopen and validation. A missing journal is a fresh empty state; **corrupt, truncated, unknown-version, world-readable, symlinked or identity-inconsistent existing journals fail hard**, never silently reset an already-verified score.
+
+`CreatePending(identity)` is idempotent for the *same* current full IR/trace/capability/seed/player/game/run/proof identity and refuses reused run IDs with different identity. `CommitServerDecision(workerJobID, decision)` requires a bounded server worker job ID, a valid pending transition, and a successful atomic write. Exact same job+decision retries are idempotent across restart. A changed verdict/score/win/state, different worker job or identity, attempted final-to-other status, or missing pending is rejected. No direct score promotion or double-reward insertion occurs.
+
+## Tests and threat model
+
+Go negative/race tests cover 100 parallel identical pending/decision attempts, exact-job retry, restart, rejected→verified conflict, mismatched full digest and seed, malformed job IDs, private permissions, corrupt/checksum tampering, truncated JSON, symlink and unavailable parent directory. This is the *file-system persistence slice only*.
+
+**Senior game-engine-architect / security challenge:**
+- Calling `CommitServerDecision` does **not** authenticate the worker or verify gameplay. An untrusted caller with process-level access can fabricate a verified verdict. Never expose these methods directly through HTTP; server-issued session/seed, independent replay #382/#428, capability-scoped interpreter, immutable canonical v2 event trace and a secure worker execution boundary are required first.
+- Mutex ensures only one process at a time. Two separate workers/processes each opening the file have **no cross-process lock** or distributed CAS, so this primitive cannot satisfy full transactional #429 and must not become the production multi-worker ledger. Introduce SQL serializable transaction/CAS or exclusive OS advisory lease with recovery before using parallel workers.
+- File snapshots have a bounded 8 MiB / 10,000 record capacity to fail closed rather than exhaust the server; no rotation/pruning is implemented and this is not a long-term storage strategy. Keep parent #429 OPEN for DB transaction migration, expiry/revocation, identity issuance, single-winner rewards, ledger replay and crash recovery.
+- The checksum detects accidental tamper/corruption, not a malicious filesystem operator who can recompute it. Encryption at rest, OS file ownership and replay issuer security are deployment responsibilities.
+- Both native iOS and browser ranks remain provisional until a *trusted positive backend attestation* is produced and backend #402 admits only new durable trusted entries. The newly merged `GET /v1/runs/{id}/result` still returns 503 for existing unattested runs. No physical iPhone/iPad first-composited frame, thermal/50-cycle or App Store 4.7 evidence is implied.
+
+**Merge gate:** all six exact-head Go tests/race/static, PostgreSQL, Chromium, WebKit, browser determinism and Playability Kit GitHub Actions green, plus an assistant-led adversarial senior architect review. Only close atomic #449; parents #429/#382/#402 and native Epic #202 remain open. Rollback is removal of this isolated Go helper/tests/docs; no production data path is coupled.
