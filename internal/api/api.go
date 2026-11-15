@@ -230,6 +230,8 @@ func (s *Server) Routes() http.Handler {
 	// Narrow, server-executed Go diagnostic with no run/score/board write.
 	mux.HandleFunc("POST /v1/games/{id}/semantic-tap-score-v1/diagnose", s.handleDiagnoseSemanticTapScoreV1)
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard", s.handleLeaderboardV2)
+	// Explicit trusted-only board; empty until server-owned replay verdicts exist.
+	mux.HandleFunc("GET /v1/games/{id}/leaderboard/verified", s.handleVerifiedOnlyLeaderboard)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
 	mux.HandleFunc("POST /v1/runs/{id}/verification", s.handleRunVerification)
 	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
