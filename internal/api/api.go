@@ -237,6 +237,8 @@ func (s *Server) Routes() http.Handler {
 	// Explicit trusted-only board; empty until server-owned replay verdicts exist.
 	mux.HandleFunc("GET /v1/games/{id}/leaderboard/verified", s.handleVerifiedOnlyLeaderboard)
 	mux.HandleFunc("GET /v1/runs/{id}", s.handleGetRun)
+	// Server-attested-only native result read; fails closed until replay attestor exists.
+	mux.HandleFunc("GET /v1/runs/{id}/result", s.handleGetVerifiedRunResult)
 	mux.HandleFunc("POST /v1/runs/{id}/verification", s.handleRunVerification)
 	mux.HandleFunc("POST /v1/spec/decide", s.handleSpecDecide)
 	mux.HandleFunc("GET /v1/spec/questionnaire", s.handleSpecQuestionnaire)
