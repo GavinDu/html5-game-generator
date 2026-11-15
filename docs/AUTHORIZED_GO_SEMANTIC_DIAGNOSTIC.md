@@ -10,13 +10,14 @@ The pure `ReplayDiagnosticForRecord(ir, recordID, trace, seed)` API receives a *
 
 - `Cache-Control: private, no-store`; `Vary: Authorization, X-User-ID` even for errors; same authorized visibility rules as package delivery
 - Strict exact query keyset, canonical unsigned 32-bit seed, media type and at-read 1 MiB request bound; strict canonical wire schema/duplicate/unknown key rejection
+- At most **four in-flight diagnostic computations per process**; a fifth returns HTTP 429 with `Retry-After: 1` and private/no-store/authorization-vary headers. Authentication checks happen **before** the slot gate to avoid leaking private game existence under load. This is a fixed safety ceiling, **not** per-user abuse rate limiting or an SLA.
 - Only tiny whole-document tap-score capability accepted, bounded 2,000 edges/108,000 ticks/50,000 rule-effect work; no fallback for unknown authored gameplay
 - Result exposes diagnostic `score`, `terminal`, fingerprints and work counts but **always** `attested:false, evidenceStatus:unverified, rankingScope:none`, never a verified run or leaderboard position
 - No writes to persistent runs, verifier status, scoreboard, user profile, published game or creator permissions
 
 ## Senior game engine architect adversarial challenge
 
-The server uses its own code to compute a score from **client-chosen trace/seed**, but does not know that a client ever played that trace. This is useful solely for future cross-language conformance and diagnosing capability-bounded rules. It is **not independent gameplay attestation**, nor authorization to mark a score true; a future attestor must own signed session seeds, authenticated trace capture, immutable gameplay version, independent full-capability interpretation, durable verification ledger and verified-only ranks. See #381/#382/#428/#429/#402. The current published games may use more than this tiny allowlist; a 422 is an **expected safe refusal**, not permission to coerce results or broaden the versioned capability.
+The server uses its own code to compute a score from **client-chosen trace/seed**, but does not know that a client ever played that trace. Deployment must separately set request/header timeouts and authenticated per-account or per-IP abuse quotas; a four-slot local semaphore only caps **simultaneous** work and does not prevent repeated sequential requests. This is useful solely for future cross-language conformance and diagnosing capability-bounded rules. It is **not independent gameplay attestation**, nor authorization to mark a score true; a future attestor must own signed session seeds, authenticated trace capture, immutable gameplay version, independent full-capability interpretation, durable verification ledger and verified-only ranks. See #381/#382/#428/#429/#402. The current published games may use more than this tiny allowlist; a 422 is an **expected safe refusal**, not permission to coerce results or broaden the versioned capability.
 
 No native WKWebView, poster, GPU compositor, 50-cycle iPhone/iPad thermal or Apple 4.7 evidence is supplied by this route; all native Epic #202 acceptance stays independent.
 
