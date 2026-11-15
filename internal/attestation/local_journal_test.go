@@ -270,7 +270,6 @@ func TestLocalVerdictJournalIsSerializedAcross100ConcurrentRetries(t *testing.T)
 	}
 }
 
-
 func TestLocalVerdictJournalFailedFinalWritePreservesPendingAcrossRestart(t *testing.T) {
 	root := t.TempDir()
 	parent := filepath.Join(root, "live")
