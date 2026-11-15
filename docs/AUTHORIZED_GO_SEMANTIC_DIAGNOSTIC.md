@@ -9,7 +9,7 @@ The pure `ReplayDiagnosticForRecord(ir, recordID, trace, seed)` API receives a *
 ## Threat containment
 
 - `Cache-Control: private, no-store`; `Vary: Authorization, X-User-ID` even for errors; same authorized visibility rules as package delivery
-- Strict exact query keyset, canonical unsigned 32-bit seed, media type and at-read 2 MiB request bound; strict canonical wire schema/duplicate/unknown key rejection
+- Strict exact query keyset, canonical unsigned 32-bit seed, media type and at-read 1 MiB request bound; strict canonical wire schema/duplicate/unknown key rejection
 - Only tiny whole-document tap-score capability accepted, bounded 2,000 edges/108,000 ticks/50,000 rule-effect work; no fallback for unknown authored gameplay
 - Result exposes diagnostic `score`, `terminal`, fingerprints and work counts but **always** `attested:false, evidenceStatus:unverified, rankingScope:none`, never a verified run or leaderboard position
 - No writes to persistent runs, verifier status, scoreboard, user profile, published game or creator permissions
