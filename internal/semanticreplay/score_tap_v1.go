@@ -14,22 +14,22 @@ import (
 )
 
 const (
-	ProofVersion = "diagnostic-input-score-tap-v1"
-	maxRules = 32
+	ProofVersion            = "diagnostic-input-score-tap-v1"
+	maxRules                = 32
 	maxScoreMagnitude int64 = 1_000_000_000
-	maxScoreDelta int64 = 1_000
-	maxWork = 50_000
+	maxScoreDelta     int64 = 1_000
+	maxWork                 = 50_000
 )
 
 var (
-	ErrInvalidIR = errors.New("semantic_diag_invalid_ir")
-	ErrUnsupportedIR = errors.New("semantic_diag_unsupported_ir")
-	ErrUnsupportedInput = errors.New("semantic_diag_unsupported_input")
-	ErrUnsupportedRule = errors.New("semantic_diag_unsupported_rule")
+	ErrInvalidIR         = errors.New("semantic_diag_invalid_ir")
+	ErrUnsupportedIR     = errors.New("semantic_diag_unsupported_ir")
+	ErrUnsupportedInput  = errors.New("semantic_diag_unsupported_input")
+	ErrUnsupportedRule   = errors.New("semantic_diag_unsupported_rule")
 	ErrUnsupportedAction = errors.New("semantic_diag_unsupported_action")
-	ErrInvalidTrace = errors.New("semantic_diag_invalid_trace")
-	ErrWorkBudget = errors.New("semantic_diag_work_budget")
-	ErrScoreOverflow = errors.New("semantic_diag_score_overflow")
+	ErrInvalidTrace      = errors.New("semantic_diag_invalid_trace")
+	ErrWorkBudget        = errors.New("semantic_diag_work_budget")
+	ErrScoreOverflow     = errors.New("semantic_diag_score_overflow")
 )
 
 // SupportedIR is a narrow, explicitly non-general capability admission gate.
@@ -129,18 +129,18 @@ func scoreDelta(raw any) (int64, bool) {
 // Diagnostic is not a server verdict: only a future authorized attestor may
 // turn an independently verified run into a ranked score.
 type Diagnostic struct {
-	ProofVersion string `json:"proofVersion"`
+	ProofVersion   string `json:"proofVersion"`
 	EvidenceStatus string `json:"evidenceStatus"`
-	RankingScope string `json:"rankingScope"`
-	Attested bool `json:"attested"`
-	Seed uint32 `json:"seed"`
-	DurationTicks uint32 `json:"durationTicks"`
-	Score int64 `json:"score"`
-	Terminal string `json:"terminal"`
-	DownEvents uint32 `json:"downEvents"`
+	RankingScope   string `json:"rankingScope"`
+	Attested       bool   `json:"attested"`
+	Seed           uint32 `json:"seed"`
+	DurationTicks  uint32 `json:"durationTicks"`
+	Score          int64  `json:"score"`
+	Terminal       string `json:"terminal"`
+	DownEvents     uint32 `json:"downEvents"`
 	ActionsApplied uint32 `json:"actionsApplied"`
-	TraceSHA256 string `json:"traceSha256"`
-	StateSHA256 string `json:"stateSha256"`
+	TraceSHA256    string `json:"traceSha256"`
+	StateSHA256    string `json:"stateSha256"`
 }
 
 // ReplayDiagnostic consumes already typed v2 action edges in their admitted
@@ -216,14 +216,14 @@ func ReplayDiagnostic(ir *gameir.Document, trace replaytrace.Trace, seed uint32)
 		}
 	}
 	type resultFingerprint struct {
-		Version string `json:"version"`
-		IRSHA256 string `json:"irSha256"`
-		TraceSHA256 string `json:"traceSha256"`
-		Seed uint32 `json:"seed"`
-		DurationTicks uint32 `json:"durationTicks"`
-		Score int64 `json:"score"`
-		Terminal string `json:"terminal"`
-		DownEvents uint32 `json:"downEvents"`
+		Version        string `json:"version"`
+		IRSHA256       string `json:"irSha256"`
+		TraceSHA256    string `json:"traceSha256"`
+		Seed           uint32 `json:"seed"`
+		DurationTicks  uint32 `json:"durationTicks"`
+		Score          int64  `json:"score"`
+		Terminal       string `json:"terminal"`
+		DownEvents     uint32 `json:"downEvents"`
 		ActionsApplied uint32 `json:"actionsApplied"`
 	}
 	encoded, err := json.Marshal(resultFingerprint{
