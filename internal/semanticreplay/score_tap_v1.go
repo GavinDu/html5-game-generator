@@ -143,12 +143,27 @@ type Diagnostic struct {
 	StateSHA256    string `json:"stateSha256"`
 }
 
-// ReplayDiagnostic consumes already typed v2 action edges in their admitted
-// fixed-tick/ordinal order. Pointer release/cancel changes hold state in the
-// shared strict validator; only an actual down executes an input rule.
-// There are NO connections from this function to runs, rank or HTTP routes.
+// ReplayDiagnostic is a detached pure-library compatibility helper. It has
+// no server record context, so its authored IR game ID is only a diagnostic
+// domain separator. HTTP callers MUST use ReplayDiagnosticForRecord with
+// the authorized game ID returned by the store, not this helper.
 func ReplayDiagnostic(ir *gameir.Document, trace replaytrace.Trace, seed uint32) (Diagnostic, error) {
+	if ir == nil {
+		return Diagnostic{}, ErrInvalidIR
+	}
+	return ReplayDiagnosticForRecord(ir, ir.Game.ID, trace, seed)
+}
+
+// ReplayDiagnosticForRecord consumes already typed v2 action edges in their
+// admitted fixed-tick/ordinal order. The record ID must come from trusted
+// game lookup and authorization, not from the browser payload or authored
+// document game.id. Pointer release only balances a held input; down applies
+// an allowlisted rule. No run, score or ranked-board mutation occurs here.
+func ReplayDiagnosticForRecord(ir *gameir.Document, recordID string, trace replaytrace.Trace, seed uint32) (Diagnostic, error) {
 	var empty Diagnostic
+	if recordID == "" || len(recordID) > 128 {
+		return empty, ErrInvalidIR
+	}
 	if err := SupportedIR(ir); err != nil {
 		return empty, err
 	}
@@ -160,7 +175,7 @@ func ReplayDiagnostic(ir *gameir.Document, trace replaytrace.Trace, seed uint32)
 		return empty, ErrInvalidIR
 	}
 	irDigest := sha256.Sum256(irJSON)
-	traceDigest, err := replaytrace.CanonicalSHA256(ir, ir.Game.ID,
+	traceDigest, err := replaytrace.CanonicalSHA256(ir, recordID,
 		hex.EncodeToString(irDigest[:]), seed, trace)
 	if err != nil {
 		return empty, ErrInvalidTrace
