@@ -398,7 +398,7 @@ func TestLocalVerdictJournalRejectsExistingDuplicateTerminalWorkerJobs(t *testin
 	// Simulate a legacy checksum-valid snapshot created before cross-run
 	// uniqueness was enforced. Never silently bless or repair this history.
 	if err := journal.persist(map[string]journalEntry{
-		first.RunID: {Verdict: firstFinal, FinalJobID: "same-job"},
+		first.RunID:  {Verdict: firstFinal, FinalJobID: "same-job"},
 		second.RunID: {Verdict: secondFinal, FinalJobID: "same-job"},
 	}); err != nil {
 		t.Fatal(err)
