@@ -44,6 +44,9 @@ var runtimeReplayInputJS string
 //go:embed web/runtime-semantic-input-v2.mjs
 var runtimeSemanticInputV2JS string
 
+//go:embed web/runtime-semantic-state-reducer.mjs
+var runtimeSemanticStateReducerJS string
+
 //go:embed web/runtime-replay-package-guard.mjs
 var runtimeReplayPackageGuardJS string
 
@@ -175,6 +178,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /web/runtime-fixed-step-clock.mjs", s.handleRuntimeFixedStepClock)
 	mux.HandleFunc("GET /web/runtime-replay-input.mjs", s.handleRuntimeReplayInput)
 	mux.HandleFunc("GET /web/runtime-semantic-input-v2.mjs", s.handleRuntimeSemanticInputV2)
+	mux.HandleFunc("GET /web/runtime-semantic-state-reducer.mjs", s.handleRuntimeSemanticStateReducer)
 	mux.HandleFunc("GET /web/runtime-replay-package-guard.mjs", s.handleRuntimeReplayPackageGuard)
 	mux.HandleFunc("GET /web/runtime-movement-plane.mjs", s.handleRuntimeMovementPlane)
 	mux.HandleFunc("GET /web/runtime-rule-predicates.mjs", s.handleRuntimeRulePredicates)
@@ -432,6 +436,15 @@ func (s *Server) handleRuntimeSemanticInputV2(w http.ResponseWriter, r *http.Req
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(runtimeSemanticInputV2JS))
+}
+
+// GET /web/runtime-semantic-state-reducer.mjs — pure typed state transitions.
+// Deliberately not imported into the live Pixi interpreter until parity holds.
+func (s *Server) handleRuntimeSemanticStateReducer(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(runtimeSemanticStateReducerJS))
 }
 
 // GET /web/runtime-replay-package-guard.mjs — installed playback
