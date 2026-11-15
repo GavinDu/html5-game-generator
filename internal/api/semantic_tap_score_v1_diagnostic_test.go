@@ -206,3 +206,66 @@ func TestTapScoreDiagnosticRecordIDDomainsAreNotAuthoredIRGameIDs(t *testing.T) 
 		t.Fatal("empty authorized record ID accepted")
 	}
 }
+
+
+func TestSemanticTapScoreDiagnosticCapacityFailsClosedBeforeExpensiveTraceParsing(t *testing.T) {
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "true")
+	srv := newRunsServer(t)
+	const id = "sample-rainbow-bear"
+	game, ok := srv.store.GetGame(id)
+	if !ok {
+		t.Fatal("missing published game")
+	}
+	game.GameIR = diagnosticTapIR()
+	game.Status = model.GameReady
+	game.Visibility = model.VisibilityPublic
+	game.ModerationStatus = "approved"
+	srv.store.UpdateGame(game)
+	uri := "/v1/games/" + id + "/semantic-tap-score-v1/diagnose?irSha256=" +
+		irSHA256Of(game.GameIR) + "&seed=0"
+	before := len(srv.runs)
+	if len(semanticTapDiagnosticSlots) != 0 {
+		t.Fatal("diagnostic capacity unexpectedly occupied before test")
+	}
+	for i := 0; i < cap(semanticTapDiagnosticSlots); i++ {
+		semanticTapDiagnosticSlots <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < cap(semanticTapDiagnosticSlots); i++ {
+			<-semanticTapDiagnosticSlots
+		}
+	}()
+	request := func(viewer string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, uri, strings.NewReader(
+			`{"schema":"semantic-input-trace-v2","durationTicks":4,"events":[]}`,
+		))
+		req.Header.Set("Content-Type", "application/json")
+		if viewer != "" {
+			req.Header.Set("X-User-ID", viewer)
+		}
+		rec := httptest.NewRecorder()
+		srv.Routes().ServeHTTP(rec, req)
+		return rec
+	}
+	busy := request("")
+	if busy.Code != http.StatusTooManyRequests ||
+		busy.Header().Get("Retry-After") != "1" ||
+		busy.Header().Get("Cache-Control") != "private, no-store" ||
+		!strings.Contains(busy.Header().Get("Vary"), "Authorization") {
+		t.Fatalf("bounded diagnostic capacity did not fail privately with 429: HTTP %d headers=%v",
+			busy.Code, busy.Header())
+	}
+	if len(srv.runs) != before {
+		t.Fatal("busy semantic replay unexpectedly created a run")
+	}
+	// Saturation must NOT reveal the existence of private games to guests;
+	// deliverableGame authorization happens before capacity acquisition.
+	game.Visibility = model.VisibilityPrivate
+	game.OwnerID = "private-creator"
+	srv.store.UpdateGame(game)
+	denied := request("")
+	if denied.Code != http.StatusNotFound {
+		t.Fatalf("private game leaked capacity state to guest: HTTP %d", denied.Code)
+	}
+}
