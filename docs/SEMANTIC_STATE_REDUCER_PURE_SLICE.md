@@ -1,0 +1,21 @@
+# Epic #202 — immutable bounded semantic state reducer, isolated P1 slice #430
+
+Parent: [Hephaestus Epic #202](https://github.com/GavinDu/Hephaestus/issues/202), generator [#384](https://github.com/GavinDu/html5-game-generator/issues/384) full renderer-independent event reducer, [#317](https://github.com/GavinDu/html5-game-generator/issues/317) Pixi modularity.
+
+## Exactly what this change implements
+
+`internal/api/web/runtime-semantic-state-reducer.mjs` is a **preinstalled, same-origin, never Game-IR-supplied** pure candidate module served from `GET /web/runtime-semantic-state-reducer.mjs` with explicit JavaScript MIME and `nosniff`. It is **NOT imported into the shipping Pixi game loop yet**. The current interpreter and all existing Game IR v1.x behaviors remain unchanged.
+
+The immutable value contract is `{schema:'semantic-state-v1', tick, seed, score, health, variables, terminal}`. `createSemanticState`, `reduceSemanticStateTick(previous, tick, orderedCommands)`, and `canonicalSemanticState` provide explicit, bounded, reproducible in-memory semantics. The tick must advance by one, command ordinals must be exactly zero-based contiguous FIFO, <=256 commands per tick, <=108000 ticks, <=128 finite primitive variables, a canonical uint32 seed, bounded integer score/health, bounded variable values and finite integers for numeric actions. Prototype-sensitive or invalid UTF-16 action keys are refused. Supported command subset is add_score, set_variable, add_variable, set_health, change_health and end_game. Terminal transitions stop subsequent effects in that tick, and post-terminal mutation is forbidden. Every state/effect snapshot is frozen, and the canonical sorted-key state serialization is stable regardless of original variable insertion order.
+
+The Node unit tests cover same-tick command order, full effects, preserved old state, reset/replay, deterministic canonical representation, health loss/explicit win terminal, post-terminal immutability, nonfinite/overflow inputs, invalid ordinal/schema, prototype-pollution names, malformed strings, extra properties and resource caps. A Go API test confirms same-origin trusted delivery/nosniff with a data-only module. Both tests belong to the required CI suites.
+
+## Adversarial engine-architect review: explicit nonclaims and migration gate
+
+- This is **not a replacement for current v1.x Pixi/Rapier semantics**. The old runtime mixes score/health/variable mutations with entity mechanics, invulnerability, chaser cooldown, render/HUD, audio, events and session restart. These historical rules must be represented by **versioned declared capabilities** before moving any game to this reducer. Do not silently alter published game fingerprints or remove legacy numeric coercions.
+- Canonical state text is a reproducibility fingerprint input, **not** a signature or independently attested gameplay verdict. No trusted Go semantic engine, publisher-bound persistent v2 trace, authoritative score, or verified ranking comes from it; #381/#382/#360/#402 remain OPEN.
+- No real iPhone/iPad DOM action source, live WebKit callback, native first GPU-present, audio/physics teardown, 50-cycle hardware memory/thermal or App Review evidence is established by this pure module. Native #276/#279 and Epic #202 stay OPEN.
+- The **next** independently testable integration slice should compare all published Game IRs against both existing and new reducer at fixed seed/input over cross-browser Chromium/WebKit, visual quality and pacing. Only after golden event/state parity should production Pixi import and apply typed effects behind a capability-negotiated rollback gate. Unknown actions must continue to fail closed in the v2 capability; v1.x remains compatible.
+- Rollback: revert this module, test, route and docs as a single atomic PR. No changes to existing game outcomes, package compatibility or consumer authentication.
+
+**Close #430 only after all six exact-head required Go validation jobs (test/Go race/static, PostgreSQL, Chromium, WebKit, cross-browser determinism and Playability Kit) pass and the source-level adversarial review is recorded. Do not close parent #384 or Epic #202.** Source challenge is assistant-led, not independent human or physical-device certification.
