@@ -22,10 +22,10 @@ func diagnosticTapIR() *gameir.Document {
 			ID: "creator-authored-ir-game", Title: "Published Tap Diagnostic",
 			EntryScene: "main", Orientation: "any",
 		},
-		Scenes: []gameir.Scene{{ID: "main"}},
+		Scenes:        []gameir.Scene{{ID: "main"}},
 		InputBindings: []gameir.InputBinding{{Action: "tap", Input: "tap"}},
 		Rules: []gameir.Rule{{
-			ID: "score",
+			ID:   "score",
 			When: gameir.Condition{Event: "input", InputAction: "tap"},
 			Actions: []gameir.Action{
 				{Type: "add_score", Value: float64(4)},
@@ -123,10 +123,10 @@ func TestSemanticTapScoreDiagnosticRequiresPublishedRecordAndNeverWritesScore(t 
 	}
 
 	invalid := []struct {
-		name string
-		uri string
-		body []byte
-		mime string
+		name   string
+		uri    string
+		body   []byte
+		mime   string
 		status int
 	}{
 		{"stale-ir", strings.Replace(path, full, strings.Repeat("0", 64), 1), raw, "application/json", http.StatusConflict},
