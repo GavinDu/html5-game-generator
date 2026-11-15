@@ -122,7 +122,9 @@ func TestSemanticTraceV2RejectsIRMutationAndForgedFullDigest(t *testing.T) {
 		t.Fatalf("valid pinned evidence refused: %q %v", original, err)
 	}
 	for _, forged := range []string{strings.Repeat("0", 64), full[:12] + strings.Repeat("a", 52)} {
-		if forged == full { continue }
+		if forged == full {
+			continue
+		}
 		value, err := CanonicalSHA256(ir, recordID, forged, 17, trace)
 		if err == nil || value != "" {
 			t.Fatalf("forged full digest accepted: value=%q err=%v", value, err)
