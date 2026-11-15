@@ -13,10 +13,14 @@ import (
 func TestLocalVerdictJournalPersistsPendingFinalAndExactJobIdempotenceAcrossRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "server-only-verdicts.json")
 	journal, err := OpenLocalVerdictJournal(path)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := policyIdentity()
 	pending, err := journal.CreatePending(id)
-	if err != nil || pending.Status != Pending { t.Fatalf("pending: %+v %v", pending, err) }
+	if err != nil || pending.Status != Pending {
+		t.Fatalf("pending: %+v %v", pending, err)
+	}
 	if existing, err := journal.CreatePending(id); err != nil || existing != pending {
 		t.Fatalf("same server attempt should be idempotent: %+v %v", existing, err)
 	}
@@ -38,12 +42,16 @@ func TestLocalVerdictJournalPersistsPendingFinalAndExactJobIdempotenceAcrossRest
 		t.Fatalf("verdict file must be private 0600: %v %v", info, err)
 	}
 	data, err := os.ReadFile(path)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(data), "ActualScore") || strings.Contains(string(data), "client_verified") {
 		t.Fatal("browser-owned legacy verdicts cannot leak into server-only journal")
 	}
 	reloaded, err := OpenLocalVerdictJournal(path)
-	if err != nil { t.Fatalf("restart load failed: %v", err) }
+	if err != nil {
+		t.Fatalf("restart load failed: %v", err)
+	}
 	if persisted, ok := reloaded.Read(id.RunID); !ok || persisted != final {
 		t.Fatalf("trusted outcome lost across restart: %+v %v", persisted, ok)
 	}
@@ -73,7 +81,9 @@ func TestLocalVerdictJournalPersistsPendingFinalAndExactJobIdempotenceAcrossRest
 
 func TestLocalVerdictJournalRejectsForgedPendingAndRepeatedRejectedDecision(t *testing.T) {
 	journal, err := OpenLocalVerdictJournal(filepath.Join(t.TempDir(), "verdict.json"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := policyIdentity()
 	foreign := id
 	foreign.IRSHA256 = "forged-short-hash"
@@ -81,7 +91,9 @@ func TestLocalVerdictJournalRejectsForgedPendingAndRepeatedRejectedDecision(t *t
 		t.Fatalf("unbound full game digest accepted: %v", err)
 	}
 	pending, err := journal.CreatePending(id)
-	if err != nil || pending.Status != Pending { t.Fatal(err) }
+	if err != nil || pending.Status != Pending {
+		t.Fatal(err)
+	}
 	if _, err := journal.CommitServerDecision("invalid/job", Decision{
 		Identity: id, Status: Verified,
 		StateSHA256: strings.Repeat("a", 64),
@@ -109,15 +121,23 @@ func TestLocalVerdictJournalRejectsCorruptAndWorldReadableSnapshots(t *testing.T
 	dir := t.TempDir()
 	path := filepath.Join(dir, "server-only.json")
 	j, err := OpenLocalVerdictJournal(path)
-	if err != nil { t.Fatal(err) }
-	if _, err := j.CreatePending(policyIdentity()); err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := j.CreatePending(policyIdentity()); err != nil {
+		t.Fatal(err)
+	}
 	data, err := os.ReadFile(path)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Recompute valid outer JSON with an altered snapshot but *unchanged*
 	// digest: it must not load, even if the payload remains parseable.
 	var env localJournalEnvelope
-	if err := json.Unmarshal(data, &env); err != nil { t.Fatal(err) }
+	if err := json.Unmarshal(data, &env); err != nil {
+		t.Fatal(err)
+	}
 	env.Snapshot = append([]byte(nil), env.Snapshot...)
 	for i := range env.Snapshot {
 		if env.Snapshot[i] == 'p' {
@@ -126,22 +146,36 @@ func TestLocalVerdictJournalRejectsCorruptAndWorldReadableSnapshots(t *testing.T
 		}
 	}
 	corrupted, err := json.Marshal(env)
-	if err != nil { t.Fatal(err) }
-	if err := os.WriteFile(path, corrupted, 0600); err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, corrupted, 0600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("tampered snapshot reopened: %v", err)
 	}
-	if err := os.WriteFile(path, data[:len(data)/2], 0600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(path, data[:len(data)/2], 0600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("truncated trusted scores silently reset: %v", err)
 	}
-	if err := os.WriteFile(path, data, 0600); err != nil { t.Fatal(err) }
-	if err := os.Chmod(path, 0644); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("world-readable player identities silently admitted: %v", err)
 	}
-	if err := os.Remove(path); err != nil { t.Fatal(err) }
-	if err := os.Symlink(filepath.Join(dir, "unsafe"), path); err != nil { t.Fatal(err) }
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "unsafe"), path); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := OpenLocalVerdictJournal(path); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("symlink journal accepted: %v", err)
 	}
@@ -154,8 +188,12 @@ func TestLocalVerdictJournalFailedWriteLeavesNoInMemoryVerdict(t *testing.T) {
 	// Open a fresh missing journal before the parent path is poisoned:
 	// the first pending write must fail, not silently update memory.
 	journal, err := OpenLocalVerdictJournal(path)
-	if err != nil { t.Fatal(err) }
-	if err := os.WriteFile(blocking, []byte("blocking"), 0600); err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blocking, []byte("blocking"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := journal.CreatePending(policyIdentity()); !errors.Is(err, ErrJournalUnavailable) {
 		t.Fatalf("write to unavailable parent claimed success: %v", err)
 	}
@@ -172,7 +210,9 @@ func TestLocalVerdictJournalFailedWriteLeavesNoInMemoryVerdict(t *testing.T) {
 func TestLocalVerdictJournalIsSerializedAcross100ConcurrentRetries(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "verdicts.json")
 	journal, err := OpenLocalVerdictJournal(path)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := policyIdentity()
 	const workers = 100
 	var wg sync.WaitGroup
@@ -181,12 +221,16 @@ func TestLocalVerdictJournalIsSerializedAcross100ConcurrentRetries(t *testing.T)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := journal.CreatePending(id); err != nil { errs <- err }
+			if _, err := journal.CreatePending(id); err != nil {
+				errs <- err
+			}
 		}()
 	}
 	wg.Wait()
 	close(errs)
-	for err := range errs { t.Fatalf("concurrent pending conflict: %v", err) }
+	for err := range errs {
+		t.Fatalf("concurrent pending conflict: %v", err)
+	}
 	decision := Decision{
 		Identity: id, Status: Verified, Score: 7,
 		StateSHA256: strings.Repeat("e", 64),
@@ -196,14 +240,20 @@ func TestLocalVerdictJournalIsSerializedAcross100ConcurrentRetries(t *testing.T)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := journal.CommitServerDecision("single-authorized-worker", decision); err != nil { errs <- err }
+			if _, err := journal.CommitServerDecision("single-authorized-worker", decision); err != nil {
+				errs <- err
+			}
 		}()
 	}
 	wg.Wait()
 	close(errs)
-	for err := range errs { t.Fatalf("concurrent final retry conflict: %v", err) }
+	for err := range errs {
+		t.Fatalf("concurrent final retry conflict: %v", err)
+	}
 	reloaded, err := OpenLocalVerdictJournal(path)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got, ok := reloaded.Read(id.RunID); !ok || got.Score != 7 || got.Status != Verified {
 		t.Fatalf("racing worker retries changed durable result: %+v %v", got, ok)
 	}
