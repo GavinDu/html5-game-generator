@@ -1,0 +1,140 @@
+{
+  "schema": "runtime-tap-score-golden-v1",
+  "cases": [
+    {
+      "name": "no-input",
+      "seed": 7,
+      "durationTicks": 8,
+      "scoreDelta": 2,
+      "endGame": null,
+      "tapTicks": [],
+      "expected": {
+        "score": 0,
+        "terminal": "running",
+        "downEvents": 0,
+        "actionsApplied": 0
+      }
+    },
+    {
+      "name": "single-positive",
+      "seed": 7,
+      "durationTicks": 8,
+      "scoreDelta": 2,
+      "endGame": null,
+      "tapTicks": [
+        2
+      ],
+      "expected": {
+        "score": 2,
+        "terminal": "running",
+        "downEvents": 1,
+        "actionsApplied": 1
+      }
+    },
+    {
+      "name": "same-tick-two-taps",
+      "seed": 7,
+      "durationTicks": 8,
+      "scoreDelta": 2,
+      "endGame": null,
+      "tapTicks": [
+        2,
+        2
+      ],
+      "expected": {
+        "score": 4,
+        "terminal": "running",
+        "downEvents": 2,
+        "actionsApplied": 2
+      }
+    },
+    {
+      "name": "negative-three-ticks",
+      "seed": 23,
+      "durationTicks": 10,
+      "scoreDelta": -3,
+      "endGame": null,
+      "tapTicks": [
+        1,
+        4,
+        8
+      ],
+      "expected": {
+        "score": -9,
+        "terminal": "running",
+        "downEvents": 3,
+        "actionsApplied": 3
+      }
+    },
+    {
+      "name": "same-command-different-seed",
+      "seed": 108,
+      "durationTicks": 8,
+      "scoreDelta": 2,
+      "endGame": null,
+      "tapTicks": [
+        2,
+        2
+      ],
+      "expected": {
+        "score": 4,
+        "terminal": "running",
+        "downEvents": 2,
+        "actionsApplied": 2
+      }
+    },
+    {
+      "name": "terminal-win-blocks-further-taps",
+      "seed": 5,
+      "durationTicks": 8,
+      "scoreDelta": 2,
+      "endGame": true,
+      "tapTicks": [
+        1,
+        1,
+        4
+      ],
+      "expected": {
+        "score": 2,
+        "terminal": "win",
+        "downEvents": 1,
+        "actionsApplied": 2
+      }
+    },
+    {
+      "name": "terminal-lose-blocks-score",
+      "seed": 9,
+      "durationTicks": 8,
+      "scoreDelta": -5,
+      "endGame": false,
+      "tapTicks": [
+        3,
+        6
+      ],
+      "expected": {
+        "score": -5,
+        "terminal": "lose",
+        "downEvents": 1,
+        "actionsApplied": 2
+      }
+    },
+    {
+      "name": "zero-score-tap",
+      "seed": 0,
+      "durationTicks": 8,
+      "scoreDelta": 0,
+      "endGame": null,
+      "tapTicks": [
+        5,
+        5,
+        5
+      ],
+      "expected": {
+        "score": 0,
+        "terminal": "running",
+        "downEvents": 3,
+        "actionsApplied": 3
+      }
+    }
+  ]
+}
