@@ -11,22 +11,22 @@ import (
 )
 
 const (
-	ProofVersion = "server-replay-verdict-v1"
-	maxIdentifierBytes = 128
-	maxAbsScore int64 = 1000000000
+	ProofVersion             = "server-replay-verdict-v1"
+	maxIdentifierBytes       = 128
+	maxAbsScore        int64 = 1000000000
 )
 
 type Status string
 
 const (
-	Pending Status = "pending"
+	Pending  Status = "pending"
 	Verified Status = "verified"
 	Rejected Status = "rejected"
 )
 
 var (
-	ErrInvalidIdentity = errors.New("invalid server-owned replay identity")
-	ErrInvalidDecision = errors.New("invalid independent replay decision")
+	ErrInvalidIdentity    = errors.New("invalid server-owned replay identity")
+	ErrInvalidDecision    = errors.New("invalid independent replay decision")
 	ErrConflictingVerdict = errors.New("conflicting final replay verdict")
 )
 
@@ -34,33 +34,33 @@ var (
 // published immutable package. Browser inputs may contain similar fields,
 // but they are never suitable for this trust boundary.
 type Identity struct {
-	RunID string
-	GameID string
-	PlayerID string
-	IRSHA256 string
-	TraceSHA256 string
+	RunID            string
+	GameID           string
+	PlayerID         string
+	IRSHA256         string
+	TraceSHA256      string
 	CapabilitySHA256 string
-	Seed uint32
-	ProofVersion string
+	Seed             uint32
+	ProofVersion     string
 }
 
 type Verdict struct {
-	Identity Identity
-	Status Status
-	Score int64
-	Won bool
-	StateSHA256 string
+	Identity        Identity
+	Status          Status
+	Score           int64
+	Won             bool
+	StateSHA256     string
 	RejectionReason string
 }
 
 // Decision is acceptable only from the *future* server-side replay worker.
 // This type alone does not authenticate a caller, verify a trace or sign data.
 type Decision struct {
-	Identity Identity
-	Status Status
-	Score int64
-	Won bool
-	StateSHA256 string
+	Identity        Identity
+	Status          Status
+	Score           int64
+	Won             bool
+	StateSHA256     string
 	RejectionReason string
 }
 
