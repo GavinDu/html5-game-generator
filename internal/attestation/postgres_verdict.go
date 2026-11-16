@@ -13,8 +13,6 @@ import (
 	"github.com/lib/pq"
 )
 
-const postgresVerdictTable = "runtime_attestation_verdict_v1"
-
 // ServerIssuedAttempt binds the canonical replay identity to server-issued
 // authorization scope and issuance time. Both are immutable across every CAS.
 type ServerIssuedAttempt struct {
@@ -29,9 +27,9 @@ func validServerIssuedAttempt(a ServerIssuedAttempt) bool {
 	}
 	// A PostgreSQL timestamp retains microseconds, not nanoseconds. Require
 	// canonical precision so a round-trip cannot silently alter identity.
+	_, offset := a.IssuedAt.Zone()
 	return validSHA256(a.AuthScopeSHA256) &&
-		!a.IssuedAt.IsZero() &&
-		a.IssuedAt.Location() == time.UTC &&
+		!a.IssuedAt.IsZero() && offset == 0 &&
 		a.IssuedAt.Equal(a.IssuedAt.Truncate(time.Microsecond))
 }
 
