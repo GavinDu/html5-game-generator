@@ -203,7 +203,7 @@ func TestPostgresVerdictGlobalJobUniquenessAndIdentityFencing(t *testing.T) {
 	}
 	secondDecision := Decision{Identity: second.Identity, Status: Rejected,
 		RejectionReason: "unsupported_ir"}
-	if _, err := b.CommitServerDecision(ctx, second, jobID, secondDecision ); !errors.Is(err, ErrJournalConflict) {
+	if _, err := b.CommitServerDecision(ctx, second, jobID, secondDecision); !errors.Is(err, ErrJournalConflict) {
 		t.Fatalf("globally reused replay job must reject: %v", err)
 	}
 	if v, err := b.CreatePending(ctx, second); err != nil || v.Status != Pending {
@@ -214,7 +214,7 @@ func TestPostgresVerdictGlobalJobUniquenessAndIdentityFencing(t *testing.T) {
 	if _, err := b.CreatePending(ctx, mutated); !errors.Is(err, ErrJournalConflict) {
 		t.Fatalf("auth scope may not alias an existing run: %v", err)
 	}
-	if _, err := b.CommitServerDecision(ctx, mutated, "new-worker", secondDecision ); !errors.Is(err, ErrJournalConflict) {
+	if _, err := b.CommitServerDecision(ctx, mutated, "new-worker", secondDecision); !errors.Is(err, ErrJournalConflict) {
 		t.Fatalf("different authorization scope finalized another attempt: %v", err)
 	}
 	mutated = second
@@ -224,13 +224,13 @@ func TestPostgresVerdictGlobalJobUniquenessAndIdentityFencing(t *testing.T) {
 	}
 	mutated = second
 	mutated.Identity.Seed++
-	if _, err := b.CommitServerDecision(ctx, mutated, "new-worker", secondDecision ); !errors.Is(err, ErrInvalidIdentity) {
+	if _, err := b.CommitServerDecision(ctx, mutated, "new-worker", secondDecision); !errors.Is(err, ErrInvalidIdentity) {
 		t.Fatalf("decision identity must match full immutable seed: %v", err)
 	}
 	if _, err := b.CommitServerDecision(ctx, second, "new-worker", secondDecision); err != nil {
 		t.Fatalf("distinct replay job must finalize untouched pending run: %v", err)
 	}
-	if _, err := b.CommitServerDecision(ctx, second, "different-worker", secondDecision ); !errors.Is(err, ErrJournalConflict) {
+	if _, err := b.CommitServerDecision(ctx, second, "different-worker", secondDecision); !errors.Is(err, ErrJournalConflict) {
 		t.Fatalf("same verdict under different replay job is not idempotent: %v", err)
 	}
 }
