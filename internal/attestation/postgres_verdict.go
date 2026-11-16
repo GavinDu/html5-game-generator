@@ -174,7 +174,7 @@ func loadPostgresVerdict(ctx context.Context, tx *sql.Tx, runID string, forUpdat
 		final, applyErr := ApplyServerDecision(pending, Decision{
 			Identity: entry.verdict.Identity, Status: entry.verdict.Status,
 			Score: entry.verdict.Score, Won: entry.verdict.Won,
-			StateSHA256: entry.verdict.StateSHA256,
+			StateSHA256:     entry.verdict.StateSHA256,
 			RejectionReason: entry.verdict.RejectionReason,
 		})
 		if applyErr != nil || final != entry.verdict {
