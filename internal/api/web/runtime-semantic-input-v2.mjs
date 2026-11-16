@@ -60,9 +60,11 @@ export function createSemanticInputV2Recorder(inputBindings, maxEvents = MAX_SEM
     }
     const device = binding.input === 'keyboard' ? 'keyboard' : 'pointer';
     const key = bindingKey(device, binding.action);
-    const previous = kinds.get(key);
-    if (previous && previous !== binding.input) {
-      throw new TypeError('ambiguous semantic input action binding');
+    // The canonical Go Game IR validator rejects duplicate (action,input)
+    // pairs, even when both entries have the same kind. Never collapse an
+    // ambiguous published binding list into a diagnostic trace identity.
+    if (kinds.has(key)) {
+      throw new TypeError('duplicate semantic input action binding');
     }
     kinds.set(key, binding.input);
   }
