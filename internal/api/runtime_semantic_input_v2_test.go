@@ -23,6 +23,8 @@ func TestTrustedSemanticInputV2RecorderModuleIsSameOriginAndDataOnly(t *testing.
 		"SEMANTIC_INPUT_V2_SCHEMA = 'semantic-input-trace-v2'",
 		"MAX_SEMANTIC_INPUT_V2_EVENTS = 2000",
 		"MAX_SEMANTIC_INPUT_V2_TICKS = 108000",
+		"MAX_BINDINGS = 32",
+		"GAME_IR_ACTION_ID = /^[A-Za-z0-9_-]{1,128}$/",
 		"export function createSemanticInputV2Recorder(",
 		"record(edge)",
 		"finish(durationTicks)",
