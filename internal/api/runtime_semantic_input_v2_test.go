@@ -27,6 +27,8 @@ func TestTrustedSemanticInputV2RecorderModuleIsSameOriginAndDataOnly(t *testing.
 		"record(edge)",
 		"finish(durationTicks)",
 		"failureReason",
+		"if (kinds.has(key))", // preserve Go validator's duplicate (action,input) rejection
+		"duplicate semantic input action binding",
 	} {
 		if !strings.Contains(module, expected) {
 			t.Errorf("preinstalled v2 producer module missing %q", expected)
