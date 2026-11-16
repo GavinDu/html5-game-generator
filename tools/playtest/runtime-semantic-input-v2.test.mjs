@@ -142,3 +142,36 @@ test('v2 constructor rejects ambiguous bindings, invalid action/byte length and 
   assert.throws(() => createSemanticInputV2Recorder([{ action: 'jump', input: 'tap' },
     ...Array.from({ length: 256 }, (_, i) => ({ action: String(i), input: 'keyboard' }))]), RangeError);
 });
+
+
+test('v2 rejects Go-invalid duplicate action/input identities before any events', () => {
+  const duplicateBindings = [
+    [{ action: 'jump', input: 'tap' }, { action: 'jump', input: 'tap' }],
+    [{ action: 'move-left', input: 'keyboard', key: 'ArrowLeft' },
+      { action: 'move-left', input: 'keyboard', key: 'a' }],
+    [{ action: 'aim', input: 'drag' }, { action: 'aim', input: 'drag' }],
+    [{ action: 'aim', input: 'tap' }, { action: 'aim', input: 'drag' }],
+  ];
+  for (const invalid of duplicateBindings) {
+    assert.throws(() => createSemanticInputV2Recorder(invalid),
+      /duplicate semantic input action binding/, JSON.stringify(invalid));
+  }
+
+  // Go permits the same action across *different* input kinds. They must
+  // remain distinct device identities, not collapse into a forged edge.
+  const writer = createSemanticInputV2Recorder([
+    { action: 'activate', input: 'keyboard', key: 'Enter' },
+    { action: 'activate', input: 'tap' },
+  ]);
+  assert.equal(writer.record({ tick: 4, action: 'activate', device: 'keyboard', phase: 'down' }), true);
+  assert.equal(writer.record({ tick: 4, action: 'activate', device: 'pointer', phase: 'down', position: fixed(0, 0) }), true);
+  assert.equal(writer.record({ tick: 4, action: 'activate', device: 'keyboard', phase: 'up' }), true);
+  assert.equal(writer.record({ tick: 4, action: 'activate', device: 'pointer', phase: 'up' }), true);
+  const trace = writer.finish(5);
+  assert.deepEqual(trace.events.map(({ device, phase, ordinal }) => ({ device, phase, ordinal })), [
+    { device: 'keyboard', phase: 'down', ordinal: 0 },
+    { device: 'pointer', phase: 'down', ordinal: 1 },
+    { device: 'keyboard', phase: 'up', ordinal: 2 },
+    { device: 'pointer', phase: 'up', ordinal: 3 },
+  ]);
+});
