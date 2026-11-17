@@ -82,21 +82,40 @@ try {
       let intercepts = 0;
       page.on('pageerror', error => errors.push(String(error)));
       try {
+        // Fetch/validate the REAL backend package outside the Playwright
+        // route handler. Rapid reload/probe/nonprobe navigation can cancel
+        // an in-flight route.fetch() response before upstream.json() reads
+        // it ("Response has been disposed"), falsely failing the browser
+        // conformance gate. This source copy is still from the local Go
+        // service and is checked before a single browser game starts.
+        const upstream = await fetch(base + '/v1/games/' +
+          encodeURIComponent(gameId) + '/package', {
+          signal: AbortSignal.timeout(10000),
+          redirect: 'error',
+        });
+        assert.equal(upstream.status, 200);
+        const realPackage = await upstream.json();
+        assert.equal(realPackage.gameId, gameId);
         await page.route('**/v1/games/*/package', async route => {
-          const upstream = await route.fetch();
-          assert.equal(upstream.status(), 200);
-          const pkg = await upstream.json();
-          assert.equal(pkg.gameId, gameId);
+          const requestURL = new URL(route.request().url());
+          assert.equal(requestURL.pathname,
+            '/v1/games/' + encodeURIComponent(gameId) + '/package');
+          // The response is an immutable, independently fetched same-source
+          // backend envelope, with only the declared test fixture substituted.
+          const pkg = structuredClone(realPackage);
           pkg.ir = structuredClone(ir);
           pkg.irVersion = ir.irVersion;
           pkg.orientation = ir.game.orientation;
           pkg.assets = ir.assets;
-          // This Playwright-only synthetic declarative IR is not the
+          // This Playwright-only synthetic declarative IR is NOT the
           // immutable published package served by the upstream API.
           pkg.irHash = '';
           pkg.irSha256 = '';
           intercepts++;
-          await route.fulfill({ response: upstream, json: pkg });
+          await route.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify(pkg),
+          });
         });
         const target = base + '/player?game=' + encodeURIComponent(gameId) +
           '&presentation=play&quality=' + quality +
