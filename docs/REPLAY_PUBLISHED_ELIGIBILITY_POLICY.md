@@ -4,7 +4,7 @@ Parent [#460](https://github.com/GavinDu/html5-game-generator/issues/460) / issu
 
 ## Scope
 
-The unexported deterministic \`evaluatePublishedAttemptEligibility\` in \`internal/attestation\` only evaluates already-server-resolved facts. It does **not** authenticate a caller, read the published catalog, authorize HTTP, issue an attempt, mint random seeds, modify a score or grant the \`Verified\` status. These structs can be fabricated by a Go caller; **they are not authentication credentials or attestation evidence**. The package remains unwired to public endpoints.
+The unexported deterministic `evaluatePublishedAttemptEligibility` in `internal/attestation` only evaluates already-server-resolved facts. It does **not** authenticate a caller, read the published catalog, authorize HTTP, issue an attempt, mint random seeds, modify a score or grant the `Verified` status. These structs can be fabricated by a Go caller; **they are not authentication credentials or attestation evidence**. The package remains unwired to public endpoints.
 
 When the server supplies a current authenticated subject and authoritative immutable published package, the policy requires complete 64-lowercase-hex IR and capability digests, exact immutable revision and Game IR selector, approved moderation and capabilities, active/not-removed publication, matching auth-epoch digest, and explicit public or exact-owner-private scope. Unknown group/friend/collaborator visibility and anonymous trusted issuance fail closed. Every denial uses a bounded private reason code, not a user-facing resource-enumeration response.
 
@@ -15,7 +15,7 @@ Pure Go tests cover public/owner-private positives, denied guest/foreign owner/u
 Important remaining security work:
 
 1. Parent #460: genuine middleware-derived server subject and authoritative persisted package lookup, publication/moderation and per-game entitlement; real authenticated HTTP negatives and no browser-supplied context.
-2. Child #461: durable server CSPRNG seed/run/nonce, microsecond issue/expiry and auth-epoch grant with DB uniqueness; no reuse of legacy \`RunRecord.Verified\`.
+2. Child #461: durable server CSPRNG seed/run/nonce, microsecond issue/expiry and auth-epoch grant with DB uniqueness; no reuse of legacy `RunRecord.Verified`.
 3. Child #462: transactional replay worker lock, credential rotation, moderation revocation and expiry CAS; do not make this snapshot-only policy a time-of-check/time-of-use authority.
 4. Full game replay #382 and authoritative verified rank #402 are separate. A status string or client result is never a verified score.
 
