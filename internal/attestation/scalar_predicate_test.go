@@ -11,9 +11,9 @@ func TestReplayScalarV1NumericComparatorMatchesPreinstalledJSSubset(t *testing.T
 	// tools/playtest/runtime-rule-predicates.test.mjs v1 predicate matrix.
 	tests := []struct {
 		name string
-		lhs any
-		op string
-		rhs any
+		lhs  any
+		op   string
+		rhs  any
 		want bool
 	}{
 		{"score_eq", float64(5), "eq", float64(5), true},
@@ -64,7 +64,7 @@ func TestReplayScalarV1UnsupportedSemanticsNeverBecomeFalseOrVerified(t *testing
 	tests := []struct {
 		name string
 		lhs any
-		op string
+		op  string
 		rhs any
 	}{
 		{"numeric_string_lhs", "5", "eq", 5},
