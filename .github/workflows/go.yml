@@ -155,6 +155,15 @@ jobs:
           path: /tmp/escape-quality-${{ matrix.browser }}/
       - name: Verify genuine Pixi boots minimal start-score Game IR on phone/tablet browsers
         run: node tools/playtest/runtime-minimal-start-score-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/minimal-start-score-${{ matrix.browser }}
+      - name: Compare real Pixi synthetic startup score with preinstalled pure semantic reducer
+        run: node tools/playtest/runtime-semantic-shadow-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/semantic-shadow-${{ matrix.browser }}
+      - name: Upload Pixi versus pure semantic shadow screenshots and diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-shadow-${{ matrix.browser }}
+          path: /tmp/semantic-shadow-${{ matrix.browser }}/
+          if-no-files-found: ignore
       - name: Prove real Pixi native bridge first v2 scene packet and malformed bridge fail closed
         run: node tools/playtest/runtime-native-bridge-first-packet-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/native-bridge-first-packet-${{ matrix.browser }}
       - name: Upload native bridge producer diagnostic screenshots and packet summaries

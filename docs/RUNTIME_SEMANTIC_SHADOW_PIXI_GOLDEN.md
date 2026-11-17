@@ -1,0 +1,17 @@
+# Diagnostic Pixi vs pure semantic state reducer shadow — Epic #202 / #486
+
+The server already serves the **preinstalled, pure, immutable** `/web/runtime-semantic-state-reducer.mjs` module. It is **not** currently called by live `pixi-runtime.js`, whose event/rule executor still mutates score/health/variables with legacy coercions, reentrant rule events and special-purpose cooldown behavior. This PR adds only a **separate read-only diagnostic test**, not production integration.
+
+In the existing loopback Playwright browser harness, Chromium and WebKit load the unmodified shipped Pixi engine using the one shared checked-in JSON synthetic minimal Game IR (also used by the Go strict reducer tests): entityless scene, zero user input, ordered `game_start` score +3 then -2. As with prior golden #482, Playwright intercepts only the declarative package IR, clearing upstream `irHash`/`irSha256` because intercepted bytes are not the published immutable original. The package is **not authenticated creator content**.
+
+After actual Pixi renders a canvas and advances fixed simulation ticks, a separate `page.evaluate` imports the installed pure reducer without modifying the Pixi runtime or probe. It calculates typed sequential `add_score` effects at virtual tick 1 (state 0→3→1), compares final score 1 to the real observed Pixi score, pins a repeatable canonical typed snapshot at seed 17, checks reversed authored action ordering has first intermediate -2 despite equal total 1, and rejects fractional/string score action syntax. iPhone 390×844 and iPad 820×1180 **browser viewports** each run quality low/high, with new-document reload once for the low-quality cohort (six cases/browser). Each case captures authentic browser screenshot and frame/tick counts and reports the checked-in fixture JSON SHA-256. No fake Pixi score, monkey-patched rule executor, non-native module or UI stub.
+
+## Skeptical senior game-engine architect acceptance boundary
+
+The observed Pixi output exposes final score and progress—not every internal action intermediate state. The pure reducer effects 3→1 are a separate calculation based on the declarative authored rules; **this is NOT proof that Pixi's internal event queue was captured** or that the reducer is ready to replace it. The very limited profile cannot validate arbitrary v1 `Math.trunc` coercion, `chaser_gap` and invulnerability cooldowns, scene/entity/physics/collision, input v2, win/rank, fixed-tick/state-machine outcomes, random seed identity, or full-published package authenticity.
+
+Further work under #384 must build a capability-gated ordered command adapter that receives real Pixi rule scheduling, run *per-event/per-tick* differential shadow traces across shipped inventory in both browser engines, then guard the production renderer-independent reducer switch with measured parity and rollback. The server-authoritative Go replay #428/#382/#402, real published conformance #469 and physical iOS compositor/thermal #276/#279 are independent. This test **never** sets `Verified`, writes authoritative score or enables ranked rewards.
+
+## CI / rollback
+
+The test is a required step in both Chromium and WebKit playtest jobs; all six current exact-head Go/race/Postgres/Chromium/WebKit/Playability Kit/cross-browser-determinism jobs must pass before merging/closing #486. A browser result is **not** physical iPhone/iPad testing. No paid Replit workflow. Rollback removes only the new Playwright script, workflow step/artifacts and this doc.
