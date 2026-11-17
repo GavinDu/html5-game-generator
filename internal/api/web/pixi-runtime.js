@@ -2010,7 +2010,8 @@ async function run(id) {
     if (event === 'collected') { recordEvent('collect', target?.defId || ''); noteActivity(); }
     state.depth++;
     try {
-      for (const [ruleIndex, rule] of ir.rules.entries()) {
+      for (let ruleIndex = 0; ruleIndex < ir.rules.length; ruleIndex++) {
+        const rule = ir.rules[ruleIndex];
         workBudget.consumeCheck();
         if (!ruleMatches(rule, event, source, target, value, inputAction)) continue;
         if (!conditionsMet(rule, state)) continue;
@@ -2157,7 +2158,8 @@ async function run(id) {
 
   function execute(actions, sourceEnt, targetEnt, startupRule) {
     if (state.ended || state.failed) return;
-    for (const [actionIndex, action] of actions.entries()) {
+    for (let actionIndex = 0; actionIndex < actions.length; actionIndex++) {
+      const action = actions[actionIndex];
       workBudget.consumeAction();
       const ent = findEnt(action.target);
       switch (action.type) {
