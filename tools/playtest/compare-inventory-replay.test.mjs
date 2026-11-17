@@ -5,7 +5,7 @@ import { compareInventorySemanticReplay as compare } from './compare-inventory-r
 const games = ['escape-from-injection', 'penguin-heartlight-rescue',
   'sample-rainbow-bear', 'sample-ribbon-sky'];
 const fixtures = browser => ({
-  browser, passed: true, seed: 271828, simStep: 240, gameIDs: games,
+  browser, passed: true, seed: 271828, simStep: 240, gameIDs: [...games],
   results: games.flatMap(game =>
     ['iphone-portrait', 'ipad-portrait'].map(viewport => ({
       game, viewport, passed: true, seed: 271828, simStep: 240,
