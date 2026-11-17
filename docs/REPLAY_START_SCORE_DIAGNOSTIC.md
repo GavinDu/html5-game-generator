@@ -9,3 +9,9 @@ The common fixture `internal/attestation/testdata/start_score_ir_v1.json` is rea
 There are **no new public endpoints, browser-asserted success flags, Score/Verified writes, native iPhone/iPad rendering changes or trusted verdict claims**. A caller can fabricate a valid Go `Document`, so upstream code must only use authenticated, immutable published package snapshots. Treat this output as diagnostic test evidence, never authorization.
 
 Senior adversarial game-engine-architect source review plus all six exact-head GitHub Actions checks are required for this child. No required check may be bypassed. The iPhone/iPad smoke and physical GPU/thermal gates of the parent Epic #202 remain OPEN.
+
+## Typed diagnostic intermediate-step extension — #471
+
+The follow-on private reducer returns at most 64 authored-order `startScoreStep` records (ordinal, rule index and ID, action index, exact bounded delta, resulting score) alongside the unchanged versioned per-action trace SHA-256. It allocates only the previously admitted `MaxActions` budget and rejects score/work-budget drift with an all-zero result and no partial ledger. The tests compare +3 -> 3, -2 -> 1, reversed authored order, exact 8-rule limit and a ninth-rule fail-closed case. This is not a second reducer; the earlier duplicate PR #473 was closed unmerged.
+
+The new typed entries are **not** serialized to clients, persisted as an attestation or replayed against genuine signed packages. Physical iPhone/iPad and immutable Pixi/Go conformance #469 are still release gates. The #471 slice may close only after this stacked PR is integrated on the merged #475 base, the full six-job exact-head matrix passes, and the skeptical review accepts the source.
