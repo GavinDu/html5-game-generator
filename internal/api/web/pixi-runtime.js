@@ -1976,6 +1976,14 @@ async function run(id) {
     firedThresholds: new Set(), timers: new Map(), shake: 0, follow: null,
   };
 
+  // Opt-in, bounded, read-only diagnostics from the REAL Pixi action loop.
+  // Never contributes to gameplay, run verdicts, native bridge or ranking.
+  // Stored in this run's closure; restart/abort disposes it with the session.
+  const traceStartupRules = probeMode && params.get('probeStartupRules') === '1';
+  const startupScoreTrace = [];
+  let startupScoreTraceComplete = true;
+  const maxStartupScoreTrace = 16;
+
   // UI gesture callbacks only enqueue intent. Semantic rule execution occurs
   // on a single deterministic fixed tick, under its shared work budget.
   function queueGameInput(source, target, action) {
@@ -2002,13 +2010,15 @@ async function run(id) {
     if (event === 'collected') { recordEvent('collect', target?.defId || ''); noteActivity(); }
     state.depth++;
     try {
-      for (const rule of ir.rules) {
+      for (const [ruleIndex, rule] of ir.rules.entries()) {
         workBudget.consumeCheck();
         if (!ruleMatches(rule, event, source, target, value, inputAction)) continue;
         if (!conditionsMet(rule, state)) continue;
         log('RULE', `rule '${rule.id}' fired by ${event}`);
         noteActivity();
-        execute(rule.actions || [], source, target);
+        execute(rule.actions || [], source, target,
+          traceStartupRules && event === 'game_start'
+            ? { ruleIndex, ruleId: rule.id } : undefined);
         if (state.ended) break;
       }
     } finally {
@@ -2145,14 +2155,34 @@ async function run(id) {
     emit('entity_destroyed', ent, ent);
   }
 
-  function execute(actions, sourceEnt, targetEnt) {
+  function execute(actions, sourceEnt, targetEnt, startupRule) {
     if (state.ended || state.failed) return;
-    for (const action of actions) {
+    for (const [actionIndex, action] of actions.entries()) {
       workBudget.consumeAction();
       const ent = findEnt(action.target);
       switch (action.type) {
         case 'add_score': {
           state.score += Math.trunc(action.value ?? 1);
+          // Read the actual intermediate state BEFORE score thresholds or
+          // recursive events fire. Never alter gameplay for a diagnostic.
+          if (startupRule && startupScoreTraceComplete) {
+            const delta = action.value;
+            if (startupScoreTrace.length >= maxStartupScoreTrace ||
+                !Number.isSafeInteger(delta) ||
+                !Number.isSafeInteger(state.score) ||
+                !Number.isSafeInteger(startupRule.ruleIndex) ||
+                typeof startupRule.ruleId !== 'string' ||
+                startupRule.ruleId.length > 128) {
+              startupScoreTraceComplete = false;
+            } else {
+              startupScoreTrace.push({
+                ordinal: startupScoreTrace.length,
+                ruleIndex: startupRule.ruleIndex,
+                ruleId: startupRule.ruleId,
+                actionIndex, delta, score: state.score,
+              });
+            }
+          }
           play.score = state.score; // mirrored for the probe verdict (Phase C)
           recordEvent('score_change', 'score ' + state.score);
           noteActivity();
@@ -3341,6 +3371,12 @@ async function run(id) {
         objectiveProgress: objectiveProgress(), variables: { ...state.variables },
         ended: state.ended, won: state.won, failed: state.failed, frames: totalFrames,
         simStep: play.simStep, capturePaused,
+        // Only an explicitly opted-in read-only probe gets actual Pixi
+        // action-order evidence; all values are copies, never live state.
+        ...(traceStartupRules ? {
+          startupScoreTrace: startupScoreTrace.map(step => ({ ...step })),
+          startupScoreTraceComplete,
+        } : {}),
         // Probe-only diagnostic: semantic state excludes Pixi view/canvas,
         // animation frames, FPS and GPU resources. It does NOT authorize
         // an untrusted browser score or a native verified result.
