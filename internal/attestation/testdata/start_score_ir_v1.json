@@ -1,7 +1,8 @@
 {
   "irVersion": "1.0",
+  "capabilities": [],
   "game": {
-    "id": "start_score_fixture",
+    "id": "escape-from-injection",
     "title": "Minimal Start Score Diagnostic",
     "entryScene": "scene",
     "orientation": "any"
