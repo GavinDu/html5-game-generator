@@ -3,6 +3,7 @@ package attestation
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"doodlequest/internal/gameir"
@@ -40,7 +41,7 @@ func TestStartScoreDiagnosticOrderedPreTickReduction(t *testing.T) {
 		t.Fatalf("diagnostic reducer mutated published Game IR")
 	}
 	restarted, err := reduceStartScoreDiagnostic(doc)
-	if err != nil || restarted != got {
+	if err != nil || !reflect.DeepEqual(restarted, got) {
 		t.Fatalf("fresh independent run should replay identically: %+v %v", restarted, err)
 	}
 }
@@ -102,13 +103,68 @@ func TestStartScoreDiagnosticRejectsUnsupportedAndInvalidIRWithoutPartialResult(
 			if err == nil {
 				t.Fatalf("unsupported/invalid Game IR admitted: %+v", result)
 			}
-			if result != (startScoreDiagnostic{}) {
+			if !reflect.DeepEqual(result, startScoreDiagnostic{}) {
 				t.Fatalf("denied IR leaked a partial diagnostic result: %+v", result)
 			}
 		})
 	}
 	result, err := reduceStartScoreDiagnostic(nil)
-	if err == nil || result != (startScoreDiagnostic{}) {
+	if err == nil || !reflect.DeepEqual(result, startScoreDiagnostic{}) {
 		t.Fatalf("nil Game IR must fail without score: %+v %v", result, err)
+	}
+}
+
+func TestStartScoreDiagnosticTypedLedgerPreservesExactIntermediateOrder(t *testing.T) {
+	doc := loadStartScoreFixture(t)
+	got, err := reduceStartScoreDiagnostic(doc)
+	if err != nil {
+		t.Fatalf("diagnostic ledger: %v", err)
+	}
+	want := []startScoreStep{
+		{Ordinal: 0, RuleIndex: 0, RuleID: "start_plus", ActionIndex: 0, Delta: 3, Score: 3},
+		{Ordinal: 1, RuleIndex: 1, RuleID: "start_minus", ActionIndex: 0, Delta: -2, Score: 1},
+	}
+	if !reflect.DeepEqual(got.Steps, want) {
+		t.Fatalf("unexpected authored-step ledger: got %+v, want %+v", got.Steps, want)
+	}
+	if got.AppliedActions != len(want) || got.Score != got.Steps[len(got.Steps)-1].Score {
+		t.Fatalf("steps and final diagnostic score must agree: %+v", got)
+	}
+
+	doc.Rules[0], doc.Rules[1] = doc.Rules[1], doc.Rules[0]
+	reordered, err := reduceStartScoreDiagnostic(doc)
+	if err != nil {
+		t.Fatalf("diagnostic reordered ledger: %v", err)
+	}
+	if reordered.Score != got.Score ||
+		reflect.DeepEqual(reordered.Steps, want) ||
+		reordered.Steps[0].Score != -2 ||
+		reordered.Steps[1].Score != 1 ||
+		reordered.TraceSHA256 == got.TraceSHA256 {
+		t.Fatalf("authored order must affect intermediate states and hash: %+v", reordered)
+	}
+}
+
+func TestStartScoreDiagnosticLedgerIsBoundedAndFailClosed(t *testing.T) {
+	doc := loadStartScoreFixture(t)
+	for len(doc.Rules) < 8 {
+		doc.Rules = append(doc.Rules, gameir.Rule{
+			ID:      "extra_" + string(rune('a'+len(doc.Rules))),
+			When:    gameir.Condition{Event: "game_start"},
+			Actions: []gameir.Action{{Type: "add_score", Value: float64(1_000_000)}},
+		})
+	}
+	got, err := reduceStartScoreDiagnostic(doc)
+	if err != nil || got.AppliedActions != 8 || len(got.Steps) != 8 {
+		t.Fatalf("8 authored start-score actions must remain bounded: %+v %v", got, err)
+	}
+	// The ninth rule is unsupported even though its action is otherwise benign.
+	doc.Rules = append(doc.Rules, gameir.Rule{
+		ID: "ninth", When: gameir.Condition{Event: "game_start"},
+		Actions: []gameir.Action{{Type: "add_score", Value: float64(1)}},
+	})
+	got, err = reduceStartScoreDiagnostic(doc)
+	if err == nil || !reflect.DeepEqual(got, startScoreDiagnostic{}) {
+		t.Fatalf("overbudget diagnostic must not expose partial ledger: %+v %v", got, err)
 	}
 }
