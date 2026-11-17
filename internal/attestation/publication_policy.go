@@ -6,9 +6,9 @@ package attestation
 // Constructing these structs is NOT authentication and never certifies scores.
 
 type publicationSubject struct {
-	PlayerID                  string
-	Authenticated             bool
-	CredentialEpochSHA256     string
+	PlayerID                     string
+	Authenticated                bool
+	CredentialEpochSHA256        string
 	CurrentCredentialEpochSHA256 string
 }
 
