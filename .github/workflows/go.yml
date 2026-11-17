@@ -564,4 +564,4 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Test shared graph behavior across database clients
-        run: go test -race ./internal/socialgraph -count=1
+        run: go test -race ./internal/socialgraph ./internal/attestation -count=1
