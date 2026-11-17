@@ -149,8 +149,8 @@ func TestStartScoreDiagnosticLedgerIsBoundedAndFailClosed(t *testing.T) {
 	doc := loadStartScoreFixture(t)
 	for len(doc.Rules) < 8 {
 		doc.Rules = append(doc.Rules, gameir.Rule{
-			ID: "extra_" + string(rune('a'+len(doc.Rules))),
-			When: gameir.Condition{Event: "game_start"},
+			ID:      "extra_" + string(rune('a'+len(doc.Rules))),
+			When:    gameir.Condition{Event: "game_start"},
 			Actions: []gameir.Action{{Type: "add_score", Value: float64(1_000_000)}},
 		})
 	}
