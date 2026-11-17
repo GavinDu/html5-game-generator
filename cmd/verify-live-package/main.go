@@ -32,8 +32,8 @@ var safeGameID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
 // packageReport deliberately contains no creator identity, Game IR, game ID,
 // access credentials or raw response content.
 type packageReport struct {
-	Format string
-	IRVersion string
+	Format     string
+	IRVersion  string
 	AssetCount int
 }
 
@@ -152,8 +152,8 @@ func verifyLivePackage(ctx context.Context, client *http.Client, baseURL string,
 		}
 	}
 	return packageReport{
-		Format: pkg.PackageFormatVersion,
-		IRVersion: pkg.IRVersion,
+		Format:     pkg.PackageFormatVersion,
+		IRVersion:  pkg.IRVersion,
 		AssetCount: len(pkg.Assets),
 	}, nil
 }
