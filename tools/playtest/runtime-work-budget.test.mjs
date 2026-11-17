@@ -32,7 +32,7 @@ test('the production limits are finite and invalid limits cannot disable protect
 
 test('interpreter counts before rule matching and action execution, with terminal error handling', () => {
   assert.match(runtime, /workBudget\.consumeCheck\(\);\s*if \(!ruleMatches/);
-  assert.match(runtime, /for \(const action of actions\) \{\s*workBudget\.consumeAction\(\);/);
+  assert.match(runtime, /for \(let actionIndex = 0; actionIndex < actions\.length; actionIndex\+\+\) \{\s*const action = actions\[actionIndex\];\s*workBudget\.consumeAction\(\);/);
   assert.match(runtime, /function tickFrame\(dtMs\) \{\s*if \(state\.ended \|\| state\.failed\) return;\s*workBudget\.reset\(\)/);
   assert.match(runtime, /state\.failed = true;\s*\$\('status'\)\.textContent = 'Game cannot continue safely/);
   assert.match(runtime, /if \(state\.depth > 8\) throw new Error\('rule event cascade depth budget exceeded'\)/);
