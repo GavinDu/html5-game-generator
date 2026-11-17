@@ -36,13 +36,13 @@ func realGoPackageFixture(t *testing.T) api.GamePackage {
 	sha := hex.EncodeToString(sum[:])
 	return api.GamePackage{
 		PackageFormatVersion: api.PackageFormatVersion,
-		MinRuntimeVersion: api.MinRuntimeVersion,
-		IRVersion: doc.IRVersion,
-		GameID: doc.Game.ID,
-		IR: doc,
-		Assets: []api.GamePackageAsset{},
-		IRHash: sha[:12],
-		IRSHA256: sha,
+		MinRuntimeVersion:    api.MinRuntimeVersion,
+		IRVersion:            doc.IRVersion,
+		GameID:               doc.Game.ID,
+		IR:                   doc,
+		Assets:               []api.GamePackageAsset{},
+		IRHash:               sha[:12],
+		IRSHA256:             sha,
 	}
 }
 
@@ -52,12 +52,12 @@ func TestLiveReleaseSmokeAcceptsOnlyExactGoPackageContract(t *testing.T) {
 		t.Fatalf("shared golden game identity drift")
 	}
 	cases := []struct {
-		name string
-		mutate func(*api.GamePackage)
-		status int
+		name        string
+		mutate      func(*api.GamePackage)
+		status      int
 		contentType string
-		redirect bool
-		wantError string
+		redirect    bool
+		wantError   string
 	}{
 		{name: "valid"},
 		{name: "missing_format", mutate: func(p *api.GamePackage) { p.PackageFormatVersion = "" }, wantError: "missing_package_format_version"},
@@ -70,7 +70,9 @@ func TestLiveReleaseSmokeAcceptsOnlyExactGoPackageContract(t *testing.T) {
 		{name: "bad_full_hash", mutate: func(p *api.GamePackage) { p.IRSHA256 = strings.Repeat("a", 64) }, wantError: "package_full_ir_sha256_mismatch"},
 		{name: "bad_short_hash", mutate: func(p *api.GamePackage) { p.IRHash = "000000000000" }, wantError: "package_short_ir_hash_mismatch"},
 		{name: "missing_asset_hash", mutate: func(p *api.GamePackage) { p.Assets = []api.GamePackageAsset{{ID: "sprite"}} }, wantError: "missing_asset_sha256"},
-		{name: "bad_asset_hash", mutate: func(p *api.GamePackage) { p.Assets = []api.GamePackageAsset{{ID: "sprite", SHA256: strings.Repeat("z", 64)}} }, wantError: "invalid_asset_sha256"},
+		{name: "bad_asset_hash", mutate: func(p *api.GamePackage) {
+			p.Assets = []api.GamePackageAsset{{ID: "sprite", SHA256: strings.Repeat("z", 64)}}
+		}, wantError: "invalid_asset_sha256"},
 		{name: "not_published", status: http.StatusNotFound, wantError: "package_http_status_404"},
 		{name: "cross_origin_redirect", redirect: true, wantError: "package_http_status_302"},
 		{name: "not_json_content_type", contentType: "text/html", wantError: "non_json_package"},
@@ -99,7 +101,9 @@ func TestLiveReleaseSmokeAcceptsOnlyExactGoPackageContract(t *testing.T) {
 					return
 				}
 				mime := tc.contentType
-				if mime == "" { mime = "application/json; charset=utf-8" }
+				if mime == "" {
+					mime = "application/json; charset=utf-8"
+				}
 				w.Header().Set("Content-Type", mime)
 				_ = json.NewEncoder(w).Encode(pkg)
 			}))
@@ -120,7 +124,11 @@ func TestLiveReleaseSmokeAcceptsOnlyExactGoPackageContract(t *testing.T) {
 }
 
 func TestLiveReleaseSmokeRejectsOversizeAndMalformedJSONWithoutDumpingResponse(t *testing.T) {
-	cases := []struct {name string; body []byte; want string}{
+	cases := []struct {
+		name string
+		body []byte
+		want string
+	}{
 		{name: "oversize", body: bytes.Repeat([]byte("x"), maxEnvelopeBytes+1), want: "package_envelope_too_large"},
 		{name: "malformed", body: []byte("{invalid"), want: "invalid_package_json"},
 	}
