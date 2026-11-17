@@ -65,6 +65,9 @@ func verifyLivePackage(ctx context.Context, client *http.Client, baseURL string,
 		return packageReport{}, errors.New("missing_http_client")
 	}
 	safeClient := *client
+	// A release smoke is anonymous/public even if the injected test client
+	// happens to be configured with a cookie jar.
+	safeClient.Jar = nil
 	safeClient.Timeout = requestTimeout
 	safeClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
