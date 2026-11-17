@@ -8,7 +8,7 @@
 export const SEMANTIC_INPUT_V2_SCHEMA = 'semantic-input-trace-v2';
 export const MAX_SEMANTIC_INPUT_V2_EVENTS = 2000;
 export const MAX_SEMANTIC_INPUT_V2_TICKS = 108000;
-const MAX_BINDINGS = 256;
+const MAX_BINDINGS = 32; // gameir.MaxInputBindings; reject unpublishable inputs
 const MAX_FIXED_COORD = 1_000_000_000;
 const MAX_ACTION_BYTES = 128;
 const MAX_WIRE_BYTES = 1 << 20;
@@ -19,28 +19,13 @@ function bindingKey(device, action) {
   return device + '\u0000' + action;
 }
 
-// TextEncoder silently replaces lone UTF-16 surrogates with U+FFFD,
-// while Go's strict v2 JSON decoder rejects escaped unpaired surrogates.
-// Reject them here rather than publishing client evidence that the server
-// cannot later admit or fingerprint without changing the action identity.
-function wellFormedUTF16(text) {
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charCodeAt(i);
-    if (ch >= 0xD800 && ch <= 0xDBFF) {
-      if (++i >= text.length) return false;
-      const low = text.charCodeAt(i);
-      if (low < 0xDC00 || low > 0xDFFF) return false;
-    } else if (ch >= 0xDC00 && ch <= 0xDFFF) {
-      return false;
-    }
-  }
-  return true;
-}
-
+// Game IR's published action identity is ASCII [A-Za-z0-9_-]{1,128}.
+// A generic v2 wire decoder may validate Unicode escapes independently, but
+// no published Game IR binding can use a Unicode, whitespace or punctuated ID.
+// Keep this producer's binding gate exactly as strict as gameir.validID.
+const GAME_IR_ACTION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 function canonicalAction(action) {
-  return typeof action === 'string' && action.length > 0 &&
-    wellFormedUTF16(action) &&
-    textEncoder.encode(action).length <= MAX_ACTION_BYTES;
+  return typeof action === 'string' && GAME_IR_ACTION_ID.test(action);
 }
 
 // inputBindings must come from a validated, published Game IR. Merely

@@ -175,3 +175,36 @@ test('v2 rejects Go-invalid duplicate action/input identities before any events'
     { device: 'pointer', phase: 'up', ordinal: 3 },
   ]);
 });
+
+test('v2 producer refuses binding sets and action IDs Go Game IR cannot publish', () => {
+  const thirtyTwo = Array.from({ length: 32 }, (_, index) => ({
+    action: `action_${index}`, input: 'keyboard', key: `Key${index}`,
+  }));
+  const atLimit = createSemanticInputV2Recorder(thirtyTwo);
+  assert.equal(atLimit.record({ tick: 1, action: 'action_31', device: 'keyboard', phase: 'down' }), true);
+  assert.equal(atLimit.record({ tick: 1, action: 'action_31', device: 'keyboard', phase: 'up' }), true);
+  assert.equal(atLimit.finish(1)?.events.length, 2);
+  assert.throws(
+    () => createSemanticInputV2Recorder([...thirtyTwo, { action: 'action_32', input: 'tap' }]),
+    RangeError,
+    '33 published Game IR input bindings are invalid',
+  );
+
+  const boundaryID = 'a'.repeat(128);
+  const legal = createSemanticInputV2Recorder([
+    { action: boundaryID, input: 'keyboard', key: 'Enter' },
+    { action: 'move_left-1', input: 'tap' },
+    { action: 'move_left-1', input: 'keyboard', key: 'ArrowLeft' },
+  ]);
+  assert.equal(legal.record({ tick: 0, action: boundaryID, device: 'keyboard', phase: 'down' }), true);
+  assert.equal(legal.record({ tick: 0, action: boundaryID, device: 'keyboard', phase: 'up' }), true);
+  assert.equal(legal.finish(1)?.events.length, 2);
+
+  for (const action of [
+    'a'.repeat(129), 'space key', 'jump.action', 'jump/action', 'jump:1',
+    'é', '中', 'rocket🚀', 'new\\nline', '\uD800', '\uDC00',
+  ]) {
+    const writerInput = [{ action, input: 'keyboard', key: 'Enter' }];
+    assert.throws(() => createSemanticInputV2Recorder(writerInput), TypeError, JSON.stringify(action));
+  }
+});
