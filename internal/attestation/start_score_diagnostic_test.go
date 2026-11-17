@@ -196,3 +196,51 @@ func TestSharedGoPixiDiagnosticSourceFixtureIdentity(t *testing.T) {
 		t.Fatalf("shared Go/Pixi source order or diagnostic changed: %+v %v", got, err)
 	}
 }
+
+
+func TestStartScoreDiagnostic64FreshDocumentRerunsPreserveOrderAndIsolation(t *testing.T) {
+	// This scoped diagnostic has no server-granted seed or input queue yet.
+	// Fresh decode on every iteration catches shared mutable reducer state,
+	// accidental rule reordering, and a fingerprint based only on final score.
+	var baseline, reversedBaseline startScoreDiagnostic
+	for attempt := 0; attempt < 64; attempt++ {
+		originalDoc := loadStartScoreFixture(t)
+		original, err := reduceStartScoreDiagnostic(originalDoc)
+		if err != nil {
+			t.Fatalf("fresh diagnostic %d: %v", attempt, err)
+		}
+		if original.Score != 1 || original.AppliedActions != 2 ||
+			len(original.Steps) != 2 || original.Steps[0].Score != 3 ||
+			original.Steps[1].Score != 1 || original.TraceSHA256 != startScoreFixtureDigest {
+			t.Fatalf("fresh diagnostic drift on run %d: %+v", attempt, original)
+		}
+
+		reversedDoc := loadStartScoreFixture(t)
+		reversedDoc.Rules[0], reversedDoc.Rules[1] = reversedDoc.Rules[1], reversedDoc.Rules[0]
+		reversed, err := reduceStartScoreDiagnostic(reversedDoc)
+		if err != nil {
+			t.Fatalf("reversed diagnostic %d: %v", attempt, err)
+		}
+		if reversed.Score != original.Score ||
+			reversed.TraceSHA256 == original.TraceSHA256 ||
+			len(reversed.Steps) != 2 || reversed.Steps[0].Score != -2 ||
+			reversed.Steps[1].Score != 1 {
+			t.Fatalf("authored-order fingerprint lost on run %d: %+v", attempt, reversed)
+		}
+		if attempt == 0 {
+			baseline, reversedBaseline = original, reversed
+		} else if !reflect.DeepEqual(original, baseline) ||
+			!reflect.DeepEqual(reversed, reversedBaseline) {
+			t.Fatalf("fresh decoded replay changed across attempts: %d", attempt)
+		}
+
+		// A mutation to one in-memory document cannot poison a future
+		// independent decode or turn a later run into an earlier outcome.
+		originalDoc.Rules[0].Actions[0].Value = float64(-1)
+		changed, err := reduceStartScoreDiagnostic(originalDoc)
+		if err != nil || changed.Score != -3 ||
+			changed.TraceSHA256 == baseline.TraceSHA256 {
+			t.Fatalf("document mutation not isolated on run %d: %+v %v", attempt, changed, err)
+		}
+	}
+}
