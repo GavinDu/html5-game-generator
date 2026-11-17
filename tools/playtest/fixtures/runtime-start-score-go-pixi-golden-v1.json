@@ -1,0 +1,27 @@
+{
+  "schema": "runtime-start-score-go-pixi-golden-v1",
+  "fixtureSha256": "3c08184d01a44adbd2f1aca86c6d3e8c8f496b3bb4a1e8c23d708839b4028506",
+  "goProfile": "go-scalar-start-score-v1",
+  "goTraceSha256": "9751d51614b4eb1b9bf8f03d155b8526c4f21f116b38d9af90b7ef6346af855d",
+  "appliedActions": 2,
+  "finalScore": 1,
+  "steps": [
+    {
+      "ordinal": 0,
+      "ruleIndex": 0,
+      "ruleId": "start_plus",
+      "actionIndex": 0,
+      "delta": 3,
+      "score": 3
+    },
+    {
+      "ordinal": 1,
+      "ruleIndex": 1,
+      "ruleId": "start_minus",
+      "actionIndex": 0,
+      "delta": -2,
+      "score": 1
+    }
+  ],
+  "attested": false
+}

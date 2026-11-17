@@ -22,6 +22,18 @@ const fixtureBytes = readFileSync(new URL(
   '../../internal/attestation/testdata/start_score_ir_v1.json', import.meta.url
 ));
 const fixtureSHA256 = createHash('sha256').update(fixtureBytes).digest('hex');
+// The Go test recomputes this immutable artifact from the typed Go reducer.
+// This browser test must not invent a second independently hardcoded score.
+const goGolden = JSON.parse(readFileSync(new URL(
+  './fixtures/runtime-start-score-go-pixi-golden-v1.json', import.meta.url
+), 'utf8'));
+assert.equal(goGolden.schema, 'runtime-start-score-go-pixi-golden-v1');
+assert.equal(goGolden.fixtureSha256, fixtureSHA256);
+assert.equal(goGolden.goProfile, 'go-scalar-start-score-v1');
+assert.match(goGolden.goTraceSha256, /^[0-9a-f]{64}$/);
+assert.equal(goGolden.attested, false);
+assert.equal(goGolden.finalScore, 1);
+assert.equal(goGolden.appliedActions, goGolden.steps.length);
 const ir = JSON.parse(fixtureBytes.toString('utf8'));
 assert.equal(ir.irVersion, '1.0');
 assert.equal(ir.game.id, gameId);
@@ -39,6 +51,20 @@ const commands = ir.rules.flatMap(rule => rule.actions)
   .map((action, ordinal) => ({
     ordinal, action: { type: action.type, value: action.value },
   }));
+assert.deepEqual(goGolden.steps.map(step => ({
+  ordinal: step.ordinal,
+  ruleId: step.ruleId,
+  ruleIndex: step.ruleIndex,
+  actionIndex: step.actionIndex,
+  type: 'add_score',
+  value: step.delta,
+})), ir.rules.flatMap((rule, ruleIndex) => rule.actions.map(
+  (action, actionIndex) => ({
+    ordinal: ruleIndex + actionIndex,
+    ruleId: rule.id, ruleIndex, actionIndex,
+    type: action.type, value: action.value,
+  })
+)), 'Go typed intermediate steps must reflect the authored IR action order');
 const browser = await (browserName === 'webkit' ? webkit : chromium)
   .launch({ headless: true });
 const results = [];
@@ -125,7 +151,8 @@ try {
           }, { seed, commands });
           assert.equal(compared.pixi.failed, false);
           assert.equal(compared.pixi.started, true);
-          assert.equal(compared.pixi.score, 1);
+          assert.equal(compared.pixi.score, goGolden.finalScore,
+            'unmodified Pixi score must match the independently computed Go ledger final score');
           assert.equal(compared.pixi.ended, false);
           assert.equal(compared.pixi.won, false);
           assert.ok(compared.pixi.simStep >= 1 && compared.pixi.frames >= 2);
@@ -134,9 +161,12 @@ try {
             'pure ordered startup score must equal genuine Pixi score');
           assert.equal(compared.pure.initialScore, 0);
           assert.equal(compared.pure.canonical, compared.pure.repeatedCanonical);
-          assert.deepEqual(compared.pure.effects.map(e => e.value), [3, 1]);
+          assert.deepEqual(compared.pure.effects.map(e => e.value),
+            goGolden.steps.map(step => step.score),
+            'preinstalled JS pure intermediate effects must match every Go authored score state');
           assert.equal(compared.pure.reversedScore, 1);
-          assert.equal(compared.pure.reversedFirstEffect, -2,
+          assert.equal(compared.pure.reversedFirstEffect,
+            goGolden.steps.at(-1).delta,
             'commutative final score must not hide authored intermediate order');
           assert.equal(compared.pure.invalidFractionRejected, true);
           assert.equal(compared.pure.invalidTextRejected, true);
@@ -145,7 +175,9 @@ try {
           await page.screenshot({ path: screenshot, fullPage: true });
           results.push({
             browser: browserName, device: device.name, quality, cycle,
-            fixtureSHA256, pixiScore: compared.pixi.score,
+            fixtureSHA256, goProfile: goGolden.goProfile,
+            goTraceSHA256: goGolden.goTraceSha256,
+            pixiScore: compared.pixi.score,
             pixiStepObserved: compared.pixi.simStep,
             pixiFramesObserved: compared.pixi.frames,
             pureScore: compared.pure.score,
@@ -169,6 +201,8 @@ assert.equal(results.length, 6);
 writeFileSync(shots + '/report.json', JSON.stringify({
   schema: 'synthetic-pixi-pure-reducer-shadow-v1',
   fixtureSHA256, sourceGameIR: 'test-only intercepted repository JSON',
+  sharedGoGolden: true, goProfile: goGolden.goProfile,
+  goTraceSHA256: goGolden.goTraceSha256,
   fullGameReplay: false, publishedPackageAuthenticated: false,
   intermediatePixiStateObserved: false, independentAttestation: false,
   physicalIOSDevice: false,
@@ -176,5 +210,7 @@ writeFileSync(shots + '/report.json', JSON.stringify({
 }, null, 2));
 console.log(JSON.stringify({
   browser: browserName, passed: true, cases: results.length,
-  score: 1, fixtureSHA256, semanticPureOnly: true,
+  score: goGolden.finalScore, fixtureSHA256,
+  goTraceSHA256: goGolden.goTraceSha256,
+  semanticPureOnly: true,
 }));
