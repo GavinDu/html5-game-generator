@@ -12,13 +12,13 @@ import (
 // startScoreContextFingerprint is a private diagnostic identity for ONE strict
 // no-input startup game profile. It is neither an attestation nor a game verdict.
 type startScoreContextFingerprint struct {
-	Profile              string
-	CanonicalIRSHA256    string
-	OrderedWorkSHA256    string
-	ContextSHA256        string
-	Seed                 uint64
-	DurationTicks        int
-	Score                int64
+	Profile           string
+	CanonicalIRSHA256 string
+	OrderedWorkSHA256 string
+	ContextSHA256     string
+	Seed              uint64
+	DurationTicks     int
+	Score             int64
 }
 
 // fingerprintStartScoreContext binds deterministic *diagnostic* work to the
