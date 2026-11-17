@@ -197,7 +197,6 @@ func TestSharedGoPixiDiagnosticSourceFixtureIdentity(t *testing.T) {
 	}
 }
 
-
 func TestStartScoreDiagnostic64FreshDocumentRerunsPreserveOrderAndIsolation(t *testing.T) {
 	// This scoped diagnostic has no server-granted seed or input queue yet.
 	// Fresh decode on every iteration catches shared mutable reducer state,
