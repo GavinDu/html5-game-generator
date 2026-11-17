@@ -51,7 +51,7 @@ func reduceStartScoreDiagnostic(doc *gameir.Document) (startScoreDiagnostic, err
 	_, _ = fmt.Fprint(digest, replayStartScoreProfileV1, "\n")
 	out := startScoreDiagnostic{
 		Profile: replayStartScoreProfileV1,
-		Steps: make([]startScoreStep, 0, admission.MaxActions),
+		Steps:   make([]startScoreStep, 0, admission.MaxActions),
 	}
 	for ruleIndex, rule := range doc.Rules {
 		for actionIndex, action := range rule.Actions {
