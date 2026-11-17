@@ -8,14 +8,14 @@ import (
 func eligiblePublicationFixture() (publicationSubject, publishedGameSnapshot, requestedPublishedGame) {
 	subject := publicationSubject{
 		PlayerID: "owner-1", Authenticated: true,
-		CredentialEpochSHA256: strings.Repeat("a", 64),
+		CredentialEpochSHA256:        strings.Repeat("a", 64),
 		CurrentCredentialEpochSHA256: strings.Repeat("a", 64),
 	}
 	published := publishedGameSnapshot{
 		GameID: "published-game", OwnerID: "owner-1",
 		RevisionID: "release_2026_11", IRSHA256: strings.Repeat("b", 64),
 		CapabilitySHA256: strings.Repeat("c", 64),
-		Published: true, Immutable: true, Removed: false,
+		Published:        true, Immutable: true, Removed: false,
 		ModerationStatus: "approved", CapabilitiesApproved: true,
 		Visibility: "public",
 	}
@@ -50,9 +50,9 @@ func TestPrivatePublicationEligibilityAcceptsOnlyPinnedServerFacts(t *testing.T)
 func TestPrivatePublicationEligibilityRejectsMutatedFullImmutableIRAndCapabilities(t *testing.T) {
 	subject, published, requested := eligiblePublicationFixture()
 	for name, mutate := range map[string]func(*requestedPublishedGame){
-		"foreign_game": func(r *requestedPublishedGame) { r.GameID = "foreign" },
-		"stale_revision": func(r *requestedPublishedGame) { r.RevisionID = "old" },
-		"full_ir": func(r *requestedPublishedGame) { r.IRSHA256 = strings.Repeat("b", 63) + "d" },
+		"foreign_game":    func(r *requestedPublishedGame) { r.GameID = "foreign" },
+		"stale_revision":  func(r *requestedPublishedGame) { r.RevisionID = "old" },
+		"full_ir":         func(r *requestedPublishedGame) { r.IRSHA256 = strings.Repeat("b", 63) + "d" },
 		"full_capability": func(r *requestedPublishedGame) { r.CapabilitySHA256 = strings.Repeat("c", 63) + "d" },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -69,12 +69,12 @@ func TestPrivatePublicationEligibilityRejectsMutatedFullImmutableIRAndCapabiliti
 func TestPrivatePublicationEligibilityFailClosedForRemovedModeratedOrUnsupported(t *testing.T) {
 	subject, published, requested := eligiblePublicationFixture()
 	for name, mutate := range map[string]func(*publishedGameSnapshot){
-		"draft": func(p *publishedGameSnapshot) { p.Published = false },
-		"mutable": func(p *publishedGameSnapshot) { p.Immutable = false },
-		"deleted": func(p *publishedGameSnapshot) { p.Removed = true },
-		"under_review": func(p *publishedGameSnapshot) { p.ModerationStatus = "pending" },
-		"blocked": func(p *publishedGameSnapshot) { p.ModerationStatus = "blocked" },
-		"unknown_moderation": func(p *publishedGameSnapshot) { p.ModerationStatus = "unexpected" },
+		"draft":                  func(p *publishedGameSnapshot) { p.Published = false },
+		"mutable":                func(p *publishedGameSnapshot) { p.Immutable = false },
+		"deleted":                func(p *publishedGameSnapshot) { p.Removed = true },
+		"under_review":           func(p *publishedGameSnapshot) { p.ModerationStatus = "pending" },
+		"blocked":                func(p *publishedGameSnapshot) { p.ModerationStatus = "blocked" },
+		"unknown_moderation":     func(p *publishedGameSnapshot) { p.ModerationStatus = "unexpected" },
 		"unsupported_capability": func(p *publishedGameSnapshot) { p.CapabilitiesApproved = false },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -117,24 +117,44 @@ func TestPrivatePublicationEligibilityIsExactOwnerAndCurrentEpochOnly(t *testing
 func TestPrivatePublicationEligibilityRejectsMalformedServerFacts(t *testing.T) {
 	subject, published, requested := eligiblePublicationFixture()
 	tests := map[string]func(*publicationSubject, *publishedGameSnapshot, *requestedPublishedGame){
-		"empty_player": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) { s.PlayerID = "" },
+		"empty_player":   func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) { s.PlayerID = "" },
 		"unicode_player": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) { s.PlayerID = "👾" },
-		"epoch_missing": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) { s.CredentialEpochSHA256 = "" },
-		"epoch_upper": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) { s.CredentialEpochSHA256 = strings.Repeat("A", 64) },
-		"current_epoch_missing": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) { s.CurrentCredentialEpochSHA256 = "" },
-		"game_query": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.GameID = "game?admin=true" },
-		"game_slash": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.GameID = "../other" },
-		"unicode_game": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.GameID = "中文" },
-		"empty_owner": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.OwnerID = "" },
+		"epoch_missing": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) {
+			s.CredentialEpochSHA256 = ""
+		},
+		"epoch_upper": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) {
+			s.CredentialEpochSHA256 = strings.Repeat("A", 64)
+		},
+		"current_epoch_missing": func(s *publicationSubject, _ *publishedGameSnapshot, _ *requestedPublishedGame) {
+			s.CurrentCredentialEpochSHA256 = ""
+		},
+		"game_query": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) {
+			p.GameID = "game?admin=true"
+		},
+		"game_slash": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) {
+			p.GameID = "../other"
+		},
+		"unicode_game":   func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.GameID = "中文" },
+		"empty_owner":    func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.OwnerID = "" },
 		"empty_revision": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.RevisionID = "" },
-		"invalid_revision": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.RevisionID = "2026/11" },
-		"invalid_ir_digest": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.IRSHA256 = strings.Repeat("b", 12) },
-		"invalid_capability_digest": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.CapabilitySHA256 = strings.Repeat("z", 64) },
-		"missing_requested_game": func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) { q.GameID = "" },
+		"invalid_revision": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) {
+			p.RevisionID = "2026/11"
+		},
+		"invalid_ir_digest": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) {
+			p.IRSHA256 = strings.Repeat("b", 12)
+		},
+		"invalid_capability_digest": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) {
+			p.CapabilitySHA256 = strings.Repeat("z", 64)
+		},
+		"missing_requested_game":     func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) { q.GameID = "" },
 		"missing_requested_revision": func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) { q.RevisionID = "" },
-		"missing_requested_ir": func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) { q.IRSHA256 = "" },
-		"missing_requested_capability": func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) { q.CapabilitySHA256 = "" },
-		"oversized_game": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) { p.GameID = strings.Repeat("g", 129) },
+		"missing_requested_ir":       func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) { q.IRSHA256 = "" },
+		"missing_requested_capability": func(_ *publicationSubject, _ *publishedGameSnapshot, q *requestedPublishedGame) {
+			q.CapabilitySHA256 = ""
+		},
+		"oversized_game": func(_ *publicationSubject, p *publishedGameSnapshot, _ *requestedPublishedGame) {
+			p.GameID = strings.Repeat("g", 129)
+		},
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
