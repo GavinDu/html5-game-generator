@@ -90,7 +90,7 @@ try {
         }
         await page.waitForFunction(() => {
           const state = window.__dqTest?.snapshot?.();
-          return state?.started === true && state?.frames >= 2;
+          return state?.started === true && state?.frames >= 2 && state?.simStep >= 1;
         }, null, { timeout: 30000 });
         const first = await page.evaluate(() => window.__dqTest.snapshot());
         assert.equal(first.score, 1,
