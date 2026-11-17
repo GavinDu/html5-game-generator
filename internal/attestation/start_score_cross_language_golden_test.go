@@ -17,12 +17,12 @@ import (
 // real unmodified Chromium/WebKit Pixi bootstrap and the preinstalled pure
 // JS semantic shadow. Neither probe grants a verified user score.
 type crossLanguageStartStep struct {
-	Ordinal     int   `json:"ordinal"`
-	RuleIndex   int   `json:"ruleIndex"`
+	Ordinal     int    `json:"ordinal"`
+	RuleIndex   int    `json:"ruleIndex"`
 	RuleID      string `json:"ruleId"`
-	ActionIndex int   `json:"actionIndex"`
-	Delta       int64 `json:"delta"`
-	Score       int64 `json:"score"`
+	ActionIndex int    `json:"actionIndex"`
+	Delta       int64  `json:"delta"`
+	Score       int64  `json:"score"`
 }
 
 type crossLanguageStartGolden struct {
