@@ -168,3 +168,31 @@ func TestStartScoreDiagnosticLedgerIsBoundedAndFailClosed(t *testing.T) {
 		t.Fatalf("overbudget diagnostic must not expose partial ledger: %+v %v", got, err)
 	}
 }
+
+func TestSharedGoPixiDiagnosticSourceFixtureIdentity(t *testing.T) {
+	// The real Chromium/WebKit bootstrap test reads THIS SAME on-disk JSON.
+	// It must never drift into a second, independently hand-authored game.
+	doc := loadStartScoreFixture(t)
+	if doc.Game.ID != "escape-from-injection" ||
+		doc.IRVersion != "1.0" || len(doc.Capabilities) != 0 ||
+		len(doc.Assets) != 0 || len(doc.InputBindings) != 0 ||
+		len(doc.Scenes) != 1 || doc.Scenes[0].ID != "scene" ||
+		len(doc.Scenes[0].Entities) != 0 || len(doc.Rules) != 2 {
+		t.Fatalf("shared real Pixi/Go diagnostic package drift: game=%q ir=%q",
+			doc.Game.ID, doc.IRVersion)
+	}
+	if doc.Rules[0].ID != "start_plus" || doc.Rules[1].ID != "start_minus" ||
+		doc.Rules[0].When.Event != "game_start" ||
+		doc.Rules[1].When.Event != "game_start" ||
+		len(doc.Rules[0].Actions) != 1 || len(doc.Rules[1].Actions) != 1 ||
+		doc.Rules[0].Actions[0].Type != "add_score" ||
+		doc.Rules[1].Actions[0].Type != "add_score" {
+		t.Fatal("shared authored event/action order was silently changed")
+	}
+	got, err := reduceStartScoreDiagnostic(doc)
+	if err != nil || got.Score != 1 || got.TraceSHA256 != startScoreFixtureDigest ||
+		len(got.Steps) != 2 || got.Steps[0].Score != 3 ||
+		got.Steps[1].Score != 1 {
+		t.Fatalf("shared Go/Pixi source order or diagnostic changed: %+v %v", got, err)
+	}
+}
