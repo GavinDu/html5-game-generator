@@ -62,7 +62,7 @@ export function compareInventorySemanticReplay(chromium, webkit) {
       assert.ok(!map.has(key), 'duplicate game/profile ' + key);
       assert.equal(entry.passed, true, engine + ' reported failed gameplay');
       assert.equal(entry.seed, report.seed,
-        engine + ' entry seed is not bound to report cohort: ' + key);
+        engine + ' entry seed mismatch against report cohort: ' + key);
       assert.equal(entry.simStep, report.simStep,
         engine + ' entry fixed tick is not bound to report cohort: ' + key);
       assert.equal(entry.state?.simStep, entry.simStep, 'not exact fixed tick');
