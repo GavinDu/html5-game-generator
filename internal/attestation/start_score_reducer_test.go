@@ -129,8 +129,8 @@ func TestStartScoreDiagnosticRejectsNilAndUnboundedRuleSet(t *testing.T) {
 	doc := minimalStartScoreIR()
 	for i := 0; i < 8; i++ {
 		doc.Rules = append(doc.Rules, gameir.Rule{
-			ID: string(rune('a' + i)),
-			When: gameir.Condition{Event: "game_start"},
+			ID:      string(rune('a' + i)),
+			When:    gameir.Condition{Event: "game_start"},
 			Actions: []gameir.Action{{Type: "add_score", Value: 1000000}},
 		})
 	}
