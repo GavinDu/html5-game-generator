@@ -5,7 +5,8 @@
 // This is browser bootstrap DIAGNOSTIC evidence, never publication, a Go
 // replay, or an independently verified score.
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { chromium, webkit } from 'playwright';
 
 const arg = (name, fallback) => {
@@ -18,28 +19,37 @@ const shots = arg('shots', '/tmp/runtime-minimal-start-score');
 const gameId = 'escape-from-injection';
 mkdirSync(shots, { recursive: true });
 
-// A strictly declared, otherwise empty Game IR 1.0. The Go strict preflight
-// accepts this minimal SOURCE shape; the actual runtime boot remains the
-// subject of THIS test, not an assumption.
-const diagnosticIR = {
-  irVersion: '1.0',
-  capabilities: [],
-  game: {
-    id: gameId,
-    title: 'Synthetic diagnostic start-score runtime',
-    entryScene: 'scene',
-    orientation: 'any',
-  },
-  assets: [],
-  scenes: [{ id: 'scene', entities: [] }],
-  inputBindings: [],
-  rules: [
-    { id: 'start_plus_3', when: { event: 'game_start' },
-      actions: [{ type: 'add_score', value: 3 }] },
-    { id: 'start_minus_2', when: { event: 'game_start' },
-      actions: [{ type: 'add_score', value: -2 }] },
-  ],
-};
+// Load the EXACT SAME static Game IR source fixture as Go's strict
+// internal/attestation/start_score_diagnostic_test.go. Route interception
+// injects ONLY declarative Game IR, not Pixi code, state, score or a
+// Playwright-forged probe. It is NOT an authenticated published snapshot.
+const sharedFixtureBytes = readFileSync(
+  new URL('../../internal/attestation/testdata/start_score_ir_v1.json', import.meta.url)
+);
+const fixtureSHA256 = createHash('sha256')
+  .update(sharedFixtureBytes).digest('hex');
+const diagnosticIR = JSON.parse(sharedFixtureBytes.toString('utf8'));
+
+// Explicitly pin the minimal diagnostic capability and authored event order.
+// If Go's fixture drifts to new gameplay semantics, the real Pixi browser
+// cannot silently continue testing a different fake document.
+assert.equal(diagnosticIR.irVersion, '1.0');
+assert.equal(diagnosticIR.game.id, gameId,
+  'the shared Go/Pixi Game IR game ID must match the loader envelope');
+assert.deepEqual(diagnosticIR.capabilities, []);
+assert.equal(diagnosticIR.scenes.length, 1);
+assert.equal(diagnosticIR.scenes[0].id, 'scene');
+assert.deepEqual(diagnosticIR.scenes[0].entities, []);
+assert.deepEqual(diagnosticIR.assets, []);
+assert.deepEqual(diagnosticIR.inputBindings, []);
+assert.deepEqual(diagnosticIR.rules.map(rule => [
+  rule.id, rule.when.event, rule.actions.map(action => [action.type, action.value]),
+]), [
+  ['start_plus', 'game_start', [['add_score', 3]]],
+  ['start_minus', 'game_start', [['add_score', -2]]],
+]);
+assert.match(fixtureSHA256, /^[0-9a-f]{64}$/);
+
 const browser = await (browserName === 'webkit' ? webkit : chromium)
   .launch({ headless: true });
 const reports = [];
@@ -132,7 +142,8 @@ try {
       assert.deepEqual(uncaught, [], 'real Pixi must have no uncaught page errors');
       reports.push({
         browser: browserName, device: device.name,
-        transport: 'Playwright-intercepted synthetic Game IR; NOT published',
+        transport: 'Playwright-intercepted shared synthetic Go/Pixi Game IR; NOT published',
+        fixtureSHA256,
         scenario: 'one real game_start, +3 then -2, no inputs',
         snapshots, passed: true,
       });
@@ -145,6 +156,7 @@ try {
 }
 writeFileSync(shots + '/report.json', JSON.stringify({
   schema: 'diagnostic-pixi-bootstrap-v1',
+  fixtureSHA256, sharedSourceGoAndPixi: true,
   browser: browserName, diagnosticOnly: true,
   genuinePublishedGameIR: false,
   independentlyTrustedScore: false,
@@ -152,7 +164,7 @@ writeFileSync(shots + '/report.json', JSON.stringify({
   reports,
 }, null, 2));
 console.log(JSON.stringify({
-  browser: browserName, scenarios: reports.length,
+  browser: browserName, scenarios: reports.length, fixtureSHA256,
   genuinePublishedGameIR: false, independentlyTrustedScore: false,
   passed: reports.length === 2,
 }));
