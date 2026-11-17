@@ -99,7 +99,8 @@ try {
           await route.fulfill({ response: upstream, json: pkg });
         });
         const target = base + '/player?game=' + encodeURIComponent(gameId) +
-          '&presentation=play&quality=' + quality + '&probe=1&seed=' + seed;
+          '&presentation=play&quality=' + quality +
+          '&probe=1&probeStartupRules=1&seed=' + seed;
         const cycles = quality === 'low' ? 2 : 1;
         for (let cycle = 0; cycle < cycles; cycle++) {
           if (cycle === 0) await page.goto(target, { waitUntil: 'load', timeout: 30000 });
@@ -151,12 +152,23 @@ try {
           }, { seed, commands });
           assert.equal(compared.pixi.failed, false);
           assert.equal(compared.pixi.started, true);
+          assert.equal(compared.pixi.startupScoreTraceComplete, true,
+            'real Pixi game_start trace may never be silently truncated');
+          assert.deepEqual(compared.pixi.startupScoreTrace, goGolden.steps,
+            'ACTUAL Pixi add_score intermediate states must match each Go typed ordinal and score');
           assert.equal(compared.pixi.score, goGolden.finalScore,
             'unmodified Pixi score must match the independently computed Go ledger final score');
           assert.equal(compared.pixi.ended, false);
           assert.equal(compared.pixi.won, false);
           assert.ok(compared.pixi.simStep >= 1 && compared.pixi.frames >= 2);
           assert.ok((await page.locator('#stage canvas').count()) >= 1);
+          assert.equal(compared.pixi.startupScoreTrace.at(-1).score, compared.pixi.score);
+          assert.equal(await page.evaluate(() => {
+            // Changing a snapshot copy never mutates the true game state.
+            const tampered = window.__dqTest.snapshot();
+            tampered.startupScoreTrace[0].score = 999;
+            return window.__dqTest.snapshot().startupScoreTrace[0].score;
+          }), goGolden.steps[0].score);
           assert.equal(compared.pure.score, compared.pixi.score,
             'pure ordered startup score must equal genuine Pixi score');
           assert.equal(compared.pure.initialScore, 0);
@@ -178,6 +190,8 @@ try {
             fixtureSHA256, goProfile: goGolden.goProfile,
             goTraceSHA256: goGolden.goTraceSha256,
             pixiScore: compared.pixi.score,
+            pixiStartupScoreTrace: compared.pixi.startupScoreTrace,
+            pixiStartupScoreTraceComplete: compared.pixi.startupScoreTraceComplete,
             pixiStepObserved: compared.pixi.simStep,
             pixiFramesObserved: compared.pixi.frames,
             pureScore: compared.pure.score,
@@ -186,8 +200,28 @@ try {
             screenshot, passed: true,
           });
         }
-        assert.equal(intercepts, cycles,
-          'new game document must load real package route once per cycle');
+        // The optional probe must not leak intermediate action internals to
+        // ordinary probe users without the explicit startup trace opt-in.
+        let additionalNavigations = 0;
+        if (quality === 'low') {
+          await page.goto(target.replace('&probeStartupRules=1', ''),
+            { waitUntil: 'load', timeout: 30000 });
+          await page.waitForFunction(() =>
+            window.__dqTest?.snapshot?.()?.started === true, null, { timeout: 30000 });
+          const noOptIn = await page.evaluate(() => window.__dqTest.snapshot());
+          assert.equal(Object.hasOwn(noOptIn, 'startupScoreTrace'), false);
+          assert.equal(Object.hasOwn(noOptIn, 'startupScoreTraceComplete'), false);
+          additionalNavigations++;
+
+          // Non-probe playback must never receive the diagnostic snapshot
+          // or any additional JS/native bridge merely by playing the game.
+          await page.goto(target.replace('&probe=1&probeStartupRules=1', ''),
+            { waitUntil: 'load', timeout: 30000 });
+          assert.equal(await page.evaluate(() => window.__dqTest === undefined), true);
+          additionalNavigations++;
+        }
+        assert.equal(intercepts, cycles + additionalNavigations,
+          'every new game document must fetch the actual route once');
         assert.deepEqual(errors, [], 'unmodified Pixi emitted page errors');
       } finally {
         await page.close();
