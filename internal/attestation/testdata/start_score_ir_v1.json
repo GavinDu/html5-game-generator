@@ -1,0 +1,24 @@
+{
+  "irVersion": "1.0",
+  "game": {
+    "id": "start_score_fixture",
+    "title": "Minimal Start Score Diagnostic",
+    "entryScene": "scene",
+    "orientation": "any"
+  },
+  "assets": [],
+  "scenes": [{ "id": "scene", "entities": [] }],
+  "inputBindings": [],
+  "rules": [
+    {
+      "id": "start_plus",
+      "when": { "event": "game_start" },
+      "actions": [{ "type": "add_score", "value": 3 }]
+    },
+    {
+      "id": "start_minus",
+      "when": { "event": "game_start" },
+      "actions": [{ "type": "add_score", "value": -2 }]
+    }
+  ]
+}
