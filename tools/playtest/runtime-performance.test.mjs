@@ -99,6 +99,6 @@ test('terminal and failed state block late rule dispatch, execution and collisio
   // A budget failure must be as terminal as a legitimate result: no
   // subsequent contact may restart work or mutate gameplay state.
   assert.match(source, /function emit\(event, source, target, value, inputAction\) \{[^]*?if \(state\.ended \|\| state\.failed\) return;/);
-  assert.match(source, /function execute\(actions, sourceEnt, targetEnt\) \{\s*if \(state\.ended \|\| state\.failed\) return;/);
+  assert.match(source, /function execute\(actions, sourceEnt, targetEnt, startupRule\) \{\s*if \(state\.ended \|\| state\.failed\) return;/);
   assert.match(source, /function handleContact\(a, b, started\) \{\s*if \(state\.ended \|\| state\.failed \|\| !playerEnt\) return;/);
 });
