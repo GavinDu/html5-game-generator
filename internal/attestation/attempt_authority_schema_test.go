@@ -242,9 +242,9 @@ func TestPrivateAuthorityRevocationIsOneWayAcrossConcurrentDBConnections(t *test
 	}
 	for label, mutation := range map[string]string{
 		"unrevoke": "SET revoked_at=NULL, revocation_reason=''",
-		"rewrite": "SET revoked_at=revoked_at+interval '1 second'",
-		"reason":  "SET revocation_reason='manual_revoke'",
-		"scope":   "SET auth_scope_sha256='" + strings.Repeat("f", 64) + "'",
+		"rewrite":  "SET revoked_at=revoked_at+interval '1 second'",
+		"reason":   "SET revocation_reason='manual_revoke'",
+		"scope":    "SET auth_scope_sha256='" + strings.Repeat("f", 64) + "'",
 	} {
 		query := fmt.Sprintf("UPDATE runtime_attestation_attempt_authority_v1 %s WHERE run_id=$1", mutation)
 		if _, err := a.db.ExecContext(ctx, query, f.runID); err == nil {
