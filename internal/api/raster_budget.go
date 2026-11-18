@@ -60,7 +60,10 @@ func rasterHeaderPixels(mime string, data []byte) (uint64, error) {
 		return 0, fmt.Errorf("raster image decoded pixels exceed admission ceiling")
 	}
 	if actual == "gif" {
-		if err := gifFrameMetadataBudget(data); err != nil {
+		// Metadata must pass before the LZW reader sees compressed bytes.
+		// The bounded stream pass rejects malformed frame data without ever
+		// materializing animated RGBA buffers in the server process.
+		if err := gifLZWFrameBudget(data); err != nil {
 			return 0, err
 		}
 	}
