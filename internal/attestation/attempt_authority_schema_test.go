@@ -218,26 +218,14 @@ func TestPrivateAuthorityRevocationIsOneWayAcrossConcurrentDBConnections(t *test
 			t.Fatalf("%s rewrote revoked grant", label)
 		}
 	}
-	if _, err := a.db.ExecContext(ctx, `
-		INSERT INTO runtime_attestation_verdict_v1
-		(run_id,game_id,player_id,auth_scope_sha256,issued_at,ir_sha256,
-		 trace_sha256,capability_sha256,seed,proof_version)
-		SELECT run_id,game_id,player_id,auth_scope_sha256,issued_at,
-		 ir_sha256,$2,capability_sha256,seed,proof_version
-		FROM runtime_attestation_attempt_authority_v1 WHERE run_id=$1`,
-		f.runID, strings.Repeat("e", 64)); err != nil {
-		// IMPORTANT: Do not claim a restricted worker exists. The current DB
-		// credential is privileged enough to call legacy verdict SQL: only
-		// source wiring + a dedicated restricted role and #462 atomic fence
-		// can stop this direct-SQL bypass. This explicit test must NOT assert
-		// that storage presence is sufficient for authorization.
-		t.Logf("direct SQL verdict insert blocked by existing constraints: %v", err)
-	} else {
-		_, err := a.db.ExecContext(ctx,
-			"DELETE FROM runtime_attestation_verdict_v1 WHERE run_id=$1", f.runID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Log("privileged direct SQL can still insert verdict: #462 restricted role and fence REQUIRED")
+	// Storage DDL has no grant/worker privileges. This migration does NOT
+	// create even a pending verdict, even after grant revocation. A privileged
+	// client could still use the preexisting verdict table directly: #462
+	// must enforce restricted DB roles and transactional authorization.
+	var count int
+	if err := b.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM runtime_attestation_verdict_v1
+		WHERE run_id=$1`, f.runID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("private authority schema created a verdict: count=%d error=%v", count, err)
 	}
 }
