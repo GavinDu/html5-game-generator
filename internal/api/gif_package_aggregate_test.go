@@ -1,6 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/gif"
 	"net/http"
 	"testing"
 
@@ -9,14 +13,39 @@ import (
 	"doodlequest/internal/store"
 )
 
+// A real, highly compressible GIF with repeated full-size frames stays small
+// on the wire but has genuine per-frame LZW output. Replacing the historical
+// metadata-only synthetic payload prevents the production decoder from being
+// weakened just to make a fake image pass the package acceptance test.
+func encodeRealGIFFrameBudgetFixture(t *testing.T, width, height, frames int) []byte {
+	t.Helper()
+	frame := image.NewPaletted(
+		image.Rect(0, 0, width, height),
+		color.Palette{color.Black, color.White},
+	)
+	anim := &gif.GIF{
+		Image: make([]*image.Paletted, frames),
+		Delay: make([]int, frames),
+	}
+	for i := range anim.Image {
+		anim.Image[i] = frame
+		anim.Delay[i] = 2
+	}
+	var out bytes.Buffer
+	if err := gif.EncodeAll(&out, anim); err != nil {
+		t.Fatalf("encode real repeated-frame GIF: %v", err)
+	}
+	return out.Bytes()
+}
+
 func TestAggregateGIFFramePixelsCountAllAnimationFrames(t *testing.T) {
 	// Each GIF declares 34 * 1024^2 frame pixels (under 64M), while
 	// two GIFs together declare > 64M. Their logical canvases alone
 	// total only 2M, so the old package check would admit both.
-	animation := syntheticGIFFrameHeaders(1024, 1024, 34)
+	animation := encodeRealGIFFrameBudgetFixture(t, 1024, 1024, 34)
 	perGIF, err := rasterPackageDecodedCost("image/gif", animation)
 	if err != nil {
-		t.Fatalf("synthetic bounded GIF must pass header-only admission: %v", err)
+		t.Fatalf("genuinely encoded bounded GIF must pass complete LZW admission: %v", err)
 	}
 	if want := uint64(34 * 1024 * 1024); perGIF != want {
 		t.Fatalf("GIF package cost must count all frame rectangles: got %d want %d", perGIF, want)
@@ -52,7 +81,7 @@ func TestPublishedPackageRejectsCombinedGIFFrameMemoryOverBudget(t *testing.T) {
 		ID: "gif-a", Kind: "image", URI: uriA, MIMEType: "image/gif",
 	})
 	st.UpdateGame(game)
-	animation := syntheticGIFFrameHeaders(1024, 1024, 34)
+	animation := encodeRealGIFFrameBudgetFixture(t, 1024, 1024, 34)
 	st.PutArtifact(id, uriA, animation, "image/gif")
 	route := "/v1/games/" + id + "/package"
 	if resp := getAs(t, srv, route, ""); resp.Code != http.StatusOK {
