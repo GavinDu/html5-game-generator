@@ -99,6 +99,39 @@ func TestPrivateAuthoritySchemaRejectsInvalidOrReusedIdentityAcrossConnections(t
 	if err := insertPrivateAuthorityFixture(ctx, b.db, duplicateNonce); err == nil {
 		t.Fatal("same nonce binding with different ID must conflict")
 	}
+	// Race a fresh shared nonce between two independent PostgreSQL
+	// connections. One and only one INSERT may own its immutable nonce;
+	// this cannot be protected by a per-process mutex.
+	raceA := newPrivateAuthorityFixture(t)
+	raceB := newPrivateAuthorityFixture(t)
+	raceB.nonceSHA256 = raceA.nonceSHA256
+	cleanupPrivateAuthorityFixture(t, db, raceA)
+	cleanupPrivateAuthorityFixture(t, db, raceB)
+	var insertWG sync.WaitGroup
+	inserts := make(chan error, 2)
+	for _, pair := range []struct {
+		conn *sql.DB
+		row  privateAuthorityFixture
+	}{{a.db, raceA}, {b.db, raceB}} {
+		insertWG.Add(1)
+		go func(conn *sql.DB, row privateAuthorityFixture) {
+			defer insertWG.Done()
+			inserts <- insertPrivateAuthorityFixture(ctx, conn, row)
+		}(pair.conn, pair.row)
+	}
+	insertWG.Wait()
+	close(inserts)
+	var inserted, duplicate int
+	for err := range inserts {
+		if err == nil {
+			inserted++
+		} else {
+			duplicate++
+		}
+	}
+	if inserted != 1 || duplicate != 1 {
+		t.Fatalf("nonce collision across connections: inserted=%d denied=%d", inserted, duplicate)
+	}
 	shortTTL := newPrivateAuthorityFixture(t)
 	shortTTL.expires = shortTTL.issued
 	if err := insertPrivateAuthorityFixture(ctx, a.db, shortTTL); err == nil {
