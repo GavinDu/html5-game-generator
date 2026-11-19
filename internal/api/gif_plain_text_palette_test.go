@@ -12,10 +12,10 @@ import (
 // Each uploaded GIF is a standalone data stream. Plain Text uses the GLOBAL
 // color table, not a local table on the following image.
 type plainTextColorCase struct {
-	name string
+	name                        string
 	globalEntries, localEntries int
-	foreground, background byte
-	wantOK bool
+	foreground, background      byte
+	wantOK                      bool
 }
 
 func plainTextColorCases() []plainTextColorCase {
