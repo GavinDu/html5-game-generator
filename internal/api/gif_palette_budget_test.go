@@ -47,8 +47,8 @@ func tinyPaletteIndexedGIF(index byte, globalEntries, localEntries int) []byte {
 
 func TestGIFLZWActivePaletteAdmitsGlobalAndLocalTables(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		index byte
+		name          string
+		index         byte
 		global, local int
 	}{
 		{"global_two_index_one", 1, 2, 0},
@@ -79,8 +79,8 @@ func TestGIFLZWActivePaletteAdmitsGlobalAndLocalTables(t *testing.T) {
 
 func TestGIFLZWActivePaletteRejectsOutOfRangeIndicesAndNoColorTable(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		index byte
+		name          string
+		index         byte
 		global, local int
 	}{
 		{"global_two_index_two", 2, 2, 0},
