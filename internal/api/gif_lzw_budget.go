@@ -150,6 +150,16 @@ func gifLZWFrameBudget(data []byte) error {
 				if data[cursor] != 12 {
 					return fmt.Errorf("GIF plain text extension requires a 12-byte header")
 				}
+				// A standalone uploaded GIF has no saved color table from a
+				// previous stream. Plain Text always indexes the GLOBAL palette,
+				// even if the following image supplies its own local palette.
+				if globalPaletteEntries == 0 {
+					return fmt.Errorf("GIF plain text extension requires a global color table")
+				}
+				if int(data[cursor+11]) >= globalPaletteEntries ||
+					int(data[cursor+12]) >= globalPaletteEntries {
+					return fmt.Errorf("GIF plain text colors exceed global color table")
+				}
 				// Plain text is a GIF graphic rendering block. It consumes
 				// the pending GCE, unlike comment/application extensions.
 				pendingGraphicControl = false
