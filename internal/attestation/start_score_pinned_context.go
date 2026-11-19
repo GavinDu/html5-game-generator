@@ -14,15 +14,15 @@ const maxPinnedStartScoreIRBytes = 1 << 20
 // entityless game_start/add_score profile. Neither its digest nor its score
 // authenticates a publisher, server-granted seed, browser run or final verdict.
 type pinnedStartScoreContext struct {
-	Profile              string
-	RawIRSHA256          string
-	TypedIRSHA256        string
-	OrderedWorkSHA256    string
-	TypedContextSHA256   string
-	PinnedContextSHA256  string
-	Seed                 uint64
-	DurationTicks        int
-	Score                int64
+	Profile             string
+	RawIRSHA256         string
+	TypedIRSHA256       string
+	OrderedWorkSHA256   string
+	TypedContextSHA256  string
+	PinnedContextSHA256 string
+	Seed                uint64
+	DurationTicks       int
+	Score               int64
 }
 
 // fingerprintPinnedStartScoreContext rejects any mismatch between the exact
