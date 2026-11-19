@@ -1,7 +1,8 @@
 # Binaries
 /doodlequest
 /server
-/bin/  # Compiled Replit deployment binary; never dirty the next Go VCS stamp
+# Replit deployment binary: untracked output must not mark the next Go VCS stamp dirty.
+/bin/
 *.exe
 *.out
 
