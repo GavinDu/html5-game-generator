@@ -27,13 +27,13 @@ func tinyGIFGraphicControl(packed, index byte) []byte {
 
 func TestGIFGraphicControlTransparencyBoundsArePerFrame(t *testing.T) {
 	for _, tc := range []struct {
-		name		string
-		index		byte
-		global		int
-		local		int
-		packed		byte
-		transparent	byte
-		wantOK		bool
+		name        string
+		index       byte
+		global      int
+		local       int
+		packed      byte
+		transparent byte
+		wantOK      bool
 	}{
 		{name: "global_two_valid", index: 1, global: 2, packed: 1, transparent: 1, wantOK: true},
 		{name: "global_two_invalid_transparency", index: 1, global: 2, packed: 1, transparent: 2},
@@ -80,7 +80,7 @@ func TestGIFGraphicControlExtensionLifetimeAndMalformedSubblocks(t *testing.T) {
 		t.Fatalf("plain text must consume prior GCE: %v", err)
 	}
 	for name, bad := range map[string][]byte{
-		"short_gce": {0x21, 0xf9, 3, 1, 0, 0, 0},
+		"short_gce":          {0x21, 0xf9, 3, 1, 0, 0, 0},
 		"extra_gce_subblock": {0x21, 0xf9, 4, 1, 0, 0, 1, 1, 0xaa, 0},
 	} {
 		t.Run(name, func(t *testing.T) {
