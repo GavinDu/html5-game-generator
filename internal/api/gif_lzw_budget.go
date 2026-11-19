@@ -105,6 +105,9 @@ func gifLZWFrameBudget(data []byte) error {
 		globalPaletteEntries = 1 << (int(data[10]&0x07) + 1)
 		cursor += 3 * globalPaletteEntries
 	}
+	var pendingTransparencyIndex byte
+	var pendingTransparencyEnabled bool
+	var pendingGraphicControl bool
 	for {
 		if cursor >= len(data) {
 			return fmt.Errorf("GIF LZW scanner missing trailer")
@@ -113,13 +116,36 @@ func gifLZWFrameBudget(data []byte) error {
 		cursor++
 		switch block {
 		case 0x3b:
+			if pendingGraphicControl {
+				return fmt.Errorf("GIF graphic control has no following graphic block")
+			}
 			return nil
 		case 0x21:
-			// All extension subblocks were already length-checked.
+			// Metadata admission has already bounded subblock boundaries.
+			// Graphic Control (0xf9) is exactly one 4-byte subblock:
+			// packed flags, delay low/high, transparent color index.
+			label := data[cursor]
 			cursor++
 			next, err := skipGIFDataSubblocks(data, cursor)
 			if err != nil {
 				return err
+			}
+			switch label {
+			case 0xf9:
+				if pendingGraphicControl {
+					return fmt.Errorf("duplicate GIF graphic control before image")
+				}
+				if next-cursor != 6 || data[cursor] != 4 || data[cursor+5] != 0 {
+					return fmt.Errorf("invalid GIF graphic control block")
+				}
+				pendingGraphicControl = true
+				pendingTransparencyEnabled = data[cursor+1]&0x01 != 0
+				pendingTransparencyIndex = data[cursor+4]
+			case 0x01:
+				// Plain text is a GIF graphic rendering block. It consumes
+				// the pending GCE, unlike comment/application extensions.
+				pendingGraphicControl = false
+				pendingTransparencyEnabled = false
 			}
 			cursor = next
 		case 0x2c:
@@ -138,6 +164,12 @@ func gifLZWFrameBudget(data []byte) error {
 			if activePaletteEntries == 0 {
 				return fmt.Errorf("GIF frame has no local or global color table")
 			}
+			if pendingTransparencyEnabled &&
+				int(pendingTransparencyIndex) >= activePaletteEntries {
+				return fmt.Errorf("GIF transparent index exceeds active color table")
+			}
+			pendingGraphicControl = false
+			pendingTransparencyEnabled = false
 			minCodeSize := int(data[cursor])
 			cursor++
 			next, err := skipGIFDataSubblocks(data, cursor)
