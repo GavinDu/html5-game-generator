@@ -72,12 +72,12 @@ func fingerprintPinnedStartScoreContext(
 	_, _ = fmt.Fprintf(digest, "go-scalar-pinned-start-score-v1\n%s\n%s\n%d\n%d\n",
 		rawSHA, typed.ContextSHA256, seed, durationTicks)
 	return pinnedStartScoreContext{
-		Profile: "go-scalar-pinned-start-score-v1",
-		RawIRSHA256: rawSHA,
-		TypedIRSHA256: typed.CanonicalIRSHA256,
-		OrderedWorkSHA256: typed.OrderedWorkSHA256,
-		TypedContextSHA256: typed.ContextSHA256,
+		Profile:             "go-scalar-pinned-start-score-v1",
+		RawIRSHA256:         rawSHA,
+		TypedIRSHA256:       typed.CanonicalIRSHA256,
+		OrderedWorkSHA256:   typed.OrderedWorkSHA256,
+		TypedContextSHA256:  typed.ContextSHA256,
 		PinnedContextSHA256: hex.EncodeToString(digest.Sum(nil)),
-		Seed: seed, DurationTicks: durationTicks, Score: typed.Score,
+		Seed:                seed, DurationTicks: durationTicks, Score: typed.Score,
 	}, nil
 }
