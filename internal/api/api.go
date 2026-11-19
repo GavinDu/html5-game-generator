@@ -174,6 +174,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReadiness)
+	mux.HandleFunc("GET /v1/runtime/release", s.handleRuntimeRelease)
 	mux.HandleFunc("GET /", s.handleRoot)
 	mux.HandleFunc("GET /player", s.handlePlayer)
 	mux.HandleFunc("GET /web/pixi-runtime.js", s.handlePixiRuntime)
