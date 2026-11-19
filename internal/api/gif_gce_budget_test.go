@@ -27,13 +27,13 @@ func tinyGIFGraphicControl(packed, index byte) []byte {
 
 func TestGIFGraphicControlTransparencyBoundsArePerFrame(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		index byte
-		global int
-		local int
-		packed byte
-		transparent byte
-		wantOK bool
+		name		string
+		index		byte
+		global		int
+		local		int
+		packed		byte
+		transparent	byte
+		wantOK		bool
 	}{
 		{name: "global_two_valid", index: 1, global: 2, packed: 1, transparent: 1, wantOK: true},
 		{name: "global_two_invalid_transparency", index: 1, global: 2, packed: 1, transparent: 2},
