@@ -62,12 +62,12 @@ func TestPinnedStartScoreDiagnosticBindsActualRawBytesSeedAndHorizon(t *testing.
 func TestPinnedStartScoreDiagnosticRejectsDigestForgeryAndByteDistinctIR(t *testing.T) {
 	raw, expectedSHA := pinnedStartScoreFixture(t)
 	for name, sha := range map[string]string{
-		"empty": "",
-		"short_legacy_hash": expectedSHA[:12],
-		"uppercase": strings.ToUpper(expectedSHA),
+		"empty":                         "",
+		"short_legacy_hash":             expectedSHA[:12],
+		"uppercase":                     strings.ToUpper(expectedSHA),
 		"same_12_prefix_changed_suffix": expectedSHA[:12] + strings.Repeat("0", 52),
-		"all_zero_digest": strings.Repeat("0", 64),
-		"nonhex": strings.Repeat("x", 64),
+		"all_zero_digest":               strings.Repeat("0", 64),
+		"nonhex":                        strings.Repeat("x", 64),
 	} {
 		t.Run(name, func(t *testing.T) {
 			got, err := fingerprintPinnedStartScoreContext(raw, sha, 43, 180, nil)
@@ -127,10 +127,10 @@ func TestPinnedStartScoreDiagnosticFailsClosedOnUnsupportedOrUnboundedInputs(t *
 		}
 	}
 	for name, input := range map[string][]byte{
-		"truncated": raw[:len(raw)/2],
-		"invalid": []byte("{broken"),
+		"truncated":                     raw[:len(raw)/2],
+		"invalid":                       []byte("{broken"),
 		"unsupported_js_score_coercion": []byte(strings.Replace(string(raw), "\"value\": 3", "\"value\": 2.5", 1)),
-		"unknown_action": []byte(strings.Replace(string(raw), "\"add_score\"", "\"custom_exec\"", 1)),
+		"unknown_action":                []byte(strings.Replace(string(raw), "\"add_score\"", "\"custom_exec\"", 1)),
 	} {
 		t.Run(name, func(t *testing.T) {
 			sum := sha256.Sum256(input)
