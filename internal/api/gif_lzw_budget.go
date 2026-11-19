@@ -105,7 +105,8 @@ func gifLZWFrameBudget(data []byte) error {
 		globalPaletteEntries = 1 << (int(data[10]&0x07) + 1)
 		cursor += 3 * globalPaletteEntries
 	}
-	var pendingTransparencyIndex *byte
+	var pendingTransparencyIndex byte
+	var pendingTransparencyEnabled bool
 	var pendingGraphicControl bool
 	for {
 		if cursor >= len(data) {
@@ -138,15 +139,13 @@ func gifLZWFrameBudget(data []byte) error {
 					return fmt.Errorf("invalid GIF graphic control block")
 				}
 				pendingGraphicControl = true
-				if data[cursor+1]&0x01 != 0 {
-					index := data[cursor+4]
-					pendingTransparencyIndex = &index
-				}
+				pendingTransparencyEnabled = data[cursor+1]&0x01 != 0
+				pendingTransparencyIndex = data[cursor+4]
 			case 0x01:
 				// Plain text is a GIF graphic rendering block. It consumes
 				// the pending GCE, unlike comment/application extensions.
 				pendingGraphicControl = false
-				pendingTransparencyIndex = nil
+				pendingTransparencyEnabled = false
 			}
 			cursor = next
 		case 0x2c:
@@ -165,12 +164,12 @@ func gifLZWFrameBudget(data []byte) error {
 			if activePaletteEntries == 0 {
 				return fmt.Errorf("GIF frame has no local or global color table")
 			}
-			if pendingTransparencyIndex != nil &&
-				int(*pendingTransparencyIndex) >= activePaletteEntries {
+			if pendingTransparencyEnabled &&
+				int(pendingTransparencyIndex) >= activePaletteEntries {
 				return fmt.Errorf("GIF transparent index exceeds active color table")
 			}
 			pendingGraphicControl = false
-			pendingTransparencyIndex = nil
+			pendingTransparencyEnabled = false
 			minCodeSize := int(data[cursor])
 			cursor++
 			next, err := skipGIFDataSubblocks(data, cursor)
