@@ -141,6 +141,7 @@ func TestGCEOutOfRangeTransparencyFailsPackageAndDirectAsset(t *testing.T) {
 		}
 	}
 }
+
 // gifPlainTextGridBlock constructs a GIF89a Plain Text Extension with a
 // deliberately selectable first header-subblock size. A valid one contains
 // exactly twelve text-grid bytes; the surrounding GIF/LZW image stays real.
