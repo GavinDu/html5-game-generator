@@ -49,7 +49,10 @@ func (r *gifSubblockReader) Read(p []byte) (int, error) {
 // It does not allocate a frame, RGBA bitmap, or all animated frames. An early
 // LZW end code, corrupt stream, or output exceeding its declared frame area
 // fails closed. This does not validate animation disposal/GPU compositing.
-func validateGIFLZWImage(subblocks []byte, litWidth int, pixels uint64) error {
+func validateGIFLZWImage(subblocks []byte, litWidth int, pixels uint64, paletteEntries int) error {
+	if paletteEntries < 2 || paletteEntries > 256 {
+		return fmt.Errorf("GIF frame has no supported active color table")
+	}
 	if pixels == 0 || pixels > maxRasterPixels {
 		return fmt.Errorf("GIF LZW frame pixel budget exceeded")
 	}
@@ -61,6 +64,16 @@ func validateGIFLZWImage(subblocks []byte, litWidth int, pixels uint64) error {
 		n, err := reader.Read(scratch[:])
 		if uint64(n) > pixels-decoded {
 			return fmt.Errorf("GIF LZW stream emits more pixels than frame")
+		}
+		// Indices are bytes, but a GIF frame can declare only 2/4/.../256
+		// palette entries. An invalid index must never reach WebKit's
+		// browser decoder, even when compressed syntax and pixel count fit.
+		if paletteEntries < 256 {
+			for _, index := range scratch[:n] {
+				if int(index) >= paletteEntries {
+					return fmt.Errorf("GIF frame index exceeds active color table")
+				}
+			}
 		}
 		decoded += uint64(n)
 		if err == io.EOF {
@@ -87,8 +100,10 @@ func gifLZWFrameBudget(data []byte) error {
 		return err
 	}
 	cursor := 13
+	globalPaletteEntries := 0
 	if data[10]&0x80 != 0 {
-		cursor += 3 * (1 << (int(data[10]&0x07) + 1))
+		globalPaletteEntries = 1 << (int(data[10]&0x07) + 1)
+		cursor += 3 * globalPaletteEntries
 	}
 	for {
 		if cursor >= len(data) {
@@ -114,8 +129,14 @@ func gifLZWFrameBudget(data []byte) error {
 			height := uint64(binary.LittleEndian.Uint16(data[cursor+6 : cursor+8]))
 			packed := data[cursor+8]
 			cursor += 9
+			activePaletteEntries := globalPaletteEntries
 			if packed&0x80 != 0 {
-				cursor += 3 * (1 << (int(packed&0x07) + 1))
+				// Local palette overrides the global table for THIS frame.
+				activePaletteEntries = 1 << (int(packed&0x07) + 1)
+				cursor += 3 * activePaletteEntries
+			}
+			if activePaletteEntries == 0 {
+				return fmt.Errorf("GIF frame has no local or global color table")
 			}
 			minCodeSize := int(data[cursor])
 			cursor++
@@ -123,7 +144,7 @@ func gifLZWFrameBudget(data []byte) error {
 			if err != nil {
 				return err
 			}
-			if err := validateGIFLZWImage(data[cursor:next], minCodeSize, width*height); err != nil {
+			if err := validateGIFLZWImage(data[cursor:next], minCodeSize, width*height, activePaletteEntries); err != nil {
 				return err
 			}
 			cursor = next
