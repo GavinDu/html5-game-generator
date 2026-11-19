@@ -119,7 +119,7 @@ func TestReleaseProvenanceHTTPDoesNotLeakRequestOrClaimUnknownSource(t *testing.
 		t.Fatal("the release endpoint leaked request authentication or viewer metadata")
 	}
 	// Clients cannot override the compiled revision through untrusted query or headers.
-	queryCode, queryFields, _, _ := probe("/v1/runtime/release?sourceRevision="+strings.Repeat("f", 40))
+	queryCode, queryFields, _, _ := probe("/v1/runtime/release?sourceRevision=" + strings.Repeat("f", 40))
 	if queryCode != http.StatusOK || queryFields["sourceRevision"] != fields["sourceRevision"] {
 		t.Fatal("a query parameter altered compiled release provenance")
 	}
