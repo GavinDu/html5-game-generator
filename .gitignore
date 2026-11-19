@@ -1,6 +1,7 @@
 # Binaries
 /doodlequest
 /server
+/bin/  # Compiled Replit deployment binary; never dirty the next Go VCS stamp
 *.exe
 *.out
 
