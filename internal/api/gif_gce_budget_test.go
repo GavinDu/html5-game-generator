@@ -147,6 +147,10 @@ func TestGCEOutOfRangeTransparencyFailsPackageAndDirectAsset(t *testing.T) {
 func gifPlainTextGridBlock(headerSize int) []byte {
 	header := []byte{0, 0, 0, 0, 1, 0, 1, 0, 8, 8, 0, 1}
 	block := []byte{0x21, 0x01, byte(headerSize)}
+	if headerSize == 0 {
+		// A zero-size subblock is already the end-of-data sentinel.
+		return block
+	}
 	if headerSize <= len(header) {
 		block = append(block, header[:headerSize]...)
 	} else {
