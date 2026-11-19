@@ -142,6 +142,14 @@ func gifLZWFrameBudget(data []byte) error {
 				pendingTransparencyEnabled = data[cursor+1]&0x01 != 0
 				pendingTransparencyIndex = data[cursor+4]
 			case 0x01:
+				// GIF89a Plain Text Extension starts with one fixed 12-byte
+				// text-grid descriptor, followed by zero or more text subblocks.
+				// The first metadata pass proves the length is in bounds, but
+				// does not enforce this label-specific shape. Do not let a
+				// malformed descriptor masquerade as a valid browser asset.
+				if data[cursor] != 12 {
+					return fmt.Errorf("GIF plain text extension requires a 12-byte header")
+				}
 				// Plain text is a GIF graphic rendering block. It consumes
 				// the pending GCE, unlike comment/application extensions.
 				pendingGraphicControl = false

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -137,6 +138,87 @@ func TestGCEOutOfRangeTransparencyFailsPackageAndDirectAsset(t *testing.T) {
 			resp.Header().Get("Cache-Control") != "private, no-store" {
 			t.Fatalf("invalid GCE must fail closed at %s: HTTP %d cache=%q",
 				path, resp.Code, resp.Header().Get("Cache-Control"))
+		}
+	}
+}
+
+// gifPlainTextGridBlock constructs a GIF89a Plain Text Extension with a
+// deliberately selectable first header-subblock size. A valid one contains
+// exactly twelve text-grid bytes; the surrounding GIF/LZW image stays real.
+func gifPlainTextGridBlock(headerSize int) []byte {
+	header := []byte{0, 0, 0, 0, 1, 0, 1, 0, 8, 8, 0, 1}
+	block := []byte{0x21, 0x01, byte(headerSize)}
+	if headerSize == 0 {
+		// A zero-size subblock is already the end-of-data sentinel.
+		return block
+	}
+	if headerSize <= len(header) {
+		block = append(block, header[:headerSize]...)
+	} else {
+		block = append(block, header...)
+		block = append(block, make([]byte, headerSize-len(header))...)
+	}
+	return append(block, 0) // terminates the plain-text data subblocks
+}
+
+func TestGIFPlainTextHeaderRequiresExactly12Bytes(t *testing.T) {
+	base := tinyPaletteIndexedGIF(1, 2, 0)
+	for _, size := range []int{12, 0, 11, 13} {
+		t.Run(fmt.Sprintf("header_bytes_%d", size), func(t *testing.T) {
+			encoded := graftGIFBlocks(
+				base, 2, tinyGIFGraphicControl(1, 1),
+				gifPlainTextGridBlock(size),
+			)
+			// The original metadata gate intentionally admits any bounded
+			// extension block. This second pass must inspect its grammar.
+			if err := gifFrameMetadataBudget(encoded); err != nil {
+				t.Fatalf("bounded plain-text fixture must be metadata-valid: %v", err)
+			}
+			err := gifLZWFrameBudget(encoded)
+			if (err == nil) != (size == 12) {
+				t.Fatalf("plain text header size %d admitted=%v, want valid=%v: %v",
+					size, err == nil, size == 12, err)
+			}
+			_, contractErr := rasterHeaderPixels("image/gif", encoded)
+			if (contractErr == nil) != (size == 12) {
+				t.Fatalf("production image admission for header %d: %v", size, contractErr)
+			}
+		})
+	}
+}
+
+func TestMalformedGIFPlainTextHeaderFailsPackageAndDirectAsset(t *testing.T) {
+	st := store.NewMemoryStore()
+	srv := New(st, pipeline.NewRunner(st))
+	const gameID = "invalid-gif-plaintext-game"
+	const uri = "assets/text-grid.gif"
+	game := seedReadyGame(st, gameID)
+	game.ModerationStatus = "approved"
+	game.GameIR.Assets = append(game.GameIR.Assets, gameir.Asset{
+		ID: "text-grid", Kind: "image", URI: uri, MIMEType: "image/gif",
+	})
+	st.UpdateGame(game)
+	paths := []string{
+		"/v1/games/" + gameID + "/package",
+		"/v1/games/" + gameID + "/assets/text-grid",
+	}
+	base := tinyPaletteIndexedGIF(1, 2, 0)
+	for _, size := range []int{12, 0, 11, 13} {
+		encoded := graftGIFBlocks(base, 2, gifPlainTextGridBlock(size))
+		st.PutArtifact(gameID, uri, encoded, "image/gif")
+		for _, path := range paths {
+			resp := getAs(t, srv, path, "")
+			if size == 12 {
+				if resp.Code != http.StatusOK {
+					t.Errorf("valid 12-byte grid denied at %s: HTTP %d", path, resp.Code)
+				}
+				continue
+			}
+			if resp.Code != http.StatusUnprocessableEntity ||
+				resp.Header().Get("Cache-Control") != "private, no-store" {
+				t.Errorf("malformed grid size %d must fail closed at %s: HTTP %d cache=%q",
+					size, path, resp.Code, resp.Header().Get("Cache-Control"))
+			}
 		}
 	}
 }
