@@ -82,7 +82,6 @@ func TestCreatorPathSegmentsDoNotRouteRawSlashOrInjectedSuffix(t *testing.T) {
 	}
 }
 
-
 // Unlike the route-grammar matrix above, this invokes the *real shipping*
 // social handler registration and handler. A public, empty creator-profile
 // response demonstrates identity-preserving routing only; it does NOT
