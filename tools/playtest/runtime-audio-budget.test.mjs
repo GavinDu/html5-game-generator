@@ -20,7 +20,7 @@ test('audio asset transfer and decoded resource budgets never bypass authenticat
   assert.match(source, /MAX_ACTIVE_SOUND_SOURCES = 32/);
   assert.match(source, /MAX_QUEUED_SOUND_JOBS = 32/);
   assert.match(source, /this\.decodedBytes \+ decodedBytes > MAX_TOTAL_AUDIO_DECODED_BYTES/);
-  assert.match(source, /apiFetch\(url, \{ signal: request\.signal \}\)/);
+  assert.match(source, /apiFetch\(url, authenticatedAssetFetchOptions\(request\.signal\)\)/);
   const executable = source.slice(source.indexOf('const sfx = {'), source.indexOf('const EASINGS = {'));
   assert.doesNotMatch(executable, /new Audio\(url\)/);
 });
@@ -38,7 +38,7 @@ test('audio fetch/decode concurrency is deduplicated and has a deadline', () => 
 test('audio URLs are validated before any authenticated fetch, including preloads', () => {
   const play = source.indexOf('play(url, assetId, preloadOnly = false)');
   const sameOrigin = source.indexOf('requested.origin !== location.origin', play);
-  const authFetch = source.indexOf('apiFetch(url, { signal: request.signal })', play);
+  const authFetch = source.indexOf('apiFetch(url, authenticatedAssetFetchOptions(request.signal))', play);
   assert.ok(play > 0 && sameOrigin > play && authFetch > sameOrigin,
     'reject cross-origin audio before fetching it with application credentials');
   assert.match(source, /throw new Error\('audio asset URL must be same-origin'\)/);
@@ -51,4 +51,15 @@ test('bounded high-use predecode is nonblocking and never starts playback', () =
   assert.match(source, /if \(ctx\.state === 'suspended' && !preloadOnly\)/);
   assert.match(source, /if \(buffer && !preloadOnly\) start\(buffer\)/);
   assert.match(source, /decodedSoundIds: \[\.\.\.sfx\.buffers\.keys\(\)\]/);
+});
+
+
+test('authenticated WebAudio preloads cannot follow an external redirect', () => {
+  const play = source.indexOf('play(url, assetId, preloadOnly = false)');
+  const fetchCall = source.indexOf('apiFetch(url, authenticatedAssetFetchOptions(request.signal))', play);
+  const requestedURLCheck = source.indexOf('requested.origin !== location.origin', play);
+  assert.ok(play > 0 && requestedURLCheck > play && fetchCall > requestedURLCheck);
+  assert.match(source, /return Object\.freeze\(\{ signal, redirect: 'error' \}\)/);
+  assert.doesNotMatch(source.slice(play, source.indexOf('const EASINGS = {', play)),
+    /apiFetch\(url, \{ signal: request\.signal \}\)/);
 });
