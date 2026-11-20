@@ -26,7 +26,7 @@
 //   100 px = 1 m); IR values stay in logical px / px-per-second.
 
 import * as PIXI from 'pixi.js';
-import { createSimulationWorkBudget, createSemanticInputQueue, shouldRunSemanticTicker } from './runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue, createCommittedInputWitness, shouldRunSemanticTicker } from './runtime-work-budget.js';
 import { resolveHorizontalMovement } from './runtime-movement-plane.mjs';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { createSeededRandom } from './runtime-seeded-rng.mjs';
@@ -1969,6 +1969,10 @@ async function run(id) {
   // Exceeding a budget is a terminal runtime error, never a dropped rule.
   const workBudget = createSimulationWorkBudget();
   const semanticInputQueue = createSemanticInputQueue();
+  // Only probe sessions expose this bounded *executed* event witness.
+  // Never feed it into score, replayInputRecorder or native result bridge.
+  const committedInputWitness = probeMode ? createCommittedInputWitness() : null;
+  if (committedInputWitness) play.committedInputWitness = () => committedInputWitness.snapshot();
   const state = {
     score: 0, health: 3, ended: false, won: false, failed: false,
     variables: play.shell?.chaserGap ? { chaser_gap: Number(play.shell.chaserGap.start) } : {}, elapsed: 0, depth: 0,
@@ -3026,7 +3030,12 @@ async function run(id) {
     if (state.ended || state.failed) return;
     workBudget.reset();
     semanticInputQueue.drain(({ source, target, action }) => {
+      // A previously terminal input in the same tick can leave queued
+      // events that emit() intentionally skips. Never witness a skipped
+      // command or use browser arrival as an executed semantic event.
+      if (state.ended || state.failed) return;
       emit('input', source, target, undefined, action);
+      if (!state.failed) committedInputWitness?.record(play.simStep, action);
     });
     if (state.ended || state.failed) return;
     emittedTimerIntervals.clear();
