@@ -8,8 +8,9 @@ const source = readFileSync(new URL('../../internal/api/web/pixi-runtime.js', im
 const begin = source.indexOf('function createGameRunAttemptGate() {');
 const end = source.indexOf('const gameRunAttemptGate = createGameRunAttemptGate();', begin);
 assert.ok(begin >= 0 && end > begin, 'missing production attempt-ownership implementation');
-const { createGameRunAttemptGate, awaitGameRunAttempt, disposeOwnedGameTextures } = runInNewContext(
-  source.slice(begin, end) + '\n({ createGameRunAttemptGate, awaitGameRunAttempt, disposeOwnedGameTextures });',
+const { createGameRunAttemptGate, awaitGameRunAttempt, disposeOwnedGameTextures,
+  retireFailedBootstrapAudioIfOwned } = runInNewContext(
+  source.slice(begin, end) + '\n({ createGameRunAttemptGate, awaitGameRunAttempt, disposeOwnedGameTextures, retireFailedBootstrapAudioIfOwned });',
   { AbortController, Error }
 );
 
@@ -97,4 +98,52 @@ test('production boot checks every async ownership boundary and aborts image tra
   assert.match(source, /activeSession\.disposeTextures\?\.\(\)/);
   assert.match(source, /activeSession\.disposeTextures = \(\) => disposeOwnedGameTextures\(textures\)/);
   assert.match(source, /disposeOwnedGameTextures\(textures\);/);
+});
+
+
+test('failed Pixi bootstrap resets WebAudio only for the exact owning app', () => {
+  const failedApp = {};
+  const successorApp = {};
+  const observations = [];
+  const reset = () => observations.push('audio_generation_released');
+  assert.equal(retireFailedBootstrapAudioIfOwned({ app: failedApp }, failedApp, reset), true);
+  assert.deepEqual(observations, ['audio_generation_released']);
+  assert.equal(retireFailedBootstrapAudioIfOwned({ app: successorApp }, failedApp, reset), false);
+  assert.equal(retireFailedBootstrapAudioIfOwned(null, failedApp, reset), false);
+  assert.equal(retireFailedBootstrapAudioIfOwned({ app: {} }, failedApp, reset), false);
+  assert.equal(observations.length, 1, 'stale failed game must never erase successor audio');
+});
+
+test('160 raced failure / next-game ownership interleavings never reset newer audio', () => {
+  let audioResets = 0;
+  for (let iteration = 0; iteration < 160; iteration++) {
+    const oldApp = { iteration, kind: 'old' };
+    const newApp = { iteration, kind: 'new' };
+    const oldSession = { app: oldApp };
+    const reset = () => { audioResets++; };
+    assert.equal(retireFailedBootstrapAudioIfOwned(oldSession, oldApp, reset), true);
+    // A previous session is now retired; clearing the host reference
+    // makes a second asynchronous rejection an idempotent no-op.
+    assert.equal(retireFailedBootstrapAudioIfOwned(null, oldApp, reset), false);
+    const successor = { app: newApp };
+    assert.equal(retireFailedBootstrapAudioIfOwned(successor, oldApp, reset), false);
+    assert.equal(retireFailedBootstrapAudioIfOwned(successor, newApp, reset), true);
+    assert.equal(retireFailedBootstrapAudioIfOwned({ app: { iteration, kind: 'new' } }, newApp, reset), false,
+      'structurally identical attempts may not erase a different app');
+    assert.equal(audioResets, (iteration + 1) * 2);
+  }
+});
+
+test('shipping failed-bootstrap teardown aborts owned WebAudio before retiring WebGL app', () => {
+  const start = source.indexOf('const discardFailedBootstrap = (error) => {');
+  const end = source.indexOf('// The canvas can outlive an OS background/context-loss event.', start);
+  assert.ok(start > 0 && end > start, 'missing actual bootstrap failure path');
+  const failurePath = source.slice(start, end);
+  assert.match(failurePath, /abort\.abort\(\);[\s\S]*disposeOwnedGameTextures\(textures\);/);
+  assert.match(failurePath,
+    /if \(retireFailedBootstrapAudioIfOwned\(activeSession, app, \(\) => sfx\.reset\(\)\)\) \{/);
+  assert.match(failurePath,
+    /sfx\.reset\(\)\)\) \{[\s\S]*app\.destroy\(true, \{ children: true, texture: false \}\)[\s\S]*activeSession = null;/);
+  assert.doesNotMatch(failurePath, /^\s*sfx\.reset\(\);/m,
+    'an unowned stale failure must never globally reset successor audio');
 });
