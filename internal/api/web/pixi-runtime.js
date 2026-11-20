@@ -649,6 +649,13 @@ function authenticatedAssetFetchOptions(signal) {
   return Object.freeze({ signal, redirect: 'error' });
 }
 
+// GamePackage and recorded replay are trusted game documents, not redirectable
+// external JSON. Reuse the sealed private-transfer policy without altering
+// ordinary feed/social requests or the running attempt's AbortSignal.
+function trustedRuntimeDocumentFetchOptions(signal) {
+  return authenticatedAssetFetchOptions(signal);
+}
+
 async function apiFetch(input, init = {}) {
   const url = new URL(input, location.href);
   const headers = new Headers(init.headers || {});
@@ -1068,7 +1075,7 @@ async function run(id) {
   let replayIndex = null;
   if (replayRunId) {
     try {
-      const rr = await awaitActive(apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`, { signal: abort.signal }));
+      const rr = await awaitActive(apiFetch(`/v1/runs/${encodeURIComponent(replayRunId)}`, trustedRuntimeDocumentFetchOptions(abort.signal)));
       if (rr.ok) {
         replayTrace = await awaitActive(rr.json());
       }
@@ -1175,7 +1182,7 @@ async function run(id) {
     play.frameSamples = [];
     play.longestFrameMs = 0;
   }
-  const res = await awaitActive(apiFetch(`/v1/games/${encodeURIComponent(id)}/package`, { signal: abort.signal }));
+  const res = await awaitActive(apiFetch(`/v1/games/${encodeURIComponent(id)}/package`, trustedRuntimeDocumentFetchOptions(abort.signal)));
   if (!res.ok) {
     const body = await awaitActive(res.text());
     throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
