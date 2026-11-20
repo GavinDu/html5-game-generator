@@ -36,6 +36,7 @@ func TestCreatorPathSegmentNamespacedRouteContract(t *testing.T) {
 			encoded, identity string
 		}{
 			{"creator-123_ABC", "creator-123_ABC"},
+			{"apple%3AprivateSubject", "apple:privateSubject"},
 			{"auth0%7Csubject", "auth0|subject"},
 			{"google-oauth2%7C123", "google-oauth2|123"},
 			{"github%3A123%40id", "github:123@id"},
