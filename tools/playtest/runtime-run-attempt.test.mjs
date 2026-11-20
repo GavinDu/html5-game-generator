@@ -147,3 +147,60 @@ test('shipping failed-bootstrap teardown aborts owned WebAudio before retiring W
   assert.doesNotMatch(failurePath, /^\s*sfx\.reset\(\);/m,
     'an unowned stale failure must never globally reset successor audio');
 });
+
+test('failed GamePackage HTTP bodies never enter diagnostics or unbounded buffering (160 hostile cases)', () => {
+  const start = source.indexOf('function failClosedPackageHTTPResponse(response) {');
+  const end = source.indexOf('\nasync function run(id) {', start);
+  assert.ok(start > 0 && end > start, 'test installed fail-closed package error policy');
+  const reject = runInNewContext(
+    source.slice(start, end) + '\nfailClosedPackageHTTPResponse;',
+    { Number, Error }
+  );
+  for (let i = 0; i < 160; i++) {
+    const status = i % 2 ? 403 : 426;
+    let cancelled = 0, textReads = 0, jsonReads = 0;
+    const maliciousBody = 'private-token-control-' + i + '\\n' + 'x'.repeat(i * 50);
+    const response = {
+      status,
+      body: {
+        cancel() {
+          cancelled++;
+          if (i % 3 === 0) return Promise.reject(new Error(maliciousBody));
+          if (i % 3 === 1) throw new Error(maliciousBody);
+          return new Promise(() => {}); // a stuck cancellation must never stall error UX
+        },
+      },
+      text() { textReads++; return Promise.resolve(maliciousBody); },
+      json() { jsonReads++; return Promise.resolve({ error: maliciousBody }); },
+    };
+    assert.throws(() => reject(response),
+      e => e.message === 'package HTTP ' + status &&
+        !e.message.includes(maliciousBody),
+      'must report fixed HTTP category without reading or displaying body');
+    assert.equal(cancelled, 1, 'unread stream cancellation must be attempted once');
+    assert.equal(textReads, 0);
+    assert.equal(jsonReads, 0);
+  }
+  for (const status of ['401 secret', null, -1, NaN, Infinity, 700, {}, undefined]) {
+    assert.throws(() => reject({ status, body: null }),
+      e => e.message === 'package HTTP 0');
+  }
+  assert.throws(() => reject({ status: 302, body: null }),
+    e => e.message === 'package HTTP 302',
+    'unexpected redirect-like response must still fail closed');
+});
+
+test('real package HTTP non-success branch never parses raw response text or ID-bearing bodies', () => {
+  const start = source.indexOf('const res = await awaitActive(apiFetch(`/v1/games/');
+  const end = source.indexOf('const pkg = await awaitActive(res.json());', start);
+  assert.ok(start > 0 && end > start, 'must find real run GamePackage fetch');
+  const failure = source.slice(start, end);
+  assert.match(failure, /if \(!res\.ok\) failClosedPackageHTTPResponse\(res\)/);
+  assert.doesNotMatch(failure, /res\.text\(|body\.slice|\.localizedDescription/);
+  const helper = source.slice(
+    source.indexOf('function failClosedPackageHTTPResponse(response) {'),
+    source.indexOf('\nasync function run(id) {')
+  );
+  assert.match(helper, /response\?\.body\?\.cancel\?\.\(\)/);
+  assert.doesNotMatch(helper, /response\.text\(|response\.json\(/);
+});
