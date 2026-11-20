@@ -971,6 +971,16 @@ function createGameRunAttemptGate() {
 // Every image created by loadTexture() is private to one game attempt.
 // Pixi's app.destroy(texture:false) intentionally avoids global/shared
 // caches; retire only these privately decoded image textures on restart.
+// A bootstrap can fail after WebAudio prefetch starts but before the next
+// successful run. The failed app may revoke audio only while it still owns
+// the CURRENT session. A late failed attempt must not stop its successor's
+// music or clear that successor's decoded buffers.
+function retireFailedBootstrapAudioIfOwned(session, failedApp, resetAudio) {
+  if (!session || session.app !== failedApp) return false;
+  resetAudio();
+  return true;
+}
+
 function disposeOwnedGameTextures(textures) {
   const owned = new Set(textures.values());
   textures.clear();
@@ -1295,7 +1305,7 @@ async function run(id) {
     // Partial preflight decoded textures must not survive a canceled boot.
     // The map is private to this attempt; never release successor resources.
     disposeOwnedGameTextures(textures);
-    if (activeSession?.app === app) {
+    if (retireFailedBootstrapAudioIfOwned(activeSession, app, () => sfx.reset())) {
       try { app.destroy(true, { children: true, texture: false }); } catch { /* already destroyed */ }
       activeSession = null;
     }
