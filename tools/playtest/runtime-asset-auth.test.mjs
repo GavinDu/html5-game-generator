@@ -87,3 +87,59 @@ test('neither private image nor WebAudio transfer can silently follow HTTP redir
   assert.match(image, /assetURL\.origin !== location\.origin/);
   assert.match(audio, /requested\.origin !== location\.origin/);
 });
+
+test('trusted game-document fetches reject redirects at both shipped package and replay read sites', () => {
+  const replayStart = source.indexOf('const rr = await awaitActive(apiFetch(`/v1/runs/');
+  const packageStart = source.indexOf('const res = await awaitActive(apiFetch(`/v1/games/');
+  assert.ok(replayStart > 0 && packageStart > replayStart,
+    'must locate real run-replay and game-package Fetch callsites');
+  const replay = source.slice(replayStart, source.indexOf('\n', replayStart));
+  const pkg = source.slice(packageStart, source.indexOf('\n', packageStart));
+  assert.match(replay, /\/v1\/runs\//);
+  assert.match(pkg, /\/package`/);
+  for (const site of [replay, pkg]) {
+    assert.match(site, /trustedRuntimeDocumentFetchOptions\(abort\.signal\)/);
+    assert.doesNotMatch(site, /\{\s*signal:\s*abort\.signal\s*\}/,
+      'never allow implicit Fetch redirect:follow for trusted game JSON');
+  }
+  assert.equal(source.match(/trustedRuntimeDocumentFetchOptions\(abort\.signal\)/g)?.length, 2);
+});
+
+test('installed game-document fetch policy forwards a sealed no-redirect signal through the real API wrapper', async () => {
+  const start = source.indexOf('function authenticatedAssetFetchOptions(signal) {');
+  const end = source.indexOf('function setAccountStatus(message) {', start);
+  assert.ok(start > 0 && end > start);
+  const bridge = runInNewContext(
+    source.slice(start, end) +
+      '\n({ policy: trustedRuntimeDocumentFetchOptions, fetch: apiFetch });',
+    {
+      URL, Headers, Object, TypeError,
+      location: {
+        href: 'https://game.example.test/player?game=sample',
+        origin: 'https://game.example.test',
+      },
+      readSessionToken: () => 'private-test-token',
+      window: { fetch: async (_url, init) => init },
+    }
+  );
+  for (let i = 0; i < 160; i++) {
+    const controller = new AbortController();
+    const options = bridge.policy(controller.signal);
+    assert.equal(options.signal, controller.signal);
+    assert.equal(Object.isFrozen(options), true);
+    assert.equal(options.redirect, 'error');
+    const resource = i % 2 === 0
+      ? 'https://game.example.test/v1/games/verified_game/package'
+      : 'https://game.example.test/v1/runs/verified_run';
+    assert.equal(new Request(resource, options).redirect, 'error');
+    const forwarded = await bridge.fetch(resource, options);
+    assert.equal(forwarded.redirect, 'error', 'apiFetch must preserve redirect policy');
+    assert.equal(forwarded.signal, controller.signal);
+    assert.equal(forwarded.headers.get('Authorization'), 'Bearer private-test-token');
+    controller.abort();
+    assert.equal(options.signal.aborted, true);
+  }
+  for (const invalid of [undefined, null, {}, { aborted: false }]) {
+    assert.throws(() => bridge.policy(invalid), TypeError);
+  }
+});
