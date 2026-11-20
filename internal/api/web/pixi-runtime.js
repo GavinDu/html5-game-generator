@@ -420,7 +420,7 @@ const sfx = {
         sessionSignal.addEventListener('abort', onAbort, { once: true });
         const timeout = setTimeout(() => { this.trace('timeout_abort', assetId); request.abort(); }, AUDIO_FETCH_TIMEOUT_MS);
         this.trace('request_started', assetId);
-        pending = apiFetch(url, { signal: request.signal }).then(async (response) => {
+        pending = apiFetch(url, authenticatedAssetFetchOptions(request.signal)).then(async (response) => {
           this.trace('response_' + response.status, assetId);
           if (!response.ok) throw new Error('audio asset HTTP ' + response.status);
           const declared = Number(response.headers.get('content-length'));
@@ -636,6 +636,19 @@ const AUTH_TOKEN_KEY = 'dq.session.bearer';
 function readSessionToken() {
   try { return sessionStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch { return ''; }
 }
+// Private, same-origin GamePackage image/WebAudio transfers must never
+// follow a 30x to an unapproved external host. Browser Fetch otherwise
+// defaults to redirect:'follow' even after the initial origin check.
+// Disallow *all* asset redirects until the serving contract supplies a
+// versioned, authenticated same-origin proxy or explicit allowlisted policy.
+function authenticatedAssetFetchOptions(signal) {
+  if (!signal || typeof signal.aborted !== 'boolean' ||
+      typeof signal.addEventListener !== 'function') {
+    throw new TypeError('private asset fetch requires an abort signal');
+  }
+  return Object.freeze({ signal, redirect: 'error' });
+}
+
 async function apiFetch(input, init = {}) {
   const url = new URL(input, location.href);
   const headers = new Headers(init.headers || {});
@@ -1472,7 +1485,7 @@ async function run(id) {
     const requestTimeout = setTimeout(() => requestController.abort(), 15000);
     let imageBlob;
     try {
-      const response = await apiFetch(assetURL.href, { signal: requestController.signal });
+      const response = await apiFetch(assetURL.href, authenticatedAssetFetchOptions(requestController.signal));
       if (!response.ok) {
         throw new Error(`image asset request failed (HTTP ${response.status}): ${assetURL.pathname}`);
       }
