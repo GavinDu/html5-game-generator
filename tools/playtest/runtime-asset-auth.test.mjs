@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const runtimePath = fileURLToPath(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url));
 const source = await readFile(runtimePath, 'utf8');
 
 test('private image assets are fetched through the authenticated same-origin API client', () => {
   assert.match(source, /assetURL\.origin !== location\.origin/);
-  assert.match(source, /apiFetch\(assetURL\.href,\s*\{\s*signal:\s*requestController\.signal\s*\}\)/);
+  assert.match(source, /apiFetch\(assetURL\.href,\s*authenticatedAssetFetchOptions\(requestController\.signal\)\)/);
   assert.match(source, /image asset URL must be same-origin/);
 });
 
@@ -44,4 +45,45 @@ test('declared image SHA-256 hashes are verified before decode', () => {
   assert.match(source, /crypto\.subtle\.digest\('SHA-256'/);
   assert.match(source, /image asset integrity check failed/);
   assert.match(source, /invalid SHA-256 declaration/);
+});
+
+
+test('actual installed private asset policy denies redirects while preserving source abort control', () => {
+  const begin = source.indexOf('function authenticatedAssetFetchOptions(signal) {');
+  const end = source.indexOf('async function apiFetch(input, init = {}) {', begin);
+  assert.ok(begin > 0 && end > begin, 'must test the real shipped asset fetch options helper');
+  const policy = runInNewContext(
+    source.slice(begin, end) + '\nauthenticatedAssetFetchOptions;',
+    { Object, TypeError }
+  );
+  for (let i = 0; i < 160; i++) {
+    const controller = new AbortController();
+    const options = policy(controller.signal);
+    assert.equal(options.signal, controller.signal, 'one abort controller owns the full transfer');
+    assert.equal(options.redirect, 'error');
+    assert.equal(Object.isFrozen(options), true);
+    assert.equal(new Request('https://origin.example.test/v1/assets/' + i, options).redirect, 'error');
+    controller.abort();
+    assert.equal(options.signal.aborted, true);
+  }
+  for (const invalid of [null, undefined, {}, { aborted: false }]) {
+    assert.throws(() => policy(invalid), TypeError);
+  }
+});
+
+test('neither private image nor WebAudio transfer can silently follow HTTP redirects', () => {
+  const imageStart = source.indexOf('async function loadTexture(asset) {');
+  const audioStart = source.indexOf('play(url, assetId, preloadOnly = false) {');
+  assert.ok(imageStart > 0 && audioStart > 0);
+  const image = source.slice(imageStart, source.indexOf('const objectURL = URL.createObjectURL(imageBlob)', imageStart));
+  const audio = source.slice(audioStart, source.indexOf('const EASINGS = {', audioStart));
+  assert.match(image, /apiFetch\(assetURL\.href,\s*authenticatedAssetFetchOptions\(requestController\.signal\)\)/);
+  assert.match(audio, /apiFetch\(url,\s*authenticatedAssetFetchOptions\(request\.signal\)\)/);
+  assert.match(source, /return Object\.freeze\(\{ signal, redirect: 'error' \}\)/);
+  assert.doesNotMatch(image, /apiFetch\(assetURL\.href,\s*\{\s*signal:/);
+  assert.doesNotMatch(audio, /apiFetch\(url,\s*\{\s*signal:/);
+  // Keep separate initial-origin/authorization restrictions. This only
+  // closes the later redirect escape, not server package authenticity.
+  assert.match(image, /assetURL\.origin !== location\.origin/);
+  assert.match(audio, /requested\.origin !== location\.origin/);
 });
