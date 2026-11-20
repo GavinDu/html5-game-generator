@@ -1,10 +1,14 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"doodlequest/internal/pipeline"
+	"doodlequest/internal/store"
 )
 
 // Backend route-contract evidence for Hephaestus successor Epic #642/#664.
@@ -74,6 +78,43 @@ func TestCreatorPathSegmentsDoNotRouteRawSlashOrInjectedSuffix(t *testing.T) {
 		mux.ServeHTTP(resp, httptest.NewRequest("GET", "https://api.example.test"+path, nil))
 		if resp.Code == http.StatusNoContent {
 			t.Fatalf("raw multi-segment creator path unexpectedly matched one id: %q", path)
+		}
+	}
+}
+
+
+// Unlike the route-grammar matrix above, this invokes the *real shipping*
+// social handler registration and handler. A public, empty creator-profile
+// response demonstrates identity-preserving routing only; it does NOT
+// fabricate a creator, published game, authorization, or social relationship.
+func TestProductionCreatorProfileRoutePreservesEscapedOpaqueID(t *testing.T) {
+	st := store.NewMemoryStore()
+	server := New(st, pipeline.NewRunner(st))
+	mux := http.NewServeMux()
+	server.registerSocialRoutes(mux)
+
+	for _, tc := range []struct {
+		encoded, identity string
+	}{
+		{"apple%3AprivateSubject", "apple:privateSubject"},
+		{"auth0%7Csubject", "auth0|subject"},
+		{"github%3A123%40id", "github:123@id"},
+		{"creator-123_ABC", "creator-123_ABC"},
+	} {
+		req := httptest.NewRequest("GET", "https://api.example.test/v1/users/"+tc.encoded, nil)
+		resp := httptest.NewRecorder()
+		mux.ServeHTTP(resp, req)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("real creator profile route rejected encoded path: HTTP %d", resp.Code)
+		}
+		var body struct {
+			CreatorID string `json:"creator_id"`
+		}
+		if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+			t.Fatalf("real creator profile response shape invalid: %v", err)
+		}
+		if body.CreatorID != tc.identity {
+			t.Fatalf("real handler changed encoded identity: got %q want %q", body.CreatorID, tc.identity)
 		}
 	}
 }
