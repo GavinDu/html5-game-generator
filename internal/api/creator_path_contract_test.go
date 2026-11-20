@@ -41,8 +41,6 @@ func TestCreatorPathSegmentNamespacedRouteContract(t *testing.T) {
 		}{
 			{"creator-123_ABC", "creator-123_ABC"},
 			{"apple%3AprivateSubject", "apple:privateSubject"},
-		{"apple%3A%C3%A9", "apple:é"},
-		{"apple%3A%E5%B0%8F%E6%98%8E", "apple:小明"},
 			{"apple%3A%C3%A9", "apple:é"},
 			{"apple%3A%E5%B0%8F%E6%98%8E", "apple:小明"},
 			{"user%2Bother", "user+other"},
@@ -102,6 +100,8 @@ func TestProductionCreatorProfileRoutePreservesEscapedOpaqueID(t *testing.T) {
 		encoded, identity string
 	}{
 		{"apple%3AprivateSubject", "apple:privateSubject"},
+		{"apple%3A%C3%A9", "apple:é"},
+		{"apple%3A%E5%B0%8F%E6%98%8E", "apple:小明"},
 		{"auth0%7Csubject", "auth0|subject"},
 		{"github%3A123%40id", "github:123@id"},
 		{"creator-123_ABC", "creator-123_ABC"},
