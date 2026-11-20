@@ -55,6 +55,56 @@ export function createSemanticInputQueue(capacity = MAX_QUEUED_SEMANTIC_INPUTS) 
 }
 
 
+// Opt-in diagnostic-only witness for the *actual* fixed-step input queue
+// commit, not the earlier DOM timestamp or a server-authenticated replay.
+// Holds neither input source/target objects nor arbitrary event detail.
+// On any invalid, out-of-order or over-budget event, clear the prefix and
+// mark it incomplete; never silently publish a clipped "complete" history.
+export const MAX_COMMITTED_INPUT_WITNESS_EVENTS = 128;
+const COMMITTED_ACTION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+export function createCommittedInputWitness(capacity = MAX_COMMITTED_INPUT_WITNESS_EVENTS) {
+  if (!Number.isSafeInteger(capacity) || capacity < 1 ||
+      capacity > MAX_COMMITTED_INPUT_WITNESS_EVENTS) {
+    throw new RangeError('invalid committed input witness budget');
+  }
+  let complete = true;
+  let failureReason = null;
+  let lastTick = -1;
+  let lastOrdinal = -1;
+  let accepted = 0;
+  const entries = [];
+  const fail = (reason) => {
+    complete = false;
+    failureReason = reason;
+    entries.length = 0;
+    return false;
+  };
+  return Object.freeze({
+    record(tick, action) {
+      if (!complete) return false;
+      if (!Number.isSafeInteger(tick) || tick < 0 || tick > 108_000 ||
+          typeof action !== 'string' || !COMMITTED_ACTION_ID.test(action)) {
+        return fail('invalid_commit');
+      }
+      if (tick < lastTick) return fail('backwards_tick');
+      if (entries.length >= capacity) return fail('witness_limit');
+      const ordinal = tick === lastTick ? lastOrdinal + 1 : 0;
+      entries.push({ tick, ordinal, action });
+      lastTick = tick;
+      lastOrdinal = ordinal;
+      accepted++;
+      return true;
+    },
+    snapshot() {
+      return {
+        complete, failureReason, accepted,
+        entries: entries.map(({ tick, ordinal, action }) => ({ tick, ordinal, action })),
+      };
+    },
+  });
+}
+
+
 // One lifecycle predicate for the Pixi simulation/render ticker. This
 // does not advance virtual time, resume audio, or accept untrusted Game IR.
 // A terminal, errored, hidden, orientation-blocked, or context-lost session

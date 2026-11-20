@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createSimulationWorkBudget, createSemanticInputQueue, SIMULATION_WORK_LIMITS, MAX_QUEUED_SEMANTIC_INPUTS, shouldRunSemanticTicker } from '../../internal/api/web/runtime-work-budget.js';
+import { createSimulationWorkBudget, createSemanticInputQueue, createCommittedInputWitness, MAX_COMMITTED_INPUT_WITNESS_EVENTS, SIMULATION_WORK_LIMITS, MAX_QUEUED_SEMANTIC_INPUTS, shouldRunSemanticTicker } from '../../internal/api/web/runtime-work-budget.js';
 
 const runtime = await readFile(new URL('../../internal/api/web/pixi-runtime.js', import.meta.url), 'utf8');
 
@@ -72,7 +72,7 @@ test('queue capacity cannot be bypassed with malformed definitions', () => {
 
 test('all live and replay input rules run inside one fixed-step work budget', () => {
   assert.match(runtime, /function tickFrame\(dtMs\) \{\s*if \(state\.ended \|\| state\.failed\) return;\s*workBudget\.reset\(\);\s*semanticInputQueue\.drain/);
-  assert.match(runtime, /semanticInputQueue\.drain\(\(\{ source, target, action \}\) => \{\s*emit\('input', source, target, undefined, action\);/);
+  assert.match(runtime, /semanticInputQueue\.drain\(\(\{ source, target, action \}\) => \{[\s\S]*?if \(state\.ended \|\| state\.failed\) return;\s*emit\('input', source, target, undefined, action\);\s*if \(!state\.failed\) committedInputWitness\?\.record\(play\.simStep, action\);/);
   assert.match(runtime, /function applyReplayInputs\(step\) \{[^]*?queueGameInput\(playerEnt, undefined, tapActionName\(\)\);/);
   assert.match(runtime, /function queueGameInput\(source, target, action\) \{[^]*?semanticInputQueue\.enqueue/);
   assert.match(runtime, /releaseHeldInputs = \(\) => \{[^]*?semanticInputQueue\.clear\(\)/);
@@ -108,4 +108,89 @@ test('visibility, context loss, rotation and capture cancellation share a guard 
   assert.match(runtime, /if \(orientationBlocked && !replayTrace\) releaseHeldInputs\(\);\s*resumeTickerIfSafe\(\)/);
   assert.match(runtime, /resumeTickerIfSafe = \(\) => \{\s*const canRun = shouldRunSemanticTicker/);
   assert.match(runtime, /if \(canRun\) app\.ticker\.start\(\);\s*else app\.ticker\.stop\(\)/);
+});
+
+
+test('probe-only committed witness preserves actual same-step action order without source/target data', () => {
+  assert.equal(MAX_COMMITTED_INPUT_WITNESS_EVENTS, 128);
+  const witness = createCommittedInputWitness();
+  const queue = createSemanticInputQueue(4);
+  const source = { authorization: 'private-do-not-record' };
+  queue.enqueue({ source, action: 'jump' });
+  queue.enqueue({ source, action: 'jump' }); // OS repeat is a second executed action
+  queue.enqueue({ source, action: 'move_left' });
+  assert.equal(queue.drain(({ action }) => witness.record(7, action)), 3);
+  assert.deepEqual(witness.snapshot(), {
+    complete: true, failureReason: null, accepted: 3,
+    entries: [
+      { tick: 7, ordinal: 0, action: 'jump' },
+      { tick: 7, ordinal: 1, action: 'jump' },
+      { tick: 7, ordinal: 2, action: 'move_left' },
+    ],
+  });
+  assert.doesNotMatch(JSON.stringify(witness.snapshot()), /authorization|private-do-not-record/);
+  const exported = witness.snapshot();
+  exported.entries[0].action = 'malicious';
+  assert.equal(witness.snapshot().entries[0].action, 'jump',
+    'external diagnostic consumers cannot rewrite internal fixed-tick witness');
+});
+
+test('160 interrupted/reentrant tick schedules never claim an unexecuted input', () => {
+  for (let cycle = 0; cycle < 160; cycle++) {
+    const queue = createSemanticInputQueue(3);
+    const witness = createCommittedInputWitness();
+    queue.enqueue({ action: 'win' });
+    queue.enqueue({ action: 'ghost' });
+    let ended = false;
+    queue.drain(({ action }) => {
+      if (ended) return;
+      if (action === 'win') ended = true;
+      witness.record(cycle, action);
+    });
+    assert.deepEqual(witness.snapshot().entries, [
+      { tick: cycle, ordinal: 0, action: 'win' },
+    ]);
+    queue.enqueue({ action: 'cancelled' });
+    queue.clear(); // OS background/pointercancel before a fixed tick
+    assert.equal(queue.size, 0);
+    assert.equal(witness.snapshot().accepted, 1);
+  }
+});
+
+test('committed witness caps 128 rows and fails incomplete on bad ticks/actions', () => {
+  for (const invalid of [0, -1, 129, 1.5, NaN, Infinity]) {
+    assert.throws(() => createCommittedInputWitness(invalid), RangeError);
+  }
+  const full = createCommittedInputWitness();
+  for (let n = 0; n < MAX_COMMITTED_INPUT_WITNESS_EVENTS; n++) {
+    assert.equal(full.record(n, 'key_repeat'), true);
+  }
+  assert.equal(full.record(128, 'key_repeat'), false);
+  assert.deepEqual(full.snapshot(), {
+    complete: false, failureReason: 'witness_limit', accepted: 128, entries: [],
+  });
+  assert.equal(full.record(129, 'other'), false);
+
+  const invalidCases = [
+    [[-1, 'jump']], [[1.5, 'jump']], [[108001, 'jump']],
+    [[2, 'jump'], [1, 'jump']], [[1, 'jump/action']], [[1, 'é']],
+    [[0, '']], [[0, 'x'.repeat(129)]], [[0, null]],
+  ];
+  for (const events of invalidCases) {
+    const witness = createCommittedInputWitness();
+    for (const [tick, action] of events) witness.record(tick, action);
+    assert.equal(witness.snapshot().complete, false);
+    assert.deepEqual(witness.snapshot().entries, [],
+      'invalid committed events cannot leave a truthful-looking partial trace');
+  }
+});
+
+test('live Pixi only samples post-emit committed inputs when probe mode is explicitly enabled', () => {
+  assert.match(runtime, /const committedInputWitness = probeMode \? createCommittedInputWitness\(\) : null;/);
+  assert.match(runtime, /if \(committedInputWitness\) play\.committedInputWitness = \(\) => committedInputWitness\.snapshot\(\);/);
+  assert.match(runtime, /emit\('input', source, target, undefined, action\);\s*if \(!state\.failed\) committedInputWitness\?\.record\(play\.simStep, action\);/);
+  assert.doesNotMatch(runtime, /replayInputRecorder\.record\([^)]*committedInputWitness/);
+  assert.doesNotMatch(runtime, /submitRun\([^)]*committedInputWitness/);
+  assert.doesNotMatch(runtime, /sendNativeMetric\([^)]*committedInputWitness/);
+  assert.doesNotMatch(runtime, /sendTelemetryEvent\([^)]*committedInputWitness/);
 });
