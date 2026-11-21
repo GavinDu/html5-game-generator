@@ -1,0 +1,114 @@
+name: Prune verified merged branches
+
+# Backfill once when this workflow is merged; keep future merged PR heads tidy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prune-verified-merged-branches.yml
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview candidates without deleting branches"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-verified-merged-branches-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Delete only exact, inactive merged-PR branch heads
+        uses: actions/github-script@v7
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const dryRun = context.eventName === 'workflow_dispatch' &&
+              process.env.DRY_RUN !== 'false';
+            const [repository, branches, openPRs, closedPRs] = await Promise.all([
+              github.rest.repos.get({owner, repo}),
+              github.paginate(github.rest.repos.listBranches, {owner, repo, per_page: 100}),
+              github.paginate(github.rest.pulls.list, {owner, repo, state: 'open', per_page: 100}),
+              github.paginate(github.rest.pulls.list, {owner, repo, state: 'closed', per_page: 100}),
+            ]);
+            const fullName = repository.data.full_name;
+            const reserved = new Set([repository.data.default_branch]);
+            for (const pr of openPRs) {
+              reserved.add(pr.base.ref);
+              if (pr.head.repo?.full_name === fullName) reserved.add(pr.head.ref);
+            }
+            const mergedHeads = new Set();
+            for (const pr of closedPRs) {
+              if (pr.merged_at && pr.head.repo?.full_name === fullName) {
+                mergedHeads.add(pr.head.ref + '\0' + pr.head.sha);
+              }
+            }
+            const candidates = branches.filter(branch =>
+              !branch.protected &&
+              !reserved.has(branch.name) &&
+              mergedHeads.has(branch.name + '\0' + branch.commit.sha)
+            );
+            core.info(`Repository ${fullName}: ${branches.length} branches, ${candidates.length} exact merged-PR candidates; dry_run=${dryRun}`);
+            let deleted = 0;
+            let skippedMoved = 0;
+            const failures = [];
+            for (const branch of candidates) {
+              const ref = `heads/${branch.name}`;
+              // Re-read the ref: never delete if its tip has changed since audit.
+              let current;
+              try {
+                current = await github.rest.git.getRef({owner, repo, ref});
+              } catch (error) {
+                if (error.status === 404) { skippedMoved++; continue; }
+                failures.push(`${branch.name}: read ${error.status || error.message}`);
+                continue;
+              }
+              if (current.data.object.sha !== branch.commit.sha) {
+                skippedMoved++;
+                continue;
+              }
+              if (dryRun) {
+                core.info(`DRY RUN: would delete ${branch.name} @ ${branch.commit.sha}`);
+                continue;
+              }
+              try {
+                await github.rest.git.deleteRef({owner, repo, ref});
+                deleted++;
+                core.info(`Deleted verified merged branch ${branch.name}`);
+              } catch (error) {
+                // An active ruleset, concurrent update, or insufficient token
+                // permissions must fail visibly; never force a ref deletion.
+                failures.push(`${branch.name}: delete ${error.status || error.message}`);
+              }
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            core.summary
+              .addHeading('Verified merged-branch reconciliation')
+              .addTable([
+                [{data: 'Metric', header: true}, {data: 'Count', header: true}],
+                ['Branches examined', String(branches.length)],
+                ['Exact merged-PR candidates', String(candidates.length)],
+                ['Deleted', String(deleted)],
+                ['Moved or already absent', String(skippedMoved)],
+                ['Errors', String(failures.length)],
+                ['Dry run', String(dryRun)],
+              ]);
+            if (failures.length) {
+              core.summary.addRaw('\n' + failures.slice(0, 30).join('\n'));
+              core.setFailed(`Unable to safely delete ${failures.length} candidate branches`);
+            }
+            await core.summary.write();
