@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -87,5 +86,4 @@ func TestEveryCheckedInGameIRSerializedPackageHTTPByteBaseline(t *testing.T) {
 	}
 	t.Logf("checked-in inventory actual Go HTTP package count=%d maximum serialized JSON bytes=%d; NOT a deployed inventory limit",
 		measured, maximumBytes)
-	_ = fmt.Sprintf // keep compiler's format import audit explicit
 }
