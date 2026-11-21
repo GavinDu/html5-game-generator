@@ -62,8 +62,8 @@ func TestCanonicalReplaySerializedSuccessBytesAtAdmittedInputCounts(t *testing.T
 			inputs := make([]RunInput, inputCount)
 			for i := range inputs {
 				inputs[i] = RunInput{
-					Tick: i,
-					Type: "pointer",
+					Tick:   i,
+					Type:   "pointer",
 					Detail: fmt.Sprintf("%d,%d", i%390, i%844),
 				}
 			}
