@@ -36,7 +36,7 @@ func TestCanonicalPublishedPackageSerializedSuccessBytes(t *testing.T) {
 	if pkg.PackageFormatVersion != PackageFormatVersion || pkg.GameID != game.ID {
 		t.Fatalf("unexpected package identity or version")
 	}
-	if pkg.IR == nil || pkg.IRSHA256 != irSHA256Of(pkg.IR) || pkg.IRHash != pkg.IRSHA256[:12] {
+	if pkg.IR == nil || len(pkg.IRSHA256) != 64 || pkg.IRSHA256 != irSHA256Of(pkg.IR) || pkg.IRHash != pkg.IRSHA256[:12] {
 		t.Fatalf("package does not match Go canonical IR integrity contract")
 	}
 	encoded, err := json.Marshal(pkg)
