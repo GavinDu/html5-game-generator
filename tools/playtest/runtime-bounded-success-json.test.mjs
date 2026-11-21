@@ -48,7 +48,10 @@ test('announced and cumulative decoded sizes reject at limit plus one without bo
   );
   assert.equal(canceled, true);
   let overflowCanceled = false;
-  const forced = success(streamed(bytes, 3, () => { overflowCanceled = true; }));
+  const forced = success(new ReadableStream({
+    start(controller) { controller.enqueue(bytes); },
+    cancel() { overflowCanceled = true; },
+  }));
   await assert.rejects(
     readBoundedSuccessfulJSON(forced, { maxBytes: bytes.length - 1 }),
     (err) => err.message === 'runtime document too large' && !err.message.includes(secret),
