@@ -53,7 +53,8 @@ jobs:
             }
             const mergedHeads = new Set();
             for (const pr of closedPRs) {
-              if (pr.merged_at && pr.head.repo?.full_name === fullName) {
+              if (pr.merged_at && pr.base.ref === repository.data.default_branch &&
+                pr.head.repo?.full_name === fullName) {
                 mergedHeads.add(pr.head.ref + '\0' + pr.head.sha);
               }
             }
