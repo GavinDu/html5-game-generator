@@ -47,3 +47,112 @@ export function validateStoredReplayKeyboardGrammar(replayIndex, ir) {
     }
   }
 }
+
+
+// Reusable decoded-success transport primitive, not yet wired to package and
+// replay document fetches. Those call sites require a separately ratified
+// SERVER-owned per-route byte policy (#700/#701). A caller must supply that
+// limit: never reject real published games using a guessed fixed cutoff.
+// Fetch streams deliver DECOMPRESSED bytes; Content-Length can describe a
+// smaller/different compressed wire representation and is not authoritative.
+export async function readBoundedSuccessfulJSON(response, { maxBytes, signal } = {}) {
+  const failure = (code) => new Error('runtime document ' + code);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw failure('invalid byte limit');
+  }
+  if (!response || response.ok !== true) {
+    throw failure('unavailable');
+  }
+  if (signal?.aborted) throw failure('aborted');
+  // No fallback to response.json/text/blob/arrayBuffer: those may allocate
+  // unlimited untrusted HTTP-200 bodies on older WebKit versions.
+  let reader;
+  try {
+    reader = response.body?.getReader?.();
+  } catch {
+    throw failure('streaming unavailable');
+  }
+  if (!reader || typeof reader.read !== 'function' ||
+      typeof reader.cancel !== 'function') {
+    throw failure('streaming unavailable');
+  }
+  let completed = false;
+  const onAbort = () => {
+    try { void Promise.resolve(reader.cancel()).catch(() => {}); }
+    catch { /* teardown cannot reveal private response bytes */ }
+  };
+  try {
+    signal?.addEventListener?.('abort', onAbort, { once: true });
+    if (signal?.aborted) throw failure('aborted');
+
+    const announced = response.headers?.get?.('content-length');
+    const encoding = (response.headers?.get?.('content-encoding') || '')
+      .trim().toLowerCase();
+    let declared = null;
+    if (announced != null && String(announced).trim() !== '') {
+      const value = String(announced).trim();
+      if (!/^[0-9]+$/.test(value)) throw failure('invalid declared size');
+      declared = Number(value);
+      if (!Number.isSafeInteger(declared)) {
+        throw failure('invalid declared size');
+      }
+      // A compressed HTTP wire count is not the decoded-stream length.
+      if ((!encoding || encoding === 'identity') && declared > maxBytes) {
+        throw failure('too large');
+      }
+    }
+
+    let total = 0;
+    const chunks = [];
+    while (true) {
+      if (signal?.aborted) throw failure('aborted');
+      let next;
+      try {
+        next = await reader.read();
+      } catch {
+        throw failure(signal?.aborted ? 'aborted' : 'stream failed');
+      }
+      if (signal?.aborted) throw failure('aborted');
+      if (!next || typeof next.done !== 'boolean') {
+        throw failure('stream failed');
+      }
+      if (next.done) break;
+      const value = next.value;
+      if (!(value instanceof Uint8Array)) throw failure('stream failed');
+      if (value.byteLength > maxBytes - total) {
+        throw failure('too large');
+      }
+      if (value.byteLength === 0) continue;
+      total += value.byteLength;
+      chunks.push(value);
+    }
+    if (total === 0) throw failure('empty');
+    if ((!encoding || encoding === 'identity') &&
+        declared !== null && declared !== total) {
+      throw failure('declared size mismatch');
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    let document;
+    try {
+      document = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      // Browser SyntaxError / TextDecoder messages can include private body
+      // fragments or URLs; translate them to a fixed safe category.
+      throw failure('invalid JSON');
+    }
+    completed = true;
+    return document;
+  } finally {
+    signal?.removeEventListener?.('abort', onAbort);
+    if (!completed) {
+      try { void Promise.resolve(reader.cancel()).catch(() => {}); }
+      catch { /* already closed */ }
+    }
+    try { reader.releaseLock?.(); } catch { /* already canceled */ }
+  }
+}
