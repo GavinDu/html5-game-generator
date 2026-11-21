@@ -1040,6 +1040,22 @@ async function restartGame() {
 }
 window.__dqRestart = restartGame;
 
+// Never decode an arbitrary 4xx/5xx package body into the HUD or diagnostics.
+// Even body.slice(0, 120) would first buffer the *entire* untrusted response.
+// Cancel a streaming body without waiting for a potentially stalled peer.
+function failClosedPackageHTTPResponse(response) {
+  const status = Number.isSafeInteger(response?.status) &&
+      response.status >= 100 && response.status <= 599
+    ? response.status : 0;
+  try {
+    const cancellation = response?.body?.cancel?.();
+    if (cancellation && typeof cancellation.catch === 'function') {
+      void cancellation.catch(() => { /* stream may already be locked */ });
+    }
+  } catch { /* response stream may already have been consumed */ }
+  throw new Error('package HTTP ' + status);
+}
+
 async function run(id) {
   const started = performance.now();
   const attempt = gameRunAttemptGate.begin();
@@ -1183,10 +1199,7 @@ async function run(id) {
     play.longestFrameMs = 0;
   }
   const res = await awaitActive(apiFetch(`/v1/games/${encodeURIComponent(id)}/package`, trustedRuntimeDocumentFetchOptions(abort.signal)));
-  if (!res.ok) {
-    const body = await awaitActive(res.text());
-    throw new Error(`package HTTP ${res.status}: ${body.slice(0, 120)}`);
-  }
+  if (!res.ok) failClosedPackageHTTPResponse(res);
   const pkg = await awaitActive(res.json());
   if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg)) {
     throw new Error('invalid game package: expected an object envelope');
