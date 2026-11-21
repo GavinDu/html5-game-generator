@@ -1056,6 +1056,22 @@ function failClosedPackageHTTPResponse(response) {
   throw new Error('package HTTP ' + status);
 }
 
+function safeGamePackagePreflightError(reason) {
+  // A GamePackage 200 envelope can still contain arbitrary authored JSON.
+  // Do not pass raw metadata to HUD, DevLog, console or error beacons.
+  // A finite internal reason code is enough for actionable diagnostics.
+  switch (reason) {
+    case 'identity': return new Error('invalid game package: game identity mismatch');
+    case 'format': return new Error('unsupported GamePackage format');
+    case 'runtime_version': return new Error('invalid minimum runtime version');
+    case 'runtime_incompatible': return new Error('game requires a newer runtime');
+    case 'ir_version': return new Error('unsupported Game IR version');
+    case 'ir_envelope': return new Error('invalid game package: IR version mismatch');
+    case 'capability': return new Error('unsupported or duplicate Game IR capability');
+    default: return new Error('invalid game package');
+  }
+}
+
 async function run(id) {
   const started = performance.now();
   const attempt = gameRunAttemptGate.begin();
@@ -1205,7 +1221,7 @@ async function run(id) {
     throw new Error('invalid game package: expected an object envelope');
   }
   if (pkg.gameId !== id) {
-    throw new Error(`invalid game package: requested game ${id}, received ${String(pkg.gameId)}`);
+    throw safeGamePackagePreflightError('identity');
   }
   // Every explicit replay, not only screenshot captures, must match the
   // current immutable Game IR to prevent mislabelled comparison outcomes.
@@ -1220,14 +1236,15 @@ async function run(id) {
   // Reject undeclared stored keyboard actions before setting up the scene.
   // Missing key bindings must not be silently ignored during replay.
   if (replayIndex) validateStoredReplayKeyboardGrammar(replayIndex, ir);
-  log('PKG', `package ${id}: HTTP 200 (${Math.round(performance.now() - started)}ms), format v${pkg.packageFormatVersion}, min runtime ${pkg.minRuntimeVersion}, IR v${ir.irVersion}, ${pkg.assets.length} assets`);
-  if (pkg.packageFormatVersion !== '2.0') throw new Error('unsupported packageFormatVersion ' + pkg.packageFormatVersion);
+  // Only fixed wire-status text is safe before validating envelope metadata.
+  log('PKG', 'package HTTP 200; validating GamePackage compatibility');
+  if (pkg.packageFormatVersion !== '2.0') throw safeGamePackagePreflightError('format');
   const compatibility = compareRuntimeVersions(RUNTIME_VERSION, pkg.minRuntimeVersion);
-  if (compatibility === null) throw new Error('invalid minRuntimeVersion ' + pkg.minRuntimeVersion);
-  if (compatibility < 0) throw new Error('game requires runtime ' + pkg.minRuntimeVersion + ', current runtime is ' + RUNTIME_VERSION);
-  if (!['1.0', '1.1', '1.2'].includes(ir.irVersion)) throw new Error('unsupported irVersion ' + ir.irVersion);
+  if (compatibility === null) throw safeGamePackagePreflightError('runtime_version');
+  if (compatibility < 0) throw safeGamePackagePreflightError('runtime_incompatible');
+  if (!['1.0', '1.1', '1.2'].includes(ir.irVersion)) throw safeGamePackagePreflightError('ir_version');
   if (pkg.irVersion !== ir.irVersion) {
-    throw new Error(`invalid game package: envelope IR version ${String(pkg.irVersion)} does not match payload ${ir.irVersion}`);
+    throw safeGamePackagePreflightError('ir_envelope');
   }
   // Game packages are declarative data, never executable extensions.
   // Mirror the Go validator's capability vocabulary here so an older
@@ -1250,7 +1267,7 @@ async function run(id) {
     if (typeof capability !== 'string' ||
         !supportedCapabilities.has(capability) ||
         checkedCapabilities.has(capability)) {
-      throw new Error('unsupported or duplicate Game IR capability: ' + String(capability).slice(0, 64));
+      throw safeGamePackagePreflightError('capability');
     }
     checkedCapabilities.add(capability);
   }
