@@ -204,3 +204,70 @@ test('real package HTTP non-success branch never parses raw response text or ID-
   assert.match(helper, /response\?\.body\?\.cancel\?\.\(\)/);
   assert.doesNotMatch(helper, /response\.text\(|response\.json\(/);
 });
+
+test('GamePackage 200 preflight errors are fixed, allowlisted and non-coercing for 160 hostile values', () => {
+  const start = source.indexOf('function safeGamePackagePreflightError(reason) {');
+  const end = source.indexOf('\nasync function run(id) {', start);
+  assert.ok(start > 0 && end > start, 'shipping Pixi 200-envelope preflight helper must exist');
+  const reject = runInNewContext(
+    source.slice(start, end) + '\nsafeGamePackagePreflightError;', { Error }
+  );
+  const expected = {
+    identity: 'invalid game package: game identity mismatch',
+    format: 'unsupported GamePackage format',
+    runtime_version: 'invalid minimum runtime version',
+    runtime_incompatible: 'game requires a newer runtime',
+    ir_version: 'unsupported Game IR version',
+    ir_envelope: 'invalid game package: IR version mismatch',
+    capability: 'unsupported or duplicate Game IR capability',
+  };
+  for (const [reason, message] of Object.entries(expected)) {
+    const failure = reject(reason);
+    assert.equal(failure.name, 'Error');
+    assert.equal(failure.message, message);
+  }
+  for (let i = 0; i < 160; i++) {
+    const privateText = 'sensitive-auth-or-id-' + i + '<script>\r\n' + 'Q'.repeat(i * 30);
+    const object = {
+      toString() { throw Error(privateText); },
+      valueOf() { throw Error(privateText); },
+      [Symbol.toPrimitive]() { throw Error(privateText); },
+    };
+    for (const reason of [privateText, object, null, i, ['identity', privateText]]) {
+      const failure = reject(reason);
+      assert.equal(failure.message, 'invalid game package');
+      assert.ok(!failure.message.includes(privateText));
+    }
+  }
+});
+
+test('shipping GamePackage 200 preflight and diagnostics never print raw untrusted metadata', () => {
+  const start = source.indexOf('const res = await awaitActive(apiFetch(`/v1/games/');
+  const end = source.indexOf("if (ir.irVersion === '1.2'", start);
+  assert.ok(start >= 0 && end > start, 'must inspect real installed run() package preflight');
+  const block = source.slice(start, end);
+  const expectedReasons = [
+    'identity', 'format', 'runtime_version', 'runtime_incompatible',
+    'ir_version', 'ir_envelope', 'capability',
+  ];
+  for (const reason of expectedReasons) {
+    assert.match(block, new RegExp("throw safeGamePackagePreflightError\\('" + reason + "'\\)"),
+      'real preflight must use fixed reason ' + reason);
+  }
+  assert.match(block, /log\('PKG', 'package HTTP 200; validating GamePackage compatibility'\)/);
+  assert.doesNotMatch(block, /log\('PKG', `/);
+  for (const raw of [
+    'String(pkg.gameId)', "pkg.packageFormatVersion);", "' + pkg.minRuntimeVersion",
+    "' + ir.irVersion", 'String(pkg.irVersion)',
+    'String(capability).slice(0, 64)',
+  ]) {
+    assert.ok(!block.includes(raw), 'raw authored metadata must not reach errors: ' + raw);
+  }
+  assert.doesNotMatch(block, /throw new Error\(`invalid game package: requested game/);
+  // This redaction is intentionally separate from future bounded 200-response
+  // transfer / JSON parse admission; it must not weaken existing fail-closed
+  // redirect, abort-owned fetch or capability verification.
+  assert.match(block, /trustedRuntimeDocumentFetchOptions\(abort\.signal\)/);
+  assert.match(block, /if \(!res\.ok\) failClosedPackageHTTPResponse\(res\)/);
+  assert.match(block, /const pkg = await awaitActive\(res\.json\(\)\)/);
+});
