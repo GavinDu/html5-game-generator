@@ -52,6 +52,548 @@ jobs:
           fi
       - name: Run tests
         run: go test ./...
+      - name: Publish checked-in GamePackage HTTP serialized-byte audit
+        run: go test -run '^TestEveryCheckedInGameIRSerializedPackageHTTPByteBaseline
+        run: go test -race ./internal/...
+      - name: Static analysis
+        run: go vet ./...
+
+  # Phase 1 + Phase 4 of the fused detect-and-fix flow: every game in the
+  # inventory must boot and play in a real browser before it can ship.
+  # The matrix covers Chromium (desktop/Android engine) and WebKit (the
+  # iOS WKWebView engine the app embeds). Reports and screenshots are
+  # uploaded as artifacts; a FAIL on the gate checks fails the job.
+  playtest:
+    needs: test
+    runs-on: ubuntu-24.04
+    # Run browsers sequentially: WebKit and Chromium are resource-heavy and
+    # simultaneous matrix dispatch adds pressure without improving the gate.
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install playtest worker
+        working-directory: tools/playtest
+        run: npm install --no-audit --no-fund
+      - name: Test standalone game quality scoring
+        working-directory: packages/game-quality-score
+        run: npm test
+      - name: Test playtest and Pixi runtime safeguards
+        working-directory: tools/playtest
+        run: |
+          npm test
+          node --check render-preview.mjs
+      - name: Install browser dependencies
+        run: npx --prefix tools/playtest playwright install --with-deps ${{ matrix.browser }}
+      - name: Build and start the server
+        run: |
+          go build -o /tmp/dq-server ./cmd/server
+          PORT=18099 INVENTORY_DIR=inventory /tmp/dq-server > /tmp/dq-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:18099/healthz && break || sleep 1
+          done
+      - name: Discover every inventory game ID
+        run: |
+          python3 - <<'PY' > /tmp/inventory-game-ids.txt
+          import json
+          from pathlib import Path
+          ids = []
+          for manifest_path in sorted(Path("inventory").glob("*/manifest.json")):
+              manifest = json.loads(manifest_path.read_text())
+              game_id = manifest.get("game_id")
+              if game_id:
+                  ids.append(game_id)
+          if not ids:
+              raise SystemExit("No inventory game IDs were found")
+          print("\n".join(ids))
+          PY
+          cat /tmp/inventory-game-ids.txt
+      - name: Verify social feed actions and source privacy in the browser
+        run: node tools/playtest/feed-actions-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }}
+      - name: Verify authored orientation and pause/resume policy
+        run: node tools/playtest/orientation-policy-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/orientation-policy-${{ matrix.browser }}
+      - name: Upload orientation policy screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orientation-policy-${{ matrix.browser }}
+          path: /tmp/orientation-policy-${{ matrix.browser }}/
+      - name: Reject unrecorded preview captures before emitting screenshots
+        run: node tools/playtest/preview-replay-guard-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }}
+      - name: Verify Penguin portrait play, missed hearts, aurora and scarf progression
+        run: node tools/playtest/penguin-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/penguin-quality-${{ matrix.browser }}
+      - name: Upload Penguin gameplay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: penguin-quality-${{ matrix.browser }}
+          path: /tmp/penguin-quality-${{ matrix.browser }}/
+      - name: Verify Ribbon's six independent sky-hole repairs and screenshot differences
+        run: node tools/playtest/ribbon-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/ribbon-quality-${{ matrix.browser }}
+      - name: Upload Ribbon six-hole screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ribbon-quality-${{ matrix.browser }}
+          path: /tmp/ribbon-quality-${{ matrix.browser }}/
+      - name: Verify Escape real one-lane taps, score fidelity and screenshot differences
+        run: node tools/playtest/escape-quality-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-quality-${{ matrix.browser }}
+      - name: Upload Escape fidelity screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-quality-${{ matrix.browser }}
+          path: /tmp/escape-quality-${{ matrix.browser }}/
+      - name: Verify genuine Pixi boots minimal start-score Game IR on phone/tablet browsers
+        run: node tools/playtest/runtime-minimal-start-score-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/minimal-start-score-${{ matrix.browser }}
+      - name: Compare real Pixi synthetic startup score with preinstalled pure semantic reducer
+        run: node tools/playtest/runtime-semantic-shadow-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/semantic-shadow-${{ matrix.browser }}
+      - name: Upload Pixi versus pure semantic shadow screenshots and diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-shadow-${{ matrix.browser }}
+          path: /tmp/semantic-shadow-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Prove real Pixi native bridge first v2 scene packet and malformed bridge fail closed
+        run: node tools/playtest/runtime-native-bridge-first-packet-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/native-bridge-first-packet-${{ matrix.browser }}
+      - name: Upload native bridge producer diagnostic screenshots and packet summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-bridge-first-packet-${{ matrix.browser }}
+          path: /tmp/native-bridge-first-packet-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Upload minimal Pixi bootstrap screenshots (synthetic diagnostic-only IR)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimal-start-score-${{ matrix.browser }}
+          path: /tmp/minimal-start-score-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Verify unsupported Game IR capabilities fail closed before a player launches
+        run: node tools/playtest/capability-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-capability-rejection-${{ matrix.browser }}
+      - name: Upload capability-rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-capability-rejection-${{ matrix.browser }}
+          path: /tmp/runtime-capability-rejection-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Reject oversized image bytes before a playable scene on phone and tablet browsers
+        run: node tools/playtest/oversized-image-failure-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-image-budget-${{ matrix.browser }}
+      - name: Upload oversized required image rejection evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-image-budget-${{ matrix.browser }}
+          path: /tmp/runtime-image-budget-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Verify tampered 513-entity scenes fail before Pixi on phone/tablet
+        run: node tools/playtest/runtime-entity-budget-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/entity-budget-${{ matrix.browser }}
+      - name: Upload active entity budget rejection screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: entity-budget-${{ matrix.browser }}
+          path: /tmp/entity-budget-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Verify frequent sound predecode survives offline stress on iPhone/iPad
+        run: node tools/playtest/runtime-audio-prefetch-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-audio-prefetch-${{ matrix.browser }}
+      - name: Upload audio decode state and offline stress screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-audio-prefetch-${{ matrix.browser }}
+          path: /tmp/runtime-audio-prefetch-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Reject unbounded authored actions without a false winning run on phone/tablet
+        run: node tools/playtest/runtime-work-budget-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/work-budget-${{ matrix.browser }}
+      - name: Upload rule/action work budget rejection screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-budget-${{ matrix.browser }}
+          path: /tmp/work-budget-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Reject off-tick touch flood without false win in phone/tablet browser profiles
+        run: node tools/playtest/runtime-input-queue-rejection-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/semantic-input-queue-${{ matrix.browser }}
+      - name: Upload deterministic input queue overflow screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-input-queue-${{ matrix.browser }}
+          path: /tmp/semantic-input-queue-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Verify animation-completion rules are fixed-tick only on iPhone/iPad browser profiles
+        run: node tools/playtest/runtime-animation-clock-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/animation-clock-${{ matrix.browser }}
+      - name: Upload fixed-tick animation frame and rule-signal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: animation-clock-${{ matrix.browser }}
+          path: /tmp/animation-clock-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Verify versioned movement axes in phone/tablet browser profiles
+        run: node tools/playtest/runtime-movement-axes-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/movement-axes-${{ matrix.browser }}
+      - name: Upload declared X/XY movement gameplay and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: movement-axes-${{ matrix.browser }}
+          path: /tmp/movement-axes-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Verify Escape seeded replay physics and screenshots on phone/tablet
+        run: node tools/playtest/escape-seeded-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-seeded-replay-${{ matrix.browser }}
+      - name: Upload Escape deterministic replay screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-seeded-replay-${{ matrix.browser }}
+          path: /tmp/escape-seeded-replay-${{ matrix.browser }}/
+      - name: Record fixed-step semantic state for every shipped Game IR on phone/tablet
+        run: node tools/playtest/inventory-semantic-replay-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/inventory-semantic-replay-${{ matrix.browser }}
+      - name: Upload all-inventory seeded gameplay state and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-semantic-replay-${{ matrix.browser }}
+          path: /tmp/inventory-semantic-replay-${{ matrix.browser }}/
+          if-no-files-found: error
+      - name: Verify OS touch cancellation and keyboard focus loss on phone/tablet
+        run: node tools/playtest/input-cancellation-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/input-cancellation-${{ matrix.browser }}
+      - name: Upload interruption-control screenshots and state evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: input-cancellation-${{ matrix.browser }}
+          path: /tmp/input-cancellation-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Verify replay overflow retains a bounded prefix and no false verified run
+        run: node tools/playtest/runtime-replay-overflow-browser-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/replay-overflow-${{ matrix.browser }}
+      - name: Upload authoritative replay-overflow phone/tablet evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-overflow-${{ matrix.browser }}
+          path: /tmp/replay-overflow-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Verify low/high visual quality produce identical fixed-tick gameplay on iPhone/iPad
+        run: node tools/playtest/runtime-quality-semantics-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/runtime-quality-semantics-${{ matrix.browser }}
+      - name: Upload quality-invariant semantic state and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-quality-semantics-${{ matrix.browser }}
+          path: /tmp/runtime-quality-semantics-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Verify Escape's unmodified natural caught ending and 20-minute ceiling
+        run: node tools/playtest/escape-natural-ending-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/escape-natural-end-${{ matrix.browser }}
+      - name: Upload Escape natural terminal gameplay screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-natural-end-${{ matrix.browser }}
+          path: /tmp/escape-natural-end-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Verify Bobo short taps and missed-heart recycling
+        run: node tools/playtest/bobo-controls-test.mjs --base http://localhost:18099 --browser ${{ matrix.browser }} --shots /tmp/bobo-controls-${{ matrix.browser }}
+      - name: Upload Bobo control and recycling screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bobo-controls-${{ matrix.browser }}
+          path: /tmp/bobo-controls-${{ matrix.browser }}/
+      # Screenshot inputs must come from the same SHA's successfully run
+      # game-specific browser tests. Produce a reviewable artifact; NEVER
+      # auto-commit candidate media or pretend that a poster is a video clip.
+      - name: Prepare version-bound gameplay poster candidates for review
+        if: matrix.browser == 'chromium'
+        run: |
+          node tools/playtest/prepare-preview-fixtures.mjs \
+            --shots-root /tmp --out /tmp/preview-candidates
+      - name: Upload reviewed-input poster candidates and integrity manifests
+        if: matrix.browser == 'chromium' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-preview-candidates
+          path: /tmp/preview-candidates/
+          if-no-files-found: ignore
+      - name: Browser-play two generations of every inventory remix
+        run: |
+          # Keep generated children private and isolated from the public test
+          # server. Only this temporary CI server allows test X-User-ID.
+          PORT=18102 INVENTORY_DIR=inventory DQ_ALLOW_INSECURE_USER_ID=true \
+            /tmp/dq-server > /tmp/dq-remix-server.log 2>&1 &
+          healthy=0
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:18102/healthz >/dev/null; then healthy=1; break; fi
+            sleep 1
+          done
+          if [ "$healthy" != 1 ]; then cat /tmp/dq-remix-server.log; exit 1; fi
+          node --check tools/playtest/remix-descendants-test.mjs
+          node tools/playtest/remix-descendants-test.mjs \
+            --base http://localhost:18102 \
+            --browser ${{ matrix.browser }} \
+            --shots /tmp/remix-descendants-${{ matrix.browser }}
+      - name: Upload generated descendant gameplay and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remix-descendants-${{ matrix.browser }}
+          path: |
+            /tmp/remix-descendants-${{ matrix.browser }}/
+            /tmp/dq-remix-server.log
+          if-no-files-found: ignore
+      - name: Evaluate swipe feed with screenshot inputs on iPhone and iPad
+        run: |
+          node tools/playtest/feed-ui-evaluator.mjs --base http://localhost:18099 \
+            --browser ${{ matrix.browser }} --shots /tmp/feed-ui-evaluator-${{ matrix.browser }}
+      - name: Upload feed UI screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feed-ui-evaluator-${{ matrix.browser }}
+          path: /tmp/feed-ui-evaluator-${{ matrix.browser }}/
+      - name: Evaluate responsive player UI on iPhone and iPad viewports for every game
+        run: |
+          while IFS= read -r game_id; do
+            echo "Evaluating responsive player UI: $game_id (${{ matrix.browser }})"
+            node tools/playtest/ui-evaluator.mjs \
+              --base http://localhost:18099 \
+              --game "$game_id" \
+              --browser ${{ matrix.browser }} \
+              --shots "/tmp/ui-evaluator-${{ matrix.browser }}/$game_id"
+          done < /tmp/inventory-game-ids.txt
+      - name: Upload responsive UI evaluation screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-ui-evaluator-${{ matrix.browser }}
+          path: /tmp/ui-evaluator-${{ matrix.browser }}/
+          if-no-files-found: ignore
+      - name: Playtest all feed games (${{ matrix.browser }})
+        run: |
+          set -o pipefail
+          go run ./cmd/playtest -base http://localhost:18099 \
+            -browser ${{ matrix.browser }} \
+            -timeout 10m \
+            -worker tools/playtest/probe.mjs \
+            -shots /tmp/playtest-shots \
+            | tee /tmp/playtest-report.json
+      - name: Score browser report using per-game policies
+        if: always()
+        run: |
+          if [ ! -s /tmp/playtest-report.json ]; then
+            echo "::error::Playtest worker produced no report; publish gate cannot establish playability."
+            exit 1
+          fi
+          if ! node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if (!Array.isArray(r.games)) process.exit(1)' /tmp/playtest-report.json 2>/dev/null; then
+            echo "::error::Playtest output is not a complete JSON report; publish gate cannot establish playability."
+            exit 1
+          fi
+          node tools/playtest/score-report.mjs /tmp/playtest-report.json - /tmp/scored-playtest-report.json --pack /tmp/evidence-packs --shots /tmp/playtest-shots
+      # Phase 2 producer: turn the playtest run into a test-feedback.json
+      # artifact for the AI coding feedback loop. Advisory only — it
+      # never fails this job (the script exits 0 even on a missing or
+      # unparsable report, emitting a skip case instead), and the
+      # playtest job's own verdict remains the gate.
+      - name: Build playtest test-feedback artifact
+        if: always()
+        run: |
+          python3 tools/test-feedback/report-to-feedback.py \
+            --kind playtest --report /tmp/playtest-report.json \
+            --out /tmp/test-feedback-playtest.json \
+            --run-id "playtest-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --commit "${{ github.sha }}" --browser "${{ matrix.browser }}" || true
+      - name: Upload playtest artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-${{ matrix.browser }}
+          path: |
+            /tmp/dq-server.log
+            /tmp/playtest-report.json
+            /tmp/scored-playtest-report.json
+            /tmp/playtest-shots/
+            /tmp/evidence-packs/
+            /tmp/test-feedback-playtest.json
+          if-no-files-found: ignore
+
+  # Epic #202 / #315: separately repeated seeded replays are not enough.
+  # Require the *same semantic state* at the same fixed step in both browser
+  # engines using their actual uploaded replay reports, not fabricated data.
+  cross-browser-determinism:
+    needs: playtest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Download Chromium seeded replay state and screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: escape-seeded-replay-chromium
+          path: /tmp/escape-cross-browser/chromium
+      - name: Download WebKit seeded replay state and screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: escape-seeded-replay-webkit
+          path: /tmp/escape-cross-browser/webkit
+      - name: Prove seeded fixed-step gameplay state agrees across browsers
+        run: |
+          node --test tools/playtest/compare-cross-browser-replay.test.mjs
+          node tools/playtest/compare-cross-browser-replay.mjs \
+            /tmp/escape-cross-browser/chromium/report.json \
+            /tmp/escape-cross-browser/webkit/report.json \
+            > /tmp/escape-cross-browser/comparison.json
+          cat /tmp/escape-cross-browser/comparison.json
+      - name: Download Chromium all-inventory semantic replay evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: inventory-semantic-replay-chromium
+          path: /tmp/inventory-cross-browser/chromium
+      - name: Download WebKit all-inventory semantic replay evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: inventory-semantic-replay-webkit
+          path: /tmp/inventory-cross-browser/webkit
+      - name: Prove every shipped game/profile has identical cross-engine semantic state
+        run: |
+          node --test tools/playtest/compare-inventory-replay.test.mjs
+          node tools/playtest/compare-inventory-replay.mjs \
+            /tmp/inventory-cross-browser/chromium/report.json \
+            /tmp/inventory-cross-browser/webkit/report.json \
+            > /tmp/inventory-cross-browser/comparison.json
+          cat /tmp/inventory-cross-browser/comparison.json
+      - name: Upload all-inventory cross-browser semantic comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-cross-browser-semantic-state
+          path: /tmp/inventory-cross-browser/comparison.json
+          if-no-files-found: ignore
+      - name: Upload cross-browser deterministic-state comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-browser-semantic-state
+          path: /tmp/escape-cross-browser/comparison.json
+          if-no-files-found: ignore
+
+  # Playability Kit (user-mimic gate): plays each shipped game like a
+  # user in Chromium and returns PLAYABLE / NEEDS_REVIEW / BROKEN.
+  # A BROKEN verdict fails the job. Complements the playtest worker
+  # (conformance/determinism/replay); the kit owns resilience, rule
+  # coverage and issue classification for the repair loop.
+  playability-kit:
+    needs: playtest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install kit and browser provider
+        run: |
+          npm --prefix tools/playtest install --no-audit --no-fund
+          npm --prefix tools/playability-kit install --no-audit --no-fund
+      - name: Test deterministic Playability Kit brain
+        run: npm --prefix tools/playability-kit test
+      - name: Install Chromium
+        run: npx --prefix tools/playtest playwright install --with-deps chromium
+      - name: Build and start the server
+        run: |
+          go build -o /tmp/dq-server ./cmd/server
+          PORT=18099 INVENTORY_DIR=inventory /tmp/dq-server > /tmp/dq-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:18099/healthz && break || sleep 1
+          done
+      - name: Run the Playability Kit on the shipped games
+        run: |
+          GAME_IDS="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          ids = [json.loads(path.read_text()).get("game_id") for path in sorted(Path("inventory").glob("*/manifest.json"))]
+          ids = [game_id for game_id in ids if game_id]
+          if not ids:
+              raise SystemExit("No inventory game IDs were found")
+          print(",".join(ids))
+          PY
+          )"
+          echo "Playability Kit inventory: $GAME_IDS"
+          set -o pipefail
+          node tools/playability-kit/playability.mjs \
+            --base http://localhost:18099 \
+            --games "$GAME_IDS" \
+            --budget 40 --out /tmp/kit-out | tee /tmp/playability-kit.log
+          # A NEEDS_REVIEW verdict is not a successful release gate.
+          if grep -Eq '^(NEEDS_REVIEW|BROKEN)[[:space:]]' /tmp/playability-kit.log; then
+            echo "::error::Playability Kit did not mark every shipped game PLAYABLE."
+            exit 1
+          fi
+      # Phase 2 producer for the kit, same advisory contract as above.
+      - name: Build kit test-feedback artifact
+        if: always()
+        run: |
+          python3 tools/test-feedback/report-to-feedback.py \
+            --kind kit --report /tmp/kit-out/report.json \
+            --out /tmp/test-feedback-kit.json \
+            --run-id "kit-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --commit "${{ github.sha }}" --browser chromium || true
+      - name: Upload kit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playability-kit
+          path: |
+            /tmp/dq-server.log
+            /tmp/kit-out/
+            /tmp/test-feedback-kit.json
+          if-no-files-found: ignore
+
+  socialgraph-postgres:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: socialgraph_test
+          POSTGRES_PASSWORD: socialgraph_test
+          POSTGRES_DB: socialgraph_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U socialgraph_test -d socialgraph_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DQ_SOCIAL_DATABASE_URL: postgres://socialgraph_test:socialgraph_test@localhost:5432/socialgraph_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test shared graph behavior across database clients
+        run: go test -race ./internal/socialgraph ./internal/attestation -count=1
+ -v ./internal/api
       - name: Run tests with the race detector
         run: go test -race ./internal/...
       - name: Static analysis
