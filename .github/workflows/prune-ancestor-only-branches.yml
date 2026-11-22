@@ -1,0 +1,93 @@
+name: Prune ancestor-only inactive branches
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prune-ancestor-only-branches.yml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview only
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-ancestor-only-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify ancestry and delete only inactive redundant refs
+        uses: actions/github-script@v8
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const dryRun = context.eventName === 'workflow_dispatch' &&
+              process.env.DRY_RUN !== 'false';
+            const [repository, branches, openPRs] = await Promise.all([
+              github.rest.repos.get({owner, repo}),
+              github.paginate(github.rest.repos.listBranches, {owner, repo, per_page: 100}),
+              github.paginate(github.rest.pulls.list, {owner, repo, state: 'open', per_page: 100}),
+            ]);
+            const main = repository.data.default_branch;
+            const reserved = new Set([main]);
+            for (const pr of openPRs) {
+              reserved.add(pr.base.ref);
+              if (pr.head.repo?.full_name === repository.data.full_name) reserved.add(pr.head.ref);
+            }
+            const candidates = branches.filter(b => !b.protected && !reserved.has(b.name));
+            let deleted = 0, nonAncestors = 0, moved = 0;
+            const failures = [];
+            for (const branch of candidates) {
+              try {
+                const comparison = await github.rest.repos.compareCommits({
+                  owner, repo, base: main, head: branch.name
+                });
+                // No commits outside main. Re-read the ref and compare again
+                // against the exact SHA to avoid branch-name movement.
+                if (comparison.data.ahead_by !== 0) { nonAncestors++; continue; }
+                const ref = `heads/${branch.name}`;
+                const current = await github.rest.git.getRef({owner, repo, ref});
+                if (current.data.object.sha !== branch.commit.sha) { moved++; continue; }
+                const verified = await github.rest.repos.compareCommits({
+                  owner, repo, base: main, head: current.data.object.sha
+                });
+                if (verified.data.ahead_by !== 0) { moved++; continue; }
+                if (dryRun) {
+                  core.info(`DRY RUN ancestor-only: ${branch.name} @ ${branch.commit.sha}`);
+                  continue;
+                }
+                await github.rest.git.deleteRef({owner, repo, ref});
+                deleted++;
+                core.info(`Deleted ancestor-only branch ${branch.name}`);
+              } catch (error) {
+                if (error.status === 404) { moved++; continue; }
+                failures.push(`${branch.name}: ${error.status || error.message}`);
+              }
+            }
+            core.summary.addHeading('Ancestor-only branch pruning')
+              .addTable([
+                [{data:'Metric',header:true},{data:'Count',header:true}],
+                ['Branches examined',String(branches.length)],
+                ['Eligible refs examined',String(candidates.length)],
+                ['Unique-history refs preserved',String(nonAncestors)],
+                ['Deleted',String(deleted)],
+                ['Moved/absent',String(moved)],
+                ['Failures',String(failures.length)],
+                ['Dry run',String(dryRun)]
+              ]);
+            if (failures.length) {
+              core.summary.addRaw('\n' + failures.slice(0,30).join('\n'));
+              core.setFailed('Some ancestor-only refs could not be pruned');
+            }
+            await core.summary.write();
