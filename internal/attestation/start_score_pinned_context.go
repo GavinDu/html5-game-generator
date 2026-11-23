@@ -54,6 +54,11 @@ func fingerprintPinnedStartScoreContext(
 		return pinnedStartScoreContext{}, fmt.Errorf("pinned diagnostic raw IR digest mismatch")
 	}
 
+	// A matching raw digest is not proof of unambiguous Go/Pixi semantics.
+	if err := validatePinnedStartScoreWire(rawIR); err != nil {
+		return pinnedStartScoreContext{}, err
+	}
+
 	// Reuse the only supported, fail-closed scalar diagnostic profile. An
 	// opaque but syntactically correct SHA cannot grant unsupported semantics.
 	doc, err := gameir.DecodeAndValidate(rawIR)
