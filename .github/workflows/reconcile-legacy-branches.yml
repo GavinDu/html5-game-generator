@@ -66,6 +66,10 @@ jobs:
                   row.disposition='SKIP moved'; skipped++; continue;
                 }
               } catch(e) {
+                if (e.status === 404) {
+                  row.disposition='SKIP concurrently deleted'; skipped++;
+                  continue;
+                }
                 row.disposition='SKIP compare/ref error'; skipped++;
                 failures.push(b.name+': compare/ref '+(e.status||e.message));
                 continue;
