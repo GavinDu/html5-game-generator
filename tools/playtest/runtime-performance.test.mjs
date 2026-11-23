@@ -106,3 +106,32 @@ test('terminal and failed state block late rule dispatch, execution and collisio
   assert.match(source, /function execute\(actions, sourceEnt, targetEnt, startupRule\) \{\s*if \(state\.ended \|\| state\.failed\) return;/);
   assert.match(source, /function handleContact\(a, b, started\) \{\s*if \(state\.ended \|\| state\.failed \|\| !playerEnt\) return;/);
 });
+
+
+test('image workers enforce streaming byte ceilings and retain a bounded fetch deadline', () => {
+  assert.match(source, /const MAX_IMAGE_TRANSFER_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(source, /const reader = response\.body\.getReader\(\)/);
+  assert.match(source, /if \(totalBytes > MAX_IMAGE_TRANSFER_BYTES\)/);
+  assert.match(source, /await reader\.cancel\(\)\.catch/);
+  assert.match(source, /blob\.size > MAX_IMAGE_TRANSFER_BYTES/);
+  const authenticatedFetch = source.indexOf('authenticatedAssetFetchOptions(requestController.signal)');
+  const bodyRead = source.indexOf('imageBlob = await readBoundedImageBlob(response)');
+  const stopTimeout = source.indexOf('clearTimeout(requestTimeout)', bodyRead);
+  assert.ok(authenticatedFetch > 0 && authenticatedFetch < bodyRead,
+    'private image transport must preserve the current authorization flow');
+  assert.ok(bodyRead > authenticatedFetch && stopTimeout > bodyRead,
+    'abort deadline must remain active until the response body is consumed');
+});
+
+test('decoded image dimensions and aggregate pixel quota are checked before GPU upload', () => {
+  assert.match(source, /const MAX_IMAGE_DIMENSION = 4096/);
+  assert.match(source, /const MAX_IMAGE_PIXELS = 16 \* 1024 \* 1024/);
+  assert.match(source, /const MAX_TOTAL_IMAGE_PIXELS = 32 \* 1024 \* 1024/);
+  assert.match(source, /pixels > MAX_IMAGE_PIXELS/);
+  assert.match(source, /decodedImagePixels \+ pixels > MAX_TOTAL_IMAGE_PIXELS/);
+  const bounds = source.indexOf('decodedImagePixels + pixels > MAX_TOTAL_IMAGE_PIXELS');
+  const activeGate = source.indexOf('attempt.assertActive();', bounds);
+  const upload = source.indexOf('const texture = PIXI.Texture.from(img)', bounds);
+  assert.ok(bounds >= 0 && activeGate > bounds && upload > activeGate,
+    'current game run must remain active and texture size must be validated before GPU upload');
+});
