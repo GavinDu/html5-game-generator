@@ -1,0 +1,47 @@
+name: Prune verified superseded playtest branches
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/prune-superseded-playtest.yml]
+permissions:
+  contents: write
+  pull-requests: read
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const {owner,repo}=context.repo;
+            const merged=(await github.rest.pulls.get({owner,repo,pull_number:529})).data;
+            if (!merged.merged || merged.base.ref !== 'main') throw Error('Consolidation not merged');
+            const candidates=[
+              [306,'fix/playtest-record-only-successful-actions-20261110','a292b22a9fff6c9f7b2d420301284312755c102d'],
+              [307,'feat/private-playtest-staging-transport-20261110','0cbde2d0fe1bee7b045b66e2d47f9c9c0d76e4db'],
+              [309,'feat/prepublish-browser-gate-hook-20261110','435e791c35940adeda02807b6ba50427a4daed88']
+            ];
+            const repoInfo=(await github.rest.repos.get({owner,repo})).data;
+            const files=await github.paginate(github.rest.pulls.listFiles,{owner,repo,pull_number:529});
+            const normalize=p=>p?.split('\n').filter(l=>!l.startsWith('@@')).join('\n');
+            for(const [number,branch,sha] of candidates){
+              const old=(await github.rest.pulls.get({owner,repo,pull_number:number})).data;
+              if(old.state!=='closed'||old.head.sha!==sha||old.head.ref!==branch) throw Error('Old PR mismatch '+branch);
+              const oldFiles=await github.paginate(github.rest.pulls.listFiles,{owner,repo,pull_number:number});
+              for(const f of oldFiles){
+                const target=files.find(x=>x.filename===f.filename);
+                if(!target) throw Error('Missing consolidated file '+f.filename);
+                if(f.sha===target.sha) continue;
+                if(f.filename==='tools/playtest/package.json'){
+                  const additions=p=>p.split('\n').filter(l=>l.startsWith('+')&&!l.startsWith('+++'));
+                  if(!additions(f.patch).some(l=>l.includes('input-dispatch-evidence.test.mjs'))||!additions(target.patch).some(l=>l.includes('input-dispatch-evidence.test.mjs'))) throw Error('Missing test registration');
+                }else if(!f.patch||normalize(f.patch)!==normalize(target.patch)) throw Error('Patch mismatch '+f.filename);
+              }
+              const open=await github.paginate(github.rest.pulls.list,{owner,repo,state:'open'});
+              if(branch===repoInfo.default_branch||open.some(p=>p.base.ref===branch||p.head.ref===branch)) continue;
+              let current;
+              try{current=(await github.rest.repos.getBranch({owner,repo,branch})).data;}catch(e){if(e.status===404)continue;throw e;}
+              if(current.protected||current.commit.sha!==sha)continue;
+              await github.rest.git.deleteRef({owner,repo,ref:'heads/'+branch});
+              core.info('Deleted verified superseded branch '+branch);
+            }

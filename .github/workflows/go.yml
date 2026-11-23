@@ -65,11 +65,11 @@ jobs:
   playtest:
     needs: test
     runs-on: ubuntu-24.04
-    # Run browsers sequentially: WebKit and Chromium are resource-heavy and
-    # simultaneous matrix dispatch adds pressure without improving the gate.
+    # Each hosted job has an isolated runner and local server. Run both engines
+    # concurrently to shorten the critical path without reducing coverage.
     strategy:
       fail-fast: true
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         browser: [chromium, webkit]
     steps:
