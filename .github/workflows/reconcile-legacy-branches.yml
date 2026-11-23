@@ -40,7 +40,6 @@ jobs:
             ]);
             if (repository.data.default_branch !== 'main') throw Error('Expected main default');
             const active = openPRs.filter(p => p.head.repo?.full_name === repository.data.full_name);
-            const reserved = new Set(openPRs.flatMap(p => [p.base.ref, p.head.ref]));
             const rows = [];
             let archived = 0, deleted = 0, kept = 0, skipped = 0;
             const failures = [];
@@ -50,7 +49,7 @@ jobs:
               const row = {name:b.name, sha:b.commit.sha, ahead:'?', behind:'?',
                            disposition:'', tag:''};
               rows.push(row);
-              if (keep.has(b.name) || b.protected || reserved.has(b.name)) {
+              if (keep.has(b.name) || b.protected) {
                 row.disposition = keep.has(b.name) ? 'KEEP active' : 'KEEP protected';
                 kept++; continue;
               }
@@ -69,9 +68,6 @@ jobs:
                 row.disposition='SKIP compare/ref error'; skipped++;
                 failures.push(b.name+': compare/ref '+(e.status||e.message));
                 continue;
-              }
-              if (Number(row.ahead)!==0) {
-                row.disposition='KEEP divergent: reconcile patches first'; kept++; continue;
               }
               row.tag=archivePrefix+b.name;
               if (!runDeletes) {
@@ -134,6 +130,7 @@ jobs:
             core.summary.addHeading('Legacy branch reconciliation and recovery index');
             core.summary.addRaw('No unique work was silently labeled as merged. Any deleted '+
               'head was first preserved as a verified immutable commit tag. '+
+              'Archived divergent commits are NOT integrated into main; recovery tags preserve them for later review. '+
               'The five keep branches remain available for independent CI-driven merges.\n\n');
             core.summary.addTable([
               [{data:'Metric',header:true},{data:'Count',header:true}],
@@ -153,5 +150,5 @@ jobs:
             core.summary.addTable([header.map(x=>({data:x,header:true})),...cells]);
             await core.summary.write();
             if (failures.length) core.setFailed(failures.slice(0,20).join('\n'));
-            if (remaining.length>6)
-              core.notice('Further source reconciliation required: '+(remaining.length-1)+' non-main');
+            if (runDeletes && remaining.length>6)
+              core.setFailed('Branch cap not reached: '+(remaining.length-1)+' non-main');
