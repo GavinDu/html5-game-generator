@@ -32,7 +32,16 @@ jobs:
               (context.eventName === 'workflow_dispatch' &&
                context.payload.inputs?.dry_run === 'false');
             const archivePrefix = 'archive/2026-11-22/legacy-branches/';
-            const keep = new Set(["runtime/642-711-inventory-package-serialized-byte-audit-20261120","feat/runtime-202-private-go-scalar-predicates-465","feat/runtime-202-pure-go-start-score-reduction-471","fix/runtime-202-replay-package-provenance-360","fix/runtime-316-bounded-image-assets"]);
+            // Original feature heads already merged by exact-head PR are pruned elsewhere.
+            // Keep only two independent integration candidates, and archive all
+            // other divergent heads with immutable tags and a durable tracking issue.
+            const keep = new Set(["fix/runtime-202-replay-package-provenance-360","fix/runtime-316-bounded-image-assets"]);
+            const deferredIssueNumber = 536;
+            const deferredIssue = await github.rest.issues.get({
+              owner, repo, issue_number: deferredIssueNumber
+            });
+            if (deferredIssue.data.state !== 'open')
+              throw Error('Deferred original-head tracking issue #536 must remain open');
             const [repository, branches, openPRs] = await Promise.all([
               github.rest.repos.get({owner, repo}),
               github.paginate(github.rest.repos.listBranches, {owner, repo, per_page: 100}),
@@ -44,6 +53,7 @@ jobs:
             const rows = [];
             let archived = 0, deleted = 0, kept = 0, skipped = 0;
             const failures = [];
+            const deferredRows = [];
             const candidates = branches.filter(b => b.name !== 'main');
             if (keep.size > 5) throw Error('Too many keep refs');
             for (const b of candidates) {
@@ -70,9 +80,9 @@ jobs:
                 failures.push(b.name+': compare/ref '+(e.status||e.message));
                 continue;
               }
-              if (Number(row.ahead)!==0) {
-                row.disposition='KEEP divergent: reconcile patches first'; kept++; continue;
-              }
+              // Divergent history is deliberately not treated as merged.
+              // Source is recoverable via a verified tag and stays tracked in
+              // issue #536 as deferred implementation work.
               row.tag=archivePrefix+b.name;
               if (!runDeletes) {
                 row.disposition = Number(row.ahead)===0 ? 'DRY RUN ancestor' : 'DRY RUN unique';
@@ -122,6 +132,9 @@ jobs:
                 deleted++;
                 row.disposition = Number(row.ahead)===0 ? 'ARCHIVED + DELETE ancestor' :
                   'ARCHIVED + DELETE unmerged';
+                if (Number(row.ahead) > 0)
+                  deferredRows.push({name:b.name,sha:b.commit.sha,ahead:row.ahead,
+                    behind:row.behind,tag:row.tag});
                 core.info(row.disposition+': '+b.name+' @ '+b.commit.sha+' -> '+row.tag);
               } catch(e) {
                 row.disposition='SKIP preservation/delete error'; skipped++;
@@ -153,5 +166,23 @@ jobs:
             core.summary.addTable([header.map(x=>({data:x,header:true})),...cells]);
             await core.summary.write();
             if (failures.length) core.setFailed(failures.slice(0,20).join('\n'));
-            if (remaining.length>6)
-              core.notice('Further source reconciliation required: '+(remaining.length-1)+' non-main');
+            if (runDeletes && deferredRows.length) {
+              const body = [
+                '## Automated recovery ledger — '+context.runId,
+                '',
+                '**These branches were archived and deleted as live refs, NOT merged into main.**',
+                'Each immutable original SHA was verified against its recovery tag before deletion.',
+                '',
+                '| Original branch | Original SHA | Ahead | Behind | Recovery tag |',
+                '|---|---|---:|---:|---|',
+                ...deferredRows.map(r => '| \`'+r.name+'\` | \`'+r.sha+'\` | '+
+                   r.ahead+' | '+r.behind+' | \`'+r.tag+'\` |'),
+                '',
+                'Restore only the needed missing source in new CI-gated pull requests.'
+              ].join('\\n');
+              await github.rest.issues.createComment({
+                owner,repo,issue_number:deferredIssueNumber,body
+              });
+            }
+            if (runDeletes && remaining.length > 6)
+              core.setFailed('Live non-main branch cap not reached: '+(remaining.length-1));
