@@ -179,7 +179,7 @@ jobs:
                    r.ahead+' | '+r.behind+' | \`'+r.tag+'\` |'),
                 '',
                 'Restore only the needed missing source in new CI-gated pull requests.'
-              ].join('\\n');
+              ].join('\n');
               await github.rest.issues.createComment({
                 owner,repo,issue_number:deferredIssueNumber,body
               });
