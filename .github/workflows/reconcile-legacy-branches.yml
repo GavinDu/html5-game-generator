@@ -1,0 +1,157 @@
+name: Reconcile legacy branches with recovery tags
+on:
+  pull_request:
+    paths: [.github/workflows/reconcile-legacy-branches.yml]
+  push:
+    branches: [main]
+    paths: [.github/workflows/reconcile-legacy-branches.yml]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Audit without modifying any ref
+        type: boolean
+        default: true
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+concurrency:
+  group: reconcile-legacy-branches
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Compare, preserve, and prune safely
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const runDeletes = context.eventName === 'push' ||
+              (context.eventName === 'workflow_dispatch' &&
+               context.payload.inputs?.dry_run === 'false');
+            const archivePrefix = 'archive/2026-11-22/legacy-branches/';
+            const keep = new Set(["runtime/642-711-inventory-package-serialized-byte-audit-20261120","feat/runtime-202-private-go-scalar-predicates-465","feat/runtime-202-pure-go-start-score-reduction-471","fix/runtime-202-replay-package-provenance-360","fix/runtime-316-bounded-image-assets"]);
+            const [repository, branches, openPRs] = await Promise.all([
+              github.rest.repos.get({owner, repo}),
+              github.paginate(github.rest.repos.listBranches, {owner, repo, per_page: 100}),
+              github.paginate(github.rest.pulls.list, {owner, repo, state:'open', per_page:100})
+            ]);
+            if (repository.data.default_branch !== 'main') throw Error('Expected main default');
+            const active = openPRs.filter(p => p.head.repo?.full_name === repository.data.full_name);
+            const reserved = new Set(openPRs.flatMap(p => [p.base.ref, p.head.ref]));
+            const rows = [];
+            let archived = 0, deleted = 0, kept = 0, skipped = 0;
+            const failures = [];
+            const candidates = branches.filter(b => b.name !== 'main');
+            if (keep.size > 5) throw Error('Too many keep refs');
+            for (const b of candidates) {
+              const row = {name:b.name, sha:b.commit.sha, ahead:'?', behind:'?',
+                           disposition:'', tag:''};
+              rows.push(row);
+              if (keep.has(b.name) || b.protected || reserved.has(b.name)) {
+                row.disposition = keep.has(b.name) ? 'KEEP active' : 'KEEP protected';
+                kept++; continue;
+              }
+              try {
+                const compare = await github.rest.repos.compareCommits({
+                  owner, repo, base:'main', head:b.commit.sha, per_page:1
+                });
+                row.ahead = compare.data.ahead_by;
+                row.behind = compare.data.behind_by;
+                // The deletion guard re-reads the branch after tag preservation.
+              } catch(e) {
+                if (e.status === 404) {
+                  row.disposition='SKIP concurrently deleted'; skipped++;
+                  continue;
+                }
+                row.disposition='SKIP compare/ref error'; skipped++;
+                failures.push(b.name+': compare/ref '+(e.status||e.message));
+                continue;
+              }
+              if (Number(row.ahead)!==0) {
+                row.disposition='KEEP divergent: reconcile patches first'; kept++; continue;
+              }
+              row.tag=archivePrefix+b.name;
+              if (!runDeletes) {
+                row.disposition = Number(row.ahead)===0 ? 'DRY RUN ancestor' : 'DRY RUN unique';
+                continue;
+              }
+              // Save the exact commit as a durable lightweight tag BEFORE any ref deletion.
+              try {
+                let tagSha;
+                try {
+                  const created = await github.rest.git.createRef({
+                    owner,repo,ref:'refs/tags/'+row.tag,sha:b.commit.sha
+                  });
+                  tagSha = created.data.object.sha;
+                } catch(e) {
+                  if (e.status!==422) throw e;
+                  const existing = await github.rest.git.getRef({
+                    owner,repo,ref:'tags/'+row.tag
+                  });
+                  tagSha = existing.data.object.sha;
+                }
+                if (tagSha !== b.commit.sha)
+                  throw Error('archive tag points to a different SHA');
+                archived++;
+                // A PR head will become unavailable after branch deletion; explain
+                // exactly where its immutable original head can still be recovered.
+                for (const p of active.filter(p=>p.head.ref===b.name)) {
+                  const body = 'Branch reconciliation: original head ' + b.commit.sha +
+                    ' was preserved as tag '+row.tag+'. This draft/PR is closed before '+
+                    'deleting its branch; it was NOT automatically merged into main. '+
+                    'Restore from the tag if its changes are needed.';
+                  await github.rest.issues.createComment({
+                    owner,repo,issue_number:p.number,body
+                  });
+                  await github.rest.pulls.update({
+                    owner,repo,pull_number:p.number,state:'closed'
+                  });
+                }
+                const reread=await github.rest.git.getRef({
+                  owner,repo,ref:'heads/'+b.name
+                });
+                if (reread.data.object.sha!==b.commit.sha) {
+                  row.disposition='SKIP moved after archive'; skipped++; continue;
+                }
+                await github.rest.git.deleteRef({
+                  owner,repo,ref:'heads/'+b.name
+                });
+                deleted++;
+                row.disposition = Number(row.ahead)===0 ? 'ARCHIVED + DELETE ancestor' :
+                  'ARCHIVED + DELETE unmerged';
+                core.info(row.disposition+': '+b.name+' @ '+b.commit.sha+' -> '+row.tag);
+              } catch(e) {
+                row.disposition='SKIP preservation/delete error'; skipped++;
+                failures.push(b.name+': mutation '+(e.status||e.message));
+              }
+            }
+            const remaining=await github.paginate(github.rest.repos.listBranches,{
+              owner,repo,per_page:100
+            });
+            core.summary.addHeading('Legacy branch reconciliation and recovery index');
+            core.summary.addRaw('No unique work was silently labeled as merged. Any deleted '+
+              'head was first preserved as a verified immutable commit tag. '+
+              'The five keep branches remain available for independent CI-driven merges.\n\n');
+            core.summary.addTable([
+              [{data:'Metric',header:true},{data:'Count',header:true}],
+              ['Initial non-main branches',String(candidates.length)],
+              ['Allowed active non-main branches',String(keep.size)],
+              ['Kept',String(kept)],['Archived',String(archived)],
+              ['Deleted',String(deleted)],['Skipped',String(skipped)],
+              ['Remaining non-main branches',String(remaining.length-1)],
+              ['Failures',String(failures.length)],
+              ['Mode',runDeletes?'Archive + prune':'Dry run']
+            ]);
+            const header=['Branch','Head SHA','Ahead','Behind','Disposition','Recovery tag'];
+            const cells=rows.map(r=>[
+              r.name,r.sha.slice(0,12),String(r.ahead),String(r.behind),
+              r.disposition,r.tag
+            ]);
+            core.summary.addTable([header.map(x=>({data:x,header:true})),...cells]);
+            await core.summary.write();
+            if (failures.length) core.setFailed(failures.slice(0,20).join('\n'));
+            if (remaining.length>6)
+              core.notice('Further source reconciliation required: '+(remaining.length-1)+' non-main');
