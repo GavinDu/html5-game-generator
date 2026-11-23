@@ -35,7 +35,11 @@ jobs:
             // Original feature heads already merged by exact-head PR are pruned elsewhere.
             // Keep only two independent integration candidates, and archive all
             // other divergent heads with immutable tags and a durable tracking issue.
-            const keep = new Set(["fix/runtime-202-replay-package-provenance-360","fix/runtime-316-bounded-image-assets"]);
+            // Both original runtime heads were source-reconciled and closed
+            // as superseded only after the complete implementation/tests
+            // were verified on main (see PRs #539, #540, #541 and issue #536).
+            // Keep any currently open PR heads via the reserved set below.
+            const keep = new Set([]);
             const deferredIssueNumber = 536;
             const deferredIssue = await github.rest.issues.get({
               owner, repo, issue_number: deferredIssueNumber
@@ -137,6 +141,29 @@ jobs:
                     behind:row.behind,tag:row.tag});
                 core.info(row.disposition+': '+b.name+' @ '+b.commit.sha+' -> '+row.tag);
               } catch(e) {
+                // GitHub's independently running merged-PR pruner may remove
+                // our own source branch between this job's initial list and
+                // the final lease read. Report that exact verified race as
+                // benign; never hide another 404 if the branch still exists.
+                if (e.status === 404) {
+                  let refAbsent = false;
+                  try {
+                    await github.rest.git.getRef({owner,repo,ref:'heads/'+b.name});
+                  } catch(readError) {
+                    if (readError.status === 404) refAbsent = true;
+                  }
+                  if (refAbsent) {
+                    try {
+                      const preserved = await github.rest.git.getRef({
+                        owner,repo,ref:'tags/'+row.tag
+                      });
+                      if (preserved.data.object.sha === b.commit.sha) {
+                        row.disposition='SKIP concurrently removed, SHA tag verified';
+                        skipped++; continue;
+                      }
+                    } catch { /* a missing/mismatched archive is a real failure */ }
+                  }
+                }
                 row.disposition='SKIP preservation/delete error'; skipped++;
                 failures.push(b.name+': mutation '+(e.status||e.message));
               }
