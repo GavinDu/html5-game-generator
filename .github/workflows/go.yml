@@ -26,20 +26,87 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Verify Replit deploy builds a binary before startup
+      - name: Verify Replit deploy builds, boots and reports the checked-out revision
         run: |
           python3 - <<'PY'
+          import http.client
+          import json
           import os
+          import socket
           import subprocess
+          import tempfile
+          import time
           import tomllib
+
           with open(".replit", "rb") as file:
               deployment = tomllib.load(file)["deployment"]
           assert deployment["run"] == ["./bin/server"], "production must run the compiled server"
           command = deployment["build"]
           assert command[:2] == ["sh", "-c"] and "go build" in command[2], "missing deployment build"
           assert "-mod=readonly" in command[2], "module locks must be respected"
+          expected_revision = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
           subprocess.run(command, check=True)
           assert os.access("bin/server", os.X_OK), "Replit binary was not created"
+
+          # Exercise the deployment's actual run command, not a second go build
+          # or go run. Use an isolated disposable store and direct loopback HTTP;
+          # no production data, credentials, redirects or deployment writes.
+          with socket.socket() as sock:
+              sock.bind(("127.0.0.1", 0))
+              port = sock.getsockname()[1]
+
+          def read_json(path):
+              connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+              try:
+                  connection.request("GET", path, headers={"Accept": "application/json"})
+                  with connection.getresponse() as response:
+                      assert response.status == 200, "deployment endpoint not healthy: " + path
+                      assert response.getheader("Content-Type", "").split(";")[0].strip() == "application/json"
+                      body = response.read(4097)
+                      assert len(body) <= 4096, "deployment evidence exceeded response budget"
+                      value = json.loads(body)
+                      assert isinstance(value, dict), "deployment evidence must be a JSON object"
+                      return value
+              finally:
+                  connection.close()
+
+          with tempfile.TemporaryDirectory(prefix="dq-deploy-smoke-") as tmp:
+              env = dict(os.environ, PORT=str(port), INVENTORY_DIR="inventory",
+                         DQ_STORE_FILE=os.path.join(tmp, "store-state.json"))
+              process = subprocess.Popen(deployment["run"], env=env,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              try:
+                  deadline = time.monotonic() + 45
+                  while True:
+                      assert process.poll() is None, "deployment binary exited during startup"
+                      try:
+                          health = read_json("/healthz")
+                          break
+                      except (OSError, http.client.HTTPException):
+                          if time.monotonic() >= deadline:
+                              raise SystemExit("deployment binary did not become reachable") from None
+                          time.sleep(0.25)
+                  assert health.get("status") == "ok" and health.get("service") == "doodlequest"
+                  readiness = read_json("/readyz")
+                  assert readiness.get("status") == "ok", "deployment store not ready"
+                  assert readiness.get("persistence_enabled") is True, "deployment persistence not enabled"
+                  release = read_json("/v1/runtime/release")
+                  assert release.get("sourceRevisionStatus") == "reported_clean_vcs", "unverified build revision"
+                  assert release.get("sourceRevision") == expected_revision, "deployment revision differs from checkout"
+                  assert release.get("packageFormatVersion") == "2.0", "deployment package format is not v2"
+                  for key in ("minRuntimeVersion", "irVersion"):
+                      assert isinstance(release.get(key), str) and release[key], "missing runtime release contract"
+                  print("REPLIT_BINARY_SMOKE_OK clean_checkout=true persistence=true package_format=2.0")
+              finally:
+                  if process.poll() is None:
+                      process.terminate()
+                      try:
+                          process.wait(timeout=5)
+                      except subprocess.TimeoutExpired:
+                          process.kill()
+                          process.wait(timeout=5)
           PY
       - name: Verify formatting of new Go files
         run: |
