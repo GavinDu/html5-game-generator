@@ -62,7 +62,7 @@ jobs:
               try:
                   connection.request("GET", path, headers={"Accept": "application/json"})
                   with connection.getresponse() as response:
-                      assert response.status == 200, "deployment endpoint not healthy: " + path
+                      assert response.status == 200, f"deployment endpoint not healthy: {path} HTTP {response.status}"
                       assert response.getheader("Content-Type", "").split(";")[0].strip() == "application/json"
                       body = response.read(4097)
                       assert len(body) <= 4096, "deployment evidence exceeded response budget"
