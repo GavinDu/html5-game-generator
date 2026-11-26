@@ -129,3 +129,44 @@ func TestReleaseProvenanceHTTPDoesNotLeakRequestOrClaimUnknownSource(t *testing.
 		t.Fatalf("release endpoint must reject write methods, got %d", wrongMethod.Code)
 	}
 }
+
+// The actual production middleware must admit an anonymous release probe,
+// not just the handler or the legacy test-only insecure identity mode.
+func TestRuntimeReleasePublicReadDoesNotRelaxAuthentication(t *testing.T) {
+	const path = "/v1/runtime/release"
+	const secret = "test-only-release-auth-secret"
+	t.Setenv("DQ_ALLOW_INSECURE_USER_ID", "false")
+	st := store.NewMemoryStore()
+	handler := New(st, pipeline.NewRunner(st)).Routes()
+	for _, signingSecret := range []string{"", secret} {
+		t.Setenv("DQ_AUTH_HMAC_SECRET", signingSecret)
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			req := httptest.NewRequest(method, path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK || rec.Header().Get("Cache-Control") != "no-store" {
+				t.Fatalf("public release %s got %d, cache=%q", method, rec.Code, rec.Header().Get("Cache-Control"))
+			}
+		}
+		want := http.StatusUnauthorized
+		if signingSecret == "" {
+			want = http.StatusServiceUnavailable
+		}
+		for _, target := range []struct {
+			method string
+			path   string
+		}{
+			{http.MethodPost, path},
+			{http.MethodGet, path + "/other"},
+			{http.MethodGet, "/v1/users/me/projects"},
+		} {
+			req := httptest.NewRequest(target.method, target.path, nil)
+			req.Header.Set("X-User-ID", "spoofed-viewer")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != want {
+				t.Fatalf("protected %s %s got %d, want %d", target.method, target.path, rec.Code, want)
+			}
+		}
+	}
+}

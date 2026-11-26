@@ -102,6 +102,13 @@ func requiresUserAuth(r *http.Request) bool {
 	if r.URL.Path == "/v1/auth/apple" {
 		return false // issuance is how a client obtains a session
 	}
+	// Public release metadata contains only fixed compatibility fields and
+	// clean binary revision provenance. Do not exempt other runtime paths
+	// or any write method from user authentication.
+	if r.URL.Path == "/v1/runtime/release" &&
+		(r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		return false
+	}
 	// Must precede the broad public /v1/users/{id} creator-profile read.
 	// Private draft/project enumeration is *never* a public profile route.
 	if r.URL.Path == "/v1/users/me/projects" {
